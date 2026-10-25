@@ -1,7 +1,7 @@
 import Testing
 @testable import Oriveo
 
-@Suite("Provider Endpoint Options")
+@Suite("Provider Endpoint Options", .sharedProcessState)
 struct ProviderEndpointOptionsTests {
 
     @Test("Mini Max Official Endpoints")
@@ -103,11 +103,28 @@ struct ProviderEndpointOptionsTests {
     }
 
     @Test("Grok Attachment Support")
-    func grokAttachmentSupport() {
+    func grokAttachmentSupport() async throws {
+        // An official provider's attachment support comes from metadata only, so inject a snapshot before asserting.
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(json: """
+        {
+          "version": 1,
+          "contractVersion": 1,
+          "providers": {
+            "grok": {
+              "attachmentSupport": { "image": true, "nativeFile": false, "textFileInline": true },
+              "resolveMap": {},
+              "models": {}
+            }
+          }
+        }
+        """)
+
         let support = ProviderKind.grok.attachmentSupport
         #expect(support.image == true)
         #expect(support.nativeFile == false)
         #expect(support.textFileInline == true)
+        await MetadataClient.shared.resetForTesting()
     }
 
     @Test("Grok Recognizes APIKey Prefix")

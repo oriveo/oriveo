@@ -47,7 +47,7 @@ private func makeProviderManagerRelaySyncSession() -> URLSession {
     return URLSession(configuration: configuration)
 }
 
-@Suite("ProviderManager Relay catalog sync", .serialized)
+@Suite("ProviderManager Relay catalog sync", .serialized, .sharedProcessState)
 @MainActor
 struct ProviderManagerRelaySyncTests {
     @Test("Catalog Refresh Retains Enabled Model Missing From Result")

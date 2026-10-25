@@ -5,7 +5,7 @@ import Foundation
 import Testing
 @testable import Oriveo
 
-@Suite("Provider Key Validator Tests")
+@Suite("Provider Key Validator Tests", .sharedProcessState)
 struct ProviderKeyValidatorTests {
 
     private typealias Signal = MetadataClient.ProviderValidation.InvalidKeySignal

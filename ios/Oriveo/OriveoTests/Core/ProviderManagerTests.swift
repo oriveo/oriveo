@@ -72,7 +72,7 @@ private func providerManagerRequestBody(from request: URLRequest) -> Data? {
     return data.isEmpty ? nil : data
 }
 
-@Suite("ProviderManager", .serialized)
+@Suite("ProviderManager", .serialized, .sharedProcessState)
 @MainActor
 struct ProviderManagerTests {
     private static var retainedStates: [AppState] = []
@@ -201,8 +201,8 @@ struct ProviderManagerTests {
                   "enabled": true,
                   "flow": "codex_device_code",
                   "clientId": "app_EMoamEEZ73f0CkXaXp7hrann",
-                  "deviceAuthorizationEndpoint": "https://auth.openai.com/deviceauth/usercode",
-                  "deviceTokenEndpoint": "https://auth.openai.com/deviceauth/token",
+                  "deviceAuthorizationEndpoint": "https://auth.openai.com/api/accounts/deviceauth/usercode",
+                  "deviceTokenEndpoint": "https://auth.openai.com/api/accounts/deviceauth/token",
                   "tokenEndpoint": "https://auth.openai.com/oauth/token",
                   "verificationURL": "https://auth.openai.com/codex/device",
                   "redirectURI": "https://auth.openai.com/deviceauth/callback",
@@ -1612,8 +1612,8 @@ struct ProviderManagerTests {
         #expect(provider.status == .connected)
     }
 
-    @Test("Provider Update Normalizes Conversation Model To Canonical Identifier")
-    func providerUpdateNormalizesConversationModelToCanonicalIdentifier() {
+    @Test("A dated-alias conversation keeps its modelID after a provider change")
+    func providerUpdateKeepsDatedAliasConversationModel() {
         let state = makeState()
         let providerID = UUID()
         let snapshotModel = TestFactories.makeModel(
@@ -1646,7 +1646,7 @@ struct ProviderManagerTests {
             )
         )
 
-        #expect(state.conversations.first?.modelID == "gpt-5.4")
+        #expect(state.conversations.first?.modelID == "gpt-5.4-2026-03-05")
     }
 
     private func loadOfficialCatalogMetadata() async throws {
@@ -2164,8 +2164,8 @@ struct ProviderManagerTests {
         #expect(newProvider.models.map(\.id) == ["qwen3.6-plus"])
     }
 
-    @Test("Provider Update Falls Back Conversation Model To Default")
-    func providerUpdateFallsBackConversationModelToDefault() {
+    @Test("A conversation whose model is missing keeps its modelID after a provider change")
+    func providerUpdateKeepsMissingConversationModel() {
         let state = makeState()
         let providerID = UUID()
         let defaultModel = TestFactories.makeModel(id: "gpt-4.1", name: "GPT-4.1", isDefault: true)
@@ -2193,7 +2193,7 @@ struct ProviderManagerTests {
             )
         )
 
-        #expect(state.conversations.first?.modelID == "gpt-4.1")
+        #expect(state.conversations.first?.modelID == "removed-model")
     }
 
     private func openAIRegisterMock() -> @Sendable (URLRequest) throws -> (HTTPURLResponse, Data) {

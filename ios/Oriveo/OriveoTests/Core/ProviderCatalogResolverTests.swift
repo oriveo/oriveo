@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Oriveo
 
-@Suite("ProviderCatalogResolver", .serialized)
+@Suite("ProviderCatalogResolver", .serialized, .sharedProcessState)
 struct ProviderCatalogResolverTests {
 
 

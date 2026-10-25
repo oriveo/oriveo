@@ -1,7 +1,7 @@
 import Testing
 @testable import Oriveo
 
-@Suite("Provider Setup Catalog")
+@Suite("Provider Setup Catalog", .sharedProcessState)
 struct ProviderSetupCatalogTests {
     @Test("Nil Provider Configs Use Fallback Catalog")
     func nilProviderConfigsUseFallbackCatalog() {

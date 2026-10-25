@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Oriveo
 
-@Suite("Provider + AppState flow helpers", .serialized)
+@Suite("Provider + AppState flow helpers", .serialized, .sharedProcessState)
 @MainActor
 struct ProviderAppStateFlowTests {
     private func waitUntil(
@@ -207,6 +207,28 @@ struct ProviderAppStateFlowTests {
         #expect(state.activeModel?.model.id == provider.defaultModel?.id)
     }
 
+    @Test("completeRelaySetup (providers) writes only the verified model, and without one it does not write the fallback as last used")
+    func completeRelaySetupWritesOnlyVerifiedModel() {
+        let first = TestFactories.makeModel(id: "relay-a", name: "Relay A")
+        let second = TestFactories.makeModel(id: "relay-b", name: "Relay B")
+        let provider = TestFactories.makeProvider(kind: .relay, models: [first, second], catalogModels: [first, second])
+
+        let unverified = makeState()
+        unverified.providers = [provider]
+        unverified.lastUsedModelRef = nil
+        unverified.completeRelaySetup(providerID: provider.id, entryPoint: .providers, verifiedModelID: nil, addedModelCount: 2)
+        #expect(unverified.lastUsedModelRef == nil)
+        #expect(unverified.selectedTab == .providers)
+        #expect(unverified.navigation.path == [.providerDetail(providerID: provider.id)])
+        #expect(unverified.consumeProviderDetailNotice(for: provider.id) == .addedModels(2))
+
+        let verified = makeState()
+        verified.providers = [provider]
+        verified.lastUsedModelRef = nil
+        verified.completeRelaySetup(providerID: provider.id, entryPoint: .providers, verifiedModelID: "relay-b", addedModelCount: 2)
+        #expect(verified.lastUsedModelRef == LastUsedModelRef(providerID: provider.id, modelID: "relay-b"))
+    }
+
     @Test("completeProviderSetup (modelPicker) selects the model and returns its caller stack")
     func completeProviderSetupModelPickerReturnsCaller() {
         let state = makeState()
@@ -341,6 +363,312 @@ struct ProviderAppStateFlowTests {
         state.startNewChat(preferredProviderID: provider.id, preferredModelID: "gpt-4o-mini")
 
         #expect(state.activeModel?.model.id == "gpt-4o-mini")
+    }
+
+    /// Both the toolbar new chat and the detail-page start chat go through `startNewChat(preferredProviderID:)`: the connection isDefault is not read,
+    /// and with no last-used pointing at this connection the catalog defaultModelId is taken.
+    @Test("New chat for a connection: ignores the connection isDefault and takes the catalog default")
+    func startNewChatForProviderIgnoresConnectionDefault() async throws {
+        try await withOpenAIMetadata {
+            let state = makeState()
+            let provider = TestFactories.makeProvider(
+                kind: .openAI,
+                models: [
+                    TestFactories.makeModel(id: "gpt-4o-mini", isDefault: true),
+                    TestFactories.makeModel(id: "o4-mini", canonicalModelId: "o4-mini"),
+                    TestFactories.makeModel(id: "gpt-4o", canonicalModelId: "gpt-4o")
+                ]
+            )
+            state.providers = [provider]
+            state.navigation.path = []
+            state.lastUsedModelRef = nil
+
+            state.startNewChat(preferredProviderID: provider.id)
+
+            #expect(state.navigation.path.last == .chat(conversationID: nil))
+            #expect(state.activeModel?.model.id == "gpt-4o")
+            #expect(state.lastUsedModelRef?.modelID == "gpt-4o")
+        }
+    }
+
+    @Test("New chat for a connection: the last-used model of that connection wins and is not rewritten by the connection default")
+    func startNewChatForProviderKeepsLastUsedOfThatProvider() async throws {
+        try await withOpenAIMetadata {
+            let state = makeState()
+            let provider = TestFactories.makeProvider(
+                kind: .openAI,
+                models: [
+                    TestFactories.makeModel(id: "gpt-4o-mini", isDefault: true),
+                    TestFactories.makeModel(id: "o4-mini", canonicalModelId: "o4-mini"),
+                    TestFactories.makeModel(id: "gpt-4o", canonicalModelId: "gpt-4o")
+                ]
+            )
+            state.providers = [provider]
+            state.navigation.path = []
+            state.lastUsedModelRef = LastUsedModelRef(providerID: provider.id, modelID: "o4-mini")
+
+            state.startNewChat(preferredProviderID: provider.id)
+
+            #expect(state.activeModel?.model.id == "o4-mini")
+            #expect(state.lastUsedModelRef?.modelID == "o4-mini")
+        }
+    }
+
+    @Test("A conversation with an empty modelID resolves its model through the new-chat chain and does not read the connection isDefault")
+    func currentModelForEmptyModelIDUsesNewChatChain() {
+        let state = makeState()
+        let provider = TestFactories.makeProvider(
+            kind: .openAI,
+            models: [
+                TestFactories.makeModel(id: "gpt-4o", isDefault: true),
+                TestFactories.makeModel(id: "gpt-4o-mini")
+            ]
+        )
+        state.providers = [provider]
+        state.lastUsedModelRef = LastUsedModelRef(providerID: provider.id, modelID: "gpt-4o-mini")
+        let conversation = TestFactories.makeConversation(providerID: provider.id, modelID: "")
+
+        #expect(state.currentModel(for: conversation)?.id == "gpt-4o-mini")
+    }
+
+    @Test("Detail-page start chat: a connection without credentials cannot start, opens no chat and writes no last-used")
+    func scopedStartChatWithMissingCredentialDoesNotStart() {
+        let state = makeState()
+        let provider = TestFactories.makeProvider(kind: .openAI, apiKey: "", apiKeyPreview: "")
+        state.providers = [provider]
+        state.lastUsedModelRef = nil
+        state.navigation.path = []
+
+        state.startNewChat(preferredProviderID: provider.id)
+
+        #expect(state.navigation.path.last != .chat(conversationID: nil))
+        #expect(state.lastUsedModelRef == nil)
+    }
+
+    @Test("Detail-page model row start chat: a connection without credentials cannot start, returns false and writes no last-used")
+    func modelRowStartChatWithMissingCredentialDoesNotStart() {
+        let state = makeState()
+        let provider = TestFactories.makeProvider(
+            kind: .openAI,
+            models: [TestFactories.makeModel(id: "gpt-4o-mini")],
+            apiKey: "",
+            apiKeyPreview: ""
+        )
+        state.providers = [provider]
+        state.lastUsedModelRef = nil
+        state.navigation.path = []
+
+        let opened = state.startNewChat(preferredProviderID: provider.id, preferredModelID: "gpt-4o-mini")
+
+        #expect(!opened)
+        #expect(state.navigation.path.last != .chat(conversationID: nil))
+        #expect(state.lastUsedModelRef == nil)
+    }
+
+    @Test("Adding a connection without a verified model: the fallback result only navigates and writes no last-used")
+    func completeProviderSetupWithoutVerifiedModelDoesNotWriteLastUsed() async {
+        let state = makeState()
+        let provider = TestFactories.makeProvider()
+        state.providers = [provider]
+        state.lastUsedModelRef = nil
+        state.navigation.path = []
+
+        state.completeProviderSetup(providerID: provider.id, entryPoint: .providers)
+
+        #expect(state.selectedTab == .home)
+        #expect(state.lastUsedModelRef == nil)
+        try? await Task.sleep(for: .milliseconds(20))
+        #expect(state.navigation.path == [.chat(conversationID: nil)])
+    }
+
+    @Test("Start realtime voice: an existing conversation writes its sendable model as last-used")
+    func realtimeVoiceStartWritesConversationSendableModel() {
+        let state = makeState()
+        let provider = TestFactories.makeProvider(
+            kind: .relay,
+            models: [
+                TestFactories.makeModel(id: "relay-default", isDefault: true),
+                TestFactories.makeModel(id: "relay-chat")
+            ]
+        )
+        state.providers = [provider]
+        let conversation = TestFactories.makeConversation(providerID: provider.id, providerKind: .relay, modelID: "relay-chat")
+        state.upsertConversationProjection(conversation)
+        state.lastUsedModelRef = nil
+
+        state.recordLastUsedForRealtimeVoice(conversationID: conversation.id)
+
+        #expect(state.lastUsedModelRef?.providerID == provider.id)
+        #expect(state.lastUsedModelRef?.modelID == "relay-chat")
+    }
+
+    @Test("Start realtime voice: an unsendable conversation model writes no last-used")
+    func realtimeVoiceStartSkipsUnsendableConversationModel() {
+        let state = makeState()
+        let provider = TestFactories.makeProvider(
+            kind: .relay,
+            models: [TestFactories.makeModel(id: "relay-default", isDefault: true)]
+        )
+        state.providers = [provider]
+        let conversation = TestFactories.makeConversation(providerID: provider.id, providerKind: .relay, modelID: "relay-removed")
+        state.upsertConversationProjection(conversation)
+        let previous = LastUsedModelRef(providerID: UUID(), modelID: "elsewhere")
+        state.lastUsedModelRef = previous
+
+        state.recordLastUsedForRealtimeVoice(conversationID: conversation.id)
+
+        #expect(state.lastUsedModelRef == previous)
+    }
+
+    @Test("Start realtime voice from home: writes the model currently shown in the pill as last-used")
+    func realtimeVoiceStartFromHomeWritesPillModel() throws {
+        let state = makeState()
+        let provider = TestFactories.makeProvider(
+            kind: .relay,
+            models: [TestFactories.makeModel(id: "relay-default", isDefault: true)]
+        )
+        state.providers = [provider]
+        state.lastUsedModelRef = nil
+        let active = try #require(state.activeModel)
+
+        state.recordLastUsedForRealtimeVoice(conversationID: nil)
+
+        #expect(state.lastUsedModelRef?.providerID == active.provider.id)
+        #expect(state.lastUsedModelRef?.modelID == active.model.id)
+    }
+
+    @Test("The first realtime voice turn on home creates the conversation: it takes the current pill model and writes no last-used")
+    func createConversationForRealtimeVoiceUsesActiveModel() throws {
+        let state = makeState()
+        let provider = TestFactories.makeProvider(
+            kind: .relay,
+            models: [
+                TestFactories.makeModel(id: "relay-default", isDefault: true),
+                TestFactories.makeModel(id: "relay-chat")
+            ]
+        )
+        state.providers = [provider]
+        state.setActiveModel(providerID: provider.id, modelID: "relay-chat")
+        let active = try #require(state.activeModel)
+        #expect(active.model.id == "relay-chat")
+        let lastUsed = state.lastUsedModelRef
+
+        let id = try #require(state.createConversationForRealtimeVoice())
+
+        let conversation = try #require(state.conversation(for: id))
+        #expect(conversation.providerID == provider.id)
+        #expect(conversation.modelID == "relay-chat")
+        #expect(state.lastUsedModelRef == lastUsed)
+    }
+
+    @Test("Adding a connection with a verified model: writes that model as last-used")
+    func completeProviderSetupWithVerifiedModelWritesLastUsed() {
+        let state = makeState()
+        let provider = TestFactories.makeProvider(
+            kind: .openAI,
+            models: [
+                TestFactories.makeModel(id: "gpt-4o", isDefault: true),
+                TestFactories.makeModel(id: "gpt-4o-mini")
+            ]
+        )
+        state.providers = [provider]
+        state.lastUsedModelRef = nil
+
+        state.completeProviderSetup(providerID: provider.id, entryPoint: .modelPicker, verifiedModelID: "gpt-4o-mini")
+
+        #expect(state.lastUsedModelRef?.providerID == provider.id)
+        #expect(state.lastUsedModelRef?.modelID == "gpt-4o-mini")
+    }
+
+    @Test("A conversation with an empty modelID on a connection without credentials still resolves through the new-chat chain and does not end up with no model")
+    func currentModelForEmptyModelIDIgnoresMissingCredential() {
+        let state = makeState()
+        let provider = TestFactories.makeProvider(
+            kind: .openAI,
+            models: [TestFactories.makeModel(id: "gpt-4o-mini")],
+            apiKey: "",
+            apiKeyPreview: ""
+        )
+        state.providers = [provider]
+        state.lastUsedModelRef = nil
+        let conversation = TestFactories.makeConversation(providerID: provider.id, modelID: "")
+
+        #expect(state.fallbackModel(in: provider)?.id == "gpt-4o-mini")
+        #expect(state.currentModel(for: conversation)?.id == "gpt-4o-mini")
+    }
+
+    @Test("Undoing a removal restores the default model: only the connection default is restored and no last-used is written")
+    func undoRemovalRestoresDefaultWithoutWritingLastUsed() {
+        let state = makeState()
+        let provider = TestFactories.makeProvider(
+            kind: .openAI,
+            models: [
+                TestFactories.makeModel(id: "gpt-4o", isDefault: true),
+                TestFactories.makeModel(id: "gpt-4o-mini")
+            ]
+        )
+        state.providers = [provider]
+        let ref = LastUsedModelRef(providerID: provider.id, modelID: "gpt-4o")
+        state.lastUsedModelRef = ref
+
+        state.restoreDefaultModel(modelID: "gpt-4o-mini", for: provider.id)
+
+        #expect(state.provider(for: provider.id)?.models.first(where: { $0.isDefault })?.id == "gpt-4o-mini")
+        #expect(state.lastUsedModelRef == ref)
+    }
+
+    /// An unscoped new chat does not rewrite last-used with the fallback result; the chat page shows the retired hint from the unrewritten last-used.
+    @Test("Unscoped new chat: a retired last-used model is not rewritten, and the chat page shows a one-time retired hint")
+    func unscopedNewChatKeepsRetiredLastUsedForHint() async throws {
+        let retired = TestFactories.makeModel(id: "gpt-4-legacy", name: "GPT-4 Legacy", canonicalModelId: "gpt-4-legacy")
+        let fallback = TestFactories.makeModel(id: "gpt-5.4", name: "GPT-5.4", canonicalModelId: "gpt-5.4")
+        let provider = TestFactories.makeProvider(kind: .openAI, models: [retired, fallback], catalogModels: [retired, fallback])
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(json: ChatScreenProjectionTests.retiredMetadataJSON)
+
+        let state = makeState()
+        state.providers = [provider]
+        state.navigation.path = []
+        let ref = LastUsedModelRef(providerID: provider.id, modelID: "gpt-4-legacy")
+        state.lastUsedModelRef = ref
+
+        state.startNewChat()
+
+        #expect(state.navigation.path.last == .chat(conversationID: nil))
+        #expect(state.lastUsedModelRef == ref)
+        #expect(state.activeModel?.model.id == "gpt-5.4")
+        #expect(!state.pendingNewChatModelPicker)
+        // The new-chat page of ChatView (requestedProviderID is nil) judges the hint from the current appState.
+        let hint = NewChatRetiredFallbackHint.resolve(
+            requestedProviderID: nil,
+            providers: state.providers,
+            lastUsedModelRef: state.lastUsedModelRef
+        )
+        #expect(hint == NewChatRetiredFallbackHint(providerID: provider.id, retiredModelID: "gpt-4-legacy", fallbackModelName: "GPT-5.4"))
+        await MetadataClient.shared.resetForTesting()
+    }
+
+    @Test("Unscoped new chat with an empty chain but with connections: opens the new-chat page and requests the model picker, without going to add-connection")
+    func unscopedNewChatWithEmptyChainOpensModelPicker() async {
+        let state = makeState()
+        let provider = TestFactories.makeProvider(kind: .openAI, models: [], catalogModels: [])
+        state.providers = [provider]
+        state.lastUsedModelRef = nil
+        state.navigation.path = []
+        state.startNewChat()
+
+        #expect(state.navigation.path.last == .chat(conversationID: nil))
+        #expect(state.pendingNewChatModelPicker)
+        #expect(state.lastUsedModelRef == nil)
+
+        state.pendingNewChatModelPicker = false
+        state.navigation.path = []
+        let ready = await state.ensureActiveModelWithProviderFallback(prefillOnModelPicker: "draft from home")
+        #expect(!ready)
+        #expect(state.pendingNewChatModelPicker)
+        #expect(state.navigation.path.last == .chat(conversationID: nil))
+        // The draft in the home input box is carried into the new-chat composer (consumed when ChatView appears); it is neither lost nor sent automatically.
+        #expect(state.pendingComposerPrefill == "draft from home")
     }
 
     @Test("startNewChat without provider opens provider setup")

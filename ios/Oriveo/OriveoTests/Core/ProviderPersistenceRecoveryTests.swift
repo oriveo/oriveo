@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Oriveo
 
-@Suite("ProviderPersistenceRecovery", .serialized)
+@Suite("ProviderPersistenceRecovery", .serialized, .sharedProcessState)
 struct ProviderPersistenceRecoveryTests {
 
     @Test("loadSession clears leftover persisted syncing provider state")

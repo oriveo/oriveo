@@ -173,6 +173,14 @@ struct ProviderPresentationTests {
         var erroredProvider = provider
         erroredProvider.lastError = "boom"
         #expect(row() != row(provider: erroredProvider))
+        var nextGeneration = row()
+        nextGeneration.metadataGeneration &+= 1
+        #expect(row() != nextGeneration)
+        let catalogRow = ProviderCatalogModelRow(model: model, provider: provider, capabilityEvidenceRevision: 1) {}
+        var nextCatalogRow = catalogRow
+        nextCatalogRow.metadataGeneration &+= 1
+        #expect(catalogRow == ProviderCatalogModelRow(model: model, provider: provider, capabilityEvidenceRevision: 1) {})
+        #expect(catalogRow != nextCatalogRow)
     }
 
     @Test("a catalog projection can stand in across a version bump, but not across a provider or search change")
