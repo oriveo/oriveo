@@ -5,7 +5,7 @@ import Testing
 
 /// The four groups of pure functions (cap choice / commit / panel / settings) match the context-cap-presentation.v1 fixture;
 /// Settings > Context default cap read/write and the root row's composed value; the settings group, option words and the four custom-input keys can all be found in the compiled output of the 16 languages.
-@Suite("Context cap settings presentation", .serialized)
+@Suite("Context cap settings presentation", .serialized, .sharedProcessState)
 @MainActor
 struct ContextCapSettingsPresentationTests {
 
@@ -352,7 +352,7 @@ struct ContextCapSettingsPresentationTests {
         #expect(en.localizedString(forKey: "settings_context_cap_header", value: nil, table: "Settings") == "Default limit")
         #expect(zh.localizedString(forKey: "context_cap_unlimited", value: nil, table: "Chat") == "\u{4E0D}\u{9650}")
         #expect(zh.localizedString(forKey: "settings_context_mode_fallback_hint", value: nil, table: "Settings")
-            == "\u{4E0D}\u{989D}\u{5916}\u{82B1}\u{94B1}。\u{8F83}\u{65E9}\u{7684} AI \u{56DE}\u{7B54}\u{4E0D}\u{518D}\u{53D1}\u{9001}，\u{4F60}\u{8BF4}\u{8FC7}\u{7684}\u{8BDD}\u{7167}\u{5E38}\u{4FDD}\u{7559}，\u{622A}\u{65AD}\u{5904}\u{505C}\u{5728}\u{53E5}\u{5B50}\u{7ED3}\u{5C3E}。")
+            == "\u{4E0D}\u{989D}\u{5916}\u{82B1}\u{94B1}\u{3002}\u{8F83}\u{65E9}\u{7684} AI \u{56DE}\u{7B54}\u{4E0D}\u{518D}\u{53D1}\u{9001}\u{FF0C}\u{4F60}\u{8BF4}\u{8FC7}\u{7684}\u{8BDD}\u{7167}\u{5E38}\u{4FDD}\u{7559}\u{FF0C}\u{622A}\u{65AD}\u{5904}\u{505C}\u{5728}\u{53E5}\u{5B50}\u{7ED3}\u{5C3E}\u{3002}")
         let enFooter = en.localizedString(forKey: "settings_context_cap_footer", value: nil, table: "Settings")
         #expect(String(format: enFooter, "256K", "32K").hasPrefix("Automatic sizes to the model’s window, up to 256K,"))
         let enEcho = en.localizedString(forKey: "context_cap_input_echo", value: nil, table: "Chat")
@@ -363,7 +363,7 @@ struct ContextCapSettingsPresentationTests {
         #expect(String(format: enWindowPrice, "2M", "200K", "input and output ×2")
             == "Model window 2M · past 200K, billed at long-context prices (input and output ×2)")
         let zhSplit = zh.localizedString(forKey: "context_cap_mult_split", value: nil, table: "Chat")
-        #expect(String(format: zhSplit, "2", "1.5") == "\u{8F93}\u{5165} ×2、\u{8F93}\u{51FA} ×1.5")
+        #expect(String(format: zhSplit, "2", "1.5") == "\u{8F93}\u{5165} ×2\u{3001}\u{8F93}\u{51FA} ×1.5")
         #expect(zh.localizedString(forKey: "context_usage_effective_limit", value: "gone", table: "Chat") == "gone")
         let enHead = en.localizedString(forKey: "context_cap_head", value: nil, table: "Chat")
         #expect(String(format: enHead, "Grok 4.7", "2M", "1.9M") == "Grok 4.7 · 2M window · 1.9M usable")

@@ -1,12 +1,19 @@
 import Foundation
 import OriveoProviderKit
+import SwiftUI
 import Testing
 @testable import Oriveo
 
 /// Pure presentation models for the divider row and the detail; a production fallback row feeds the presentation model.
-@Suite("Context compaction presentation", .serialized)
+@Suite("Context compaction presentation", .serialized, .sharedProcessState)
 @MainActor
 struct ContextCompactionUITests {
+    // The detail sheet's bottom action bar squeezes out the summary at the medium detent: it opens at large by default, and medium can still be dragged to.
+    @Test("detail_sheet_opens_at_large_detent")
+    func detailSheetOpensAtLargeDetent() {
+        #expect(ContextCompactionDetailSheet.initialDetent == .large)
+        #expect(ContextCompactionDetailSheet.detents == [.medium, .large])
+    }
 
     private static let rhoHi = 0.5
 
@@ -283,6 +290,121 @@ struct ContextCompactionUITests {
         #expect(truncated.contextTruncated)
         #expect(truncated.isValid)
     }
+
+    /// With missing connection credentials, starting a new chat with the summary cannot open the chat page: it returns false, leaves no quote behind, and does not write last used.
+    @Test func new_chat_quote_from_summary_missing_credential_returns_false() throws {
+        let (state, conversationID, history) = makeFixture()
+        let store = try #require(ContextCompactionStore.forPartition(state.sessionPartitionUID))
+        _ = try seed(store, conversationID: conversationID, history: history, coversTo: 3, createdAt: 1_000,
+                     summary: "## Goal\nship", userMessageIds: [history[0].id.uuidString])
+        state.providers = state.providers.map { provider in
+            var provider = provider
+            provider.apiKey = ""
+            provider.apiKeyPreview = ""
+            return provider
+        }
+        state.lastUsedModelRef = nil
+
+        #expect(!state.startNewChatWithSummary(conversationId: conversationID, label: "From summary"))
+        #expect(state.pendingComposerQuote == nil)
+        #expect(state.lastUsedModelRef == nil)
+        #expect(state.navigation.path.last != .chat(conversationID: nil))
+    }
+
+    /// The conversation modelID is empty: a new chat with the summary reuses the model resolved from currentModel instead of opening with an empty id.
+    @Test func new_chat_quote_from_summary_uses_current_model() throws {
+        let (state, conversationID, history) = makeFixture()
+        let store = try #require(ContextCompactionStore.forPartition(state.sessionPartitionUID))
+        _ = try seed(store, conversationID: conversationID, history: history, coversTo: 3, createdAt: 1_000,
+                     summary: "## Goal\nship", userMessageIds: [history[0].id.uuidString])
+        var conversation = try #require(state.conversations.first { $0.id == conversationID })
+        conversation.modelID = ""
+        state.upsertConversationProjection(conversation)
+        state.lastUsedModelRef = nil
+
+        #expect(state.startNewChatWithSummary(conversationId: conversationID, label: "From summary"))
+        #expect(state.pendingComposerQuote != nil)
+        #expect(state.lastUsedModelRef?.providerID == conversation.providerID)
+        #expect(state.lastUsedModelRef?.modelID == "relay-window")
+    }
+
+    /// The conversation model is retired: a new chat with the summary does not reuse the retired model, does not write the fallback model into last used, and opens along this connection's new-chat chain.
+    @Test func new_chat_quote_from_summary_skips_retired_model() async throws {
+        let (state, conversationID, history) = makeFixture()
+        let store = try #require(ContextCompactionStore.forPartition(state.sessionPartitionUID))
+        _ = try seed(store, conversationID: conversationID, history: history, coversTo: 3, createdAt: 1_000,
+                     summary: "## Goal\nship", userMessageIds: [history[0].id.uuidString])
+        var conversation = try #require(state.conversations.first { $0.id == conversationID })
+        let retired = TestFactories.makeModel(id: "gpt-4-legacy", name: "GPT-4 Legacy", canonicalModelId: "gpt-4-legacy")
+        let fallback = TestFactories.makeModel(id: "gpt-5.4", name: "GPT-5.4", canonicalModelId: "gpt-5.4")
+        state.providers = [TestFactories.makeProvider(
+            id: conversation.providerID, kind: .openAI, models: [retired, fallback], catalogModels: [retired, fallback]
+        )]
+        conversation.modelID = "gpt-4-legacy"
+        state.upsertConversationProjection(conversation)
+        state.lastUsedModelRef = nil
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(json: ChatScreenProjectionTests.retiredMetadataJSON)
+
+        let opened = state.startNewChatWithSummary(conversationId: conversationID, label: "From summary")
+        let draft = resolveChatScreenContext(projection: Self.draftProjection, appState: state)
+        await MetadataClient.shared.resetForTesting()
+
+        #expect(opened)
+        #expect(state.pendingComposerQuote != nil)
+        #expect(state.lastUsedModelRef == nil)
+        #expect(state.pendingNewChatProviderID == conversation.providerID)
+        #expect(draft?.provider.id == conversation.providerID)
+        #expect(draft?.model?.id == "gpt-5.4")
+    }
+
+    /// The conversation model cannot be sent and last used is on another connection: last used is unchanged, and the draft still opens along the new-chat chain of the conversation's connection.
+    @Test func new_chat_quote_from_summary_unsendable_keeps_last_used_on_other_connection() async throws {
+        let (state, conversationID, history) = makeFixture()
+        let store = try #require(ContextCompactionStore.forPartition(state.sessionPartitionUID))
+        _ = try seed(store, conversationID: conversationID, history: history, coversTo: 3, createdAt: 1_000,
+                     summary: "## Goal\nship", userMessageIds: [history[0].id.uuidString])
+        var conversation = try #require(state.conversations.first { $0.id == conversationID })
+        let retired = TestFactories.makeModel(id: "gpt-4-legacy", name: "GPT-4 Legacy", canonicalModelId: "gpt-4-legacy")
+        let fallback = TestFactories.makeModel(id: "gpt-5.4", name: "GPT-5.4", canonicalModelId: "gpt-5.4")
+        let otherModel = TestFactories.makeModel(id: "claude-sonnet-4-5", name: "Claude Sonnet 4.5", canonicalModelId: "claude-sonnet-4-5")
+        let other = TestFactories.makeProvider(kind: .anthropic, models: [otherModel], catalogModels: [otherModel])
+        state.providers = [
+            TestFactories.makeProvider(
+                id: conversation.providerID, kind: .openAI, models: [retired, fallback], catalogModels: [retired, fallback]
+            ),
+            other
+        ]
+        conversation.modelID = "gpt-4-legacy"
+        state.upsertConversationProjection(conversation)
+        let lastUsed = LastUsedModelRef(providerID: other.id, modelID: "claude-sonnet-4-5")
+        state.lastUsedModelRef = lastUsed
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(json: ChatScreenProjectionTests.retiredMetadataJSON)
+
+        let opened = state.startNewChatWithSummary(conversationId: conversationID, label: "From summary")
+        let draft = resolveChatScreenContext(projection: Self.draftProjection, appState: state)
+        await MetadataClient.shared.resetForTesting()
+
+        #expect(opened)
+        #expect(state.lastUsedModelRef == lastUsed)
+        #expect(draft?.provider.id == conversation.providerID)
+        #expect(draft?.model?.id == "gpt-5.4")
+
+        // A plain new chat no longer keeps the pinned connection: it goes back to last used.
+        #expect(state.startNewChat())
+        #expect(state.pendingNewChatProviderID == nil)
+        #expect(resolveChatScreenContext(projection: Self.draftProjection, appState: state)?.provider.id == other.id)
+    }
+
+    /// A draft projection for a conversation that has not been created yet.
+    private static let draftProjection = ChatScreenProjection(
+        requestedConversationID: nil,
+        summary: nil,
+        messages: [],
+        hasLoadedSummary: true,
+        messageRevision: 0
+    )
 
     @Test func new_chat_quote_from_fallback() throws {
         let (state, conversationID, history) = makeFixture()

@@ -59,7 +59,7 @@ private final class ContextPipelineURLProtocol: URLProtocol, @unchecked Sendable
 
 /// Projection and memory: the request bodies for send, retry, regenerate, and send-after-edit are projected from the ContextAssembler plan.
 /// Every assertion reads the production request body captured by URLProtocol.
-@Suite("Context pipeline chat projection", .serialized)
+@Suite("Context pipeline chat projection", .serialized, .sharedProcessState)
 @MainActor
 struct ContextPipelineTests {
 

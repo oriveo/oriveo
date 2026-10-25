@@ -383,4 +383,98 @@ extension ContextPipelineTests {
         #expect(byId[plain.id.uuidString]?.isDirective == false)
         #expect(inputs.messages.filter { $0.role == .assistant }.allSatisfy { !$0.isDirective })
     }
+
+    /// With manual compaction (compactionStopsAtMedia) the compaction snapshot is cut before the first message that carries media;
+    /// that message and everything after it are kept as is and counted into fixedTokens; with no media it is the same snapshot as before (through the production path ChatRequestBuilder.build).
+    @Test func manual_compaction_inputs_stop_before_first_media_message() throws {
+        let image = Attachment(
+            id: UUID(), kind: .image, fileName: "chart.png", mimeType: "image/png", base64Data: "aW1hZ2U="
+        )
+        var withImage = TestFactories.makeMessage(role: .user, text: "Look at this chart.")
+        withImage.attachments = [image]
+        let before = [
+            TestFactories.makeMessage(role: .user, text: "Tell me about the history of Rome."),
+            TestFactories.makeMessage(role: .assistant, text: "Rome was founded long ago."),
+        ]
+        let after = [
+            withImage,
+            TestFactories.makeMessage(role: .assistant, text: "The chart shows growth."),
+            TestFactories.makeMessage(role: .user, text: "Explain more."),
+            TestFactories.makeMessage(role: .assistant, text: "Growth came from trade."),
+            TestFactories.makeMessage(role: .user, text: "Continue."),
+        ]
+        func inputs(_ messages: [ChatMessage], stopsAtMedia: Bool) throws -> ChatCompactionInputs {
+            let snapshot = ChatRequestSnapshot(
+                conversation: ChatRequestConversationSnapshot(id: UUID(), useMemory: false, skillID: nil),
+                messages: messages,
+                preferences: ChatRequestPreferencesSnapshot(),
+                skill: nil,
+                sendPath: .send(excludingMessageID: nil)
+            )
+            let assembly = ChatRequestAssemblyContext(
+                window: ContextWindowInput(W: nil, windowKind: .total, maxOutput: ContextMaxOutputSources()),
+                rhoHi: Self.compactionRhoHi,
+                overflowFallbackB: Self.compactionB,
+                overflowCompactionInputs: true,
+                compactionStopsAtMedia: stopsAtMedia
+            )
+            return try #require(ChatRequestBuilder.build(from: snapshot, assembly: assembly).compactionInputs)
+        }
+
+        let all = try inputs(before + after, stopsAtMedia: false)
+        let manual = try inputs(before + after, stopsAtMedia: true)
+        // The current message (the last user) is not part of the history; the pre-change snapshot includes the image message and the history after it.
+        #expect(all.messages.map(\.id) == (before + after.dropLast()).map(\.id.uuidString))
+        #expect(all.attachments[withImage.id.uuidString]?.first?.kind == .image)
+        // Manual compaction: only what precedes the image message becomes a summary candidate; the image message and everything after it are kept as is.
+        #expect(manual.messages.map(\.id) == before.map(\.id.uuidString))
+        #expect(manual.attachments.isEmpty)
+        let keptTokens = all.messages.dropFirst(before.count).reduce(0) { $0 + $1.estTokens }
+        #expect(keptTokens > 0)
+        #expect(manual.fixedTokens == all.fixedTokens + keptTokens)
+
+        // No media: both modes yield the same snapshot.
+        let plain = before + after.dropFirst()
+        let plainAll = try inputs(plain, stopsAtMedia: false)
+        let plainManual = try inputs(plain, stopsAtMedia: true)
+        #expect(plainManual.messages.map(\.id) == plainAll.messages.map(\.id))
+        #expect(plainManual.fixedTokens == plainAll.fixedTokens)
+    }
+
+    /// "Media" includes files carrying raw data (sent natively); files injected as plain text do not count and can still go into the summary.
+    @Test func manual_compaction_media_counts_native_files_only() throws {
+        func file(native: Bool) -> Oriveo.Attachment {
+            Oriveo.Attachment(
+                id: UUID(), kind: .file, fileName: "report.pdf", mimeType: "application/pdf",
+                base64Data: Data("extracted".utf8).base64EncodedString(),
+                originalBase64Data: native ? "JVBERi0=" : nil
+            )
+        }
+        var textFile = TestFactories.makeMessage(role: .user, text: "Read these notes.")
+        textFile.attachments = [file(native: false)]
+        var nativeFile = TestFactories.makeMessage(role: .user, text: "Read this PDF.")
+        nativeFile.attachments = [file(native: true)]
+        let messages = [
+            textFile,
+            TestFactories.makeMessage(role: .assistant, text: "Noted."),
+            nativeFile,
+            TestFactories.makeMessage(role: .assistant, text: "The PDF covers revenue."),
+            TestFactories.makeMessage(role: .user, text: "Continue."),
+        ]
+        let snapshot = ChatRequestSnapshot(
+            conversation: ChatRequestConversationSnapshot(id: UUID(), useMemory: false, skillID: nil),
+            messages: messages,
+            preferences: ChatRequestPreferencesSnapshot(),
+            skill: nil,
+            sendPath: .send(excludingMessageID: nil)
+        )
+        let assembly = ChatRequestAssemblyContext(
+            window: ContextWindowInput(W: nil, windowKind: .total, maxOutput: ContextMaxOutputSources()),
+            rhoHi: Self.compactionRhoHi,
+            overflowFallbackB: Self.compactionB,
+            overflowCompactionInputs: true,
+            compactionStopsAtMedia: true
+        )
+        let inputs = try #require(ChatRequestBuilder.build(from: snapshot, assembly: assembly).compactionInputs)
+        #expect(inputs.messages.map(\.id) == messages.prefix(2).map(\.id.uuidString))
 }

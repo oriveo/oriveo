@@ -5,7 +5,7 @@ import Testing
 
 /// The pre-send confirmation decision matches the context-cap-confirm.v1 fixture; the alert copy picks one of three variants, with zh expectations;
 /// local state read/write; the Settings > Context price-line reminder switch; the compiled output for all 16 languages; the divider row shows the model name.
-@Suite("Context cap confirm presentation", .serialized)
+@Suite("Context cap confirm presentation", .serialized, .sharedProcessState)
 @MainActor
 struct ContextCapConfirmPresentationTests {
 
@@ -171,14 +171,14 @@ struct ContextCapConfirmPresentationTests {
             let cross = try #require(try text("price_line_first_cross"))
             #expect(cross.title == L10n.tr("context_confirm_price_line_title", table: .chat))
             #expect(Self.strip(cross.body)
-                == "\u{8FD9}\u{6B21}\u{7EA6} 21.3\u{4E07} token，\u{8D85}\u{8FC7} Grok 4.7 \u{7684} 20\u{4E07} \u{52A0}\u{4EF7}\u{7EBF}，\u{6574}\u{4E2A}\u{8BF7}\u{6C42}\u{6309}\u{957F}\u{4E0A}\u{4E0B}\u{6587}\u{4EF7}\u{8BA1}\u{8D39}：\u{7EA6} $0.85，\u{4E0D}\u{8D8A}\u{7EBF}\u{7EA6} $0.43。")
+                == "\u{8FD9}\u{6B21}\u{7EA6} 21.3\u{4E07} token\u{FF0C}\u{8D85}\u{8FC7} Grok 4.7 \u{7684} 20\u{4E07} \u{52A0}\u{4EF7}\u{7EBF}\u{FF0C}\u{6574}\u{4E2A}\u{8BF7}\u{6C42}\u{6309}\u{957F}\u{4E0A}\u{4E0B}\u{6587}\u{4EF7}\u{8BA1}\u{8D39}\u{FF1A}\u{7EA6} $0.85\u{FF0C}\u{4E0D}\u{8D8A}\u{7EBF}\u{7EA6} $0.43\u{3002}")
             #expect(cross.showsDontAsk)
             #expect(cross.body.contains("\u{2068}"))
 
             // Over the cap
             let over = try #require(try text("over_cap_custom"))
             #expect(over.title == L10n.tr("context_confirm_over_cap_title", table: .chat))
-            #expect(Self.strip(over.body) == "\u{8FD9}\u{6B21}\u{7EA6} 15.2\u{4E07} token，\u{8D85}\u{8FC7}\u{6B64}\u{5BF9}\u{8BDD}\u{4E0A}\u{9650} 12.8\u{4E07}。")
+            #expect(Self.strip(over.body) == "\u{8FD9}\u{6B21}\u{7EA6} 15.2\u{4E07} token\u{FF0C}\u{8D85}\u{8FC7}\u{6B64}\u{5BF9}\u{8BDD}\u{4E0A}\u{9650} 12.8\u{4E07}\u{3002}")
             #expect(!over.showsDontAsk)
 
             // Multiplier only
@@ -187,26 +187,26 @@ struct ContextCapConfirmPresentationTests {
                 ContextCapPresentation.Multiplier(input: nil, output: 20)
             ))
             #expect(Self.strip(mult.body)
-                == "\u{8FD9}\u{6B21}\u{7EA6} 21.3\u{4E07} token，\u{8D85}\u{8FC7} Grok 4.7 \u{7684} 20\u{4E07} \u{52A0}\u{4EF7}\u{7EBF}，\u{6574}\u{4E2A}\u{8BF7}\u{6C42}\u{6309}\u{957F}\u{4E0A}\u{4E0B}\u{6587}\u{4EF7}\u{8BA1}\u{8D39}（\(Self.strip(multSentence))）。")
+                == "\u{8FD9}\u{6B21}\u{7EA6} 21.3\u{4E07} token\u{FF0C}\u{8D85}\u{8FC7} Grok 4.7 \u{7684} 20\u{4E07} \u{52A0}\u{4EF7}\u{7EBF}\u{FF0C}\u{6574}\u{4E2A}\u{8BF7}\u{6C42}\u{6309}\u{957F}\u{4E0A}\u{4E0B}\u{6587}\u{4EF7}\u{8BA1}\u{8D39}\u{FF08}\(Self.strip(multSentence))\u{FF09}\u{3002}")
 
             // Neither amount nor multiplier
             let plain = try #require(try text("price_line_no_pricing"))
-            #expect(Self.strip(plain.body) == "\u{8FD9}\u{6B21}\u{7EA6} 21.3\u{4E07} token，\u{8D85}\u{8FC7} Grok 4.7 \u{7684} 20\u{4E07} \u{52A0}\u{4EF7}\u{7EBF}，\u{6574}\u{4E2A}\u{8BF7}\u{6C42}\u{6309}\u{957F}\u{4E0A}\u{4E0B}\u{6587}\u{4EF7}\u{8BA1}\u{8D39}。")
+            #expect(Self.strip(plain.body) == "\u{8FD9}\u{6B21}\u{7EA6} 21.3\u{4E07} token\u{FF0C}\u{8D85}\u{8FC7} Grok 4.7 \u{7684} 20\u{4E07} \u{52A0}\u{4EF7}\u{7EBF}\u{FF0C}\u{6574}\u{4E2A}\u{8BF7}\u{6C42}\u{6309}\u{957F}\u{4E0A}\u{4E0B}\u{6587}\u{4EF7}\u{8BA1}\u{8D39}\u{3002}")
             #expect(try #require(try text("price_line_no_multiplier_above_one")).body == plain.body)
 
             // Both: the over-cap title, with the over-cap sentence followed by an also_* line after a line break
             let both = try #require(try text("over_cap_and_price_line"))
             #expect(both.title == L10n.tr("context_confirm_over_cap_title", table: .chat))
             #expect(Self.strip(both.body)
-                == "\u{8FD9}\u{6B21}\u{7EA6} 26\u{4E07} token，\u{8D85}\u{8FC7}\u{6B64}\u{5BF9}\u{8BDD}\u{4E0A}\u{9650} 24\u{4E07}。\n\u{8FD9}\u{6B21}\u{8FD8}\u{4F1A}\u{8D8A}\u{8FC7} Grok 4.7 \u{7684} 20\u{4E07} \u{52A0}\u{4EF7}\u{7EBF}，\u{6574}\u{4E2A}\u{8BF7}\u{6C42}\u{6309}\u{957F}\u{4E0A}\u{4E0B}\u{6587}\u{4EF7}\u{8BA1}\u{8D39}：\u{7EA6} $1.04，\u{4E0D}\u{8D8A}\u{7EBF}\u{7EA6} $0.52。")
+                == "\u{8FD9}\u{6B21}\u{7EA6} 26\u{4E07} token\u{FF0C}\u{8D85}\u{8FC7}\u{6B64}\u{5BF9}\u{8BDD}\u{4E0A}\u{9650} 24\u{4E07}\u{3002}\n\u{8FD9}\u{6B21}\u{8FD8}\u{4F1A}\u{8D8A}\u{8FC7} Grok 4.7 \u{7684} 20\u{4E07} \u{52A0}\u{4EF7}\u{7EBF}\u{FF0C}\u{6574}\u{4E2A}\u{8BF7}\u{6C42}\u{6309}\u{957F}\u{4E0A}\u{4E0B}\u{6587}\u{4EF7}\u{8BA1}\u{8D39}\u{FF1A}\u{7EA6} $1.04\u{FF0C}\u{4E0D}\u{8D8A}\u{7EBF}\u{7EA6} $0.52\u{3002}")
             #expect(both.showsDontAsk)
             let bothPlain = try #require(try text("over_cap_and_price_line") { $0.pricing = nil })
             #expect(Self.strip(bothPlain.body)
-                == "\u{8FD9}\u{6B21}\u{7EA6} 26\u{4E07} token，\u{8D85}\u{8FC7}\u{6B64}\u{5BF9}\u{8BDD}\u{4E0A}\u{9650} 24\u{4E07}。\n\u{8FD9}\u{6B21}\u{8FD8}\u{4F1A}\u{8D8A}\u{8FC7} Grok 4.7 \u{7684} 20\u{4E07} \u{52A0}\u{4EF7}\u{7EBF}，\u{6574}\u{4E2A}\u{8BF7}\u{6C42}\u{6309}\u{957F}\u{4E0A}\u{4E0B}\u{6587}\u{4EF7}\u{8BA1}\u{8D39}。")
+                == "\u{8FD9}\u{6B21}\u{7EA6} 26\u{4E07} token\u{FF0C}\u{8D85}\u{8FC7}\u{6B64}\u{5BF9}\u{8BDD}\u{4E0A}\u{9650} 24\u{4E07}\u{3002}\n\u{8FD9}\u{6B21}\u{8FD8}\u{4F1A}\u{8D8A}\u{8FC7} Grok 4.7 \u{7684} 20\u{4E07} \u{52A0}\u{4EF7}\u{7EBF}\u{FF0C}\u{6574}\u{4E2A}\u{8BF7}\u{6C42}\u{6309}\u{957F}\u{4E0A}\u{4E0B}\u{6587}\u{4EF7}\u{8BA1}\u{8D39}\u{3002}")
             let bothMult = try #require(try text("over_cap_and_price_line") {
                 $0.pricing?.base?.prompt = 0
             })
-            #expect(Self.strip(bothMult.body).hasSuffix("\u{6574}\u{4E2A}\u{8BF7}\u{6C42}\u{6309}\u{957F}\u{4E0A}\u{4E0B}\u{6587}\u{4EF7}\u{8BA1}\u{8D39}（\(Self.strip(multSentence))）。"))
+            #expect(Self.strip(bothMult.body).hasSuffix("\u{6574}\u{4E2A}\u{8BF7}\u{6C42}\u{6309}\u{957F}\u{4E0A}\u{4E0B}\u{6587}\u{4EF7}\u{8BA1}\u{8D39}\u{FF08}\(Self.strip(multSentence))\u{FF09}\u{3002}"))
             #expect(Self.strip(bothMult.body).contains("\n\u{8FD9}\u{6B21}\u{8FD8}\u{4F1A}\u{8D8A}\u{8FC7} Grok 4.7 \u{7684} 20\u{4E07} \u{52A0}\u{4EF7}\u{7EBF}"))
 
             // No ask: no alert
@@ -499,7 +499,7 @@ struct ContextCapConfirmPresentationTests {
         #expect(String(
             format: zh.localizedString(forKey: "context_confirm_over_cap_body", value: nil, table: "Chat"),
             "15.2\u{4E07}", "12.8\u{4E07}"
-        ) == "\u{8FD9}\u{6B21}\u{7EA6} 15.2\u{4E07} token，\u{8D85}\u{8FC7}\u{6B64}\u{5BF9}\u{8BDD}\u{4E0A}\u{9650} 12.8\u{4E07}。")
+        ) == "\u{8FD9}\u{6B21}\u{7EA6} 15.2\u{4E07} token\u{FF0C}\u{8D85}\u{8FC7}\u{6B64}\u{5BF9}\u{8BDD}\u{4E0A}\u{9650} 12.8\u{4E07}\u{3002}")
     }
 
     // MARK: Divider row model name

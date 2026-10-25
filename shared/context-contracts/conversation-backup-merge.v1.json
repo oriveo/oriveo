@@ -1,0 +1,142 @@
+{
+  "$comment": "Backup import 'merge' for an existing conversation: which side's title / instructions survive. The backup side wins only when backup.updatedAt is strictly later than local.updatedAt; instructions follow the same side as title. A backup conversation with no instructions key (old-format backup) never touches local instructions, whichever side wins. An explicit empty string is a real value and does clear. updatedAt is compared as an instant, never as a string: backups written by different clients differ in fractional-second precision (iOS .iso8601 has none). A null instructions value is treated like a missing key. Export always writes the instructions key, as \"\" when empty, so a missing key only ever means a backup written before this rule (old format).",
+  "schema": "oriveo.context.conversation-backup-merge",
+  "version": 1,
+  "cases": [
+    {
+      "id": "backup_newer_takes_title_and_instructions",
+      "local": {
+        "updatedAt": "2026-10-01T00:00:00Z",
+        "title": "Local",
+        "instructions": "local rules"
+      },
+      "backup": {
+        "updatedAt": "2026-10-02T00:00:00Z",
+        "title": "Backup",
+        "instructions": "backup rules"
+      },
+      "expected": {
+        "title": "Backup",
+        "instructions": "backup rules"
+      }
+    },
+    {
+      "id": "local_newer_keeps_title_and_instructions",
+      "local": {
+        "updatedAt": "2026-10-03T00:00:00Z",
+        "title": "Local",
+        "instructions": "local rules"
+      },
+      "backup": {
+        "updatedAt": "2026-10-02T00:00:00Z",
+        "title": "Backup",
+        "instructions": "backup rules"
+      },
+      "expected": {
+        "title": "Local",
+        "instructions": "local rules"
+      }
+    },
+    {
+      "id": "equal_updated_at_keeps_local",
+      "local": {
+        "updatedAt": "2026-10-02T00:00:00Z",
+        "title": "Local",
+        "instructions": "local rules"
+      },
+      "backup": {
+        "updatedAt": "2026-10-02T00:00:00Z",
+        "title": "Backup",
+        "instructions": "backup rules"
+      },
+      "expected": {
+        "title": "Local",
+        "instructions": "local rules"
+      }
+    },
+    {
+      "id": "backup_newer_missing_instructions_key_keeps_local_instructions",
+      "local": {
+        "updatedAt": "2026-10-01T00:00:00Z",
+        "title": "Local",
+        "instructions": "local rules"
+      },
+      "backup": {
+        "updatedAt": "2026-10-02T00:00:00Z",
+        "title": "Backup"
+      },
+      "expected": {
+        "title": "Backup",
+        "instructions": "local rules"
+      }
+    },
+    {
+      "id": "backup_newer_explicit_empty_instructions_clears",
+      "local": {
+        "updatedAt": "2026-10-01T00:00:00Z",
+        "title": "Local",
+        "instructions": "local rules"
+      },
+      "backup": {
+        "updatedAt": "2026-10-02T00:00:00Z",
+        "title": "Backup",
+        "instructions": ""
+      },
+      "expected": {
+        "title": "Backup",
+        "instructions": ""
+      }
+    },
+    {
+      "id": "equal_instant_different_precision_keeps_local",
+      "local": {
+        "updatedAt": "2026-10-02T00:00:00.000Z",
+        "title": "Local",
+        "instructions": "local rules"
+      },
+      "backup": {
+        "updatedAt": "2026-10-02T00:00:00Z",
+        "title": "Backup",
+        "instructions": "backup rules"
+      },
+      "expected": {
+        "title": "Local",
+        "instructions": "local rules"
+      }
+    },
+    {
+      "id": "backup_earlier_within_same_second_keeps_local",
+      "local": {
+        "updatedAt": "2026-10-02T00:00:00.500Z",
+        "title": "Local",
+        "instructions": "local rules"
+      },
+      "backup": {
+        "updatedAt": "2026-10-02T00:00:00Z",
+        "title": "Backup",
+        "instructions": "backup rules"
+      },
+      "expected": {
+        "title": "Local",
+        "instructions": "local rules"
+      }
+    },
+    {
+      "id": "backup_newer_null_instructions_keeps_local_instructions",
+      "local": {
+        "updatedAt": "2026-10-01T00:00:00Z",
+        "title": "Local",
+        "instructions": "local rules"
+      },
+      "backup": {
+        "updatedAt": "2026-10-02T00:00:00Z",
+        "title": "Backup",
+        "instructions": null
+      },
+      "expected": {
+        "title": "Backup",
+        "instructions": "local rules"
+      }
+    }
+  ]
+}

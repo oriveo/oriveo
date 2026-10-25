@@ -38,7 +38,7 @@ private final class PriceLineURLProtocol: URLProtocol, @unchecked Sendable {
 
 /// The price line T is decoded by the production metadata decoder, and the window factory looks it up by (kind, modelId);
 /// B reads the plan.budget produced after the send chain hands its parameters to ContextAssembler. Relay must not use T even with the same metadata.
-@Suite("Context cap production path", .serialized)
+@Suite("Context cap production path", .serialized, .sharedProcessState)
 @MainActor
 struct ContextCapProductionPathTests {
     private static let modelID = "grok-4.7"

@@ -118,7 +118,14 @@ struct ConversationInstructionsTests {
         #expect(state.conversationManager.setInstructions(id: conversation.id, text: long))
         #expect(state.conversation(for: conversation.id)?.instructions.unicodeScalars.count
             == ConversationInstructions.maxCodePoints)
+
     }
+
+
+
+
+
+
 
     // The backup DTO carries optional instructions: empty is written as nil and import normalizes.
     private func backupCodec() -> (JSONEncoder, JSONDecoder) {
@@ -142,7 +149,7 @@ struct ConversationInstructionsTests {
         conversation.instructions = ""
         let emptyData = try enc.encode(BackupConversation(from: conversation))
         let emptyJSON = try #require(try JSONSerialization.jsonObject(with: emptyData) as? [String: Any])
-        #expect(emptyJSON["instructions"] == nil)
+        #expect(emptyJSON["instructions"] as? String == "")
         #expect(try dec.decode(BackupConversation.self, from: emptyData).toConversation().instructions == "")
     }
 
@@ -165,26 +172,91 @@ struct ConversationInstructionsTests {
         #expect(long.toConversation().instructions.unicodeScalars.count == ConversationInstructions.maxCodePoints)
     }
 
-    @Test("backup_merge_takes_instructions_with_title")
-    func backupMergeTakesInstructionsWithTitle() {
-        let base = Date(timeIntervalSince1970: 1_000_000)
-        var local = TestFactories.makeConversation(title: "Local", updatedAt: base)
-        local.instructions = "Local rule."
-
         // Backup is newer -> title and instructions both come from the backup side (an empty backup value also overwrites).
-        var newer = TestFactories.makeConversation(id: local.id, title: "Backup", updatedAt: base.addingTimeInterval(60))
-        newer.instructions = ""
-        var merged = local
-        BackupService.applyMergeMetadata(from: BackupConversation(from: newer), localUpdatedAt: local.updatedAt, into: &merged)
-        #expect(merged.title == "Backup")
-        #expect(merged.instructions == "")
+    @Test("backup_export_empty_instructions_clears_peer_on_merge")
+    func backupExportEmptyInstructionsClearsPeerOnMerge() throws {
+        let (enc, dec) = backupCodec()
+        let base = Date(timeIntervalSince1970: 1_000_000)
+        var peer = TestFactories.makeConversation(title: "Peer", updatedAt: base)
+        peer.instructions = "Peer rule."
 
-        // Backup is older -> both stay local.
-        var older = TestFactories.makeConversation(id: local.id, title: "Old", updatedAt: base.addingTimeInterval(-60))
-        older.instructions = "Old rule."
-        merged = local
-        BackupService.applyMergeMetadata(from: BackupConversation(from: older), localUpdatedAt: local.updatedAt, into: &merged)
-        #expect(merged.title == "Local")
-        #expect(merged.instructions == "Local rule.")
+        var cleared = TestFactories.makeConversation(id: peer.id, title: "Cleared", updatedAt: base.addingTimeInterval(60))
+        cleared.instructions = ""
+        let data = try enc.encode(BackupConversation(from: cleared))
+        let json = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(json["instructions"] as? String == "")
+
+        var merged = peer
+        BackupService.applyMergeMetadata(
+            from: try dec.decode(BackupConversation.self, from: data),
+            localUpdatedAt: peer.updatedAt,
+            into: &merged
+        )
+        #expect(merged.title == "Cleared")
+        #expect(merged.instructions == "")
+    }
+
+    /// Shared fixture conversation-backup-merge.v1.json: the backup side wins only when its updatedAt is strictly later,
+    /// instructions follow the same side as title; a missing key / null in the backup leaves the local value alone, an explicit "" clears it; times are compared as Dates.
+    @Test("backup_merge_follows_shared_fixture")
+    func backupMergeFollowsSharedFixture() throws {
+        let cases = try Self.backupMergeFixtureCases()
+        #expect(cases.count == 8)
+        let (enc, _) = backupCodec()
+        // The same parsing rule as parseBackup: timestamps with or without fractional seconds are accepted, compared as Dates.
+        let dec = JSONDecoder()
+        dec.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let raw = try container.decode(String.self)
+            guard let date = ISO8601Parser.date(from: raw) else {
+                throw DecodingError.dataCorruptedError(in: container, debugDescription: raw)
+            }
+            return date
+        }
+        for item in cases {
+            let id = try #require(item["id"] as? String)
+            let localJSON = try #require(item["local"] as? [String: Any])
+            let backupJSON = try #require(item["backup"] as? [String: Any])
+            let expected = try #require(item["expected"] as? [String: Any])
+
+            let localTitle = try #require(localJSON["title"] as? String)
+            let localStamp = try #require(localJSON["updatedAt"] as? String)
+            let localUpdatedAt = try #require(ISO8601Parser.date(from: localStamp))
+            var local = TestFactories.makeConversation(title: localTitle, updatedAt: localUpdatedAt)
+            local.instructions = try #require(localJSON["instructions"] as? String)
+
+            // The backup side goes through the real codec: export from a conversation first, then rewrite keys per the fixture (including key removal / an explicit empty string) and decode.
+            let source = TestFactories.makeConversation(id: local.id, title: "seed", updatedAt: local.updatedAt)
+            let encoded = try enc.encode(BackupConversation(from: source))
+            var json = try #require(try JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+            json["title"] = backupJSON["title"] as? String
+            json["updatedAt"] = backupJSON["updatedAt"] as? String
+            // null and a missing key mean the same: both remove the key and take the old-format path.
+            if let instructions = backupJSON["instructions"] as? String {
+                json["instructions"] = instructions
+            } else {
+                json.removeValue(forKey: "instructions")
+            }
+            let backup = try dec.decode(BackupConversation.self, from: JSONSerialization.data(withJSONObject: json))
+
+            var merged = local
+            BackupService.applyMergeMetadata(from: backup, localUpdatedAt: local.updatedAt, into: &merged)
+            #expect(merged.title == expected["title"] as? String, "\(id)")
+            #expect(merged.instructions == expected["instructions"] as? String, "\(id)")
+        }
+}
+
+    private static func backupMergeFixtureCases() throws -> [[String: Any]] {
+        var cursor = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        while cursor.path != "/" {
+            let candidate = cursor.appendingPathComponent("shared/context-contracts/conversation-backup-merge.v1.json")
+            if FileManager.default.fileExists(atPath: candidate.path) {
+                let data = try Data(contentsOf: candidate)
+                let root = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+                return try #require(root["cases"] as? [[String: Any]])
+            }
+            cursor.deleteLastPathComponent()
+        }
+        throw CocoaError(.fileNoSuchFile)
     }
 }
