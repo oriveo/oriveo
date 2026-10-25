@@ -214,6 +214,8 @@ final class ChatManager {
     private var reasoningSubjects: [UUID: PassthroughSubject<ReasoningStreamDelta, Never>] = [:]
     /// Activity-state channel: it fires only when an activity is set or cleared, not per token. Same lifecycle as the two subjects above.
     private var activitySubjects: [UUID: PassthroughSubject<StreamActivityState, Never>] = [:]
+    /// Stream-finished signal (fires once on completion / failure / stop / being replaced): sent on the beat after the session is removed, when the message's final state is already written. Same lifecycle as above.
+    private var finishedSubjects: [UUID: PassthroughSubject<Void, Never>] = [:]
 
     /// For list-level indication: the conversation IDs that are streaming. Updated only when sessions are added / removed
     /// (not per token), friendly to @Observable.
@@ -366,6 +368,7 @@ final class ChatManager {
         streamingSubjects.removeValue(forKey: conversationID)
         reasoningSubjects.removeValue(forKey: conversationID)
         activitySubjects.removeValue(forKey: conversationID)
+        finishedSubjects.removeValue(forKey: conversationID)
     }
 
     // MARK: - Public API (queries by conversation id)
@@ -404,6 +407,14 @@ final class ChatManager {
 
     func streamingReasoningDidChange(in conversationID: UUID) -> AnyPublisher<ReasoningStreamDelta, Never> {
         reasoningSubject(for: conversationID).eraseToAnyPublisher()
+    }
+
+    /// The stream-finished signal of `conversationID` (created lazily and kept forever); when it arrives isBusyStreaming is already false and the message's final state is written.
+    func streamingDidFinish(in conversationID: UUID) -> AnyPublisher<Void, Never> {
+        if let existing = finishedSubjects[conversationID] { return existing.eraseToAnyPublisher() }
+        let new = PassthroughSubject<Void, Never>()
+        finishedSubjects[conversationID] = new
+        return new.eraseToAnyPublisher()
     }
 
     /// The activity snapshot of the message currently streaming (nil without a session). A cell reads it once on first bind / on rebind after reuse, then follows the delta channel.
@@ -753,6 +764,9 @@ final class ChatManager {
         ).sentID
     }
 
+    /// How long the refusal toast stays on screen, in seconds.
+    static let refusalToastDuration: TimeInterval = 5
+
     func sendMessageOutcome(
         _ text: String,
         attachments: [Attachment] = [],
@@ -760,7 +774,9 @@ final class ChatManager {
         in conversationID: UUID,
         capabilitySelection: ChatCapabilitySelection = ChatCapabilitySelection(),
         /// mode=tool fresh send: attach propose_memory and run its calls.
-        proposeMemory: ProposeMemoryTurnContext? = nil
+        proposeMemory: ProposeMemoryTurnContext? = nil,
+        /// A voice conversation turn passes .voice; nil is the same as a normal send.
+        delivery: ContextDelivery? = nil
     ) async -> ChatSendOutcome {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !attachments.isEmpty else { return .refused }
@@ -776,7 +792,15 @@ final class ChatManager {
             return .refused
         }
         guard let provider = appState.provider(for: conversations[index].providerID) else {
-            ToastManager.shared.show(L10n.tr("The selected provider is no longer available."))
+            // The conversation's connection is temporarily unavailable or was removed: ask the user to pick a model.
+            // It may not actually be gone yet, so do not claim it is "no longer available". The conversation and draft stay untouched.
+            ToastManager.shared.show(
+                L10n.tr("Select Model", table: .home),
+                style: .warning,
+                duration: Self.refusalToastDuration,
+                actionTitle: L10n.tr(ChatModelRemovedBanner.actionKey, table: .chat),
+                action: { [weak appState = appState as AppState?] in appState?.navigation.requestModelPicker() }
+            )
             return .refused
         }
 
@@ -865,7 +889,11 @@ final class ChatManager {
         let isFirstMessage = conversations[index].displayMessageCount == 0
             && conversations[index].messages.isEmpty
         var updatedConv = conversations[index]
-        updatedConv.modelID = storedModelID
+        // An existing conversation's modelID is only written when the user switches models; a conversation
+        // with no stored model gets the model used for this send (a conversation whose messages were cleared does not count as new).
+        if updatedConv.modelID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            updatedConv.modelID = storedModelID
+        }
         updatedConv.messages.append(userMessage)
         updatedConv.messages.append(assistantMessage)
         updatedConv.updatedAt = ConversationListMetadata.computeActivityAt(for: updatedConv)
@@ -879,7 +907,8 @@ final class ChatManager {
         let requestSnapshot = prepareRequestSnapshot(
             conversation: updatedConv,
             messages: updatedConv.messages,
-            sendPath: .send(excludingMessageID: assistantMessageID)
+            sendPath: .send(excludingMessageID: assistantMessageID),
+            delivery: delivery
         )
 
         queueAssistantResponse(
@@ -1185,7 +1214,10 @@ final class ChatManager {
         else { return }
 
         var updatedForContinue = conversations[convIndex]
-        updatedForContinue.modelID = storedModelID
+        // An existing conversation's modelID is only written when the user switches models; fill it in only when none is stored.
+        if updatedForContinue.modelID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            updatedForContinue.modelID = storedModelID
+        }
         // Data safety net: a continuation only completes the target assistant in place and never deletes the messages after it (matching the correct web implementation),
         // so "stop A, send B, then continue A overwrites B" cannot happen. The UI already guarantees the continue button shows only on the last message of the conversation.
         updatedForContinue.messages[msgIndex].providerID = provider.id
@@ -1287,7 +1319,10 @@ final class ChatManager {
         )
 
         var updatedForRegen = conversations[convIndex]
-        updatedForRegen.modelID = storedModelID
+        // An existing conversation's modelID is only written when the user switches models; fill it in only when none is stored.
+        if updatedForRegen.modelID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            updatedForRegen.modelID = storedModelID
+        }
         // Record the ids of the removed .delivered messages
         let removedMessages = Array(updatedForRegen.messages[msgIndex...])
         let removedDeliveredIDs = removedMessages
@@ -1435,7 +1470,10 @@ final class ChatManager {
         else { return }
 
         var updatedForRetry = conversations[convIndex]
-        updatedForRetry.modelID = storedModelID
+        // An existing conversation's modelID is only written when the user switches models; fill it in only when none is stored.
+        if updatedForRetry.modelID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            updatedForRetry.modelID = storedModelID
+        }
         if !preservesFailedContent {
             updatedForRetry.messages[msgIndex].text = ""
             updatedForRetry.messages[msgIndex].reasoningText = nil
@@ -1705,10 +1743,10 @@ final class ChatManager {
         ) else { return nil }
         let deliveryModel = AttachmentTransportResolver.deliveryModel(provider: provider, model: model, transport: transport)
         // When this connection has already been remembered as not accepting file blocks, the send goes out as text directly; the check uses the same premise.
-        // A relay's "does not accept file blocks" is recorded in the negative cache per connection x model x protocol.
+        // A relay's "does not accept file blocks" is recorded in the negative cache per connection x model x protocol; the read key is the first-send protocol.
         let relayScope: NativeFileFallback.Scope? = provider.kind == .relay
             ? .relayScope(
-                RelayEndpointResolver.effectiveTransport(provider: provider, model: model),
+                RelayFirstSendTransport.current(provider: provider, model: model),
                 connectionID: provider.id, modelID: model.id,
                 fileOverride: model.relayCapabilityOverrides?.file
             )
@@ -1806,6 +1844,15 @@ final class ChatManager {
         uid: String,
         snapshot: ChatRequestSnapshot
     ) -> ContextCheckpointRecord? {
+        Self.readLatestValidCheckpoint(conversationID: conversationID, uid: uid, snapshot: snapshot)
+    }
+
+    /// The nonisolated implementation of latestValidCheckpoint: it only reads ContextCompactionStore and may be called off the main thread (realtime session replanning).
+    nonisolated static func readLatestValidCheckpoint(
+        conversationID: UUID,
+        uid: String,
+        snapshot: ChatRequestSnapshot
+    ) -> ContextCheckpointRecord? {
         guard let store = ContextCompactionStore.forPartition(uid) else { return nil }
         do {
             return try store.latestValid(
@@ -1898,7 +1945,7 @@ final class ChatManager {
     /// A noop (no throw) when there is no conversation, the conversation is empty, no model is available or the budget is unknown.
     func compactConversationNow(conversationId conversationID: UUID) async -> ContextCompactionCoordinator.Result {
         let noop = ContextCompactionCoordinator.Result(outcome: .noop, row: nil, failures: [])
-        guard let plan = await conversationCompactionPlan(conversationID: conversationID) else { return noop }
+        guard let plan = await conversationCompactionPlan(conversationID: conversationID, stopsAtMedia: true) else { return noop }
         return await runCompaction(
             conversationID: conversationID,
             uid: plan.uid,
@@ -1958,7 +2005,9 @@ final class ChatManager {
 
     /// The snapshot shared by manual compaction and pre-compaction: the last message of the conversation is the current message (not in the span, counted in fixedTokens), the rest is history;
     /// the system prompt / applied library row use the same rule as a chat send. nil when there is no conversation, the conversation is empty, no model is available or the budget is unknown.
-    private func conversationCompactionPlan(conversationID: UUID) async -> ConversationCompactionPlan? {
+    private func conversationCompactionPlan(
+        conversationID: UUID, stopsAtMedia: Bool = false
+    ) async -> ConversationCompactionPlan? {
         guard conversations.contains(where: { $0.id == conversationID }),
               hydrateConversationMessagesIfNeeded(id: conversationID),
               let conversation = conversations.first(where: { $0.id == conversationID }),
@@ -2008,7 +2057,8 @@ final class ChatManager {
                     rhoHi: ContextLedgerStore.currentRhoHi(for: rhoKey, in: rhoLedger),
                     checkpoint: checkpoint,
                     memoryFallback: false,
-                    overflowCompactionInputs: true
+                    overflowCompactionInputs: true,
+                    compactionStopsAtMedia: stopsAtMedia
                 )
             )
         }.value
@@ -3065,6 +3115,10 @@ final class ChatManager {
                 try await CapabilityRecipeResendContext.$recoveryDescriptor.withValue(
                     capabilityRecoveryDescriptor
                 ) {
+                // "Resend without that parameter": this one request explicitly omits the rejected parameter recorded on the failed message, without relying on the negative cache.
+                try await CapabilityRecipeResendContext.$omittedParameters.withValue(
+                    localCustomFragmentDisposition.omittedParameters
+                ) {
                 try await CapabilityExecutionRuntime.$current.withValue(capabilityExecutionTracker) {
                 try await CapabilityEvidenceDispatchContext.$onWebSearchDispatched.withValue({}) {
                 try await CapabilityEvidenceRequestContext.$current.withValue(capabilityEvidenceIdentity) {
@@ -3089,6 +3143,19 @@ final class ChatManager {
                         messages: imageGeneration.messages,
                         selectedModelSupportsImageGeneration: model.capabilities.contains(.imageGen)
                     )
+                }
+                // Dedicated image endpoints carry no tools: a turn that was set to tool mode runs the fallback (chat_api inline image generation still goes through the chat request with tools).
+                switch officialImageDispatch {
+                case .handled:
+                    self.runProposeFallbackWhenToolNotSent(
+                        conversationID: conversationID, sendTaskID: sendTaskID, assistantMessageID: assistantMessageID
+                    )
+                case let .providerSpecific(route) where route != .chatAPI:
+                    self.runProposeFallbackWhenToolNotSent(
+                        conversationID: conversationID, sendTaskID: sendTaskID, assistantMessageID: assistantMessageID
+                    )
+                default:
+                    break
                 }
                 let providerSpecificImageRoute: ImageGenRoute?
                 switch officialImageDispatch {
@@ -4272,7 +4339,7 @@ final class ChatManager {
                     }
                     // For a model not yet verified, the first send picks the protocol in the same candidate order as the lazy verification: when the connection is auto, effectiveTransport always lands on Chat,
                     // and a Claude-family model going through Chat to a group that only accepts Messages is rejected with "max_tokens required" (400 is not a route-level rejection and does not fall back).
-                    if let first = await self.relayFirstSendTransport(
+                    if let first = Self.relayFirstSendTransport(
                         provider: provider, model: model, current: initialRelayRoute.transport,
                         attachments: transport.messages.flatMap { $0.attachments ?? [] }
                     ) {
@@ -4309,6 +4376,10 @@ final class ChatManager {
                         let relayPlanned: PlannedChatRequest
                         if relayDispatchesImage, RelayRuntimeSupport.imageRoute(for: relayTransport) == .imagesEndpoint {
                             relayPlanned = imageGeneration
+                            // The images endpoint carries no tools: a turn that was set to tool mode runs the fallback.
+                            self.runProposeFallbackWhenToolNotSent(
+                                conversationID: conversationID, sendTaskID: sendTaskID, assistantMessageID: assistantMessageID
+                            )
                         } else if relayDispatchesImage {
                             relayPlanned = planned.replacingLatestUserText(with: latestUserText)
                         } else {
@@ -4671,6 +4742,7 @@ final class ChatManager {
                 }
                 }
                 }
+                }
 
                 // First-leg ending of propose_memory: execute the calls, add a tail leg when needed, then land the successful ending.
                 let proposeOutcome = try await self.finishProposeMemoryTurn(
@@ -4745,7 +4817,7 @@ final class ChatManager {
                    !self.recordRelayToolsRejectionKeyDenial(error, provider: provider, model: model) {
                     ProposeMemoryRuntime.shared.markDegraded(connectionID: provider.id, modelID: model.id)
                     self.rememberToolCallCapability(
-                        provider: provider, model: model, toolCall: false, reason: .toolsRejected4xx,
+                        provider: provider, model: model, observedToolCall: false, reason: .toolsRejected4xx,
                         statusCode: Self.toolRejectionStatusCode(error), sentTransport: relayAttempt?.transport
                     )
                     if let attempt = session.contextAttempt {
@@ -4900,6 +4972,44 @@ final class ChatManager {
                                protocolSwitched: attempt.switched
                            ) {
                             recoveryPrimaryAction = relayImageUnsupportedRecoveryAction
+                        }
+                        // An official connection's image / file / video send rejected by the upstream by signature before any output:
+                        // record the v2 negative cache and do not retry; the recovery card offers "resend without the image / file / video" for the rejected key,
+                        // and a tap resends normally with the outbound projection stripping that medium per the negative cache.
+                        // A parameter rejected by signature goes through the same entry and records `param:<name>`, with no automatic retry; the recovery card offers
+                        // "resend without this parameter", and a tap resends normally with the outbound request dropping only that parameter per the negative cache.
+                        if ProviderForm.of(provider) == .official {
+                            // The carried keys are computed from what was actually sent: the outbound messages contain that medium and the outbound projection lets the native part through
+                            // (the three keys; media already stripped to a placeholder do not count). This request's negative cache is not recorded yet, so the projection is the same one used when sending.
+                            let inputKeys = Set(CapabilityEvidenceFacade.inputCapabilityKeys)
+                            let outboundProjection = CapabilityEvidenceProductionAdapter.capabilityProjection(
+                                provider: provider, model: model, identity: capabilityEvidenceIdentity,
+                                keys: inputKeys, explicitKeys: inputKeys
+                            )
+                            let carriedKeys = InputRejectionFlow.carriedCapabilityKeys(
+                                messages: planned.messages, permitsOutbound: outboundProjection.permitsOutbound
+                            )
+                            let modelID = capabilityEvidenceIdentity.query.effectiveModelID
+                            let diagnostics = failureDiagnostics.snapshot
+                            let rejection = InputRejectionFlow.record(.init(
+                                form: .official,
+                                connectionId: provider.id.uuidString, modelId: modelID,
+                                outputStarted: self.relayOutputStarted(
+                                    conversationID: conversationID, messageID: assistantMessageID, initialText: initialText
+                                ),
+                                carriedCapabilityKeys: carriedKeys,
+                                httpStatus: diagnostics.httpStatus, rawBody: diagnostics.rawBody,
+                                controls: MetadataClient.shared.syncCapabilityRecipeRuntime(
+                                    modelID: modelID, providerKind: provider.kind
+                                ).controls,
+                                transport: capabilityEvidenceIdentity.query.effectiveTransport,
+                                parameterSupport: MetadataClient.shared.syncResolveCatalogModel(
+                                    modelID: modelID, providerKind: provider.kind
+                                )?.parameterSupport
+                            ))
+                            if let action = rejection.flatMap({ officialInputRejectedRecoveryAction(capabilityKey: $0.capabilityKey) }) {
+                                recoveryPrimaryAction = action
+                            }
                         }
                         // A relay request carrying native file blocks that is rejected the first time counts as a rejection signal; if the fallback chain (text resend / protocol fallback) still fails in the end
                         // or all files are scans that cannot fall back: the recovery card body becomes "these files are not supported" + Switch Model.
@@ -5251,7 +5361,7 @@ final class ChatManager {
                 throw rejected.underlying
             }
             rememberToolCallCapability(
-                provider: provider, model: model, toolCall: false, reason: .toolsRejected4xx,
+                provider: provider, model: model, observedToolCall: false, reason: .toolsRejected4xx,
                 statusCode: rejected.statusCode, sentTransport: relaySentTransport
             )
             guard sessions[conversationID]?.messageID == assistantMessageID,
@@ -5286,7 +5396,7 @@ final class ChatManager {
         guard sessions[conversationID]?.messageID == assistantMessageID,
               sessions[conversationID]?.sendTaskID == sendTaskID else { throw CancellationError() }
         if result.receivedStructuredToolCalls {
-            rememberToolCallCapability(provider: provider, model: model, toolCall: true, reason: .structuredToolCalls)
+            rememberToolCallCapability(provider: provider, model: model, observedToolCall: true, reason: .structuredToolCalls)
         }
         if result.stepLimitReached {
             // The step cap was reached: the loop has already run the synthesis leg without tools, and the trailer row of the step block says so.
@@ -5347,7 +5457,7 @@ final class ChatManager {
             if !calls.isEmpty, !turn.pastFirstLeg { turn.firstLegHadOtherCalls = true }
             sessions[conversationID]?.proposeTurn = turn
             if !proposeCalls.isEmpty {
-                rememberToolCallCapability(provider: provider, model: model, toolCall: true, reason: .structuredToolCalls)
+                rememberToolCallCapability(provider: provider, model: model, observedToolCall: true, reason: .structuredToolCalls)
             }
         }
         guard !calls.isEmpty,
@@ -5358,7 +5468,7 @@ final class ChatManager {
         else { return }
 
         // A structured tool_calls is the response evidence that "this connection does send tools", and memory true is written within the scope of the tool-capability memory.
-        rememberToolCallCapability(provider: provider, model: model, toolCall: true, reason: .structuredToolCalls)
+        rememberToolCallCapability(provider: provider, model: model, observedToolCall: true, reason: .structuredToolCalls)
 
         var updated = conversations[conversationIndex]
         var merged = updated.messages[messageIndex].unhandledToolCalls ?? []
@@ -5375,6 +5485,16 @@ final class ChatManager {
     static let proposeMemoryToolDefinition: ToolLoopToolDefinition? = try? JSONDecoder().decode(
         ToolLoopToolDefinition.self, from: Data(MemoryPropose.toolJSON.utf8)
     )
+
+    /// Mode is tool but this request does not actually carry propose_memory (a dedicated image endpoint): the turn runs as the fallback,
+    /// the same safety net as a degrade after the first leg is rejected. Drops this turn's propose context (search state is kept) so later degrade / finishing steps leave it alone.
+    private func runProposeFallbackWhenToolNotSent(conversationID: UUID, sendTaskID: UUID, assistantMessageID: UUID) {
+        guard let turn = proposeTurn(in: conversationID, sendTaskID: sendTaskID), let context = turn.context else { return }
+        sessions[conversationID]?.proposeTurn = turn.search.map {
+            ProposeMemoryTurn(context: nil, userMessageID: turn.userMessageID, search: $0)
+        }
+        context.onDegraded(turn.userMessageID, assistantMessageID)
+    }
 
     private func proposeTurn(in conversationID: UUID, sendTaskID: UUID) -> ProposeMemoryTurn? {
         guard sessions[conversationID]?.sendTaskID == sendTaskID else { return nil }
@@ -5722,13 +5842,13 @@ final class ChatManager {
     private func rememberToolCallCapability(
         provider: Provider,
         model: AIModel,
-        toolCall: Bool,
+        observedToolCall: Bool,
         reason: ToolCallMemoryReason,
         statusCode: Int? = nil,
         sentTransport: RelayTransport? = nil
     ) {
         RelayRejectionRecording.rememberToolCall(
-            provider: provider, model: model, toolCall: toolCall, reason: reason,
+            provider: provider, model: model, toolCall: observedToolCall, reason: reason,
             statusCode: statusCode, sentTransport: sentTransport, memory: toolCallMemory
         )
     }
@@ -5741,23 +5861,31 @@ final class ChatManager {
 
     /// The protocol for the first send of an unverified model: the criterion lives in `RelayFirstSendTransport` (the negative-cache reads and writes give the same answer as "Auto =" on the advanced page),
     /// and when it equals the current route it returns nil and goes on as before. The family only reads the table already fetched in this conversation and sends no request for the first send.
-    /// The criterion for a same-protocol fallback when attachments cannot be delivered belongs to sending only and stays here.
-    private func relayFirstSendTransport(
+    /// The criterion for falling back to the current route (effectiveTransport) when attachments cannot be delivered belongs to sending only and stays here.
+    /// `attachments` are the attachments of the whole outbound history of this turn: files in the history are re-sent with the text every turn.
+    static func relayFirstSendTransport(
         provider: Provider,
         model: AIModel,
         current: RelayTransport,
         attachments: [Attachment]
-    ) async -> RelayTransport? {
+    ) -> RelayTransport? {
         // A Chat request body carries no max_tokens, and a relay that converts a Claude-family model to Anthropic answers 400 "max_tokens required",
         // and a 400 is not a route-level rejection and does not fall back, so the first send of a Claude family goes through Messages.
         let first = RelayFirstSendTransport.current(provider: provider, model: model)
         guard first == .anthropicMessages, first != current else { return nil }
+        // Only files trigger the fallback (images do not count); if any file has usable extracted text there is a text version to send, so Messages is used as is.
         let files = attachments.filter { $0.kind == .file }
-        if !files.isEmpty, !files.contains(where: NativeFileFallback.hasExtractedText),
-           !AttachmentTransportResolver.relay(first).profile.sendsNativeFiles {
-            return nil
-        }
-        return first
+        guard !files.isEmpty, !files.contains(where: NativeFileFallback.hasExtractedText) else { return first }
+        // Judge by the same delivery plan the files would get going out over the Messages line (catalog allow-list, file override Off, envelope, MIME, size, PDF default):
+        // when none of them can be sent natively there is nothing to send by switching to Messages, so fall back to the current route.
+        let line = AttachmentTransportResolver.relay(first)
+        let plan = AttachmentDelivery.plan(
+            userText: "",
+            attachments: files,
+            transport: line.profile,
+            model: AttachmentTransportResolver.deliveryModel(provider: provider, model: model, transport: line)
+        )
+        return plan.native.isEmpty ? nil : first
     }
 
     /// The target of a protocol-level fallback: the candidates are the same set as the per-model probe (`RelayProbeCandidates.candidates`), and the decision goes through a pure function.
@@ -5884,7 +6012,8 @@ final class ChatManager {
     private func prepareRequestSnapshot(
         conversation: Conversation,
         messages: [ChatMessage],
-        sendPath: ChatRequestSendPath
+        sendPath: ChatRequestSendPath,
+        delivery: ContextDelivery? = nil
     ) -> ChatRequestSnapshot {
         let skillSnapshot = conversation.skillId
             .flatMap { appState.skillManager.skill(by: $0) }
@@ -5904,7 +6033,8 @@ final class ChatManager {
             preferences: ChatRequestPreferencesSnapshot(memoryItems: appState.memoryItemsCache.items),
             skill: skillSnapshot,
             pinnedNotes: pinnedNotes,
-            sendPath: sendPath
+            sendPath: sendPath,
+            delivery: delivery
         )
         return snapshot
     }
@@ -6366,7 +6496,10 @@ final class ChatManager {
         }
 
         if let estimatedCost {
-            updated.messages[mi].estimatedCost = estimatedCost
+            // A continuation adds to the cost of the first round instead of overwriting it.
+            updated.messages[mi].estimatedCost = activeSession?.attemptKind == .continueResponse
+                ? updated.messages[mi].estimatedCost + estimatedCost
+                : estimatedCost
         }
         if let servedModelID, !servedModelID.isEmpty {
             updated.messages[mi].servedModelID = servedModelID
@@ -6831,6 +6964,9 @@ final class ChatManager {
         activitySubjects[conversationID]?.send(
             StreamActivityState(messageID: session.messageID, activity: nil, isStreaming: false)
         )
+        // Most finishing paths remove the session first and write the message's final state in the same synchronous stretch: send on the next beat so subscribers read the final state.
+        guard finishedSubjects[conversationID] != nil else { return }
+        Task { @MainActor [weak self] in self?.finishedSubjects[conversationID]?.send() }
     }
 
     /// The landing point where a live body delta enters `session.text` (called after the `flushBufferedDelta` throttle).
@@ -7191,4 +7327,114 @@ final class ChatManager {
     }
 
     #endif
+}
+
+// MARK: - Realtime voice conversation
+
+extension ChatManager {
+    /// Opening input of a realtime session: built from the same snapshot as a chat send (memory switch / skill / pinned notes / instructions / reminders),
+    /// without recall (there is no user turn yet when the session opens). nil when the conversation does not exist or its body is not ready.
+    /// When currentSessionId is non-empty, sessionMessageIds (transcripts of this session already saved) stay out of the plan and do not change the fingerprint.
+    func realtimeSessionInput(
+        in conversationID: UUID,
+        contextWindow: Int,
+        currentSessionId: String? = nil,
+        sessionMessageIds: Set<UUID> = []
+    ) -> RealtimeSessionInput? {
+        realtimeSessionSource(in: conversationID)?.input(
+            contextWindow: contextWindow, currentSessionId: currentSessionId, sessionMessageIds: sessionMessageIds
+        )
+    }
+
+    /// Opening input of a realtime session started from the home screen: the conversation is only created when its first message is saved,
+    /// so it is assembled here from the new-conversation defaults plus the current memory items.
+    func realtimeSessionInputForNewConversation(
+        contextWindow: Int,
+        currentSessionId: String? = nil,
+        sessionMessageIds: Set<UUID> = []
+    ) -> RealtimeSessionInput? {
+        realtimeSessionSourceForNewConversation()?.input(
+            contextWindow: contextWindow, currentSessionId: currentSessionId, sessionMessageIds: sessionMessageIds
+        )
+    }
+
+    /// The main-thread part of the realtime session input: it only takes the conversation snapshot; the checkpoint read and the assembly happen in RealtimeSessionSource.input, which may run off the main thread.
+    func realtimeSessionSource(in conversationID: UUID) -> RealtimeSessionSource? {
+        guard hydrateConversationMessagesIfNeeded(id: conversationID),
+              let conversation = conversations.first(where: { $0.id == conversationID }) else { return nil }
+        let snapshot = prepareRequestSnapshot(
+            conversation: conversation,
+            messages: conversation.messages,
+            sendPath: .send(excludingMessageID: nil)
+        )
+        return realtimeSessionSource(conversationID: conversationID, snapshot: snapshot)
+    }
+
+    /// Snapshot for a new conversation started from the home screen: new-conversation defaults + current memory items + pending pinned notes, no messages.
+    /// Pending pinned notes are resolved read-only (nothing is committed, AppState is not changed), the same rule as resolving after the first turn is saved and prepareRequestSnapshot commits them;
+    /// the database read happens in input, which may run off the main thread.
+    func realtimeSessionSourceForNewConversation() -> RealtimeSessionSource? {
+        guard let active = appState.activeModel else { return nil }
+        let conversation = appState.conversationForFirstSend(provider: active.provider, modelID: active.model.id)
+        let snapshot = ChatRequestSnapshot(
+            conversation: ChatRequestConversationSnapshot(
+                id: conversation.id,
+                useMemory: conversation.useMemory,
+                skillID: nil,
+                instructions: conversation.instructions,
+                folderID: nil
+            ),
+            messages: [],
+            preferences: ChatRequestPreferencesSnapshot(memoryItems: appState.memoryItemsCache.items),
+            skill: nil,
+            sendPath: .send(excludingMessageID: nil)
+        )
+        let pendingPins = appState.pendingPinnedNoteIds
+        return realtimeSessionSource(
+            conversationID: conversation.id,
+            snapshot: snapshot,
+            pinnedNotes: pendingPins.isEmpty ? nil : appState.noteManager.pinnedNoteSnapshotReader(ids: pendingPins)
+        )
+    }
+
+    /// Reads the latestValid checkpoint the same way chat does; when none can be read it goes without, as before.
+    private func realtimeSessionSource(
+        conversationID: UUID,
+        snapshot: ChatRequestSnapshot,
+        pinnedNotes: (@Sendable () -> [ChatRequestPinnedNoteSnapshot])? = nil
+    ) -> RealtimeSessionSource {
+        let uid = appState.sessionPartitionUID
+        return RealtimeSessionSource(
+            snapshot: snapshot,
+            checkpoint: { snapshot in
+                ChatManager.readLatestValidCheckpoint(conversationID: conversationID, uid: uid, snapshot: snapshot)
+            },
+            pinnedNotes: pinnedNotes
+        )
+    }
+
+    /// Appends one completed text message (a realtime transcript / answer): no generation request is made and no usage is recorded.
+    @discardableResult
+    func appendCompletedTextMessage(_ message: ChatMessage, in conversationID: UUID) -> Bool {
+        guard hydrateConversationMessagesIfNeeded(id: conversationID),
+              var updated = conversations.first(where: { $0.id == conversationID }) else { return false }
+        let messagesBefore = updated.messages
+        var message = message
+        // In the same round the assistant createdAt is no earlier than the paired user + 1ms (aligned with the Android / Web writers),
+        // so it does not collide with the user after millisecond truncation; the user's createdAt is the transcription time and is left alone.
+        if message.role == .assistant,
+           let pairedUserCreatedAt = messagesBefore.last(where: { $0.role == .user && $0.state == .delivered })?.createdAt {
+            let floor = pairedUserCreatedAt.addingTimeInterval(0.001)
+            if (message.createdAt ?? .distantPast) < floor {
+                message.createdAt = floor
+            }
+        }
+        updated.messages.append(message)
+        updated.updatedAt = ConversationListMetadata.computeActivityAt(for: updated)
+        updated.isDraft = false
+        ConversationListMetadata.apply(to: &updated)
+        appState.upsertConversationProjection(updated)
+        appState.conversationManager.refreshConversationCost(for: conversationID)
+        return true
+    }
 }
