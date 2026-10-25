@@ -853,7 +853,10 @@ enum BackupService {
         updated.previewText = bc.previewText
         updated.estimatedCost = bc.estimatedCost
         updated.folderID = bc.folderID
-        updated.instructions = ConversationInstructions.normalize(bc.instructions ?? "")
+        // A backup without the instructions key leaves the local instructions untouched.
+        if let instructions = bc.instructions {
+            updated.instructions = ConversationInstructions.normalize(instructions)
+        }
         updated.contextCap = bc.contextCap?.cap
     }
 
