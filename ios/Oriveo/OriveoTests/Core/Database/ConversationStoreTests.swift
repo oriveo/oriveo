@@ -1141,6 +1141,125 @@ struct ConversationStoreTests {
         #expect(abs(sqlTotal - memoryTotal) < 0.000_001)
         #expect(abs((fromSQL.first?.cost ?? 0) - 0.42) < 0.000_001)
     }
+
+    @Test("Monthly Aggregates Include Tiny Amounts")
+    func monthlyAggregatesIncludeTinyAmounts() throws {
+        let harness = try TestHarness()
+        defer { harness.cleanup() }
+
+        // Each amount is below the epsilon on its own, but the SQL aggregate must still add them up;
+        // the billed message count is still judged per message.
+        let now = Date()
+        let providerID = UUID()
+        var messages: [ChatMessage] = []
+        for index in 0..<3 {
+            messages.append(TestFactories.makeMessage(
+                role: .assistant, text: "usd\(index)", providerID: providerID,
+                estimatedCost: 0.000_005, state: .delivered, createdAt: now
+            ))
+            var cny = TestFactories.makeMessage(
+                role: .assistant, text: "cny\(index)", providerID: providerID,
+                estimatedCost: 0, state: .delivered, createdAt: now
+            )
+            cny.nonUsdCost = NonUsdCost(currencyCode: "CNY", amount: 0.000_005, costSource: .localEstimate)
+            messages.append(cny)
+        }
+        try harness.store.replaceAllConversations([
+            TestFactories.makeConversation(providerID: providerID, messages: messages)
+        ])
+
+        let fromSQL = try harness.store.fetchMonthlyCostAggregates(now: now)
+        let usd = fromSQL.map(\.cost).reduce(0, +)
+        let cny = fromSQL.compactMap { $0.nonUsdCosts["CNY"] }.reduce(0, +)
+        #expect(abs(usd - 0.000_015) < 1e-12)
+        #expect(abs(cny - 0.000_015) < 1e-12)
+        #expect(fromSQL.map(\.billedMessageCount).reduce(0, +) == 0)
+    }
+
+    // MARK: - Image cleanup after message deletes
+
+    private static let imageBytes = Data([0xFF, 0xD8, 0xFF, 0xE0])
+
+    private func withImagePartition(
+        _ prefix: String,
+        _ body: (ConversationStore, String) async throws -> Void
+    ) async throws {
+        let harness = try TestHarness()
+        let uid = "\(prefix)-\(UUID().uuidString)"
+        defer {
+            harness.cleanup()
+            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+        }
+        let store = ConversationStore(
+            dbPool: harness.dbPool,
+            attachmentFileStore: harness.fileStore,
+            imagePartitionUID: uid
+        )
+        try await body(store, uid)
+    }
+
+    private func saveImage(_ key: String, uid: String) {
+        ImageStore.save(imageData: Self.imageBytes, for: key, partitionUID: uid)
+        ImageStore.saveThumbnail(imageData: Self.imageBytes, for: key, partitionUID: uid)
+    }
+
+    private func imageExists(_ key: String, uid: String) -> Bool {
+        let dir = AppSessionStore.imagesDir(for: uid)
+        return FileManager.default.fileExists(atPath: dir.appendingPathComponent("\(key).img").path)
+            || FileManager.default.fileExists(atPath: dir.appendingPathComponent("\(key).thumb").path)
+    }
+
+    @Test("Deleting Messages Explicitly Purges Unreferenced Images")
+    func messageDelete_purgesUnreferencedImages() async throws {
+        try await withImagePartition("msg-delete-purge") { store, uid in
+            let explicit = TestFactories.makeImageAttachment(localImageID: "local-\(UUID().uuidString)")
+            let kept = TestFactories.makeImageAttachment(localImageID: "local-\(UUID().uuidString)")
+            let explicitMessage = TestFactories.makeMessage(role: .user, text: "a", attachments: [explicit])
+            let keptMessage = TestFactories.makeMessage(role: .user, text: "b", attachments: [kept])
+            let survivor = TestFactories.makeMessage(role: .assistant, text: "c")
+            var conversation = TestFactories.makeConversation(
+                messages: [explicitMessage, keptMessage, survivor]
+            )
+            try store.upsertConversation(conversation)
+            saveImage(explicit.localImageID!, uid: uid)
+            saveImage(kept.localImageID!, uid: uid)
+
+            conversation.messages = []
+            try store.upsertConversation(conversation, deletingMessageIDs: [explicitMessage.id])
+            await store.waitForPendingImagePurge()
+            #expect(!imageExists(explicit.localImageID!, uid: uid))
+            #expect(imageExists(kept.localImageID!, uid: uid), "images of messages that were not deleted stay")
+            let remaining = Set(try store.fetchMessages(for: conversation.id).map(\.id))
+            #expect(remaining == [keptMessage.id, survivor.id])
+        }
+    }
+
+    @Test("Deleting Messages Keeps An Image Another Message Still References")
+    func messageDelete_keepsSharedImage() async throws {
+        try await withImagePartition("msg-delete-shared") { store, uid in
+            let sharedKey = "shared-\(UUID().uuidString)"
+            let firstMessage = TestFactories.makeMessage(
+                role: .user, text: "1", attachments: [TestFactories.makeImageAttachment(localImageID: sharedKey)]
+            )
+            let secondMessage = TestFactories.makeMessage(
+                role: .user, text: "2", attachments: [TestFactories.makeImageAttachment(localImageID: sharedKey)]
+            )
+            var original = TestFactories.makeConversation(messages: [firstMessage])
+            var copy = TestFactories.makeConversation(messages: [secondMessage])
+            try store.upsertConversations([original, copy])
+            saveImage(sharedKey, uid: uid)
+
+            original.messages = []
+            try store.upsertConversation(original, deletingMessageIDs: [firstMessage.id])
+            await store.waitForPendingImagePurge()
+            #expect(imageExists(sharedKey, uid: uid), "the copy still references the same key")
+
+            copy.messages = []
+            try store.upsertConversation(copy, deletingMessageIDs: [secondMessage.id])
+            await store.waitForPendingImagePurge()
+            #expect(!imageExists(sharedKey, uid: uid))
+        }
+    }
 }
 
 @MainActor

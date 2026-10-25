@@ -214,14 +214,14 @@ struct SummaryProjectionDataSafetyTests {
     }
 
     @Test("replacing with summaries and reading back keeps memory as summaries instead of loading every body")
-    func replaceProjectionOrThrowKeepsSummaries() throws {
-        try withIsolatedUIDSync("summary-replace-throw") { uid in
+    func replaceProjectionOrThrowKeepsSummaries() async throws {
+        try await withIsolatedUID("summary-replace-throw") { uid in
             let bridge = ConversationRuntimeBridge()
             let conversation = TestFactories.makeConversation(messages: [TestFactories.makeMessage(text: "x")])
             _ = try bridge.replaceAllConversations([conversation], uid: uid)
 
             let state = AppState(sessionUID: uid)
-            try state.replaceConversationProjectionOrThrow(state.conversations)
+            try await state.replaceConversationProjectionOrThrow(state.conversations)
 
             #expect(try bridge.fetchConversationProjection(id: conversation.id, uid: uid)?.messages.map(\.text) == ["x"])
             #expect(state.conversations.first?.messagesAreLoaded == false)
@@ -279,8 +279,8 @@ struct SummaryProjectionDataSafetyTests {
     // MARK: - Deletion and export
 
     @Test("deleting a summary-projection conversation removes its on-device images")
-    func deletingSummaryConversationCleansImages() throws {
-        try withIsolatedUIDSync("summary-delete-images") { uid in
+    func deletingSummaryConversationCleansImages() async throws {
+        try await withIsolatedUID("summary-delete-images") { uid in
             AppSessionStore.switchToUser(uid)
             let localImageID = UUID().uuidString
             ImageStore.save(imageData: Data([0xFF, 0xD8, 0xFF]), for: localImageID, partitionUID: uid)
@@ -297,6 +297,7 @@ struct SummaryProjectionDataSafetyTests {
             let manager = ConversationManager()
             manager.bind(to: state)
             manager.deleteConversation(id: conversation.id)
+            await manager.pendingImagePurge?.value
 
             #expect(!ImageStore.imageExists(for: localImageID, partitionUID: uid))
         }
