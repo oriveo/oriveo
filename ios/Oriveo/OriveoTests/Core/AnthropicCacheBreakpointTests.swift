@@ -5,11 +5,12 @@ import Testing
 
 /// Anthropic allows at most 4 cache breakpoints per request. With 5 images in the current turn plus images in history,
 /// the official route and Relay follow the same rule: no top-level `cache_control`, and exactly one on the last non-[D] block of the last user message.
-@Suite("Anthropic cache breakpoints", .serialized)
+@Suite("Anthropic cache breakpoints", .serialized, .sharedProcessState)
 struct AnthropicCacheBreakpointTests {
 
     @Test("Official Anthropic: 5 images plus a history image yield a single cache_control on the last block of the last user message")
     func officialKeepsSingleBlockBreakpoint() async throws {
+        try await Self.loadOfficialCatalog(promptCache: Self.explicitPromptCache)
         AnthropicCaptureURLProtocol.reset()
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [AnthropicCaptureURLProtocol.self]
@@ -46,6 +47,40 @@ struct AnthropicCacheBreakpointTests {
         let blocksText = String(decoding: blocksJSON, as: UTF8.self)
         #expect(Self.occurrences(of: "\"type\":\"image\"", in: blocksText) == 6, "images are actually encoded as blocks")
         #expect(Self.occurrences(of: "cache_control", in: blocksText) == 0)
+    }
+
+    @Test("Official Anthropic: catalog missing promptCache / missing policyRef / not explicit / catalog unavailable -> 0 breakpoints, [D] is still split off")
+    func officialWithoutExplicitPolicyHasNoBreakpoint() async throws {
+        for promptCache in [nil, "{}", #"{"policyRef":"anthropic.automatic"}"#, #"{"policyRef":7}"#] {
+            try await Self.loadOfficialCatalog(promptCache: promptCache)
+            let body = try #require(try await Self.officialBody(dynamic: true, loadCatalog: false))
+            #expect(Self.occurrences(of: "cache_control", in: String(decoding: body, as: UTF8.self)) == 0, "\(promptCache ?? "nil")")
+            let json = try #require(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let blocks = try #require((json["messages"] as? [[String: Any]])?.last?["content"] as? [[String: Any]])
+            #expect(blocks.count == 2, "[D] is still split into its own last block")
+        }
+        await MetadataClient.shared.resetForTesting()
+        let body = try #require(try await Self.officialBody(dynamic: false, loadCatalog: false))
+        #expect(Self.occurrences(of: "cache_control", in: String(decoding: body, as: UTF8.self)) == 0, "metadata unavailable")
+    }
+
+    @Test("The catalog promptCache.policyRef decodes into the resolved model and round-trips unchanged through ModelMetadataEntry")
+    func promptCachePolicyRefDecodesAndRoundTrips() async throws {
+        try await Self.loadOfficialCatalog(promptCache: Self.explicitPromptCache)
+        let resolved = MetadataClient.shared.syncResolveCatalogModel(modelID: "claude-sonnet-4-5", providerKind: .anthropic)
+        #expect(resolved?.promptCachePolicyRef == "anthropic.explicit")
+        let entryJSON = #"{"canonicalModelId":"claude-sonnet-4-5","promptCache":{"policyRef":"anthropic.explicit","extra":1}}"#
+        let entry = try JSONDecoder().decode(MetadataClient.ModelMetadataEntry.self, from: Data(entryJSON.utf8))
+        #expect(entry.promptCachePolicyRef == "anthropic.explicit")
+        let reencoded = try JSONDecoder().decode(
+            MetadataClient.ModelMetadataEntry.self, from: try JSONEncoder().encode(entry)
+        )
+        #expect(reencoded.promptCachePolicyRef == "anthropic.explicit")
+        let raw = try #require(
+            (try JSONSerialization.jsonObject(with: try JSONEncoder().encode(entry)) as? [String: Any])?["promptCache"] as? [String: Any]
+        )
+        #expect((raw["extra"] as? NSNumber)?.intValue == 1)
+        await MetadataClient.shared.resetForTesting()
     }
 
     @Test("Relay Anthropic: 5 images plus a history image put the only breakpoint on the last block of the last user")
@@ -364,7 +399,38 @@ struct AnthropicCacheBreakpointTests {
         return (messages, options)
     }
 
-    private static func officialBody(dynamic: Bool) async throws -> Data? {
+    private static let explicitPromptCache = #"{"policyRef":"anthropic.explicit"}"#
+
+    /// Injects an official Anthropic catalog containing only claude-sonnet-4-5; `promptCache` is JSON spliced verbatim into the model entry, nil = the key is omitted.
+    private static func loadOfficialCatalog(promptCache: String?) async throws {
+        await MetadataClient.shared.resetForTesting()
+        let promptCacheField = promptCache.map { ",\n              \"promptCache\": \($0)" } ?? ""
+        try await MetadataClient.shared.loadForTesting(json: """
+        {
+          "version": 1,
+          "updatedAt": "2026-10-19T00:00:00Z",
+          "profiles": { "reasoning": {}, "webSearch": {}, "imageGen": {} },
+          "providers": {
+            "anthropic": {
+              "displayName": "Anthropic",
+              "defaultModelId": "claude-sonnet-4-5",
+              "validationModelId": "claude-sonnet-4-5",
+              "resolveMap": { "claude-sonnet-4-5": "claude-sonnet-4-5" },
+              "models": {
+                "claude-sonnet-4-5": {
+                  "canonicalModelId": "claude-sonnet-4-5",
+                  "displayName": "Claude Sonnet 4.5",
+                  "capabilities": ["text"]\(promptCacheField)
+                }
+              }
+            }
+          }
+        }
+        """, metadataETag: "anthropic-cache-breakpoint-\(UUID().uuidString)")
+    }
+
+    private static func officialBody(dynamic: Bool, loadCatalog: Bool = true) async throws -> Data? {
+        if loadCatalog { try await loadOfficialCatalog(promptCache: explicitPromptCache) }
         AnthropicCaptureURLProtocol.reset()
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [AnthropicCaptureURLProtocol.self]

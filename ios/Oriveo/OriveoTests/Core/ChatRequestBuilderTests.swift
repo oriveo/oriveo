@@ -75,6 +75,8 @@ struct ChatRequestBuilderTests {
 
     @Test("send path strips AI-generated images off assistant messages but keeps their text")
     func sendPathStripsAssistantGeneratedImages() {
+        // An image generation model stores its image in an assistant message; after switching to a text model the upstream rejects this history image
+        // (incorrect modal `image` placed in wrong position / assistant), so outbound normalization must strip it.
         let userPrompt = TestFactories.makeMessage(role: .user, text: "Draw a farmer")
         let generatedImage = TestFactories.makeImageAttachment(fileName: "generated.png")
         let assistantWithImage = TestFactories.makeMessage(
@@ -122,7 +124,6 @@ struct ChatRequestBuilderTests {
         let result = ChatRequestBuilder.build(from: snapshot, assembly: RetiredAntiForgetProbe.assembly)
 
         // The text-less generated-image assistant becomes empty and is dropped; the now adjacent users merge
-        // into one, with the earlier text inside the unanswered envelope (contract sanitize.v1).
         #expect(result.planned.messages.map(\.role) == [.user])
         #expect(result.planned.messages.first?.id == followUp.id)
         #expect(result.planned.messages.first?.text == "<oriveo-unanswered>\n<note>\(ContextSanitizer.unansweredNote)</note>\nDraw a farmer\n</oriveo-unanswered>\n\nNice")
@@ -130,7 +131,6 @@ struct ChatRequestBuilderTests {
 
     @Test("send path folds the older user left by a dropped mid-history empty failed assistant into the envelope")
     func sendPathFoldsOlderUserAfterDroppingEmptyFailedAssistant() {
-        // u1 -> a1(delivered) -> u2 -> a2(failed, '') -> u3: once a2 is dropped u2/u3 are adjacent. Strict relays
         // require alternation, so they merge into one: u2 goes into the unanswered envelope, u3's text follows,
         // and u3's id is kept (contract sanitize.v1).
         let u1 = TestFactories.makeMessage(role: .user, text: "q1")
@@ -184,6 +184,8 @@ struct ChatRequestBuilderTests {
 
     @Test("send path keeps a non-empty interrupted assistant to separate two user turns")
     func sendPathKeepsPartialInterruptedAssistantBetweenUsers() {
+        // Stopped late: the assistant already produced a partial, which is kept as valid context and naturally separates the two user turns,
+        // satisfying strict alternation while giving the model context, so it answers only the latest uB and does not re-answer uA.
         let uA = TestFactories.makeMessage(role: .user, text: "What is the micro-frontend framework called")
         let aA = TestFactories.makeMessage(role: .assistant, text: "You probably mean micro-app", state: .interrupted)
         let uB = TestFactories.makeMessage(role: .user, text: "Who is the boss of Film Typhoon")
@@ -204,6 +206,7 @@ struct ChatRequestBuilderTests {
 
     @Test("send path merges adjacent assistant messages from malformed history")
     func sendPathMergesAdjacentAssistants() {
+        // Defensive: the normal flow never produces adjacent assistants; when a malformed history contains them, text/attachments are merged.
         let u1 = TestFactories.makeMessage(role: .user, text: "q1")
         let a1 = TestFactories.makeMessage(role: .assistant, text: "part1")
         let a2 = TestFactories.makeMessage(role: .assistant, text: "part2")
@@ -224,6 +227,9 @@ struct ChatRequestBuilderTests {
 
     @Test("send path drops a failed assistant turn even when its text holds an error placeholder")
     func sendPathDropsFailedAssistantWithErrorPlaceholderText() {
+        // failStreamingMessage overwrites text with a localized error message when the partial is empty (the source of the failed bubble's body).
+        // This failed message must not be sent to the model as assistant context, otherwise the error text is treated as a fake answer and resent every turn.
+        // All state==.failed messages are dropped uniformly (aligned with Android); without a keepId, u1 goes into the unanswered envelope and u2's original text follows.
         let u1 = TestFactories.makeMessage(role: .user, text: "q1")
         let failed = TestFactories.makeMessage(role: .assistant, text: "Request failed: invalid API key", state: .failed)
         let u2 = TestFactories.makeMessage(role: .user, text: "q2")
@@ -288,7 +294,7 @@ struct ChatRequestBuilderTests {
         )
     }
 
-    @Test("anti-forget preference enabled with text still yields requests without [Reminder:")
+    @Test("anti-forget preference enabled with text still yields requests without [Reminder: (BUG-04)")
     @MainActor
     func antiForgetPreferenceNeverInjectsReminder() {
         var messages: [ChatMessage] = []
@@ -361,7 +367,6 @@ struct ChatRequestBuilderTests {
 
 /// Anti-forget no longer injects reminders. Memory-related tests run the production
 /// `ChatRequestBuilder.build` through this probe and assert that the outbound request
-/// (every message and the system prompt) never contains `[Reminder:`.
 enum RetiredAntiForgetProbe {
     static let reminderMarker = "[Reminder:"
     /// Assembly parameters with an unknown window (no budget trimming): only the projected shape of the plan matters.
@@ -394,5 +399,68 @@ enum RetiredAntiForgetProbe {
     static func containsReminder(_ result: ChatRequestBuildResult) -> Bool {
         result.planned.system.contains(reminderMarker)
             || result.planned.messages.contains { $0.text.contains(reminderMarker) }
+    }
+}
+
+// MARK: - Voice delivery envelope
+
+extension ChatRequestBuilderTests {
+    static func deliverySnapshot(
+        _ delivery: ContextDelivery?,
+        messages: [ChatMessage]? = nil,
+        sendPath: ChatRequestSendPath = .send(excludingMessageID: nil)
+    ) -> ChatRequestSnapshot {
+        ChatRequestSnapshot(
+            conversation: ChatRequestConversationSnapshot(id: UUID(), useMemory: false, skillID: nil),
+            messages: messages ?? [TestFactories.makeMessage(role: .user, text: "Will it rain in Kyoto tomorrow?")],
+            preferences: ChatRequestPreferencesSnapshot(),
+            skill: nil,
+            sendPath: sendPath,
+            delivery: delivery
+        )
+    }
+
+    @Test("Voice send: the last user message ends with <oriveo-delivery>; a normal send has none and is byte-identical to passing no delivery")
+    func voiceDeliveryRendersOnlyForVoiceSend() throws {
+        let messages = [TestFactories.makeMessage(role: .user, text: "Will it rain in Kyoto tomorrow?")]
+        let voice = ChatRequestBuilder.build(from: Self.deliverySnapshot(.voice, messages: messages), assembly: RetiredAntiForgetProbe.assembly)
+        let plain = ChatRequestBuilder.build(from: Self.deliverySnapshot(nil, messages: messages), assembly: RetiredAntiForgetProbe.assembly)
+        let legacy = ChatRequestBuilder.build(from: ChatRequestSnapshot(
+            conversation: ChatRequestConversationSnapshot(id: UUID(), useMemory: false, skillID: nil),
+            messages: messages,
+            preferences: ChatRequestPreferencesSnapshot(),
+            skill: nil,
+            sendPath: .send(excludingMessageID: nil)
+        ), assembly: RetiredAntiForgetProbe.assembly)
+
+        let voiceUser = try #require(voice.planned.messages.last(where: { $0.role == .user }))
+        #expect(voiceUser.text.contains("<oriveo-delivery>\n"))
+        #expect(voiceUser.text.hasSuffix("</oriveo-delivery>"))
+        #expect(!voice.planned.system.contains("oriveo-delivery"))
+        let plainUser = try #require(plain.planned.messages.last(where: { $0.role == .user }))
+        #expect(!plainUser.text.contains("oriveo-delivery"))
+        #expect(plain.planned.messages.map(\.text) == legacy.planned.messages.map(\.text))
+        #expect(plain.planned.system == legacy.planned.system)
+    }
+
+    @Test("The tool leg (toolLoopLeg) and continue of a voice turn carry <oriveo-delivery> as well")
+    func voiceDeliveryCarriesToToolLegAndContinue() throws {
+        let leg = ChatRequestBuilder.build(
+            from: Self.deliverySnapshot(.voice),
+            assembly: RetiredAntiForgetProbe.assembly,
+            toolSafety: "Tools may act on the user's behalf."
+        )
+        #expect(leg.planned.plan.purpose == .toolLoopLeg)
+        let legUser = try #require(leg.planned.messages.last(where: { $0.role == .user }))
+        #expect(legUser.text.contains("<oriveo-delivery>"))
+
+        let user = TestFactories.makeMessage(role: .user, text: "Tell me about Nara")
+        let assistant = TestFactories.makeMessage(role: .assistant, text: "Nara is south of Kyoto")
+        let continued = ChatRequestBuilder.build(
+            from: Self.deliverySnapshot(.voice, messages: [user, assistant], sendPath: .continueResponse(assistantMessageID: assistant.id)),
+            assembly: RetiredAntiForgetProbe.assembly
+        )
+        #expect(continued.planned.plan.purpose == .continue)
+        #expect(continued.planned.messages.contains { $0.text.contains("<oriveo-delivery>") })
     }
 }

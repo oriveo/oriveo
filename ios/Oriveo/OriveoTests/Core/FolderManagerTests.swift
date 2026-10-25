@@ -2,7 +2,7 @@ import Testing
 import Foundation
 @testable import Oriveo
 
-@Suite("FolderManager", .serialized)
+@Suite("FolderManager", .serialized, .sharedProcessState)
 struct FolderManagerTests {
 
 
@@ -386,12 +386,13 @@ struct FolderManagerTests {
             messages: [TestFactories.makeMessage(role: .user, text: "authoritative thread body")],
             folderID: sourceFolder.id
         )
-        let staleMirrorConversation = TestFactories.makeConversation(
+        var staleMirrorConversation = TestFactories.makeConversation(
             id: conversationID,
             title: "Stale mirror move",
             messages: [TestFactories.makeMessage(role: .user, text: "stale mirror body")],
             folderID: sourceFolder.id
         )
+        staleMirrorConversation.messagesAreLoaded = false
 
         try persistAuthoritativeConversations([authoritativeConversation], uid: uid)
         state.conversations = [staleMirrorConversation]
@@ -493,12 +494,13 @@ struct FolderManagerTests {
             messages: [TestFactories.makeMessage(role: .assistant, text: "authoritative assistant body")],
             folderID: folder.id
         )
-        let staleMirrorConversation = TestFactories.makeConversation(
+        var staleMirrorConversation = TestFactories.makeConversation(
             id: conversationID,
             title: "Stale mirror delete",
             messages: [TestFactories.makeMessage(role: .assistant, text: "stale mirror assistant body")],
             folderID: folder.id
         )
+        staleMirrorConversation.messagesAreLoaded = false
 
         try persistAuthoritativeConversations([authoritativeConversation], uid: uid)
         state.conversations = [staleMirrorConversation]
@@ -513,6 +515,57 @@ struct FolderManagerTests {
         #expect(mirrored.folderID == nil)
         #expect(persisted.messages.map(\.text) == ["authoritative assistant body"])
         #expect(mirrored.messages.map(\.text) == ["authoritative assistant body"])
+    }
+
+    @Test("Moving a conversation right after truncation: the loaded in-memory thread wins, and unpersisted old messages are not read back and written again")
+    @MainActor
+    func moveRightAfterTruncationDoesNotResurrectMessages() throws {
+        let (state, uid) = makeIsolatedAppState(prefix: "folder-move-truncated-")
+
+        defer {
+            state.flushConversationPersistQueue()
+            DatabaseManager.shared.close()
+            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+        }
+
+        DatabaseManager.shared.close()
+
+        let source = TestFactories.makeFolder(id: UUID(), name: "Source")
+        let target = TestFactories.makeFolder(id: UUID(), name: "Target", sortOrder: 2000)
+        state.folders = [source, target]
+
+        let first = TestFactories.makeMessage(role: .user, text: "q")
+        let reply = TestFactories.makeMessage(role: .assistant, text: "a")
+        let single = TestFactories.makeConversation(messages: [first, reply], folderID: source.id)
+        let firstOfBatch = TestFactories.makeMessage(role: .user, text: "q2")
+        let replyOfBatch = TestFactories.makeMessage(role: .assistant, text: "a2")
+        let batched = TestFactories.makeConversation(messages: [firstOfBatch, replyOfBatch], folderID: source.id)
+        try persistAuthoritativeConversations([single, batched], uid: uid)
+
+        var truncatedSingle = single
+        truncatedSingle.messages = []
+        var truncatedBatched = batched
+        truncatedBatched.messages = []
+        state.conversations = [truncatedSingle, truncatedBatched]
+        state.upsertConversationProjection(truncatedSingle, expectedUID: uid, deletingMessageIDs: [first.id, reply.id])
+        state.upsertConversationProjection(
+            truncatedBatched, expectedUID: uid, deletingMessageIDs: [firstOfBatch.id, replyOfBatch.id]
+        )
+
+        state.folderManager.moveConversation(single.id, to: target.id)
+        state.folderManager.batchMove([batched.id], to: target.id)
+        state.flushConversationPersistQueue()
+
+        for id in [single.id, batched.id] {
+            let mirrored = try #require(state.conversations.first(where: { $0.id == id }))
+            #expect(mirrored.folderID == target.id)
+            #expect(mirrored.messages.isEmpty)
+            let persisted = try #require(
+                state.authoritativeConversationProjection(for: uid).first(where: { $0.id == id })
+            )
+            #expect(persisted.folderID == target.id)
+            #expect(persisted.messages.isEmpty)
+        }
     }
 
     @Test("conversationCount(in:) counts every visible conversation in the folder")

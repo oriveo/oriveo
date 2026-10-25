@@ -6,12 +6,79 @@ import OriveoProviderKit
 final class AppStateSendMessageURLProtocol: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
 
+    /// Request ownership guard: every stubbed URLSession carries an owner header; on entry (suite init) the owner set is cleared,
+    /// and the sessions created by this case are registered afterwards. A late request from a previous case's send task (e.g. the first propose_memory leg) carries a stale owner,
+    /// so it is recorded as an issue and failed outright instead of being fed to the current case's stub.
+    static let ownerHeader = "X-Oriveo-Test-Owner"
+    private static let ownerLock = NSLock()
+    nonisolated(unsafe) private static var currentOwners: Set<String> = []
+    nonisolated(unsafe) private static var currentSessions: [URLSession] = []
+
+    /// On entry: invalidate the previous case's owner and invalidateAndCancel the sessions it created.
+    /// Report first: an unfinished task on an old session means the previous case did not wait for its teardown; record an issue (with the URL and the last tool),
+    /// so that invalidating does not silently hide the leak.
+    static func beginTestOwnership() async {
+        let stale = ownerLock.withLock {
+            currentOwners.removeAll()
+            defer { currentSessions.removeAll() }
+            return currentSessions
+        }
+        for session in stale {
+            for task in await session.allTasks where task.state != .completed {
+                let request = task.originalRequest
+                Issue.record("""
+                Previous test left an unfinished request: \
+                url=\(request?.url?.absoluteString ?? "nil") \
+                lastTool=\(request.flatMap { lastToolName(in: $0) } ?? "nil")
+                """)
+            }
+            session.invalidateAndCancel()
+        }
+    }
+
+    static func track(_ session: URLSession) {
+        ownerLock.withLock { currentSessions.append(session) }
+    }
+
+    static func registerOwner() -> String {
+        let owner = UUID().uuidString
+        ownerLock.withLock { _ = currentOwners.insert(owner) }
+        return owner
+    }
+
+    private static func isCurrentOwner(_ owner: String?) -> Bool {
+        guard let owner else { return false }
+        return ownerLock.withLock { currentOwners.contains(owner) }
+    }
+
+    /// Fingerprint of a late request: the name of the last tool in the request body (propose_memory means the first leg arrived late).
+    static func lastToolName(in request: URLRequest) -> String? {
+        guard let body = appStateSendMessageRequestBody(from: request),
+              let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+              let tools = json["tools"] as? [[String: Any]],
+              let last = tools.last else { return nil }
+        if let function = last["function"] as? [String: Any], let name = function["name"] as? String {
+            return name
+        }
+        return last["name"] as? String
+    }
+
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
+        let owner = request.value(forHTTPHeaderField: Self.ownerHeader)
+        guard Self.isCurrentOwner(owner) else {
+            Issue.record("""
+            Request does not belong to the current test: owner=\(owner ?? "nil") \
+            url=\(request.url?.absoluteString ?? "nil") lastTool=\(Self.lastToolName(in: request) ?? "nil")
+            """)
+            client?.urlProtocol(self, didFailWithError: URLError(.cancelled))
+            return
+        }
         guard let handler = AppStateSendMessageURLProtocol.requestHandler else {
-            client?.urlProtocolDidFinishLoading(self)
+            // Fail outright when no stub is installed: finishing without a response traps async URLSession.data(for:) and crashes the whole test host.
+            client?.urlProtocol(self, didFailWithError: URLError(.cancelled))
             return
         }
 
@@ -39,7 +106,12 @@ private func unregisterAppStateSendMessageMock() {
 private func appStateSendMessageSession() -> URLSession {
     let configuration = URLSessionConfiguration.ephemeral
     configuration.protocolClasses = [AppStateSendMessageURLProtocol.self]
-    return URLSession(configuration: configuration)
+    configuration.httpAdditionalHeaders = [
+        AppStateSendMessageURLProtocol.ownerHeader: AppStateSendMessageURLProtocol.registerOwner()
+    ]
+    let session = URLSession(configuration: configuration)
+    AppStateSendMessageURLProtocol.track(session)
+    return session
 }
 
 private func appStateSendMessageHTTPResponse(
@@ -72,9 +144,14 @@ private func appStateSendMessageRequestBody(from request: URLRequest) -> Data? {
     return data.isEmpty ? nil : data
 }
 
-@Suite("AppState sendMessage", .serialized)
+@Suite("AppState sendMessage", .serialized, .sharedProcessState)
 @MainActor
 struct AppStateSendMessageTests {
+
+    init() async {
+        // One fresh instance per case: entering it invalidates the previous case's session owner, and late requests are recorded as issues by the stub guard.
+        await AppStateSendMessageURLProtocol.beginTestOwnership()
+    }
 
     private func loadRelayReasoningEvidence() async throws {
         await MetadataClient.shared.resetForTesting()
@@ -136,20 +213,33 @@ struct AppStateSendMessageTests {
         }
     }
 
-    @Test("Existing Conversation With Missing Provider Returns Nil")
+    /// Wait for every conversation's send task to finish: the streaming session stays until the propose_memory first leg / last leg / degraded resend all end,
+    /// so checking only that messages are not generating would release before the first leg finishes and let a late request leak into the next case's stub.
+    /// Teardown requests after the session is gone (the catalog refresh after a failure) are blocked when the next case invalidates this case's session on entry.
+    private func waitForSendsToSettle(_ state: AppState) async throws {
+        try await waitUntil(timeoutNanoseconds: 10_000_000_000) {
+            !state.chatManager.isAnyStreaming
+                && !state.conversations.contains { $0.messages.contains { $0.state == .generating } }
+        }
+    }
+
+    @Test("When an existing conversation's provider is removed and there is no fallback, sendMessage returns nil (no longer pretends to succeed)")
     func existingConversationWithMissingProviderReturnsNil() async throws {
         let state = AppState(seedDemoData: true)
         let conversationID = try #require(state.conversations.first?.id)
 
         state.providers = []
 
+        // With the provider removed and no usable provider to fall back to, sendMessage short-circuits and returns nil
+        // and ChatManager shows a send-refused toast (see ChatManager.providerMissingMessage),
+        // instead of pretending to succeed and returning the conversationID.
         let returnedID = await state.sendMessage("Hello", in: conversationID)
 
         #expect(returnedID == nil)
     }
 
-    @Test("Prepare Conversation Selection For Send Repairs Conversation Selection")
-    func prepareConversationSelectionForSendRepairsConversationSelection() {
+    @Test("Sending is refused when the conversation's connection was deleted, and the conversation's provider / model are not rewritten")
+    func sendToRemovedConnectionRefusesWithoutRewritingSelection() async {
         let state = makeIsolatedAppState(prefix: "repair-selection-")
         let fallbackProvider = TestFactories.makeProvider(
             kind: .openAI,
@@ -162,24 +252,58 @@ struct AppStateSendMessageTests {
                 )
             ]
         )
+        let deletedID = UUID()
         let conversation = TestFactories.makeConversation(
-            providerID: UUID(),
+            providerID: deletedID,
             modelID: "missing-model"
         )
 
         state.providers = [fallbackProvider]
         state.upsertConversationProjection(conversation)
 
-        state.prepareConversationSelectionForSend(
-            conversationID: conversation.id,
-            providerID: fallbackProvider.id,
-            modelID: "gpt-4o",
-            needsRepair: true
-        )
+        let outcome = await state.sendMessageOutcome("Hello", in: conversation.id)
 
-        let repaired = state.conversation(for: conversation.id)
-        #expect(repaired?.providerID == fallbackProvider.id)
-        #expect(repaired?.modelID == "gpt-4o")
+        #expect(outcome == .refused)
+        let stored = state.conversation(for: conversation.id)
+        #expect(stored?.providerID == deletedID)
+        #expect(stored?.modelID == "missing-model")
+    }
+
+    @Test("Connection temporarily unavailable: a BYOK connection that is not loaded refuses to send, with a 5 second warning toast offering Choose model, and the conversation is not rewritten")
+    func pendingConnectionRefusesWithKindSpecificReason() async throws {
+        let byokID = UUID()
+        let chooseModel = L10n.tr(ChatModelRemovedBanner.actionKey, table: .chat)
+        let cases: [(providerID: UUID, kind: ProviderKind, modelID: String, message: String, actionTitle: String?)] = [
+            (byokID, .openAI, "gpt-5.5",
+             L10n.tr("Select Model", table: .home), chooseModel),
+        ]
+        for item in cases {
+            let state = makeIsolatedAppState(prefix: "pending-connection-")
+            let conversation = TestFactories.makeConversation(
+                providerID: item.providerID,
+                providerKind: item.kind,
+                modelID: item.modelID
+            )
+            state.upsertConversationProjection(conversation)
+
+            let outcome = await state.sendMessageOutcome("Hello", in: conversation.id)
+
+            #expect(outcome == .refused)
+            #expect(ToastManager.shared.current?.message == item.message)
+            #expect(ToastManager.shared.current?.actionTitle == item.actionTitle)
+            #expect(ToastManager.shared.current?.style == .warning)
+            #expect(ToastManager.shared.currentDuration == 5)
+            if item.actionTitle != nil {
+                // Tapping "Choose model": the active window's navigation receives one request to open the model picker.
+                let before = state.navigation.modelPickerRequest
+                ToastManager.shared.performCurrentAction()
+                #expect(state.navigation.modelPickerRequest == before &+ 1)
+            }
+            let stored = try #require(state.conversation(for: conversation.id))
+            #expect(stored.providerID == item.providerID)
+            #expect(stored.providerKind == item.kind)
+            #expect(stored.modelID == item.modelID)
+        }
     }
 
     /// A hardware Return and the send button fire a send in the same frame: only one round of messages is created; the later one reports "blocked while sending",
@@ -220,7 +344,7 @@ struct AppStateSendMessageTests {
         #expect(updated.messages.filter { $0.role == .user }.count == 1)
         #expect(updated.messages.count == 2)
 
-        try? await Task.sleep(nanoseconds: 300_000_000)
+        try await waitForSendsToSettle(state)
     }
 
     /// Double send in the same frame for a new conversation (in: nil): the composer's in-flight gate creates only one conversation and one round of messages; the later one reports "blocked while sending".
@@ -255,10 +379,10 @@ struct AppStateSendMessageTests {
         #expect(state.conversations.count == 1)
         #expect(state.conversations.first?.messages.filter { $0.role == .user }.count == 1)
 
-        try? await Task.sleep(nanoseconds: 300_000_000)
+        try await waitForSendsToSettle(state)
     }
 
-    @Test("Existing Conversation Send Uses Selected Model After Switch")
+    @Test("Sending after switching the model of an existing conversation writes the new model into this turn's messages")
     func existingConversationSendUsesSelectedModelAfterSwitch() async throws {
         registerAppStateSendMessageMock()
         defer {
@@ -297,10 +421,49 @@ struct AppStateSendMessageTests {
         #expect(updated.messages.count == 2)
         #expect(updated.messages.allSatisfy { $0.modelID == "model-b" })
 
-        try? await Task.sleep(nanoseconds: 300_000_000)
+        try await waitForSendsToSettle(state)
     }
 
-    @Test("Qwen Send Message Survives Reasoning Only Chunks Before Final Content")
+    @Test("Every actual send in an existing conversation records the last used connection + model")
+    func existingConversationSendWritesLastUsed() async throws {
+        registerAppStateSendMessageMock()
+        defer {
+            AppStateSendMessageURLProtocol.requestHandler = nil
+            unregisterAppStateSendMessageMock()
+        }
+        AppStateSendMessageURLProtocol.requestHandler = { request in
+            (
+                appStateSendMessageHTTPResponse(url: request.url!, statusCode: 503),
+                Data()
+            )
+        }
+
+        let state = makeIsolatedAppState(prefix: "send-writes-last-used-")
+        let provider = TestFactories.makeProvider(
+            kind: .openAI,
+            models: [
+                TestFactories.makeModel(id: "model-a", name: "Model A", isDefault: true),
+                TestFactories.makeModel(id: "model-b", name: "Model B")
+            ]
+        )
+        let conversation = TestFactories.makeConversation(
+            providerID: provider.id,
+            providerKind: provider.kind,
+            modelID: "model-b"
+        )
+        state.providers = [provider]
+        state.upsertConversationProjection(conversation)
+        state.lastUsedModelRef = LastUsedModelRef(providerID: provider.id, modelID: "model-a")
+
+        let returnedID = await state.sendMessage("Hello", in: conversation.id)
+
+        #expect(returnedID == conversation.id)
+        #expect(state.lastUsedModelRef == LastUsedModelRef(providerID: provider.id, modelID: "model-b"))
+
+        try await waitForSendsToSettle(state)
+    }
+
+    @Test("Qwen3.6 Plus still completes a text conversation after a long reasoning_content")
     func qwenSendMessageSurvivesReasoningOnlyChunksBeforeFinalContent() async throws {
         registerAppStateSendMessageMock()
         defer {
@@ -324,9 +487,9 @@ struct AppStateSendMessageTests {
             data: {"choices":[{"delta":{"content":null,"role":"assistant","reasoning_content":""},"index":0,"finish_reason":null}]}
             data: {"choices":[{"delta":{"content":null,"reasoning_content":"Here"},"index":0,"finish_reason":null}]}
             data: {"choices":[{"delta":{"content":null,"reasoning_content":"'s a thinking process"},"index":0,"finish_reason":null}]}
-            data: {"choices":[{"delta":{"content":"Hello"},"index":0,"finish_reason":null}]}
             data: {"choices":[{"delta":{"content":"! How can I help"},"index":0,"finish_reason":null}]}
-            data: {"choices":[{"delta":{"content":" you?"},"index":0,"finish_reason":null}]}
+            data: {"choices":[{"delta":{"content":"\u{FF01}\u{6709}\u{4EC0}\u{4E48}\u{6211}\u{53EF}\u{4EE5}\u{5E2E}"},"index":0,"finish_reason":null}]}
+            data: {"choices":[{"delta":{"content":"\u{4F60}\u{7684}\u{5417}\u{FF1F}"},"index":0,"finish_reason":null}]}
             data: {"usage":{"prompt_tokens":8,"completion_tokens":12}}
             data: [DONE]
 
@@ -359,7 +522,7 @@ struct AppStateSendMessageTests {
         state.providers = [qwenProvider]
         state.setActiveModel(providerID: qwenProvider.id, modelID: "qwen3.6-plus")
 
-        let conversationID = try #require(await state.sendMessage("Hello", in: nil))
+        let conversationID = try #require(await state.sendMessage("\u{4F60}\u{597D}", in: nil))
 
         try await waitUntil {
             guard let conversation = state.conversation(for: conversationID),
@@ -368,6 +531,7 @@ struct AppStateSendMessageTests {
             }
             return assistant.state != .generating
         }
+        try await waitForSendsToSettle(state)
 
         let conversation = try #require(state.conversation(for: conversationID))
         let assistant = try #require(conversation.messages.last(where: { $0.role == .assistant }))
@@ -379,7 +543,7 @@ struct AppStateSendMessageTests {
         #expect(assistant.errorDetail == nil)
     }
 
-    @Test("Relay Anthropic Explicit Transport Uses Messages Endpoint")
+    @Test("Relay Claude with an explicit transport uses /messages and x-api-key by default")
     func relayAnthropicExplicitTransportUsesMessagesEndpoint() async throws {
         registerAppStateSendMessageMock()
         defer {
@@ -453,6 +617,7 @@ struct AppStateSendMessageTests {
             }
             return assistant.state != .generating
         }
+        try await waitForSendsToSettle(state)
 
         let request = try #require(capturedRequest)
         #expect(request.url?.path == "/v1/messages")
@@ -460,7 +625,7 @@ struct AppStateSendMessageTests {
         #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
     }
 
-    @Test("Relay Gemini Explicit Transport Uses Generate Content Endpoint")
+    @Test("Relay Gemini with an explicit transport uses generateContent and x-goog-api-key by default")
     func relayGeminiExplicitTransportUsesGenerateContentEndpoint() async throws {
         registerAppStateSendMessageMock()
         defer {
@@ -528,6 +693,7 @@ struct AppStateSendMessageTests {
             }
             return assistant.state != .generating
         }
+        try await waitForSendsToSettle(state)
 
         let request = try #require(capturedRequest)
         let url = try #require(request.url)
@@ -538,6 +704,13 @@ struct AppStateSendMessageTests {
         #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
     }
 
+    // Phase 09 v3: RelayImageRoute is derived statically from the transport
+    //  - openai_responses -> inline tool path (/responses + tools + automatically picks a chat driver)
+    //  - openai_chat_completions -> the standalone /images/generations endpoint
+    //  - anthropic_messages -> a friendly error (no request is sent)
+    //  - gemini_generate_content -> native responseModalities (no standalone path)
+    //
+    // The three tests below plus the fixtures in RelayRuntimeRoutingTests cover the whole matrix.
 
     @Test("Relay + openai_chat_completions transport + imageGen → /v1/images/generations")
     func relayImageGenRoutesToImagesEndpointOnChatCompletions() async throws {
@@ -610,6 +783,7 @@ struct AppStateSendMessageTests {
             }
             return assistant.state != .generating
         }
+        try await waitForSendsToSettle(state)
 
         let request = try #require(capturedRequest)
         let body = try #require(appStateSendMessageRequestBody(from: request))
@@ -617,6 +791,9 @@ struct AppStateSendMessageTests {
 
         #expect(request.url?.path == "/v1/images/generations")
         #expect(payload["model"] as? String == "gpt-image-2")
+        // OpenAI no longer accepts a response_format field for dedicated image models (gpt-image-* / chatgpt-image-*),
+        // and returns b64_json by default. Sending it explicitly gets a 400 from direct OpenAI or a strict relay.
+        // OpenAIService.buildImagesGenerationRequest deliberately omits response_format for these models.
         #expect(payload["response_format"] as? String == nil)
 
         let conversation = try #require(state.conversation(for: conversationID))
@@ -625,7 +802,7 @@ struct AppStateSendMessageTests {
         #expect(assistant.attachments?.first?.kind == .image)
     }
 
-    @Test("Relay Image Gen On Responses Uses Inline Tool With Chat Driver")
+    @Test("Relay + openai_responses transport + imageGen + dedicated image model -> /responses carries the inline tool, and the main model switches to a chat driver automatically")
     func relayImageGenOnResponsesUsesInlineToolWithChatDriver() async throws {
         registerAppStateSendMessageMock()
         defer {
@@ -637,6 +814,7 @@ struct AppStateSendMessageTests {
         AppStateSendMessageURLProtocol.requestHandler = { request in
             let url = try #require(request.url)
             capturedRequest = request
+            // Reply with a trivial empty SSE so the stream finishes
             return (
                 appStateSendMessageHTTPResponse(
                     url: url,
@@ -687,6 +865,7 @@ struct AppStateSendMessageTests {
             }
             return assistant.state != .generating
         }
+        try await waitForSendsToSettle(state)
 
         let request = try #require(capturedRequest)
         #expect(request.url?.path.hasSuffix("/responses") == true)
@@ -695,7 +874,8 @@ struct AppStateSendMessageTests {
 
         let body = try #require(appStateSendMessageRequestBody(from: request))
         let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
-        #expect(payload["model"] as? String == "gpt-5.4")
+        // The main model should be switched to the chat driver gpt-5.4, while tool.model keeps the currently selected gpt-image-2
+        #expect(payload["model"] as? String == "gpt-5.4", "the main model should be the chat driver gpt-5.4")
         let tools = payload["tools"] as? [[String: Any]] ?? []
         // With memory on, the normal path appends propose_memory after the existing tools (existing tools are kept, the memory tool goes last).
         #expect(tools.count == 2)
@@ -705,7 +885,7 @@ struct AppStateSendMessageTests {
         #expect(payload["stream"] as? Bool == true, "Responses transport + imageGen should force stream=true")
     }
 
-    @Test("Relay Image Gen On Anthropic Throws Friendly Error")
+    @Test("Relay + anthropic_messages transport + imageGen -> throws a friendly configuration error")
     func relayImageGenOnAnthropicThrowsFriendlyError() async throws {
         registerAppStateSendMessageMock()
         defer {
@@ -757,14 +937,15 @@ struct AppStateSendMessageTests {
             }
             return assistant.state != .generating
         }
+        try await waitForSendsToSettle(state)
 
         let conversation = try #require(state.conversation(for: conversationID))
         let assistant = try #require(conversation.messages.last(where: { $0.role == .assistant }))
-        #expect(assistant.state == .failed)
-        #expect(requestFired == false)
+        #expect(assistant.state == .failed, "Anthropic transport + imageGen should fail up front")
+        #expect(requestFired == false, "no network request should be sent (the friendly error comes first)")
     }
 
-    @Test("Relay Stream False Uses Non Streaming Chat Completions Runtime")
+    @Test("Relay stream=false uses the non-streaming chat completions runtime")
     func relayStreamFalseUsesNonStreamingChatCompletionsRuntime() async throws {
         registerAppStateSendMessageMock()
         defer {
@@ -845,6 +1026,7 @@ struct AppStateSendMessageTests {
             }
             return assistant.state != .generating
         }
+        try await waitForSendsToSettle(state)
 
         let request = try #require(capturedRequest)
         let body = try #require(appStateSendMessageRequestBody(from: request))
@@ -857,9 +1039,20 @@ struct AppStateSendMessageTests {
         #expect(assistant.text == "non-stream ok")
     }
 
-    /// `BaseAPIService.performRawWithUnsupportedParamSelfHeal`("sends the production body
-    /// exactly once; the runtime never pre-strips or retries after a 400").
-    @Test("Relay Open AIResponses Never Downgrades Xhigh After Rejection")
+    /// Ruling: **silent parameter stripping / downgrade retries are removed**; a user setting rejected upstream becomes a user-visible recovery state.
+    /// See the production implementation in `OpenAIService.executeRelayResponsesStreamRequestWithFallbacks`
+    /// ("never silently drop tools, lower xhigh, or issue a second upstream request") and
+    /// `BaseAPIService.performRawWithUnsupportedParamSelfHeal` ("sends the production body
+    /// exactly once; never pre-strips or retries after a 400").
+    ///
+    /// This case used to lock "xhigh 4xx -> automatically rewritten to high and resent". That behavior made "the UI shows Max but
+    /// the output and billing are actually High" happen with no notice at all, so it was removed and the assertions now read:
+    /// one leg only, the wire carries exactly the xhigh the user chose, and the failure lands on the message unchanged.
+    ///
+    /// It also asserts that no recovery descriptor is produced: a relay has no errorRecovery locator rule delivered by the server,
+    /// `CapabilityExecutionTracker` only accepts a reviewed structured locator; it must not hand the user a "resend without this setting"
+    /// CTA based on a single error message (that would wrap a guess as an explicit recovery).
+    @Test("When Relay OpenAI Responses rejects xhigh with a 4xx, only one leg is sent and there is no automatic downgrade to high")
     func relayOpenAIResponsesNeverDowngradesXhighAfterRejection() async throws {
         try await loadRelayReasoningEvidence()
         registerAppStateSendMessageMock()
@@ -933,18 +1126,27 @@ struct AppStateSendMessageTests {
             }
             return assistant.state != .generating
         }
+        try await waitForSendsToSettle(state)
 
         let conversation = try #require(state.conversation(for: conversationID))
         let assistant = try #require(conversation.messages.last(where: { $0.role == .assistant }))
 
         await MetadataClient.shared.resetForTesting()
+        // One leg, and the wire carries the level the user chose: neither pre-stripped nor rewritten to high.
         #expect(capturedEfforts == ["xhigh"])
         #expect(assistant.state == .failed)
+        // The error reaches the user as is (the message body carries the upstream error text) instead of being hidden by an automatic downgrade.
         #expect(!assistant.text.isEmpty)
         #expect(assistant.capabilityExecution?.recoveryDescriptors == nil)
     }
 
-    @Test("Relay Open AIResponses Never Downgrades Xhigh After Rate Limit Mapping")
+    /// The negative counterpart of the same ruling: 429 has never been within the automatic retry surface
+    /// (`RequestPreferenceResolver.retryPolicy.neverAutomatic` lists "429" explicitly),
+    /// so once mapped to a rate-limit error it must not trigger "downgrade and send another leg" either.
+    ///
+    /// Why both exist: the 4xx case proves that even when the parameter can be located it is not changed automatically, and this one proves that
+    /// a status code that cannot even be located will not either. The old assertion `["xhigh", "high"]` locked the removed behavior.
+    @Test("When Relay OpenAI Responses rejects xhigh with a 429, only one leg is sent as well")
     func relayOpenAIResponsesNeverDowngradesXhighAfterRateLimitMapping() async throws {
         try await loadRelayReasoningEvidence()
         registerAppStateSendMessageMock()
@@ -1018,6 +1220,7 @@ struct AppStateSendMessageTests {
             }
             return assistant.state != .generating
         }
+        try await waitForSendsToSettle(state)
 
         let conversation = try #require(state.conversation(for: conversationID))
         let assistant = try #require(conversation.messages.last(where: { $0.role == .assistant }))
@@ -1025,13 +1228,25 @@ struct AppStateSendMessageTests {
         await MetadataClient.shared.resetForTesting()
         #expect(capturedEfforts == ["xhigh"])
         #expect(assistant.state == .failed)
+        // The error reaches the user as is (the message body carries the upstream error text) instead of being hidden by an automatic downgrade.
         #expect(!assistant.text.isEmpty)
         #expect(assistant.capabilityExecution?.recoveryDescriptors == nil)
     }
 
-    @Test("Relay Local Reasoning Mapping Reaches The Wire")
+    /// End-to-end guard that a Relay's **local mapping** (fail-open, bypassing any catalog profile) makes it all the way to the wire.
+    ///
+    /// A relay's catalog comes from the user's own machine and has no official metadata authority, so it is a special exception:
+    /// - on the wire side, `OpenAIService.relayOpenAIReasoningEffort` keeps the local level mapping explicitly chosen by the user;
+    /// - on the verdict side it goes through the escape hatch in `CapabilityEvidenceFacade.resolve` (this key has no evidence at all
+    ///   and the user explicitly expressed intent -> `allow_explicit_unverified`), rather than being treated as unsupported.
+    ///
+    /// The existing `MetadataClientTests` only cover the display surface and `GenerationParameterEmptyStateTests`
+    /// only cover level constraints; neither asserts the request body. This case targets the defect class where the UI says it is on but the wire has nothing,
+    /// and asserts on the body the production send chain really produces, not on intermediate variables.
+    @Test("With no catalog profile on a Relay, the thinking level the user chose is still written into the final request body through the local mapping")
     func relayLocalReasoningMappingReachesTheWire() async throws {
         await MetadataClient.shared.resetForTesting()
+        // Deliberately ship no reasoning profile: this is the normal state of a relay that does not hit the official catalog.
         try await MetadataClient.shared.loadForTesting(json: """
         {
           "version": 1,
@@ -1077,6 +1292,7 @@ struct AppStateSendMessageTests {
             )
         }
 
+        // Key point: reasoningProfile is nil, so the model has no catalog-side thinking recipe at all.
         let localModel = TestFactories.makeModel(
             id: "local-reasoner",
             name: "Local Reasoner",
@@ -1119,6 +1335,7 @@ struct AppStateSendMessageTests {
             }
             return assistant.state != .generating
         }
+        try await waitForSendsToSettle(state)
 
         let conversation = try #require(state.conversation(for: conversationID))
         let assistant = try #require(conversation.messages.last(where: { $0.role == .assistant }))
@@ -1134,6 +1351,7 @@ struct AppStateSendMessageTests {
             payload["reasoning"] as? [String: Any],
             "When the user picks Deep Thinking, the final request body must actually contain a reasoning section"
         )
+        // ReasoningMode.deep -> relay local mapping "high" (`OpenAIService.relayOpenAIReasoningEffort`).
         #expect(reasoning["effort"] as? String == "high")
         #expect(assistant.text == "local mapping ok")
         #expect(assistant.state == .delivered)
@@ -1300,6 +1518,7 @@ extension AppStateSendMessageTests {
                 }
                 return assistant.state != .generating
             }
+            try await waitForSendsToSettle(state)
             #expect(log.transports == [transport], "\(relayTransport) built on \(log.transports)")
             #expect(state.conversation(for: conversationID)?.messages.last?.state == .failed, "\(relayTransport)")
             #expect(requestCount == 0, "\(relayTransport)")
@@ -1307,3 +1526,225 @@ extension AppStateSendMessageTests {
     }
 }
 
+
+// MARK: - Sending is blocked for a retired / missing conversation model
+
+extension AppStateSendMessageTests {
+    private static let retirementMetadataJSON = """
+    {
+      "version": 1,
+      "updatedAt": "2026-10-01T00:00:00Z",
+      "providers": {
+        "openAI": {
+          "displayName": "OpenAI",
+          "defaultModelId": "gpt-5.4",
+          "resolveMap": { "gpt-5.4": "gpt-5.4", "gpt-5.4-2026-03-05": "gpt-5.4" },
+          "models": {
+            "gpt-5.4": { "canonicalModelId": "gpt-5.4", "displayName": "GPT-5.4", "capabilities": ["text"] }
+          },
+          "retiredModels": [
+            { "id": "gpt-4-legacy", "displayName": "GPT-4 Legacy", "retiredAt": "2026-07-01T00:00:00Z", "routedTo": "gpt-5.4" }
+          ]
+        }
+      }
+    }
+    """
+
+    /// An official conversation that already has one round of Q&A (not a new conversation), used for sending / regenerating.
+    private func retirementFixture(
+        prefix: String,
+        modelID: String
+    ) -> (state: AppState, provider: Provider, conversation: Conversation, assistantID: UUID) {
+        let state = makeIsolatedAppState(prefix: prefix)
+        let enabled = TestFactories.makeModel(id: "gpt-5.4", name: "GPT-5.4", isDefault: true, canonicalModelId: "gpt-5.4")
+        let provider = TestFactories.makeProvider(kind: .openAI, models: [enabled], catalogModels: [enabled])
+        let assistantID = UUID()
+        let conversation = TestFactories.makeConversation(
+            providerID: provider.id,
+            providerKind: .openAI,
+            modelID: modelID,
+            messages: [
+                TestFactories.makeMessage(role: .user, text: "Hi", providerID: provider.id, modelID: modelID),
+                TestFactories.makeMessage(id: assistantID, role: .assistant, text: "Hello", providerID: provider.id, modelID: modelID),
+            ]
+        )
+        state.providers = [provider]
+        state.upsertConversationProjection(conversation)
+        return (state, provider, conversation, assistantID)
+    }
+
+    private func installChatRequestCounter() -> () -> Int {
+        let counter = AppStateSendRequestCounter()
+        AppStateSendMessageURLProtocol.requestHandler = { request in
+            if request.url?.path.contains("/api/metadata") != true { counter.increment() }
+            return (appStateSendMessageHTTPResponse(url: request.url!, statusCode: 503), Data())
+        }
+        return { counter.value }
+    }
+
+    @Test("A tombstoned conversation refuses send / regenerate: zero requests, modelID unchanged")
+    func retiredConversationRefusesSendAndRegenerate() async throws {
+        defer { AppStateSendMessageURLProtocol.requestHandler = nil }
+        let requestCount = installChatRequestCounter()
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(json: Self.retirementMetadataJSON)
+        let fixture = retirementFixture(prefix: "retired-send-", modelID: "gpt-4-legacy")
+
+        #expect(fixture.state.conversationModelState(for: fixture.conversation)
+            == .retired(displayName: "GPT-4 Legacy", successorId: "gpt-5.4"))
+
+        let outcome = await fixture.state.sendMessageOutcome("Hello again", in: fixture.conversation.id)
+        #expect(outcome == .refused)
+
+        await fixture.state.chatManager.regenerateMessage(messageID: fixture.assistantID, in: fixture.conversation.id)
+
+        let after = try #require(fixture.state.conversation(for: fixture.conversation.id))
+        #expect(after.modelID == "gpt-4-legacy")
+        #expect(after.messages.map(\.id) == fixture.conversation.messages.map(\.id))
+        #expect(after.messages.last?.text == "Hello")
+        #expect(requestCount() == 0)
+        await MetadataClient.shared.resetForTesting()
+    }
+
+    @Test("A conversation model confirmed absent from the catalog (missing) is refused, modelID unchanged")
+    func missingConversationRefusesSend() async throws {
+        defer { AppStateSendMessageURLProtocol.requestHandler = nil }
+        let requestCount = installChatRequestCounter()
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(json: Self.retirementMetadataJSON)
+        let fixture = retirementFixture(prefix: "missing-send-", modelID: "removed-model")
+
+        #expect(fixture.state.conversationModelState(for: fixture.conversation) == .missing(displayName: "removed-model"))
+        let outcome = await fixture.state.sendMessageOutcome("Hello again", in: fixture.conversation.id)
+        #expect(outcome == .refused)
+        #expect(fixture.state.conversation(for: fixture.conversation.id)?.modelID == "removed-model")
+        #expect(requestCount() == 0)
+        await MetadataClient.shared.resetForTesting()
+    }
+
+    @Test("A conversation on a canonical alias can send: this turn uses the canonical id, the conversation modelID is unchanged")
+    func datedAliasConversationSendsCanonicalWithoutRewrite() async throws {
+        defer { AppStateSendMessageURLProtocol.requestHandler = nil }
+        let requestCount = installChatRequestCounter()
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(json: Self.retirementMetadataJSON)
+        let fixture = retirementFixture(prefix: "alias-send-", modelID: "gpt-5.4-2026-03-05")
+
+        let outcome = await fixture.state.sendMessageOutcome("Hello again", in: fixture.conversation.id)
+        #expect(outcome == .sent(fixture.conversation.id))
+        let after = try #require(fixture.state.conversation(for: fixture.conversation.id))
+        #expect(after.modelID == "gpt-5.4-2026-03-05")
+        #expect(after.messages.last(where: { $0.role == .user })?.modelID == "gpt-5.4")
+        try await waitUntil { requestCount() > 0 }
+        try await waitForSendsToSettle(fixture.state)
+        await MetadataClient.shared.resetForTesting()
+    }
+
+    @Test("Regenerate on a canonical-alias conversation: this turn is sent with the canonical id, the conversation modelID is unchanged")
+    func datedAliasConversationRegenerateKeepsModelID() async throws {
+        defer { AppStateSendMessageURLProtocol.requestHandler = nil }
+        let requestCount = installChatRequestCounter()
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(json: Self.retirementMetadataJSON)
+        let fixture = retirementFixture(prefix: "alias-regenerate-", modelID: "gpt-5.4-2026-03-05")
+
+        await fixture.state.chatManager.regenerateMessage(messageID: fixture.assistantID, in: fixture.conversation.id)
+
+        try await waitUntil { requestCount() > 0 }
+        let after = try #require(fixture.state.conversation(for: fixture.conversation.id))
+        #expect(after.modelID == "gpt-5.4-2026-03-05")
+        #expect(after.messages.last?.role == .assistant)
+        #expect(after.messages.last?.id != fixture.assistantID, "regenerating replaced the assistant message with a new one")
+        #expect(after.messages.last?.modelID == "gpt-5.4")
+        try await waitForSendsToSettle(fixture.state)
+        #expect(fixture.state.conversation(for: fixture.conversation.id)?.modelID == "gpt-5.4-2026-03-05")
+        await MetadataClient.shared.resetForTesting()
+    }
+
+    @Test("While the catalog is pending the model counts as available: sending works, the conversation modelID is unchanged")
+    func pendingCatalogAllowsSend() async throws {
+        defer { AppStateSendMessageURLProtocol.requestHandler = nil }
+        let requestCount = installChatRequestCounter()
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadSplitForTesting(
+            indexJSON: #"{"version":42,"view":"index","contractVersion":1,"providers":{"openAI":{"displayName":"OpenAI","catalogRevision":"sha256:pending-openai"}}}"#,
+            indexETag: "etag-pending-openai",
+            catalogJSONs: [:]
+        )
+        #expect(MetadataClient.shared.syncIsCatalogPending(providerKind: .openAI), "Precondition: the openAI catalog is not loaded")
+        let fixture = retirementFixture(prefix: "pending-send-", modelID: "removed-model")
+
+        #expect(fixture.state.conversationModelState(for: fixture.conversation) == .resolved)
+        let outcome = await fixture.state.sendMessageOutcome("Hello again", in: fixture.conversation.id)
+        #expect(outcome == .sent(fixture.conversation.id))
+        #expect(fixture.state.conversation(for: fixture.conversation.id)?.modelID == "removed-model")
+        try await waitUntil { requestCount() > 0 }
+        try await waitForSendsToSettle(fixture.state)
+        await MetadataClient.shared.resetForTesting()
+    }
+
+    @Test("With the catalog pending and the stored value unresolvable, the request model field is the stored id, not the default model")
+    func pendingCatalogSendsStoredModelIDVerbatim() async throws {
+        defer { AppStateSendMessageURLProtocol.requestHandler = nil }
+        let captured = AppStateSendCapturedModels()
+        AppStateSendMessageURLProtocol.requestHandler = { request in
+            if request.url?.path.contains("/api/metadata") != true,
+               let body = appStateSendMessageRequestBody(from: request),
+               let json = try JSONSerialization.jsonObject(with: body) as? [String: Any] {
+                captured.append(json["model"] as? String)
+            }
+            return (appStateSendMessageHTTPResponse(url: request.url!, statusCode: 503), Data())
+        }
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadSplitForTesting(
+            indexJSON: #"{"version":42,"view":"index","contractVersion":1,"providers":{"openAI":{"displayName":"OpenAI","catalogRevision":"sha256:pending-openai"}}}"#,
+            indexETag: "etag-pending-openai",
+            catalogJSONs: [:]
+        )
+        #expect(MetadataClient.shared.syncIsCatalogPending(providerKind: .openAI), "Precondition: the openAI catalog is not loaded")
+        let fixture = retirementFixture(prefix: "pending-verbatim-", modelID: "removed-model")
+
+        let outcome = await fixture.state.sendMessageOutcome("Hello again", in: fixture.conversation.id)
+        #expect(outcome == .sent(fixture.conversation.id))
+        try await waitUntil { !captured.values.isEmpty }
+        #expect(captured.values.first == "removed-model")
+        #expect(!captured.values.contains("gpt-5.4"), "must not silently switch to the default model")
+        try await waitForSendsToSettle(fixture.state)
+        await MetadataClient.shared.resetForTesting()
+    }
+
+    @Test("Sending again in an existing conversation after its messages were cleared: the conversation modelID is unchanged")
+    func clearedConversationSendKeepsModelID() async throws {
+        defer { AppStateSendMessageURLProtocol.requestHandler = nil }
+        let requestCount = installChatRequestCounter()
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(json: Self.retirementMetadataJSON)
+        let fixture = retirementFixture(prefix: "cleared-send-", modelID: "gpt-5.4-2026-03-05")
+        var cleared = fixture.conversation
+        cleared.messages = []
+        fixture.state.upsertConversationProjection(cleared)
+
+        let outcome = await fixture.state.sendMessageOutcome("Hello again", in: fixture.conversation.id)
+        #expect(outcome == .sent(fixture.conversation.id))
+        let after = try #require(fixture.state.conversation(for: fixture.conversation.id))
+        #expect(after.messages.last(where: { $0.role == .user })?.modelID == "gpt-5.4")
+        #expect(after.modelID == "gpt-5.4-2026-03-05")
+        try await waitUntil { requestCount() > 0 }
+        try await waitForSendsToSettle(fixture.state)
+        await MetadataClient.shared.resetForTesting()
+    }
+}
+
+private final class AppStateSendCapturedModels: @unchecked Sendable {
+    private let lock = NSLock()
+    private var models: [String?] = []
+    var values: [String?] { lock.lock(); defer { lock.unlock() }; return models }
+    func append(_ model: String?) { lock.lock(); models.append(model); lock.unlock() }
+}
+
+private final class AppStateSendRequestCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+    var value: Int { lock.lock(); defer { lock.unlock() }; return count }
+    func increment() { lock.lock(); count += 1; lock.unlock() }
+}

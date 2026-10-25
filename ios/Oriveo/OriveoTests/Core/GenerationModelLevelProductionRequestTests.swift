@@ -7,7 +7,7 @@ import OriveoProviderKit
 /// `URLRequest` the production send path really emits (AppState → ChatManager → provider service
 /// builder → URLSession). The metadata is catalog-shaped JSON parsed by the production
 /// `MetadataClient`, and the values are read back through the production settings store.
-@Suite("generation model-level production requests", .serialized)
+@Suite("generation model-level production requests", .serialized, .sharedProcessState)
 @MainActor
 struct GenerationModelLevelProductionRequestTests {
     private static let schema: GenerationParameterValue = .object([

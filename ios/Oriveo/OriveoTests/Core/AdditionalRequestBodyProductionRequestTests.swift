@@ -84,7 +84,7 @@ final class AdditionalRequestBodyCaptureURLProtocol: URLProtocol, @unchecked Sen
 /// End-to-end coverage for the additional request body. Assertions are made on the URLRequest the
 /// production send path really emits (AppState -> ChatManager -> service builder -> URLSession);
 /// content is read through the production store and no request body is assembled by hand.
-@Suite("additional request body production requests", .serialized)
+@Suite("additional request body production requests", .serialized, .sharedProcessState)
 @MainActor
 struct AdditionalRequestBodyProductionRequestTests {
 

@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import Oriveo
 
@@ -112,4 +113,25 @@ struct CostFormatterTests {
         #expect(CostFormatter.formatPerMillion(0.000000001) == "$0.001/M")
     }
 
+
+    @Test("Per-million prices in a non-USD currency use the same precision as the USD label")
+    func nonUsdPerMillionMatchesUsdPrecision() {
+        let enUS = Locale(identifier: "en_US")
+        let cases: [(perToken: Double, usd: String, cny: String)] = [
+            (0.000_004, "$4/M", "CN\u{00A5}4/M"),
+            (0.000_016, "$16/M", "CN\u{00A5}16/M"),
+            (0.000_002_5, "$2.5/M", "CN\u{00A5}2.5/M"),
+            (0.000_000_6, "$0.6/M", "CN\u{00A5}0.6/M"),
+            (0.000_012_345, "$12.3/M", "CN\u{00A5}12.3/M"),
+            (0.000_000_001_23, "$0.00123/M", "CN\u{00A5}0.00123/M"),
+            (0.001_234_5, "$1230/M", "CN\u{00A5}1,230/M"),
+        ]
+        for item in cases {
+            #expect(CostFormatter.formatPerMillion(item.perToken) == item.usd)
+            #expect(CostFormatter.formatPerMillion(item.perToken, currencyCode: "CNY", locale: enUS) == item.cny)
+        }
+        #expect(CostFormatter.formatPerMillion(0.000_004, currencyCode: "CNY", locale: Locale(identifier: "zh_CN")) == "\u{00A5}4/M")
+        #expect(CostFormatter.formatPerMillion(0.000_002_5, currencyCode: "EUR", locale: Locale(identifier: "de_DE")) == "2,5\u{00A0}\u{20AC}/M")
+        #expect(CostFormatter.formatPerMillion(0.000_002_5, currencyCode: "USD", locale: Locale(identifier: "de_DE")) == "$2.5/M")
+    }
 }

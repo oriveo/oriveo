@@ -10,7 +10,7 @@ import Testing
 /// 2. "This row isn't sent" matches the URLRequest the production send chain actually emits, the Thinking
 ///    control the note points to really goes out, and the Anthropic thinking guards (temperature, Top K,
 ///    max tokens) still hold.
-@Suite("connection reasoning defaults on anthropic / gemini", .serialized)
+@Suite("connection reasoning defaults on anthropic / gemini", .serialized, .sharedProcessState)
 @MainActor
 struct ConnectionReasoningDefaultsProductionRequestTests {
     private static let modelID = "fixture-reasoning-defaults"

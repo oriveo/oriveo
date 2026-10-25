@@ -6,7 +6,7 @@ import Testing
 /// the outbound request must really carry `tools: [{"type": "web_search"}]`. Without it the model
 /// narrates the tool call it wanted to make instead of answering, which reads like a rendering bug
 /// but is the model reporting that it was given no tools.
-@Suite("Grok Official Web Search Injection Tests", .serialized)
+@Suite("Grok Official Web Search Injection Tests", .serialized, .sharedProcessState)
 struct GrokOfficialWebSearchInjectionTests {
     private static func productionSnapshot() throws -> String {
         let fixturePath = "shared/test-fixtures/model-facts/grok-official-responses-web.v1.json"

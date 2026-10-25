@@ -55,7 +55,7 @@ final class GenerationOutboundCaptureURLProtocol: URLProtocol, @unchecked Sendab
 /// End-to-end check of what goes out on the wire: every assertion reads the **URLRequest the
 /// production send path actually produced** (AppState → ChatManager → service builder →
 /// URLSession), never an intermediate value or a hand-written profile.
-@Suite("generation outbound production requests", .serialized)
+@Suite("generation outbound production requests", .serialized, .sharedProcessState)
 @MainActor
 struct GenerationOutboundProductionRequestTests {
 

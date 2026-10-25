@@ -55,7 +55,7 @@ private func relayGenerationProfileSession() -> URLSession {
     return URLSession(configuration: configuration)
 }
 
-@Suite("ChatManager relay generation profile", .serialized)
+@Suite("ChatManager relay generation profile", .serialized, .sharedProcessState)
 @MainActor
 struct ChatManagerRelayGenerationProfileTests {
 

@@ -168,7 +168,7 @@ private func loadGrokChatVisionMetadata() async throws {
     """)
 }
 
-@Suite("Grok Service", .serialized)
+@Suite("Grok Service", .serialized, .sharedProcessState)
 struct GrokServiceTests {
     @Test("Grok Subscription Sends Reasoning Effort From Declared Levels")
     func grokSubscriptionSendsReasoningEffortFromDeclaredLevels() async throws {

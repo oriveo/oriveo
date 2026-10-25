@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Oriveo
 
-@Suite("CatalogModelBuilder", .serialized)
+@Suite("CatalogModelBuilder", .serialized, .sharedProcessState)
 struct CatalogModelBuilderTests {
 
     // MARK: - buildCatalogModel
@@ -373,8 +373,8 @@ struct CatalogModelBuilderTests {
             providerKind: .openAI,
             metadataClient: v2
         )
-        #expect(cleared.toolCall == nil)
-        #expect(cleared.libraryAgentic == nil)
+        #expect(cleared.toolCall == nil, "A null from a v2 catalog hit must clear the stale local verdict")
+        #expect(cleared.libraryAgentic == nil, "A null from a v2 catalog hit must clear the stale local verdict")
 
         let v1 = try await makeCapabilityClient(version: 1, explicitNulls: false)
         let compatible = CatalogModelBuilder.enrichStoredModel(
@@ -382,8 +382,8 @@ struct CatalogModelBuilderTests {
             providerKind: .openAI,
             metadataClient: v1
         )
-        #expect(compatible.toolCall == true)
-        #expect(compatible.libraryAgentic == true)
+        #expect(compatible.toolCall == nil, "v1 field missing: toolCall does not fall back to the stale local value")
+        #expect(compatible.libraryAgentic == true, "v1 field missing keeps the old compatible behavior")
 
         let unversioned = try await makeCapabilityClient(version: nil, explicitNulls: false)
         let legacyCompatible = CatalogModelBuilder.enrichStoredModel(
@@ -391,8 +391,8 @@ struct CatalogModelBuilderTests {
             providerKind: .openAI,
             metadataClient: unversioned
         )
-        #expect(legacyCompatible.toolCall == true)
-        #expect(legacyCompatible.libraryAgentic == true)
+        #expect(legacyCompatible.toolCall == nil, "version missing: toolCall does not fall back to the stale local value")
+        #expect(legacyCompatible.libraryAgentic == true, "version missing keeps the old compatible behavior")
 
         var missing = makeModel(id: "catalog-miss")
         missing.toolCall = true
@@ -402,8 +402,8 @@ struct CatalogModelBuilderTests {
             providerKind: .openAI,
             metadataClient: v2
         )
-        #expect(miss.toolCall == true)
-        #expect(miss.libraryAgentic == true)
+        #expect(miss.toolCall == true, "a catalog miss only keeps the stale local value temporarily")
+        #expect(miss.libraryAgentic == true, "a catalog miss only keeps the stale local value temporarily")
     }
 
     // MARK: - enrichStoredModel
@@ -824,7 +824,7 @@ struct CatalogModelBuilderTests {
 
 // MARK: - SiliconFlow Vendor Name
 
-@Suite("SiliconFlowVendorName")
+@Suite("SiliconFlowVendorName", .sharedProcessState)
 struct SiliconFlowVendorNameTests {
 
     @Test("Zai Aliases")

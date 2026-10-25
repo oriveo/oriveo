@@ -83,7 +83,7 @@ private let teslaEntry = #"<entry date="2025-08-10">Bought a Tesla Model 3 after
 
 private let toolsRejectedBody = #"{"error":{"message":"tools is not supported for this model","type":"invalid_request_error"}}"#
 
-@Suite("ChatManagerProposeMemory", .serialized)
+@Suite("ChatManagerProposeMemory", .serialized, .sharedProcessState)
 @MainActor
 struct ChatManagerProposeMemoryTests {
     struct Run {
@@ -103,6 +103,7 @@ struct ChatManagerProposeMemoryTests {
         prepare: ((Provider, AIModel, UUID) -> Void)? = nil,
         memoryItems: [MemoryItem] = [],
         useMemory: Bool = true,
+        userText: String = proposeUserText,
         _ body: (Run) async throws -> Void
     ) async throws {
         await MetadataClient.shared.resetForTesting()
@@ -130,7 +131,7 @@ struct ChatManagerProposeMemoryTests {
             DatabaseManager.shared.close()
             try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
         }
-        _ = await state.sendMessage(proposeUserText, in: conversation.id, capabilitySelection: capabilitySelection)
+        _ = await state.sendMessage(userText, in: conversation.id, capabilitySelection: capabilitySelection)
         var assistant: ChatMessage?
         for _ in 0..<200 {
             assistant = state.conversation(for: conversation.id)?.messages.last(where: { $0.role == .assistant })
@@ -261,6 +262,7 @@ struct ChatManagerProposeMemoryTests {
         }
     }
 
+
     @Test("A connection in the degraded set does not attach search_memory")
     func searchNotAttachedWhenDegraded() async throws {
         try await send(
@@ -370,6 +372,7 @@ struct ChatManagerProposeMemoryTests {
         }
     }
 
+
     @Test("One extra leg is added when only propose is called")
     func proposeOnlyTriggersTailLeg() async throws {
         try await send(legs: [
@@ -423,6 +426,28 @@ struct ChatManagerProposeMemoryTests {
             let candidates = try await Self.pending(run.state)
             #expect(Set(candidates.map(\.content)) == ["\u{504F}\u{597D}\u{7B80}\u{6D01}\u{7684}\u{56DE}\u{7B54}", "\u{5E38}\u{7528} Swift \u{5199}\u{4EE3}\u{7801}"])
             #expect(run.state.memorySuggestions.pending(in: run.conversationID)?.candidate?.content == "\u{504F}\u{597D}\u{7B80}\u{6D01}\u{7684}\u{56DE}\u{7B54}")
+        }
+    }
+
+    @Test("A relay image generation call through the images endpoint falls back: the mode is judged as tool but the request carries no tools")
+    func relayImageGenerationFallsBack() async throws {
+        var (provider, model) = makeToolLoopRelayProvider(transport: .openaiChatCompletions)
+        model.capabilities = [.text, .imageGen]
+        provider.models = [model]
+        let png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+        let images = #"{"created":1,"data":[{"b64_json":"\#(png)"}]}"#
+        try await send(legs: [(200, images)], provider: (provider, model)) { run in
+            // The mode decision does not exclude image generation models: it says tool, yet the actual request carries no tools.
+            let conversation = try #require(run.state.conversation(for: run.conversationID))
+            #expect(run.state.memoryProposeMode(
+                conversation: conversation, freshSend: true, useMemory: true, capabilitySelection: ChatCapabilitySelection()
+            ) == .tool)
+            let first = try #require(run.bodies.first)
+            #expect(first["prompt"] != nil, "goes through the images endpoint")
+            #expect(run.bodies.allSatisfy { !Self.toolNames($0).contains(MemoryPropose.toolName) })
+            let candidates = try await Self.pending(run.state)
+            #expect(candidates.count == 1)
+            #expect(run.state.memorySuggestions.pending(in: run.conversationID)?.messageID == run.message.id)
         }
     }
 
@@ -560,4 +585,80 @@ struct ChatManagerProposeMemoryTests {
 
 private func anthropicProposeSSE(_ frames: [(event: String, data: String)]) -> String {
     frames.map { "event: \($0.event)\ndata: \($0.data)\n\n" }.joined()
+}
+
+// A call with scope=conversation is judged as an instruction by the host, and the sentence goes to the "set as this conversation's instruction" bar (attached to this turn's user message),
+// without producing a memory candidate; a kind other than instruction, a quote not in this turn's message, or a second call in the same turn shows no bar.
+private let instructUserText = "\u{4EE5}\u{540E}\u{56DE}\u{7B54}\u{90FD}\u{5148}\u{7ED9}\u{7ED3}\u{8BBA}\u{FF0C}\u{518D}\u{5C55}\u{5F00}\u{7EC6}\u{8282}"
+
+private func instructArguments(quote: String, kind: String = "instruction", proposition: String = "\u{56DE}\u{7B54}\u{5148}\u{7ED9}\u{7ED3}\u{8BBA}") -> String {
+    let object: [String: Any] = ["proposition": proposition, "sourceQuote": quote, "kind": kind, "scope": "conversation"]
+    return String(decoding: (try? JSONSerialization.data(withJSONObject: object)) ?? Data(), as: UTF8.self)
+}
+
+extension ChatManagerProposeMemoryTests {
+    @MainActor
+    private func sendInstruct(
+        userText: String = instructUserText,
+        calls: [String],
+        _ body: (Run) async throws -> Void
+    ) async throws {
+        let firstLeg = hostLeg(calls: calls.enumerated().map { index, arguments in
+            (name: MemoryPropose.toolName, id: "call_i\(index)", arguments: arguments)
+        })
+        try await send(legs: [(200, firstLeg), (200, proposeLeg(text: "Okay."))], userText: userText, body)
+    }
+
+    @MainActor
+    private static func userMessageID(_ run: Run) -> UUID? {
+        run.state.conversation(for: run.conversationID)?.messages.last(where: { $0.role == .user })?.id
+    }
+
+    @Test("instruct_from_conversation_scope_shows_instruction_bar")
+    func instructFromConversationScopeShowsInstructionBar() async throws {
+        try await sendInstruct(calls: [instructArguments(quote: " \(instructUserText)\n")]) { run in
+            #expect(run.message.state == .delivered, "\(run.message.errorDetail ?? "")")
+            let bar = try #require(run.state.directiveSuggestions.pending(in: run.conversationID))
+            #expect(bar.messageID == Self.userMessageID(run))
+            #expect(bar.sentence == instructUserText)
+            #expect(run.state.memorySuggestions.pending(in: run.conversationID)?.candidate == nil)
+            let candidates = try await Self.pending(run.state)
+            #expect(candidates.isEmpty)
+        }
+    }
+
+    @Test("instruct_with_non_instruction_kind_is_skipped")
+    func instructWithNonInstructionKindIsSkipped() async throws {
+        try await sendInstruct(calls: [instructArguments(quote: instructUserText, kind: "preference")]) { run in
+            #expect(run.message.state == .delivered, "\(run.message.errorDetail ?? "")")
+            #expect(run.state.directiveSuggestions.pending(in: run.conversationID) == nil)
+            let candidates = try await Self.pending(run.state)
+            #expect(candidates.isEmpty)
+        }
+    }
+
+    @Test("instruct_quote_not_in_user_message_is_skipped")
+    func instructQuoteNotInUserMessageIsSkipped() async throws {
+        try await sendInstruct(calls: [instructArguments(quote: "\u{4EE5}\u{540E}\u{56DE}\u{7B54}\u{90FD}\u{7528}\u{82F1}\u{6587}")]) { run in
+            #expect(run.message.state == .delivered, "\(run.message.errorDetail ?? "")")
+            #expect(run.state.directiveSuggestions.pending(in: run.conversationID) == nil)
+            let candidates = try await Self.pending(run.state)
+            #expect(candidates.isEmpty)
+        }
+    }
+
+    @Test("instruct_second_in_turn_is_skipped")
+    func instructSecondInTurnIsSkipped() async throws {
+        let text = "\u{4EE5}\u{540E}\u{56DE}\u{7B54}\u{90FD}\u{5148}\u{7ED9}\u{7ED3}\u{8BBA}\u{3002}\u{53E6}\u{5916}\u{FF0C}\u{4EE5}\u{540E}\u{4E0D}\u{8981}\u{7528}\u{8868}\u{60C5}\u{7B26}\u{53F7}\u{3002}"
+        try await sendInstruct(userText: text, calls: [
+            instructArguments(quote: "\u{4EE5}\u{540E}\u{56DE}\u{7B54}\u{90FD}\u{5148}\u{7ED9}\u{7ED3}\u{8BBA}\u{3002}"),
+            instructArguments(quote: "\u{4EE5}\u{540E}\u{4E0D}\u{8981}\u{7528}\u{8868}\u{60C5}\u{7B26}\u{53F7}\u{3002}", proposition: "\u{4E0D}\u{7528}\u{8868}\u{60C5}\u{7B26}\u{53F7}"),
+        ]) { run in
+            #expect(run.message.state == .delivered, "\(run.message.errorDetail ?? "")")
+            let bar = try #require(run.state.directiveSuggestions.pending(in: run.conversationID))
+            #expect(bar.sentence == "\u{4EE5}\u{540E}\u{56DE}\u{7B54}\u{90FD}\u{5148}\u{7ED9}\u{7ED3}\u{8BBA}\u{3002}")
+            let candidates = try await Self.pending(run.state)
+            #expect(candidates.isEmpty)
+        }
+    }
 }

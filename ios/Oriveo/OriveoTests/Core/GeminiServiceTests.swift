@@ -103,7 +103,7 @@ private func expectGeminiUpstream200(
     #expect(detail.contains(fragment), Comment(rawValue: "detail=\(detail)"), sourceLocation: sourceLocation)
 }
 
-@Suite("Gemini Service", .serialized)
+@Suite("Gemini Service", .serialized, .sharedProcessState)
 struct GeminiServiceTests {
 
     @Test("Stream Safety Finish Reason Throws")

@@ -43,7 +43,7 @@ private func subscription426Session() -> URLSession {
 /// `GrokService` (only the credential preparation is replaced by an injected outbound context), the error
 /// comes from the real mapping, and the failed message is stored by `ChatManager`. Only the configuration
 /// refresh, which goes straight to the network, is replaced by a recorder.
-@Suite("ChatManager subscription 426 wiring", .serialized)
+@Suite("ChatManager subscription 426 wiring", .serialized, .sharedProcessState)
 @MainActor
 struct ChatManagerSubscription426Tests {
     private static let sentClientVersion = "1.0.4"
