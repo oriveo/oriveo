@@ -4,6 +4,8 @@ struct ChatToolbar: View {
     let projection: ChatScreenProjection
     let provider: Provider
     let currentModel: AIModel?
+    /// The model name stored on the conversation, shown while its connection is temporarily unavailable and the model cannot be resolved.
+    var pendingModelName: String? = nil
     let isSendingMessage: Bool
     var transparentChrome: Bool = false
     @Binding var showModelSwitcher: Bool
@@ -23,11 +25,13 @@ struct ChatToolbar: View {
     @State private var pendingExport: ChatExportItem?
 
     var body: some View {
+        let costTotalsText = projection.costTotalsText
         HStack(spacing: OriveoTheme.Spacing.sm) {
             // No back button in the two-column layout: there is nowhere to go back to, because
             // the sidebar stays on screen (the same rule the system split view follows).
             if !navigation.isRegularWidth && !usesVerticalBar {
                 OriveoBackButton { appState.pop() }
+                    .accessibilityIdentifier("chat_back_button")
                     // Keeps the old 36pt slot so the model picker does not move; the 44pt target
                     // overflows it on every side, so the tappable area does not shrink
                     .frame(width: 36, height: 36)
@@ -50,7 +54,7 @@ struct ChatToolbar: View {
                         ConnectionAvatarIcon(provider: provider, kind: provider.kind, relayKind: provider.relayKind, size: 26)
 
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(currentModel?.name ?? L10n.tr("Choose Model"))
+                            Text(currentModel?.name ?? pendingModelName ?? L10n.tr("Choose Model"))
                                 .font(.system(size: 15, weight: .bold))
                                 .foregroundStyle(OriveoTheme.Palette.textPrimary)
                                 .lineLimit(2)
@@ -86,8 +90,8 @@ struct ChatToolbar: View {
 
             Spacer(minLength: 0)
 
-            if projection.estimatedCost > 0 {
-                ChatCostPill(text: CostFormatter.format(projection.estimatedCost))
+            if !costTotalsText.isEmpty {
+                ChatCostPill(text: costTotalsText)
             }
 
             if showMemoryIndicator && !usesVerticalBar {
@@ -111,7 +115,7 @@ struct ChatToolbar: View {
             if !usesVerticalBar {
                 Menu {
                     Button {
-                        appState.startNewChat(preferredProviderID: provider.id)
+                        appState.startNewChat()
                     } label: {
                         Label(L10n.tr("New Chat"), systemImage: "plus")
                     }
@@ -123,9 +127,9 @@ struct ChatToolbar: View {
                     }
                     .disabled(!projection.exportsEnabled)
 
-                    if projection.estimatedCost > 0 {
+                    if !costTotalsText.isEmpty {
                         Section {
-                            Text(CostFormatter.format(projection.estimatedCost))
+                            Text(costTotalsText)
                         }
                     }
 
@@ -183,7 +187,7 @@ struct ChatToolbar: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
-                    Text(currentModel?.name ?? L10n.tr("Choose Model"))
+                    Text(currentModel?.name ?? pendingModelName ?? L10n.tr("Choose Model"))
                         .font(.system(size: 15, weight: .bold))
                         .foregroundStyle(OriveoTheme.Palette.textPrimary)
                         .lineLimit(1)
@@ -229,12 +233,13 @@ struct ChatToolbar: View {
                         } label: {
                             Label(L10n.tr("Back"), systemImage: "chevron.backward")
                         }
+                        .accessibilityIdentifier("chat_back_button")
                     }
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        appState.startNewChat(preferredProviderID: provider.id)
+                        appState.startNewChat()
                     } label: {
                         Label(L10n.tr("New Chat"), systemImage: "plus")
                     }

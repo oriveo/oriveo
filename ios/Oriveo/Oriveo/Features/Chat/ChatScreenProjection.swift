@@ -46,6 +46,14 @@ struct ChatScreenProjection: Equatable {
         summary?.estimatedCost ?? 0
     }
 
+    var nonUsdCostTotals: [String: Double] {
+        summary?.nonUsdCostTotals ?? [:]
+    }
+
+    var costTotalsText: String {
+        CostFormatter.totalsText(usd: estimatedCost, nonUsdTotals: nonUsdCostTotals)
+    }
+
     var messageCount: Int {
         messages.count
     }

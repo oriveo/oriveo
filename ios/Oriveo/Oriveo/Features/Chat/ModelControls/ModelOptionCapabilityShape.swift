@@ -162,8 +162,8 @@ nonisolated enum ModelOptionCapabilityShape: Equatable, Sendable {
     }
 
     /// Value of `showsThinking`: the catalog's explicit truth wins, and the legacy `capabilities` array is the fallback.
-    static func showsThinking(_ model: AIModel) -> Bool {
-        model.catalogCapabilityTruth?.reasoning ?? model.capabilities.contains(.reasoning)
+    static func showsThinking(provider: Provider, model: AIModel) -> Bool {
+        CapabilityDisplayFacts.thinking(provider: provider, model: model)
     }
 
     /// How the thinking row of a local connection is written.

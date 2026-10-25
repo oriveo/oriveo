@@ -391,7 +391,7 @@ struct ModelControlsSheet: View {
                 supportsChatTemplate: supportsChatTemplate,
                 // A local connection decides the thinking row from the write-path table, not from the protocol.
                 localEngineThinking: ModelOptionCapabilityShape.localEngineThinking(provider: provider, model: model),
-                showsThinking: ModelOptionCapabilityShape.showsThinking(model)
+                showsThinking: ModelOptionCapabilityShape.showsThinking(provider: provider, model: model)
             ),
             chatTemplateThinking: ChatTemplateThinkingSwitch.state(
                 of: GenerationParameterSettingsStore.shared.effectiveAdditionalRequestBody(
@@ -409,11 +409,10 @@ struct ModelControlsSheet: View {
             advancedRows: advancedRows,
             scopeUpgrade: showsScopeUpgrade ? (scopeUpgradeConfirmed ? .confirmed : .offer) : nil
         )
-        // The vision card uses the same criterion as the composer's photo picker entry; "unknown" uses the same predicate as the rejection recording.
-        facts.visionVisible = ChatView.photoPickerVisible(
+        // The vision card reads the same input projection as the composer's photo picker entry.
+        facts.visionInput = ChatView.capabilityProjection(
             provider: provider, model: model, partitionID: appState.sessionPartitionUID
-        )
-        facts.visionSupportUnknown = RelayRejectionRecording.imageSupportUnknown(provider: provider, model: model)
+        ).inputProjection(for: CapabilityEvidenceFacade.visionInputKey)
         facts.fileMode = fileTransport?.profile.effectiveNativeFiles
         facts.nativeFileMimes = fileModel.nativeFileMimes
         facts.pdfNativeDefault = fileModel.pdfNativeDefault
@@ -698,9 +697,13 @@ struct ModelControlsSheet: View {
 
     private func supportedModelCandidates(for capability: String) -> [AIModel] {
         // Candidates are **enabled** models only. A catalog model has to be enabled before it can be chosen, so listing it
-        // would be a second dead end.
-        CapabilityControlActionCandidates.supportingModels(
-            capability: capability, models: provider.models
+        // would be a second dead end. Retired models are not candidates; the current model stays.
+        let retired = ProviderSelectionSnapshot.retiredEnabledModelIDs(in: provider)
+        let models = retired.isEmpty
+            ? provider.models
+            : provider.models.filter { !retired.contains($0.id) || $0.id == model.id }
+        return CapabilityControlActionCandidates.supportingModels(
+            capability: capability, models: models
         ) { candidate in
             let snapshot = MetadataClient.shared.syncCapabilityRecipeRuntime(
                 modelID: candidate.id, providerKind: provider.kind

@@ -96,6 +96,10 @@ struct ContextCompactionDetailSheet: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     @State private var isRunning = false
+    // The bottom action bar eats most of the .medium height, so open at .large; .medium stays draggable.
+    static let detents: Set<PresentationDetent> = [.medium, .large]
+    static let initialDetent: PresentationDetent = .large
+    @State private var selectedDetent: PresentationDetent = Self.initialDetent
 
     private var actions: ContextCompactionActions {
         ContextCompactionActions(appState: appState, conversationID: conversationID)
@@ -137,6 +141,7 @@ struct ContextCompactionDetailSheet: View {
             .navigationTitle(L10n.tr("context_compaction_detail_title", table: .chat))
             .navigationBarTitleDisplayMode(.inline)
         }
+        .presentationDetents(Self.detents, selection: $selectedDetent)
         .interactiveDismissDisabled(isRunning)
     }
 

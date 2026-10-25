@@ -95,7 +95,7 @@ enum ContextShots {
                 guard confirmPrompt != nil else { throw ManifestError.invalid("confirm dialog: production decided not to show it") }
             }
         } catch {
-            report("\(shot.rawValue)：\(error)")
+            report("\(shot.rawValue): \(error)")
             return
         }
         pinClock(staged)

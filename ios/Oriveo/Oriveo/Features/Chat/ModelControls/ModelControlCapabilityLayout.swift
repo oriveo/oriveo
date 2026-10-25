@@ -72,7 +72,7 @@ nonisolated enum ModelOptionsText {
     static func joined(_ sentences: [String]) -> String {
         var result = ""
         for sentence in sentences where !sentence.isEmpty {
-            if let last = result.last, !"。！？；，、：…".contains(last) { result += " " }
+            if let last = result.last, !"\u{3002}\u{FF01}\u{FF1F}\u{FF1B}\u{FF0C}\u{3001}\u{FF1A}\u{2026}".contains(last) { result += " " }
             result += sentence
         }
         return result
@@ -216,10 +216,8 @@ struct ModelOptionsPanelFacts {
     var banner: ModelOptionsPanelModel.Banner?
     var advancedRows: [GenerationParameterRowModel] = []
     var scopeUpgrade: ModelOptionsPanelModel.ScopeUpgrade?
-    /// Whether the composer's photo entry is shown right now (`ChatView.photoPickerVisible`).
-    var visionVisible = false
-    /// A relay form with no positive evidence for vision (`RelayRejectionRecording.imageSupportUnknown`).
-    var visionSupportUnknown = false
+    /// The vision input projection for the current model: the same source the composer's photo entry follows; nil is shown as unknown.
+    var visionInput: CapabilityEvidenceFacade.InputCapabilityProjection?
     /// The native file mode resolved by the production wire; nil when the wire cannot be determined.
     var fileMode: NativeFileMode?
     var nativeFileMimes: [String] = []
@@ -253,9 +251,7 @@ extension ModelOptionsPanelModel {
             let rows = usesChatTemplate ? [reasoningRow, webRow] : [webRow, reasoningRow]
             card = .rows(rows)
             tiles = rows.map(ModelOptionsTiles.tile(for:)) + [
-                ModelOptionsTiles.visionTile(ModelOptionsTiles.vision(
-                    isVisible: facts.visionVisible, supportUnknown: facts.visionSupportUnknown
-                )),
+                ModelOptionsTiles.visionTile(ModelOptionsTiles.vision(facts.visionInput)),
                 ModelOptionsTiles.filesTile(ModelOptionsTiles.files(
                     mode: facts.fileMode, nativeFileMimes: facts.nativeFileMimes,
                     relayFileRejected: facts.relayFileRejected, pdfNativeDefault: facts.pdfNativeDefault
@@ -435,7 +431,8 @@ enum ModelOptionsTiles {
     }
 
     enum VisionState: Equatable {
-        case available, unknown, hidden
+        case available, unknown
+        case unavailable(CapabilityEvidenceFacade.InputDisabledReason)
     }
 
     enum FileState: Equatable {
@@ -510,20 +507,23 @@ enum ModelOptionsTiles {
     // MARK: Vision
 
     /// Entry not visible: unavailable. Visible but a relay connection with no positive evidence: unknown. Otherwise visible: available.
-    static func vision(isVisible: Bool, supportUnknown: Bool) -> VisionState {
-        guard isVisible else { return .hidden }
-        return supportUnknown ? .unknown : .available
+    static func vision(_ input: CapabilityEvidenceFacade.InputCapabilityProjection?) -> VisionState {
+        guard let input else { return .unknown }
+        if input.visible { return .available }
+        if let reason = input.disabledReason { return .unavailable(reason) }
+        return .unknown
     }
 
     static func visionTile(_ state: VisionState) -> Tile {
-        let (accessory, status): (Accessory, String) = switch state {
-        case .available: (.check, L10n.tr("Available · photo picker shown", table: .chat))
-        case .unknown: (.question, L10n.tr("Unknown · remembered after sending", table: .chat))
-        case .hidden: (.cross, L10n.tr("Not available · photo picker hidden", table: .chat))
+        let (accessory, status, detail): (Accessory, String, String?) = switch state {
+        case .available: (.check, L10n.tr("Available · photo picker shown", table: .chat), nil)
+        case .unknown: (.question, L10n.tr("Unknown · remembered after sending", table: .chat), nil)
+        case let .unavailable(reason):
+            (.cross, L10n.tr("Unavailable", table: .chat), InputCapabilityCopy.disabled(reason, .image))
         }
         return Tile(
             kind: .vision, title: L10n.tr("Vision", table: .chat),
-            accessory: accessory, status: status, detail: nil, row: nil
+            accessory: accessory, status: status, detail: detail, row: nil
         )
     }
 
