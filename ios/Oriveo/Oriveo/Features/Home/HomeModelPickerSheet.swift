@@ -445,7 +445,7 @@ struct ModelPickerSheet: View {
 
             statBadge(
                 systemName: "sparkles",
-                text: String(format: L10n.tr("%lld models"), modelCount)
+                text: L10n.format(L10n.tr("%lld models"), modelCount)
             )
         }
     }
@@ -748,7 +748,7 @@ struct ModelPickerSheet: View {
                         .foregroundStyle(OriveoTheme.V2.Colors.textPrimary)
                         .lineLimit(1)
 
-                    Text(String(format: L10n.tr("%lld models"), modelCount))
+                    Text(L10n.format(L10n.tr("%lld models"), modelCount))
                         .font(.system(size: 12, weight: .medium))
                         .monospacedDigit()
                         .foregroundStyle(OriveoTheme.V2.Colors.textTertiary)
