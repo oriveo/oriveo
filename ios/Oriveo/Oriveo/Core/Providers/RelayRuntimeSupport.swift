@@ -7,7 +7,7 @@ import UIKit
 #endif
 
 enum RelayRuntimeSupport {
-    typealias AttachmentSupport = (image: Bool, video: Bool, nativeFile: Bool, textFileInline: Bool)
+    typealias AttachmentSupport = (image: Bool, nativeFile: Bool, textFileInline: Bool)
 
     /// Maps a relay transport to its runtime envelope key (aligned with the backend `transportEnvelopes` keys).
     /// The protocol is resolved per model (`RelayEndpointResolver.effectiveTransport`); without a model
@@ -16,6 +16,11 @@ enum RelayRuntimeSupport {
         guard provider.kind == .relay else { return nil }
         let transport = model.map { RelayEndpointResolver.effectiveTransport(provider: provider, model: $0) }
             ?? RelayEndpointResolver.connectionTransport(of: provider)
+        return envelopeKey(transport: transport)
+    }
+
+    /// Maps an already decided transport to an envelope key, using the same mapping as `envelopeKey(for:model:)`.
+    static func envelopeKey(transport: RelayTransport) -> String {
         switch transport {
         case .auto:
             return MetadataClient.RelayTransportKey.openaiChatCompletions
@@ -49,7 +54,16 @@ enum RelayRuntimeSupport {
     ) -> AttachmentSupport? {
         guard let key = envelopeKey(for: provider, model: model) else { return nil }
         guard let env = runtimeConfig.transportEnvelopes[key] else { return nil }
-        return (image: env.image, video: false, nativeFile: env.nativeFile, textFileInline: env.textFileInline)
+        return (image: env.image, nativeFile: env.nativeFile, textFileInline: env.textFileInline)
+    }
+
+    /// Reads the envelope flags for an already decided transport (used by the input capability projection; the final writer has no Provider at hand).
+    static func inputEnvelope(
+        transport: RelayTransport,
+        runtimeConfig: MetadataClient.RelayRuntimeConfig
+    ) -> AttachmentSupport? {
+        guard let env = runtimeConfig.transportEnvelopes[envelopeKey(transport: transport)] else { return nil }
+        return (image: env.image, nativeFile: env.nativeFile, textFileInline: env.textFileInline)
     }
 
     static func supportsWebSearch(

@@ -67,12 +67,20 @@ struct CapabilityEvidenceProjection: Sendable, Equatable {
     let identity: CapabilityEvidenceRequestIdentity?
     let resolutions: [String: CapabilityEvidenceFacade.Resolution]
     let declaredReasoningDefaultLevel: ReasoningMode?
+    /// Projections of the three input keys; filled by the two `capabilityProjection` entries and
+    /// `finalDispatchIntent`. A key without a projection is still read from the resolution by the outbound gate.
+    var inputProjections: [String: CapabilityEvidenceFacade.InputCapabilityProjection] = [:]
 
     func resolution(for key: String) -> CapabilityEvidenceFacade.Resolution? {
         resolutions[key]
     }
 
+    func inputProjection(for key: String) -> CapabilityEvidenceFacade.InputCapabilityProjection? {
+        inputProjections[key]
+    }
+
     func permitsOutbound(_ key: String) -> Bool {
+        if let input = inputProjections[key] { return input.outbound == .nativePart }
         guard let policy = resolution(for: key)?.requestPolicy else { return false }
         return policy == .allow || policy == .allowExplicitUnverified
     }
@@ -84,9 +92,9 @@ struct CapabilityEvidenceProjection: Sendable, Equatable {
 }
 
 extension CapabilityEvidenceProductionAdapter {
-    private static let scalarCapabilityKeys: Set<String> = [
-        "tool_call", "web_search", "vision_input",
-    ]
+    private static let scalarCapabilityKeys: Set<String> = Set(
+        ["tool_call", "web_search"] + CapabilityEvidenceFacade.inputCapabilityKeys
+    )
 
     static func capabilityProjection(
         provider: Provider,
@@ -95,8 +103,35 @@ extension CapabilityEvidenceProductionAdapter {
         keys: Set<String>,
         explicitKeys: Set<String> = []
     ) -> CapabilityEvidenceProjection {
-        guard let identity else { return unknownCapabilityProjection(keys: keys, identity: nil) }
         let form = ProviderForm.of(provider)
+        guard let identity else {
+            var projection = unknownCapabilityProjection(keys: keys, identity: nil)
+            // A relay projection needs only the connection and the model: an incomplete UI identity (for example an auto connection) does not mean there is no connection identity.
+            if form == .relay { projection.inputProjections = relayInputProjections(provider: provider, model: model, keys: keys) }
+            return projection
+        }
+        var projection = formCapabilityProjection(
+            form: form, provider: provider, model: model, identity: identity,
+            keys: keys, explicitKeys: explicitKeys
+        )
+        projection.inputProjections = form == .relay
+            ? relayInputProjections(provider: provider, model: model, keys: keys)
+            : inputCapabilityProjections(
+                form: form, providerKind: provider.kind, connectionID: provider.id.uuidString,
+                identity: identity, keys: keys, resolutions: projection.resolutions,
+                effectiveTransport: projection.identity?.query.effectiveTransport
+            )
+        return projection
+    }
+
+    private static func formCapabilityProjection(
+        form: ProviderForm,
+        provider: Provider,
+        model: AIModel,
+        identity: CapabilityEvidenceRequestIdentity,
+        keys: Set<String>,
+        explicitKeys: Set<String>
+    ) -> CapabilityEvidenceProjection {
         switch form {
         case .relay:
             return resolveRelayCapabilities(
@@ -120,6 +155,254 @@ extension CapabilityEvidenceProductionAdapter {
         }
     }
 
+    /// Projection of the three input keys. Hard blocks are added at this layer, and the truth adapters' own rulings stay unchanged:
+    /// - Official: reads only `capabilityControls[key]`, a missing key = unknown; a missing wireFamily is inferred from the catalog transport, and a text-only transport counts as not implemented here;
+    ///   the v2 negative cache is keyed by connectionId = provider.id (entries without a Provider use the TaskLocal-bound
+    ///   connectionInstanceID, which has the same value) and wireFamily.
+    /// - Subscription: the truth adapter's ruling (first-party > model-facts > catalog_silent) is projected by the table; the wire family follows the final subscription transport,
+    ///   and a transport with no family for the key = not implemented here.
+    /// - Relay: see `relayInputProjections`.
+    private static func inputCapabilityProjections(
+        form: ProviderForm,
+        providerKind: ProviderKind,
+        connectionID: String,
+        identity: CapabilityEvidenceRequestIdentity,
+        keys: Set<String>,
+        resolutions: [String: CapabilityEvidenceFacade.Resolution],
+        effectiveTransport: String? = nil
+    ) -> [String: CapabilityEvidenceFacade.InputCapabilityProjection] {
+        let inputKeys = keys.filter { CapabilityEvidenceFacade.inputCapabilityKeys.contains($0) }
+        guard !inputKeys.isEmpty, form != .relay else { return [:] }
+        let controls: [String: MetadataClient.CapabilityControl]? = form == .official
+            ? MetadataClient.shared.syncCapabilityRecipeRuntime(
+                modelID: identity.query.effectiveModelID, providerKind: providerKind
+            ).controls
+            : nil
+        return Dictionary(uniqueKeysWithValues: inputKeys.map { key in
+            let projection: CapabilityEvidenceFacade.InputCapabilityProjection
+            switch form {
+            case .official:
+                projection = officialInputProjection(
+                    key: key, control: controls?[key], providerKind: providerKind,
+                    connectionID: connectionID, modelID: identity.query.effectiveModelID
+                )
+            case .subscription:
+                let verdict = SubscriptionTruthAdapter.inputVerdict(
+                    key: key, resolution: resolutions[key], transport: effectiveTransport
+                )
+                projection = CapabilityEvidenceFacade.inputCapabilityProjection(
+                    verdict: verdict,
+                    endImplements: verdict.wireFamily.map(CapabilityEvidenceFacade.implementsWireFamily) ?? false,
+                    override: nil, negativeCacheHit: false, connection: .official
+                )
+            case .relay:
+                preconditionFailure("relay input projection is produced by relayInputProjections")
+            }
+            return (key, projection)
+        })
+    }
+
+    private static func officialInputProjection(
+        key: String,
+        control: MetadataClient.CapabilityControl?,
+        providerKind: ProviderKind,
+        connectionID: String,
+        modelID: String
+    ) -> CapabilityEvidenceFacade.InputCapabilityProjection {
+        // The current transport is the catalog model's transport; when the ruling names no wire family, fall back to the (key, transport) table (the same rule as Web / Android).
+        let transport = MetadataClient.shared.syncResolveCatalogModel(modelID: modelID, providerKind: providerKind)?
+            .transport.map(CapabilityEvidenceFacade.canonicalInputTransport)
+        let wireFamily = control?.wireFamily ?? CapabilityEvidenceFacade.inputWireFamily(key: key, transport: transport)
+        let verdict: CapabilityEvidenceFacade.InputVerdict? = control.map { control in
+            var state = CapabilityControlResolution.State(rawValue: control.state) ?? .unknown
+            // The transport is unknown too and no wire family can be inferred: this client cannot tell whether it can send natively, so project unknown.
+            if state == .autoAvailable, wireFamily == nil, transport == nil { state = .unknown }
+            return .init(state: state, reasonCode: control.reasonCode, wireFamily: wireFamily)
+        }
+        // A text-only transport is always not implemented here; a known transport with no matching family is also not implemented; an unknown transport does not block (left to the ruling).
+        let endImplements: Bool
+        if let transport, CapabilityEvidenceFacade.textOnlyInputTransports.contains(transport) {
+            endImplements = false
+        } else if let wireFamily {
+            endImplements = CapabilityEvidenceFacade.implementsWireFamily(wireFamily)
+        } else {
+            endImplements = transport == nil
+        }
+        let negativeCacheHit = wireFamily.map { family in
+            CapabilityNegativeCache.shared.isRejected(
+                connectionId: connectionID, modelId: modelID, wireFamily: family, capabilityKey: key,
+                verdictRevision: CapabilityNegativeCache.verdictRevision(control.map {
+                    .init(state: $0.state, reasonCode: $0.reasonCode, wireFamily: $0.wireFamily, sourceRefs: $0.sourceRefs)
+                })
+            )
+        } ?? false
+        return CapabilityEvidenceFacade.inputCapabilityProjection(
+            verdict: verdict,
+            endImplements: endImplements,
+            override: nil,
+            negativeCacheHit: negativeCacheHit,
+            connection: .official
+        )
+    }
+
+    private static func relayInputProjections(
+        provider: Provider, model: AIModel, keys: Set<String>
+    ) -> [String: CapabilityEvidenceFacade.InputCapabilityProjection] {
+        // The protocol is the one actually sent first, the same key the relay negative cache writes with.
+        relayInputProjections(
+            connectionID: provider.id.uuidString, model: model,
+            transport: RelayFirstSendTransport.current(provider: provider, model: model),
+            consumesEngineDeclaration: hasEngineProfile(provider), keys: keys
+        )
+    }
+
+    /// Relay projection of the three input keys. The server ruling is always unknown; priority:
+    /// envelope rejection (looks only at the image / nativeFile bits, absence is not rejection; video ignores the envelope, and a first-send protocol without a video family is not implemented) > user delta override > v2 negative cache >
+    /// local negative evidence (a tested override of false, a local engine declaration of false, from the same source as `RelayTruthAdapter`) > unknown.
+    /// A tested override is not a user choice and cannot beat the negative cache; connectionId = provider.id.
+    private static func relayInputProjections(
+        connectionID: String,
+        model: AIModel,
+        transport: RelayTransport,
+        consumesEngineDeclaration: Bool,
+        keys: Set<String>
+    ) -> [String: CapabilityEvidenceFacade.InputCapabilityProjection] {
+        let inputKeys = keys.filter { CapabilityEvidenceFacade.inputCapabilityKeys.contains($0) }
+        guard !inputKeys.isEmpty else { return [:] }
+        let envelope = RelayRuntimeSupport.inputEnvelope(
+            transport: transport, runtimeConfig: MetadataClient.shared.syncRelayRuntimeConfig()
+        )
+        let overrides = CapabilityOverrideNormalizer.normalize(
+            connection: .relay, legacy: model.relayCapabilityOverrides, stored: nil,
+            serverVerdict: [:], now: Date()
+        )
+        let visionEvidence = RelayTruthAdapter.visionEvidence(
+            model: model, consumesEngineDeclaration: consumesEngineDeclaration
+        )
+        return Dictionary(uniqueKeysWithValues: inputKeys.map { key in
+            let envelopeAccepts: Bool
+            switch key {
+            // A missing envelope is not rejection; only an explicit false is a hard block.
+            case CapabilityEvidenceFacade.visionInputKey: envelopeAccepts = envelope?.image ?? true
+            case CapabilityEvidenceFacade.fileInputKey: envelopeAccepts = envelope?.nativeFile ?? true
+            // Video is not judged by the envelope; a first-send protocol with no video wire family (only chat has openai_chat.video_url) is not implemented here.
+            default: envelopeAccepts = relayWireFamily(transport: transport, key: key) != nil
+            }
+            let override: CapabilityEvidenceFacade.InputOverride? = CapabilityOverrideKey(rawValue: key)
+                .flatMap(overrides.effective)
+                .map { $0 == .add ? .add : .remove }
+            let negativeCacheHit = relayWireFamily(transport: transport, key: key).map { family in
+                CapabilityNegativeCache.shared.isRejected(
+                    connectionId: connectionID, modelId: model.id, wireFamily: family, capabilityKey: key,
+                    verdictRevision: CapabilityNegativeCache.verdictRevision(relayInputVerdict(
+                        key: key, visionEvidence: visionEvidence, wireFamily: family
+                    ))
+                )
+            } ?? false
+            return (key, CapabilityEvidenceFacade.inputCapabilityProjection(
+                verdict: relayLocalVerdict(
+                    key: key, model: model, legacyKept: overrides.legacyKept,
+                    consumesEngineDeclaration: consumesEngineDeclaration
+                ),
+                endImplements: envelopeAccepts,
+                override: override,
+                negativeCacheHit: negativeCacheHit,
+                connection: .relay
+            ))
+        })
+    }
+
+    /// The facade's composite ruling for a relay input key; the revisions on both the read and write side of the v2 negative cache take its hash
+    /// instead of the missing-ruling hash:
+    /// vision follows the connection evidence (supported -> auto_available; unsupported -> unavailable + model_capability_absent;
+    /// anything else unknown, with no reasonCode); file / video = unknown + catalog_silent. wireFamily is the family of the first-send (or actually sent) protocol.
+    static func relayInputVerdict(
+        key: String,
+        visionEvidence: CapabilityEvidenceFacade.Support?,
+        wireFamily: String
+    ) -> CapabilityNegativeCache.Verdict {
+        typealias State = CapabilityControlResolution.State
+        guard key == CapabilityEvidenceFacade.visionInputKey else {
+            return .init(state: State.unknown.rawValue, reasonCode: "catalog_silent", wireFamily: wireFamily)
+        }
+        switch visionEvidence {
+        case .supported?:
+            return .init(state: State.autoAvailable.rawValue, wireFamily: wireFamily)
+        case .unsupported?:
+            return .init(state: State.unavailable.rawValue, reasonCode: "model_capability_absent", wireFamily: wireFamily)
+        case .unknown?, nil:
+            return .init(state: State.unknown.rawValue, wireFamily: wireFamily)
+        }
+    }
+
+    /// Entry points that hold the Provider take the image connection evidence (a local engine declaration takes effect only when the connection has an engineProfile).
+    static func relayVisionEvidence(provider: Provider, model: AIModel) -> CapabilityEvidenceFacade.Support? {
+        RelayTruthAdapter.visionEvidence(model: model, consumesEngineDeclaration: hasEngineProfile(provider))
+    }
+
+    /// Local negative evidence exists only for vision: a tested override beats the engine declaration, and a user override is already normalized into a delta.
+    private static func relayLocalVerdict(
+        key: String,
+        model: AIModel,
+        legacyKept: RelayCapabilityOverrides?,
+        consumesEngineDeclaration: Bool
+    ) -> CapabilityEvidenceFacade.InputVerdict? {
+        guard key == CapabilityEvidenceFacade.visionInputKey else { return nil }
+        let declared = legacyKept?.image
+            ?? (consumesEngineDeclaration ? model.engineDeclaration?.image : nil)
+        return declared == false ? .init(state: .unavailable, reasonCode: "model_capability_absent") : nil
+    }
+
+    /// Relay transport x input key -> wire family; nil = this protocol has no such family, so the negative cache does not hit.
+    static func relayWireFamily(transport: RelayTransport, key: String) -> String? {
+        switch (transport, key) {
+        case (.openaiChatCompletions, CapabilityEvidenceFacade.visionInputKey),
+             (.auto, CapabilityEvidenceFacade.visionInputKey): return "openai_chat.image_url"
+        case (.openaiChatCompletions, CapabilityEvidenceFacade.fileInputKey),
+             (.auto, CapabilityEvidenceFacade.fileInputKey): return "openai_chat.file"
+        case (.openaiChatCompletions, CapabilityEvidenceFacade.videoInputKey),
+             (.auto, CapabilityEvidenceFacade.videoInputKey): return "openai_chat.video_url"
+        case (.openaiResponses, CapabilityEvidenceFacade.visionInputKey): return "openai_responses.input_image"
+        case (.openaiResponses, CapabilityEvidenceFacade.fileInputKey): return "openai_responses.input_file"
+        case (.anthropicMessages, CapabilityEvidenceFacade.visionInputKey): return "anthropic.image"
+        case (.anthropicMessages, CapabilityEvidenceFacade.fileInputKey): return "anthropic.document"
+        case (.geminiGenerateContent, _): return CapabilityEvidenceFacade.inputCapabilityKeys.contains(key)
+            ? "gemini.inline_data" : nil
+        default: return nil
+        }
+    }
+
+    /// The read side cannot get the connection (no Provider and no bound connection identity): the three relay input keys are hard blocked.
+    private static func relayBlockedInputProjections(
+        keys: Set<String>
+    ) -> [String: CapabilityEvidenceFacade.InputCapabilityProjection] {
+        Dictionary(uniqueKeysWithValues: keys.filter {
+            CapabilityEvidenceFacade.inputCapabilityKeys.contains($0)
+        }.map { key in
+            (key, CapabilityEvidenceFacade.inputCapabilityProjection(
+                verdict: nil, endImplements: false, override: nil, negativeCacheHit: false, connection: .relay
+            ))
+        })
+    }
+
+    /// Entries without a Provider (the form entry and the final writer) add the three-key projection for non-relay forms;
+    /// the connection identity is the connectionInstanceID already bound on the identity.
+    private static func attachingInputProjections(
+        _ projection: CapabilityEvidenceProjection,
+        form: ProviderForm,
+        providerKind: ProviderKind,
+        identity: CapabilityEvidenceRequestIdentity,
+        keys: Set<String>
+    ) -> CapabilityEvidenceProjection {
+        var projection = projection
+        projection.inputProjections = inputCapabilityProjections(
+            form: form, providerKind: providerKind, connectionID: identity.query.connectionInstanceID,
+            identity: identity, keys: keys, resolutions: projection.resolutions,
+            effectiveTransport: projection.identity?.query.effectiveTransport
+        )
+        return projection
+    }
+
     /// For callers that do not hold the Provider object. The connection identity is already bound by the ChatManager TaskLocal;
     /// this builds candidates only from the same metadata pair, reads no key and triggers no network. A relay declaration needs the
     /// connection object, so this entry fails closed for a relay.
@@ -134,11 +417,35 @@ extension CapabilityEvidenceProductionAdapter {
         explicitKeys: Set<String> = []
     ) -> CapabilityEvidenceProjection {
         guard let identity else {
-            return unknownCapabilityProjection(keys: keys, identity: nil)
+            var projection = unknownCapabilityProjection(keys: keys, identity: nil)
+            if form == .relay { projection.inputProjections = relayBlockedInputProjections(keys: keys) }
+            return projection
         }
+        if form == .relay {
+            var projection = unknownCapabilityProjection(keys: keys, identity: identity)
+            projection.inputProjections = relayBlockedInputProjections(keys: keys)
+            return projection
+        }
+        return attachingInputProjections(
+            formResolutions(
+                form: form, providerKind: providerKind, model: model, identity: identity,
+                keys: keys, explicitKeys: explicitKeys
+            ),
+            form: form, providerKind: providerKind, identity: identity, keys: keys
+        )
+    }
+
+    private static func formResolutions(
+        form: ProviderForm,
+        providerKind: ProviderKind,
+        model: AIModel,
+        identity: CapabilityEvidenceRequestIdentity,
+        keys: Set<String>,
+        explicitKeys: Set<String>
+    ) -> CapabilityEvidenceProjection {
         switch form {
         case .relay:
-            return unknownCapabilityProjection(keys: keys, identity: identity)
+            preconditionFailure("relay is handled by capabilityProjection(form:)")
         case .subscription:
             // Without a Provider the subscription protocol cannot be computed, so the identity transport the caller already settled on is trusted.
             return resolveSubscriptionCapabilities(
@@ -159,9 +466,14 @@ extension CapabilityEvidenceProductionAdapter {
         model: AIModel,
         partitionID: String
     ) -> CapabilityEvidenceRequestIdentity? {
-        guard ProviderForm.of(provider) == .relay,
-              let transport = RelayEndpointResolver.explicitTransport(provider: provider, model: model),
-              let requested = RelayEndpointResolver.routedRequested(provider: provider, model: model),
+        guard ProviderForm.of(provider) == .relay else { return nil }
+        // Auto is first resolved to the first-send protocol on a model copy, and routing and the endpoint are both computed from it (the same shape as the ChatManager first-send protocol switch).
+        var routed = model
+        if RelayEndpointResolver.explicitTransport(provider: provider, model: model) == nil {
+            routed.relayTransport = RelayFirstSendTransport.current(provider: provider, model: model)
+        }
+        guard let transport = RelayEndpointResolver.explicitTransport(provider: provider, model: routed),
+              let requested = RelayEndpointResolver.routedRequested(provider: provider, model: routed),
               let rawBaseURL = trimmedNonEmpty(provider.baseURLText),
               trimmedNonEmpty(partitionID) != nil,
               let endpoint = relayChatEndpoint(
@@ -328,12 +640,27 @@ extension CapabilityEvidenceProductionAdapter {
                 effectiveTransport: effectiveTransport,
                 metadataRevision: metadataRevision,
                 generationRevision: current.query.generationRevision ?? metadataRevision
-            ) else { return unknownCapabilityProjection(keys: keys, identity: nil) }
-            return resolveRelayCapabilities(
+            ) else {
+                var projection = unknownCapabilityProjection(keys: keys, identity: nil)
+                projection.inputProjections = relayBlockedInputProjections(keys: keys)
+                return projection
+            }
+            var projection = resolveRelayCapabilities(
                 form: form, providerKind: providerKind, model: model, identity: identity,
                 keys: keys, explicitKeys: explicitKeys, consumesEngineDeclaration: consumesEngineDeclaration,
                 webFragment: webFragment
             )
+            // The connection identity comes from the TaskLocal binding (connectionInstanceID = provider.id), and the protocol is the one actually sent this time.
+            if let transport = RelayTransport(rawValue: identity.query.effectiveTransport),
+               trimmedNonEmpty(identity.query.connectionInstanceID) != nil {
+                projection.inputProjections = relayInputProjections(
+                    connectionID: identity.query.connectionInstanceID, model: model, transport: transport,
+                    consumesEngineDeclaration: consumesEngineDeclaration, keys: keys
+                )
+            } else {
+                projection.inputProjections = relayBlockedInputProjections(keys: keys)
+            }
+            return projection
 
         case .subscription:
             // The builder decides the subscription protocol (`subscriptionFinalTransport`); only the transport it already selected is trusted here.
@@ -344,10 +671,13 @@ extension CapabilityEvidenceProductionAdapter {
                 metadataRevision: metadataRevision,
                 generationRevision: current.query.generationRevision ?? metadataRevision
             ) else { return unknownCapabilityProjection(keys: keys, identity: nil) }
-            return resolveSubscriptionCapabilities(
-                form: form, providerKind: providerKind, model: model,
-                catalogModels: catalogModels, transport: effectiveTransport, identity: identity,
-                keys: keys, explicitKeys: explicitKeys
+            return attachingInputProjections(
+                resolveSubscriptionCapabilities(
+                    form: form, providerKind: providerKind, model: model,
+                    catalogModels: catalogModels, transport: effectiveTransport, identity: identity,
+                    keys: keys, explicitKeys: explicitKeys
+                ),
+                form: form, providerKind: providerKind, identity: identity, keys: keys
             )
 
         case .official:
@@ -360,9 +690,12 @@ extension CapabilityEvidenceProductionAdapter {
                 metadataRevision: input.metadataRevision,
                 generationRevision: input.resolved?.generationProfile?.revision ?? input.metadataRevision
             ) else { return unknownCapabilityProjection(keys: keys, identity: nil) }
-            return resolveOfficialCapabilities(
-                form: form, providerKind: providerKind, model: model, identity: identity,
-                keys: keys, explicitKeys: explicitKeys, input: input
+            return attachingInputProjections(
+                resolveOfficialCapabilities(
+                    form: form, providerKind: providerKind, model: model, identity: identity,
+                    keys: keys, explicitKeys: explicitKeys, input: input
+                ),
+                form: form, providerKind: providerKind, identity: identity, keys: keys
             )
         }
     }
@@ -411,6 +744,13 @@ extension CapabilityEvidenceProductionAdapter {
                         modelID: identity.query.effectiveModelID,
                         declaresWebCapability: resolved.capabilities.contains(.web),
                         webSearchProfileName: resolved.profiles.webSearch
+                    ).state
+                },
+                inputState: { key in
+                    CapabilityControlResolution.inputVerdict(
+                        providerKind: providerKind,
+                        modelID: identity.query.effectiveModelID,
+                        key: key
                     ).state
                 }
             )
@@ -496,6 +836,9 @@ extension CapabilityEvidenceProductionAdapter {
                     CapabilityControlResolution.subscriptionDeclaredReasoningLevels(
                         providerKind: providerKind, model: $0
                     )
+                },
+                modelFactsInputModalities: {
+                    SubscriptionTruthAdapter.modelFacts(providerKind: providerKind, model: $0)?.modalities?.input
                 }
             ),
             catalogModels: catalogModels
@@ -564,6 +907,9 @@ struct CapabilityEvidenceFinalChatIntent: Sendable, Equatable {
     let outboundMessages: [ChatMessage]
     let webSearchEnabled: Bool
     let reasoningMode: ReasoningMode?
+    /// How images are delivered in this request: when the image projection's outbound is native_part (or there is no image, or the capability test keeps images)
+    /// the builder assembles image parts per protocol; with placeholder no image is assembled and `AttachmentDelivery` writes one wire placeholder line per image.
+    let imageOutbound: CapabilityEvidenceFacade.InputCapabilityProjection.Outbound
 }
 
 /// Side channel fired only after the final serializer confirms web_search actually goes out.
@@ -590,29 +936,6 @@ final class CapabilityEvidenceDispatchOnce: @unchecked Sendable {
 }
 
 extension CapabilityEvidenceProductionAdapter {
-    /// When a relay's image understanding is unknown, the image is sent anyway: it is stripped only on negative evidence (an override of false /
-    /// an engine declaration of false / a protocol envelope that does not accept images, all already folded into the resolution's unsupported)
-    /// or when the `image` negative cache for that key has not expired. The adapter is not given an unknown candidate (that would light up the
-    /// model library badge); without a complete connection identity it still fails closed. Other forms are unchanged.
-    static func relayPermitsUnknownImage(
-        projection: CapabilityEvidenceProjection,
-        model: AIModel?,
-        negativeCache: RelayNegativeCache = .shared
-    ) -> Bool {
-        guard let model,
-              let query = projection.identity?.query,
-              let providerKind = ProviderKind(rawValue: query.providerKind),
-              let authMode = ProviderAuthMode(rawValue: query.authMode),
-              ProviderForm.of(kind: providerKind, authMode: authMode) == .relay,
-              isCompleteConnectionQuery(query),
-              CapabilityEvidenceFacade.isConcreteTransport(query.effectiveTransport),
-              projection.resolution(for: "vision_input")?.support != .unsupported else { return false }
-        return !negativeCache.isRejected(
-            connectionID: query.connectionInstanceID, modelID: model.id,
-            transport: query.effectiveTransport, kind: .image
-        )
-    }
-
     static func finalChatIntent(
         messages: [ChatMessage],
         request: URLRequest,
@@ -635,6 +958,14 @@ extension CapabilityEvidenceProductionAdapter {
         if hasImages {
             keys.insert("vision_input")
             explicitKeys.insert("vision_input")
+        }
+        // Native files read only the file_input projection: only files that carry native original data are asked about.
+        let hasNativeFiles = messages.contains { message in
+            message.attachments?.contains(where: carriesNativeFileData) == true
+        }
+        if hasNativeFiles {
+            keys.insert(CapabilityEvidenceFacade.fileInputKey)
+            explicitKeys.insert(CapabilityEvidenceFacade.fileInputKey)
         }
 
         let concreteReasoningModes: [ReasoningMode]
@@ -659,28 +990,34 @@ extension CapabilityEvidenceProductionAdapter {
             }
             return selected
         }()
-        let outboundMessages: [ChatMessage]
+        var outboundMessages: [ChatMessage]
+        let imageOutbound: CapabilityEvidenceFacade.InputCapabilityProjection.Outbound
         // The image item of "Test capabilities" is itself testing this image, so neither an override of false nor the negative cache may strip it.
-        if hasImages, !keepImageAttachments, !projection.permitsOutbound("vision_input"),
-           !relayPermitsUnknownImage(projection: projection, model: model) {
-            outboundMessages = messages.map { message in
-                var copy = message
-                if let attachments = message.attachments {
-                    let filtered = attachments.filter { $0.kind != .image }
-                    copy.attachments = filtered.isEmpty ? nil : filtered
-                    // On a text-only route, a removed image leaves a placeholder line in the body (the same bytes and position as AttachmentDelivery writes),
-                    // otherwise the model would not know the user attached an image.
-                    let removed = attachments.count - filtered.count
-                    if let imagePlaceholderText, removed > 0 {
-                        copy.text = ([message.text] + Array(repeating: imagePlaceholderText, count: removed))
-                            .filter { !$0.isEmpty }
-                            .joined(separator: "\n\n")
+        // A relay with unknown image understanding still sends the image: envelope, override and negative-cache stripping are all folded into the input projection of vision_input.
+        if hasImages, !keepImageAttachments, !projection.permitsOutbound(CapabilityEvidenceFacade.visionInputKey) {
+            imageOutbound = .placeholder
+            if imagePlaceholderText != nil {
+                // A transport that declares a placeholder: the images stay in the copy and AttachmentDelivery writes a placeholder per image
+                // (body -> file blocks -> placeholder); the builder sees `.placeholder` and assembles no image parts.
+                outboundMessages = messages
+            } else {
+                outboundMessages = messages.map { message in
+                    var copy = message
+                    if let attachments = message.attachments {
+                        let filtered = attachments.filter { $0.kind != .image }
+                        copy.attachments = filtered.isEmpty ? nil : filtered
                     }
+                    return copy
                 }
-                return copy
             }
         } else {
+            imageOutbound = .nativePart
             outboundMessages = messages
+        }
+        // When file_input does not allow it, drop the native original data so the file goes through AttachmentDelivery text injection, with no placeholder.
+        // The projection is only a necessary condition: after it allows, the mime allowlist / pdfNativeDefault still judge the format.
+        if hasNativeFiles, !projection.permitsOutbound(CapabilityEvidenceFacade.fileInputKey) {
+            outboundMessages = outboundMessages.map(removingNativeFileData)
         }
         let allowedWebSearch = webSearchEnabled && projection.permitsOutbound("web_search")
         if allowedWebSearch {
@@ -690,7 +1027,27 @@ extension CapabilityEvidenceProductionAdapter {
             projection: projection,
             outboundMessages: outboundMessages,
             webSearchEnabled: allowedWebSearch,
-            reasoningMode: selectedReasoningMode
+            reasoningMode: selectedReasoningMode,
+            imageOutbound: imageOutbound
         )
+    }
+}
+
+extension CapabilityEvidenceProductionAdapter {
+    /// File attachments that carry native original data (originalBase64Data): the file_input projection covers only this kind.
+    static func carriesNativeFileData(_ attachment: Attachment) -> Bool {
+        attachment.kind == .file && attachment.originalBase64Data?.isEmpty == false
+    }
+
+    /// Drops the native original data of a file and keeps the extracted text for AttachmentDelivery text injection.
+    static func removingNativeFileData(_ message: ChatMessage) -> ChatMessage {
+        var copy = message
+        copy.attachments = message.attachments?.map { attachment in
+            guard carriesNativeFileData(attachment) else { return attachment }
+            var textOnly = attachment
+            textOnly.originalBase64Data = nil
+            return textOnly
+        }
+        return copy
     }
 }

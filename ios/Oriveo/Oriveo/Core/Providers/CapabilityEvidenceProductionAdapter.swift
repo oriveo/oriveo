@@ -592,7 +592,8 @@ enum CapabilityEvidenceProductionAdapter {
             modelID: source.modelID, canonicalModelID: source.canonicalModelID,
             effectiveTransport: source.effectiveTransport, endpointFingerprint: source.endpointFingerprint,
             metadataRevision: source.metadataRevision, generationRevision: source.generationRevision,
-            now: Int64(Date().timeIntervalSince1970 * 1_000), hasExplicitValue: hasExplicitValue
+            // Only hasExplicitValue changes: the clock keeps the `now` from when the identity was built, otherwise a clock injected by the caller would be silently overridden by the wall clock.
+            now: source.now, hasExplicitValue: hasExplicitValue
         )
     }
 

@@ -804,6 +804,30 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
         )
     }
 
+    /// Legacy UI state has no final transport/runtime revision and therefore remains dormant.
+    /// Only an already persisted complete R3 identity may resolve; explicit reconfirmation writes it.
+    ///
+    /// On a miss this no longer returns off/nil directly but falls back to the same ladder the send side uses
+    /// (`displayCapabilityPreferences`). Reading used to look only at the "current conversation" level, so after
+    /// "set as this model's default" wrote to the `conversationID == nil` level no screen could read it back:
+    /// the panel, the composer summary and ChatView all showed it as never set, and only a real send used it.
+    /// The legacy migration duty is unchanged: the composer's in-process boolean is still always dormant and never revives automatic.
+    func migrateLegacyWebPreference(
+        legacyEnabled: Bool,
+        isExistingScope: Bool,
+        providerID: UUID,
+        modelID: String,
+        conversationID: UUID?,
+        transportIdentity: String
+    ) -> CapabilityPreferenceValues {
+        _ = legacyEnabled
+        _ = isExistingScope
+        return displayCapabilityPreferences(
+            providerID: providerID, modelID: modelID, conversationID: conversationID,
+            skillID: nil, transportIdentity: transportIdentity
+        )
+    }
+
     func displayCapabilityPreferences(
         providerID: UUID,
         modelID: String,
@@ -1820,7 +1844,8 @@ enum GenerationParameterSyncLedger {
     }
 
     private static func writeLocked(_ values: [GenerationParameterSyncTombstone], defaults: UserDefaults) {
-        guard let data = try? JSONEncoder().encode(values) else { return }
+        guard let data = try? JSONEncoder.stableStorage.encode(values),
+              defaults.data(forKey: key) != data else { return }
         defaults.set(data, forKey: key)
     }
 }
@@ -2218,7 +2243,9 @@ private enum CapabilityPreferenceSyncLedger {
         defaults.removeObject(forKey: key)
     }
     static func write(_ values: [CapabilityPreferenceSyncTombstone], defaults: UserDefaults) {
-        defaults.set(try? JSONEncoder().encode(Array(values.suffix(300))), forKey: key)
+        guard let data = try? JSONEncoder.stableStorage.encode(Array(values.suffix(300))),
+              defaults.data(forKey: key) != data else { return }
+        defaults.set(data, forKey: key)
     }
 }
 

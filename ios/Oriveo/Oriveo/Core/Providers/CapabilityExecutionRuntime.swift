@@ -562,4 +562,7 @@ enum CapabilityExecutionRuntime {
 /// never persisted or inherited by a later normal send.
 nonisolated enum CapabilityRecipeResendContext {
     @TaskLocal static var recoveryDescriptor: CapabilityRecoveryDescriptor?
+    /// Parameter names this one request explicitly omits after the user chose "resend without it".
+    /// It follows only this request and ignores the negative cache.
+    @TaskLocal static var omittedParameters: Set<String> = []
 }

@@ -201,7 +201,15 @@ enum ProfileParamsResolver {
                 if body[resolvedPath] == nil { body[resolvedPath] = builderDefault }
             }
         }
+        // Per-parameter gate of official connections: a parameter that parameterSupport judges unavailable, or that hits the v2 `param:<name>` negative cache, is not sent.
+        let officialGate = OfficialParameterGate.current(
+            identity: scopedIdentity,
+            transport: scopedIdentity.map(\.query.effectiveTransport).flatMap { $0.isEmpty ? nil : $0 } ?? transport
+        )
         func permitsOutbound(_ key: String) -> Bool {
+            if officialGate?.blocks(generationParameter: UnsupportedParamClassifier.normalize(key)) == true {
+                return false
+            }
             if runtimeGenerationAuthorized {
                 return wire[UnsupportedParamClassifier.normalize(key)]?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
             }
@@ -369,6 +377,20 @@ enum ProfileParamsResolver {
         builderDefaultMaxTokens: Int?
     ) -> GenerationParameterApplication {
         var application = application
+        // On an official connection a `param:thinking` negative-cache hit drops the whole reasoning field (including an explicit off) and does no further linkage.
+        if let gate = OfficialParameterGate.current(transport: TransportKind.anthropicMessages.rawValue),
+           gate.isRejected("thinking") || gate.isOmittedForThisResend("thinking") {
+            body.removeValue(forKey: "thinking")
+            if var outputConfig = body["output_config"] as? [String: Any] {
+                outputConfig.removeValue(forKey: "effort")
+                if outputConfig.isEmpty {
+                    body.removeValue(forKey: "output_config")
+                } else {
+                    body["output_config"] = outputConfig
+                }
+            }
+            return application
+        }
         guard let thinking = body["thinking"] as? [String: Any],
               let type = thinking["type"] as? String,
               anthropicThinkingActiveTypes.contains(type) else { return application }
@@ -680,8 +702,128 @@ enum ProfileParamsResolver {
         to body: inout [String: Any],
         resolved: MetadataClient.ResolvedModelMetadata?
     ) {
-        if resolved?.supportsTemperature == false {
+        let gate = OfficialParameterGate.make(
+            identity: CapabilityEvidenceRequestContext.current,
+            transport: resolved?.transport ?? CapabilityEvidenceRequestContext.current?.query.effectiveTransport,
+            parameterSupport: resolved?.parameterSupport
+        )
+        if gate?.blocks(generationParameter: "temperature") == true
+            || (gate?.hasParameterSupport != true && resolved?.supportsTemperature == false) {
             body.removeValue(forKey: "temperature")
         }
+        if gate?.blocks(generationParameter: "top_p") == true {
+            body.removeValue(forKey: "top_p")
+        }
+    }
+}
+
+/// Per-parameter outbound gate of official connections. It exists only for official API key connections; Relay / subscription
+/// connections get no gate and send as before. Three values: parameterSupport `unavailable` is not sent, while `unknown` / `auto_available`
+/// or missing is sent; a parameter the upstream rejected by signature is recorded as a v2 `param:<name>` negative cache, and a hit is not sent (affecting only later requests).
+nonisolated struct OfficialParameterGate {
+    /// Parameter names constrained by the three parameterSupport values (the keys of parameterSupport).
+    static let gatedSupportNames: Set<String> = ["temperature", "top_p", "structured_output"]
+
+    let connectionId: String
+    /// Negative-cache model key = `identity.query.effectiveModelID`, the same value as on the write side.
+    let modelId: String
+    /// Negative-cache wire family = protocol key (`CapabilityEvidenceFacade.protocolKey`); when nil the negative cache does not take part.
+    let wireProtocol: String?
+    let parameterSupport: [String: MetadataClient.JSONValue]?
+    let negativeCache: CapabilityNegativeCache
+
+    var hasParameterSupport: Bool { parameterSupport != nil }
+
+    /// Generation parameter id -> parameterSupport key: both write parameters of structured output belong to `structured_output`.
+    static func supportName(forGenerationParameter id: String) -> String {
+        switch id {
+        case "json_schema", "response_format": return "structured_output"
+        default: return id
+        }
+    }
+
+    static func make(
+        identity: CapabilityEvidenceRequestIdentity?,
+        transport: String?,
+        parameterSupport: MetadataClient.JSONValue?,
+        negativeCache: CapabilityNegativeCache = .shared
+    ) -> OfficialParameterGate? {
+        guard let query = identity?.query,
+              let kind = ProviderKind(rawValue: query.providerKind),
+              let authMode = ProviderAuthMode(rawValue: query.authMode),
+              ProviderForm.of(kind: kind, authMode: authMode) == .official,
+              !query.connectionInstanceID.isEmpty else { return nil }
+        let support: [String: MetadataClient.JSONValue]? = {
+            guard case .object(let object)? = parameterSupport else { return nil }
+            return object
+        }()
+        return OfficialParameterGate(
+            connectionId: query.connectionInstanceID,
+            modelId: query.effectiveModelID,
+            wireProtocol: transport.flatMap(TransportKind.init(rawValue:)).flatMap(CapabilityEvidenceFacade.protocolKey),
+            parameterSupport: support,
+            negativeCache: negativeCache
+        )
+    }
+
+    /// Takes the gate from the current request identity, looking parameterSupport up in the catalog at that moment.
+    static func current(
+        identity: CapabilityEvidenceRequestIdentity? = CapabilityEvidenceRequestContext.current,
+        transport: String?
+    ) -> OfficialParameterGate? {
+        guard let query = identity?.query, let kind = ProviderKind(rawValue: query.providerKind) else { return nil }
+        let parameterSupport = MetadataClient.shared.syncResolveCatalogModel(
+            modelID: query.modelID, providerKind: kind
+        )?.parameterSupport
+        return make(identity: identity, transport: transport, parameterSupport: parameterSupport)
+    }
+
+    /// Revision of the parameter negative cache: the verdict of that parameter in parameterSupport at the time, unknown when missing.
+    static func verdictRevision(parameterSupport: MetadataClient.JSONValue?, name: String) -> String {
+        guard case .object(let object)? = parameterSupport else {
+            return CapabilityNegativeCache.verdictRevision(nil)
+        }
+        return CapabilityNegativeCache.verdictRevision(verdict(object[name]))
+    }
+
+    private static func verdict(_ value: MetadataClient.JSONValue?) -> CapabilityNegativeCache.Verdict? {
+        guard case .object(let object)? = value else { return nil }
+        func string(_ key: String) -> String? {
+            guard case .string(let text)? = object[key] else { return nil }
+            return text
+        }
+        let refs: [String]? = {
+            guard case .array(let items)? = object["sourceRefs"] else { return nil }
+            return items.compactMap { item -> String? in
+                guard case .string(let text) = item else { return nil }
+                return text
+            }
+        }()
+        return .init(state: string("state"), reasonCode: string("reasonCode"), wireFamily: string("wireFamily"), sourceRefs: refs)
+    }
+
+    func isUnavailable(_ name: String) -> Bool {
+        guard Self.gatedSupportNames.contains(name) else { return false }
+        return Self.verdict(parameterSupport?[name])?.state == CapabilityControlResolution.State.unavailable.rawValue
+    }
+
+    func isRejected(_ name: String) -> Bool {
+        guard let wireProtocol else { return false }
+        return negativeCache.isRejected(
+            connectionId: connectionId, modelId: modelId, wireFamily: wireProtocol,
+            capabilityKey: "param:" + name,
+            verdictRevision: Self.verdictRevision(parameterSupport: parameterSupport.map { .object($0) }, name: name)
+        )
+    }
+
+    /// This resend explicitly omitted the parameter ("resend without it"; compared by parameterSupport key, the two structured-output write parameters unified).
+    func isOmittedForThisResend(_ name: String) -> Bool {
+        CapabilityRecipeResendContext.omittedParameters.contains { Self.supportName(forGenerationParameter: $0) == name }
+    }
+
+    /// This generation parameter is not sent this time.
+    func blocks(generationParameter id: String) -> Bool {
+        let name = Self.supportName(forGenerationParameter: id)
+        return isUnavailable(name) || isRejected(name) || isOmittedForThisResend(name)
     }
 }

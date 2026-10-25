@@ -1,6 +1,10 @@
 import Foundation
 
 enum CapabilityEvidenceFacade {
+    /// The three input capability keys: the facade holds the only definition, and callers reference the constants rather than bare literals.
+    static let visionInputKey = "vision_input"
+    static let fileInputKey = "file_input"
+    static let videoInputKey = "video_input"
     enum Support: String, Codable, Sendable {
         case supported
         case unsupported
@@ -497,5 +501,278 @@ private extension String {
     var nonEmpty: String? {
         let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+extension CapabilityEvidenceFacade {
+    /// A model that can only generate images and gives no text reply: metadata has imageGen but not text, or a Relay dedicated image model.
+    /// The voice conversation entry (empty draft) uses it to stay greyed out.
+    static func isImageOnlyModel(_ model: AIModel) -> Bool {
+        if RelayRuntimeSupport.isDedicatedImageModel(model.id) { return true }
+        return model.capabilities.contains(.imageGen) && !model.capabilities.contains(.text)
+    }
+}
+
+// MARK: - Three input capability keys projection
+
+extension CapabilityEvidenceFacade {
+    /// The three input capability keys, in contract order.
+    static let inputCapabilityKeys: [String] = [visionInputKey, fileInputKey, videoInputKey]
+
+    /// The wire family implementation table compiled into this client; it matches, entry by entry, the families whose implementedBy includes ios in the shared wire-family contract.
+    /// Any family string not in the table counts as not implemented here.
+    static let implementedWireFamilies: Set<String> = [
+        "openai_chat.image_url",
+        "openai_chat.file",
+        "openai_chat.video_url",
+        "openai_responses.input_image",
+        "openai_responses.input_file",
+        "anthropic.image",
+        "anthropic.document",
+        "gemini.inline_data",
+    ]
+
+    static func implementsWireFamily(_ family: String) -> Bool {
+        implementedWireFamilies.contains(family)
+    }
+
+    /// Normalized transport x input key -> wire family (the same table as the Web `WIRE_FAMILY_BY_TRANSPORT`).
+    /// Returns nil for an unrecognized transport, or one with no matching family (for example video on Anthropic / Responses).
+    static let inputWireFamilyByTransport: [String: [String: String]] = [
+        visionInputKey: [
+            "openai_chat": "openai_chat.image_url",
+            "openai_responses": "openai_responses.input_image",
+            "anthropic_messages": "anthropic.image",
+            "gemini_generate_content": "gemini.inline_data",
+        ],
+        fileInputKey: [
+            "openai_chat": "openai_chat.file",
+            "openai_responses": "openai_responses.input_file",
+            "anthropic_messages": "anthropic.document",
+            "gemini_generate_content": "gemini.inline_data",
+        ],
+        videoInputKey: [
+            "openai_chat": "openai_chat.video_url",
+            "gemini_generate_content": "gemini.inline_data",
+        ],
+    ]
+
+    /// Transports that can only send plain text (the same set as the Web `TEXT_ONLY_TRANSPORTS`): llama.cpp native folds the whole conversation into one prompt;
+    /// Gemini Interactions sends no image parts from this client; DashScope native sends no media blocks from this client.
+    static let textOnlyInputTransports: Set<String> = ["llamacpp_native", "gemini_interactions", "dashscope_native"]
+
+    /// Transport name normalization: the catalog's `gemini_generate` and `gemini_generate_content` are the same transport.
+    static func canonicalInputTransport(_ transport: String) -> String {
+        transport == "gemini_generate" ? "gemini_generate_content" : transport
+    }
+
+    /// The wire family of an input key on the given transport; nil = unknown transport or this transport has no such family.
+    static func inputWireFamily(key: String, transport: String?) -> String? {
+        guard let transport else { return nil }
+        return inputWireFamilyByTransport[key]?[canonicalInputTransport(transport)]
+    }
+
+    /// Protocol-level output limit rules: whether max_tokens is required, and the default when the model limit is unknown.
+    struct ProtocolOutputDefault: Equatable, Sendable {
+        let requiresMaxTokens: Bool
+        let defaultMaxOutputTokens: Int?
+    }
+
+    /// Anthropic Messages requires max_tokens; this is used when the model limit is unknown.
+    static let anthropicDefaultMaxOutputTokens = 8192
+
+    /// The protocol default table of this client, matching the shared wire-family contract `protocols` entry by entry.
+    /// OpenAI / Gemini families do not require max_tokens, and none is sent when the limit is unknown.
+    static let protocolOutputDefaults: [String: ProtocolOutputDefault] = [
+        "openai_chat": ProtocolOutputDefault(requiresMaxTokens: false, defaultMaxOutputTokens: nil),
+        "openai_responses": ProtocolOutputDefault(requiresMaxTokens: false, defaultMaxOutputTokens: nil),
+        "anthropic": ProtocolOutputDefault(requiresMaxTokens: true, defaultMaxOutputTokens: anthropicDefaultMaxOutputTokens),
+        "gemini": ProtocolOutputDefault(requiresMaxTokens: false, defaultMaxOutputTokens: nil),
+    ]
+
+    /// The protocol default for a transport; a transport not in the table is treated as not requiring max_tokens.
+    static func protocolOutputDefault(for transport: TransportKind) -> ProtocolOutputDefault? {
+        protocolKey(for: transport).flatMap { protocolOutputDefaults[$0] }
+    }
+
+    /// Transport -> protocol key of the shared contract (wire_families and the rejection-signature table byProtocol use the same names);
+    /// the wire family of the parameter negative cache `param:<name>` also records this key. nil for a transport not in the table.
+    static func protocolKey(for transport: TransportKind) -> String? {
+        switch transport {
+        case .openaiChat: return "openai_chat"
+        case .openaiResponses: return "openai_responses"
+        case .anthropicMessages: return "anthropic"
+        case .geminiGenerate, .geminiInteractions: return "gemini"
+        default: return nil
+        }
+    }
+
+    /// Official Anthropic places a cache_control breakpoint only when the model catalog declares this promptCache policy.
+    static let anthropicExplicitPromptCachePolicy = "anthropic.explicit"
+
+    /// Whether the official route places a breakpoint: a missing catalog / missing policyRef / non-explicit never places one. Relay does not go through here.
+    static func placesOfficialAnthropicCacheBreakpoint(policyRef: String?) -> Bool {
+        policyRef == anthropicExplicitPromptCachePolicy
+    }
+
+    /// Reasons an input capability is disabled; the raw value is the localization key (character for character the same as the shared fixture `disabled.*` literals).
+    enum InputDisabledReason: String, Sendable, CaseIterable {
+        case modelAbsent = "disabled.model_absent"
+        case wireNotImplemented = "disabled.wire_not_implemented"
+        case killSwitch = "disabled.kill_switch"
+        case rejectedRecently = "disabled.rejected_recently"
+        case userRemoved = "disabled.user_removed"
+    }
+
+    /// The recipe verdict of one input key; a nil value means the payload lacks this key (projected as unknown).
+    struct InputVerdict: Equatable, Sendable {
+        let state: CapabilityControlResolution.State
+        let reasonCode: String?
+        let wireFamily: String?
+
+        init(state: CapabilityControlResolution.State, reasonCode: String? = nil, wireFamily: String? = nil) {
+            self.state = state
+            self.reasonCode = reasonCode
+            self.wireFamily = wireFamily
+        }
+    }
+
+    enum InputConnection: String, Sendable {
+        case official
+        case relay
+    }
+
+    /// User override (takes effect only on Relay connections).
+    enum InputOverride: String, Sendable {
+        case add
+        case remove
+    }
+
+    /// The input capability projection: produced only by `inputCapabilityProjection` and cannot be constructed outside the facade.
+    struct InputCapabilityProjection: Equatable, Sendable {
+        enum Outbound: String, Sendable {
+            case nativePart = "native_part"
+            case placeholder
+        }
+
+        enum Hint: String, Sendable {
+            case firstAttachOnce = "first_attach_once"
+        }
+
+        let visible: Bool
+        let editable: Bool
+        let outbound: Outbound
+        let hint: Hint?
+        let disabledReason: InputDisabledReason?
+
+        fileprivate init(visible: Bool, editable: Bool, outbound: Outbound, hint: Hint?, disabledReason: InputDisabledReason?) {
+            self.visible = visible
+            self.editable = editable
+            self.outbound = outbound
+            self.hint = hint
+            self.disabledReason = disabledReason
+        }
+
+        fileprivate static let available = InputCapabilityProjection(
+            visible: true, editable: true, outbound: .nativePart, hint: nil, disabledReason: nil
+        )
+        fileprivate static let unknown = InputCapabilityProjection(
+            visible: false, editable: true, outbound: .nativePart, hint: .firstAttachOnce, disabledReason: nil
+        )
+        fileprivate static func disabled(_ reason: InputDisabledReason) -> InputCapabilityProjection {
+            .init(visible: false, editable: false, outbound: .placeholder, hint: nil, disabledReason: reason)
+        }
+    }
+
+    /// Three-key projection. Priority: hard blocks (kill switch [unavailable only], family not implemented here, transport_not_* of an unavailable verdict) > Relay user override > negative cache > verdict.
+    /// Official connections ignore overrides; `verdict == nil` (missing key) and unknown both project to "not shown, entry open, first-attach hint".
+    static func inputCapabilityProjection(
+        verdict: InputVerdict?,
+        endImplements: Bool,
+        override: InputOverride?,
+        negativeCacheHit: Bool,
+        connection: InputConnection
+    ) -> InputCapabilityProjection {
+        // Hard-block tier: kill switch (unavailable only), not implemented here, transport_not_* of an unavailable verdict;
+        // placed before the Relay override and the negative cache, the same rule as Web / Android / desktop.
+        if verdict?.state == .unavailable, verdict?.reasonCode == "provider_kill_switch" {
+            return .disabled(.killSwitch)
+        }
+        guard endImplements else { return .disabled(.wireNotImplemented) }
+        if verdict?.state == .unavailable, isTransportNotImplemented(verdict?.reasonCode) {
+            return .disabled(.wireNotImplemented)
+        }
+        if connection == .relay, let override {
+            switch override {
+            case .add: return .available
+            case .remove: return .disabled(.userRemoved)
+            }
+        }
+        if negativeCacheHit { return .disabled(.rejectedRecently) }
+        guard let verdict else { return .unknown }
+        switch verdict.state {
+        case .autoAvailable:
+            return .available
+        case .unavailable:
+            return .disabled(inputDisabledReason(reasonCode: verdict.reasonCode))
+        case .managedOnly, .customOnly:
+            // Managed-only / reachable only through custom fragments: this connection has no conclusion to send automatically, so it counts as the model lacking the capability, as on Web / Android.
+            return .disabled(.modelAbsent)
+        case .unknown:
+            return .unknown
+        }
+    }
+
+    /// Reason mapping of unavailable: transport_not_* -> not implemented here; everything else is model_absent.
+    private static func inputDisabledReason(reasonCode: String?) -> InputDisabledReason {
+        if isTransportNotImplemented(reasonCode) { return .wireNotImplemented }
+        if reasonCode == "provider_kill_switch" { return .killSwitch }
+        return .modelAbsent
+    }
+
+    private static func isTransportNotImplemented(_ reasonCode: String?) -> Bool {
+        reasonCode == "transport_not_supported" || reasonCode == "transport_not_implemented"
+    }
+}
+
+// MARK: - Attachment import entry
+
+extension CapabilityEvidenceFacade {
+    /// The entry result shared by album / file / video import and the Relay native file override.
+    /// image / nativeFile / video look only at the editable flag of the three-key projection; textFileInline does not belong to file_input.
+    struct AttachmentImportEntry: Equatable, Sendable {
+        let image: Bool
+        let video: Bool
+        let nativeFile: Bool
+        let textFileInline: Bool
+
+        static let closed = AttachmentImportEntry(image: false, video: false, nativeFile: false, textFileInline: false)
+    }
+
+    /// Entry function: the three keys take the editable flag of the projection (a missing projection means closed); textFileInline reads metadata for official / subscription,
+    /// and for Relay reads the first-send protocol envelope (true when there is no envelope). The only place in the facade that reads the legacy attachment fields.
+    /// The input envelope of the Relay first-send protocol is injected by the caller (the facade does no I/O) and is evaluated by the first-send protocol only for the Relay form.
+    static func attachmentImportEntry(
+        provider: Provider,
+        model: AIModel,
+        projection: CapabilityEvidenceProjection,
+        relayInputEnvelope: (RelayTransport) -> RelayRuntimeSupport.AttachmentSupport?
+    ) -> AttachmentImportEntry {
+        func editable(_ key: String) -> Bool { projection.inputProjection(for: key)?.editable ?? false }
+        let textFileInline: Bool
+        switch ProviderForm.of(provider) {
+        case .relay:
+            textFileInline = relayInputEnvelope(
+                RelayFirstSendTransport.current(provider: provider, model: model)
+            )?.textFileInline ?? true
+        case .official, .subscription:
+            textFileInline = provider.kind.attachmentSupport.textFileInline
+        }
+        return AttachmentImportEntry(
+            image: editable(visionInputKey),
+            video: editable(videoInputKey),
+            nativeFile: editable(fileInputKey),
+            textFileInline: textFileInline
+        )
     }
 }

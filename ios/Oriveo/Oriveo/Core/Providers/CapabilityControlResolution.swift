@@ -41,10 +41,20 @@ enum CapabilityControlResolution {
         model: AIModel,
         capability: String
     ) -> Verdict {
-        if isSubscriptionLink(provider) {
+        // The form is derived only once and used below, instead of looking at kind / authMode in each branch.
+        let form = ProviderForm.of(provider)
+        // The subscription lane (Codex / Grok) must return early BEFORE reading the catalog controls.
+        //
+        // Subscription models are not in the metadata catalog and never get v2 `capabilityControls` / a recipe /
+        // a profile, so the path below always concludes `.unknown` - the UI would then downgrade the web switch and the
+        // reasoning tiers into a single "adjustment not supported" row, leaving the user no way to express intent.
+        // The capability authority of this lane is the upstream `/models` per-model declaration; it is folded here
+        // into a verdict of the same shape as the catalog recipe path, so layout, persistence and outbound
+        // compilation all work as usual without a second implementation.
+        if form == .subscription {
             return subscriptionVerdict(provider: provider, model: model, capability: capability)
         }
-        if capability == "web", ProviderForm.of(provider) == .relay {
+        if capability == "web", form == .relay {
             // A relay does not derive web search from the official recipe: web search is a switch in the chat, and only when it is on
             // is an effective fragment sent (the saved fragment, else the template of the first-choice protocol). The scope follows the first-choice
             // protocol: a local engine or an undecided protocol has no such switch.
@@ -55,7 +65,7 @@ enum CapabilityControlResolution {
                 viaLegacyProfile: false
             )
         }
-        if capability == "reasoning", ProviderForm.of(provider) == .relay, provider.relayRequested?.engineProfile == nil {
+        if capability == "reasoning", form == .relay, provider.relayRequested?.engineProfile == nil {
             // Relay reasoning levels come from the server model-facts; when they cannot be had, fall back to the current behavior below
             // (a chat-template switch / manual configuration needed). A local-engine connection still follows the write-path table and does not come here.
             let tiers = RelayReasoningTier.tiers(efforts: relayModelFactsReasoningEfforts(provider: provider, model: model))
@@ -98,13 +108,13 @@ enum CapabilityControlResolution {
     /// is the `model-facts?view=by-model` entry already cached in this session used (no request is made for it). If neither is available the result is empty.
     static func relayModelFactsReasoningEfforts(provider: Provider, model: AIModel) -> [String] {
         let metadata = MetadataClient.shared
-        if let match = metadata.syncResolveCatalogModelAcrossProvidersWithProvider(
-            modelID: model.id, transportPriority: RelayRuntimeSupport.transportProviderKind(for: provider, model: model)
-        ) {
-            return metadata.syncModelFacts(providerKind: match.matchedProviderKind, modelID: model.id)?.reasoningEfforts
-                ?? metadata.syncModelFacts(
+        // The same matching function as delivery estimation and capability inheritance: canonicalModelId first, otherwise id.
+        if let match = RelayOfficialCatalogResolver.officialMatch(for: model, provider: provider, metadata: metadata) {
+            // Reasoning-tier words prefer the matched official entry (canonical), and only then the local id.
+            return metadata.syncModelFacts(
                     providerKind: match.matchedProviderKind, modelID: match.canonicalModelId
                 )?.reasoningEfforts
+                ?? metadata.syncModelFacts(providerKind: match.matchedProviderKind, modelID: model.id)?.reasoningEfforts
                 ?? []
         }
         guard let key = metadata.cachedRelayModelFactsKeyNow(for: model.id) else { return [] }
@@ -133,8 +143,25 @@ enum CapabilityControlResolution {
         return Verdict(state: .unknown, intents: [], reasonCode: control?.reasonCode, viaLegacyProfile: false)
     }
 
+    /// Recipe verdict for the input capability keys of an official connection (`vision_input` / `file_input` / `video_input`), shaped like `webVerdict`.
+    /// Reads only `capabilityControls[key]`: a missing key or unknown honestly returns unknown, and never falls back to the legacy `capabilities` catalog bit.
+    static func inputVerdict(providerKind: ProviderKind, modelID: String, key: String) -> Verdict {
+        let control = MetadataClient.shared.syncCapabilityRecipeRuntime(
+            modelID: modelID, providerKind: providerKind
+        ).controls?[key]
+        if let raw = control?.state, let state = State(rawValue: raw), state != .unknown {
+            return Verdict(
+                state: state,
+                intents: control?.availableIntents ?? [],
+                reasonCode: control?.reasonCode,
+                viaLegacyProfile: false
+            )
+        }
+        return Verdict(state: .unknown, intents: [], reasonCode: control?.reasonCode, viaLegacyProfile: false)
+    }
+
     nonisolated static func isSubscriptionLink(_ provider: Provider) -> Bool {
-        provider.authMode == .subscription
+        ProviderForm.of(provider) == .subscription
     }
 
     ///   `/responses` + `tools:[{"type":"web_search"}]`
@@ -214,10 +241,8 @@ enum CapabilityControlResolution {
         if let firstParty = model?.upstreamReasoningLevels, !firstParty.isEmpty {
             return firstParty
         }
-        guard let modelID = model?.id else { return [] }
-        return MetadataClient.shared.syncModelFacts(
-            providerKind: providerKind, modelID: modelID
-        )?.reasoningEfforts ?? []
+        guard let model else { return [] }
+        return SubscriptionTruthAdapter.modelFacts(providerKind: providerKind, model: model)?.reasoningEfforts ?? []
     }
 
     nonisolated static func subscriptionDefaultReasoningLevel(

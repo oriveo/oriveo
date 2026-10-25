@@ -192,7 +192,7 @@ nonisolated enum RelayClientGate {
     static let phrases = [
         "official claude cli",
         "restricted to claude code clients",
-        "标准 claude code 客户端",
+        "\u{6807}\u{51C6} claude code \u{5BA2}\u{6237}\u{7AEF}",
     ]
 
     static func isClientGated(status: Int, body: Data) -> Bool {
@@ -208,12 +208,9 @@ nonisolated enum RelayRejectionRecording {
     /// Whether image recognition is unknown for the model at send time (fixture imageRecordCases): positive image evidence of any level -- override true,
     /// local engine declaration true, image in the model capabilities (inherited from official or declared) -- means it is not unknown.
     static func imageSupportUnknown(provider: Provider, model: AIModel) -> Bool {
-        guard ProviderForm.of(provider) == .relay,
-              model.relayCapabilityOverrides?.image != true,
-              !model.capabilities.contains(.image) else { return false }
-        // A local engine declaration takes effect only when the connection has an engineProfile (same convention as RelayTruthAdapter).
-        if provider.relayRequested?.engineProfile != nil, model.engineDeclaration?.image == true { return false }
-        return true
+        guard ProviderForm.of(provider) == .relay else { return false }
+        return CapabilityEvidenceProductionAdapter.relayVisionEvidence(provider: provider, model: model) != .supported
+            && !RelayTruthAdapter.listDeclaresVision(model)
     }
 
     static func isRejected(_ rejection: RelayPreOutputRejection?) -> Bool {
@@ -231,7 +228,8 @@ nonisolated enum RelayRejectionRecording {
         rejection: RelayPreOutputRejection?,
         outputStarted: Bool = false,
         protocolSwitched: Bool = false,
-        negativeCache: RelayNegativeCache = .shared
+        negativeCache: RelayNegativeCache = .shared,
+        capabilityNegativeCache: CapabilityNegativeCache = .shared
     ) -> Bool {
         // Neither "already output" nor "protocol already switched in this message" is recorded.
         guard ProviderForm.of(provider) == .relay, !outputStarted, !protocolSwitched,
@@ -241,6 +239,24 @@ nonisolated enum RelayRejectionRecording {
             connectionID: provider.id.uuidString, modelID: model.id,
             transport: transport.rawValue, kind: .image
         )
+        // Relay writes v1 and v2 together; the image-recognition entry and the outbound gate read only v2.
+        // The revision is taken from the composite verdict of the facade, the same as on the read side.
+        if let family = CapabilityEvidenceProductionAdapter.relayWireFamily(
+            transport: transport, key: CapabilityEvidenceFacade.visionInputKey
+        ) {
+            capabilityNegativeCache.record(
+                connectionId: provider.id.uuidString, modelId: model.id, wireFamily: family,
+                capabilityKey: CapabilityEvidenceFacade.visionInputKey,
+                signatureId: "relay.classified_rejected",
+                verdictRevision: CapabilityNegativeCache.verdictRevision(
+                    CapabilityEvidenceProductionAdapter.relayInputVerdict(
+                        key: CapabilityEvidenceFacade.visionInputKey,
+                        visionEvidence: CapabilityEvidenceProductionAdapter.relayVisionEvidence(provider: provider, model: model),
+                        wireFamily: family
+                    )
+                )
+            )
+        }
         return true
     }
 
@@ -269,7 +285,10 @@ nonisolated enum RelayRejectionRecording {
             )
             return
         }
-        _ = memory.record(connectionID: provider.id, modelID: model.id, toolCall: toolCall, reason: reason)
+        _ = memory.record(
+            connectionID: provider.id, modelID: model.id, toolCall: toolCall, reason: reason,
+            handEnteredDeclaration: OfficialTruthAdapter.handEnteredToolCallDeclaration(model)
+        )
     }
 }
 
