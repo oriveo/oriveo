@@ -1,0 +1,14 @@
+{
+  "$comment": "Video placeholders and native-file outbound. videoPlaceholderCases: a route that cannot send video writes exactly one placeholder line per attached video, byte-identical on every end, mirroring the image placeholder of the same route in image-placeholder.v1.json with 'Image' replaced by 'Video'; no file name, no video block in the body; never silently dropped. separator: the user text and each placeholder line are joined with a blank line ('\\n\\n'), same on every end. A route that declares no image placeholder (it sends images natively, e.g. Anthropic Messages) uses the generic '[Video omitted: this route sends text only]'. nativeFileCases: on an official connection the native file part is sent only when the file_input projection says outbound=native_part; outbound=placeholder strips the native part and the file reaches the model through text injection - never a file placeholder line while text could be extracted. Each end names its tests MEDIA_OUTBOUND_<id> (Web: it('MEDIA-OUTBOUND-<id> ...')) and asserts the body from its production request builder.",
+  "v": 1,
+  "videoPlaceholderCases": [
+    {"id": "video_deepseek_chat", "imageCase": "deepseek_chat", "videos": 1, "placeholder": "[Video omitted: unsupported by DeepSeek]", "expectLines": 1, "separator": "\n\n", "routes": {"ios": "deepSeekChat", "android": "DeepSeekChat", "web": "deepseek_chat"}},
+    {"id": "video_minimax_chat", "imageCase": "minimax_chat", "videos": 1, "placeholder": "[Video omitted: this route sends text only]", "expectLines": 1, "separator": "\n\n", "routes": {"ios": "miniMaxChat", "android": "ChatCompletions(MiniMax)", "web": "minimax_chat"}},
+    {"id": "video_two_videos_two_lines", "imageCase": "deepseek_chat", "videos": 2, "placeholder": "[Video omitted: unsupported by DeepSeek]", "expectLines": 2, "separator": "\n\n", "routes": {"ios": "deepSeekChat", "android": "DeepSeekChat", "web": "deepseek_chat"}}
+  ],
+  "nativeFileCases": [
+    {"id": "file_native_when_projection_native", "connection": "official", "routeNativeFiles": true, "fileInputOutbound": "native_part", "extractedText": true, "expect": {"nativeFilePart": true, "textInjected": false, "placeholderLine": false}},
+    {"id": "file_text_when_projection_placeholder", "connection": "official", "routeNativeFiles": true, "fileInputOutbound": "placeholder", "extractedText": true, "expect": {"nativeFilePart": false, "textInjected": true, "placeholderLine": false}},
+    {"id": "file_text_when_route_text_only", "connection": "official", "routeNativeFiles": false, "fileInputOutbound": "native_part", "extractedText": true, "expect": {"nativeFilePart": false, "textInjected": true, "placeholderLine": false}}
+  ]
+}

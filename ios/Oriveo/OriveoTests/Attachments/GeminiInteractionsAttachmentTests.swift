@@ -5,6 +5,23 @@ import XCTest
 /// files go through text injection, and a message being sent that does not fit is not sent with a body that is missing files.
 final class GeminiInteractionsAttachmentTests: XCTestCase {
 
+    private var holdsSharedProcessStateLock = false
+
+    override func setUp() async throws {
+        // Serializes the process-wide shared snapshot against Swift Testing cases marked .sharedProcessState
+        await SharedProcessStateLock.shared.acquire(holder: "xctest:\(name)")
+        holdsSharedProcessStateLock = true
+        try await super.setUp()
+    }
+
+    override func tearDown() async throws {
+        if holdsSharedProcessStateLock {
+            holdsSharedProcessStateLock = false
+            await SharedProcessStateLock.shared.release()
+        }
+        try await super.tearDown()
+    }
+
     private func recipe() throws -> MetadataClient.CapabilityRecipe {
         let raw = """
         {"id":"gemini.interactions.web.v1","providerKind":"gemini",

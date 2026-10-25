@@ -6,7 +6,7 @@ import UIKit
 /// Saving to the photo library: only the UIImageWriteToSavedPhotosAlbum system boundary is replaced,
 /// everything else runs the production path. A failure must not show "Saved"; it shows an error toast.
 @MainActor
-@Suite("PhotoAlbumSaveResult", .serialized)
+@Suite("PhotoAlbumSaveResult", .serialized, .sharedProcessState)
 struct PhotoAlbumSaveResultTests {
     private let image = UIGraphicsImageRenderer(size: CGSize(width: 2, height: 2)).image { _ in }
 

@@ -134,9 +134,9 @@ struct ExtractionGoldenContractTests {
         return fixture
     }
 
-    private static func run(_ testCase: GoldenFixture.Case) throws -> String {
+    private static func run(_ testCase: GoldenFixture.Case) async throws -> String {
         let data = try Data(contentsOf: fixtureDirectory.appendingPathComponent(testCase.file))
-        return try FileTextExtractor.extract(
+        return try await FileTextExtractor.extractInBackground(
             data: data,
             fileName: testCase.fileName,
             mimeType: testCase.mime,
@@ -147,60 +147,60 @@ struct ExtractionGoldenContractTests {
     // MARK: - golden
 
     @Test("plain-text golden: 12 cases byte-identical")
-    func plainTextGolden() throws {
+    func plainTextGolden() async throws {
         let cases = try Self.golden().cases.filter { $0.id.hasPrefix("text_") }
         #expect(cases.count == 12, "the count of text_ cases owned here is locked to prevent silently skipped runs")
         for testCase in cases {
             let expected = try #require(testCase.expect.content, "\(testCase.id) missing expect.content")
-            let actual = try Self.run(testCase)
+            let actual = try await Self.run(testCase)
             #expect(Array(actual.utf8) == Array(expected.utf8), "\(testCase.id): \(actual.debugDescription)")
         }
     }
 
     @Test("HTML / EPUB / RTF golden: 9 cases byte-identical")
-    func markupGolden() throws {
+    func markupGolden() async throws {
         let prefixes = ["html_", "epub_", "rtf_"]
         let cases = try Self.golden().cases.filter { testCase in prefixes.contains { testCase.id.hasPrefix($0) } }
         #expect(cases.count == 9, "the count of html_ / epub_ / rtf_ cases owned here is locked to prevent silently skipped runs")
         for testCase in cases {
             let expected = try #require(testCase.expect.content, "\(testCase.id) missing expect.content")
-            let actual = try Self.run(testCase)
+            let actual = try await Self.run(testCase)
             #expect(Array(actual.utf8) == Array(expected.utf8), "\(testCase.id): \(actual.debugDescription)")
         }
     }
 
     @Test("OOXML / ODF golden: 23 cases byte-identical")
-    func officeGolden() throws {
+    func officeGolden() async throws {
         let prefixes = ["docx_", "xlsx_", "pptx_", "odt_", "ods_", "odp_"]
         let cases = try Self.golden().cases.filter { testCase in prefixes.contains { testCase.id.hasPrefix($0) } }
         #expect(cases.count == 23, "the count of docx_ / xlsx_ / pptx_ / odt_ / ods_ / odp_ cases owned here is locked to prevent silently skipped runs")
         for testCase in cases {
             let expected = try #require(testCase.expect.content, "\(testCase.id) missing expect.content")
-            let actual = try Self.run(testCase)
+            let actual = try await Self.run(testCase)
             #expect(Array(actual.utf8) == Array(expected.utf8), "\(testCase.id): \(actual.debugDescription)")
         }
     }
 
     @Test("edge golden: 5 success cases byte-identical")
-    func edgeGolden() throws {
+    func edgeGolden() async throws {
         let fixture = try Self.load("extraction-golden-edges.v1.json", as: EdgeGoldenFixture.self)
         #expect(fixture.v == 1)
         #expect(fixture.cases.count == 5, "extraction-golden-edges success case count is locked to prevent silently skipped runs")
         for testCase in fixture.cases {
             let expected = try #require(testCase.expect.content, "\(testCase.id) missing expect.content")
-            let actual = try Self.run(testCase)
+            let actual = try await Self.run(testCase)
             #expect(Array(actual.utf8) == Array(expected.utf8), "\(testCase.id): \(actual.debugDescription)")
         }
     }
 
     @Test("edge golden: 3 error cases report corrupted_file")
-    func edgeGoldenErrors() throws {
+    func edgeGoldenErrors() async throws {
         let fixture = try Self.load("extraction-golden-edges.v1.json", as: EdgeGoldenFixture.self)
         #expect(fixture.errorCases.count == 3, "extraction-golden-edges error case count is locked to prevent silently skipped runs")
         for testCase in fixture.errorCases {
             let expected = try #require(testCase.expect.error)
             do {
-                let content = try Self.run(testCase)
+                let content = try await Self.run(testCase)
                 Issue.record("\(testCase.id) expected \(expected), but extracted \(content.count) characters")
             } catch let error as ExtractionError {
                 #expect(error.code.rawValue == expected, "\(testCase.id)")
@@ -261,7 +261,7 @@ struct ExtractionGoldenContractTests {
             }
             if let expectedError = testCase.expect.error {
                 do {
-                    let content = try Self.run(testCase.asGoldenCase)
+                    let content = try await Self.run(testCase.asGoldenCase)
                     Issue.record("\(testCase.id) expected \(expectedError), but extracted \(content.count) characters")
                 } catch let error as ExtractionError {
                     #expect(error.code.rawValue == expectedError, "\(testCase.id)")
@@ -318,14 +318,14 @@ struct ExtractionGoldenContractTests {
     }
 
     @Test("OOXML error cases: DOCTYPE or non-zip reports corrupted_file, OLE encryption reports password_protected_office")
-    func officeErrorCases() throws {
+    func officeErrorCases() async throws {
         let ids: Set<String> = ["docx_doctype", "docx_not_zip", "docx_ole_encrypted", "xlsx_ole_encrypted"]
         let cases = try Self.golden().errorCases.filter { ids.contains($0.id) }
         #expect(cases.count == 4, "the count of error cases owned here is locked")
         for testCase in cases {
             let expected = try #require(testCase.expect.error)
             do {
-                let content = try Self.run(testCase)
+                let content = try await Self.run(testCase)
                 Issue.record("\(testCase.id) expected \(expected), but extracted \(content.count) characters")
             } catch let error as ExtractionError {
                 #expect(error.code.rawValue == expected, "\(testCase.id)")
@@ -352,14 +352,14 @@ struct ExtractionGoldenContractTests {
     }
 
     @Test("EPUB DRM error cases: report unsupported_format with underlying set to epub_drm")
-    func epubDrmErrorCases() throws {
+    func epubDrmErrorCases() async throws {
         let ids: Set<String> = ["epub_drm_aes", "epub_drm_lcp"]
         let cases = try Self.golden().errorCases.filter { ids.contains($0.id) }
         #expect(cases.count == 2, "the count of error cases owned here is locked")
         for testCase in cases {
             let expected = try #require(testCase.expect.error)
             do {
-                let content = try Self.run(testCase)
+                let content = try await Self.run(testCase)
                 Issue.record("\(testCase.id) expected \(expected), but extracted \(content.count) characters")
             } catch let error as ExtractionError {
                 #expect(error.code.rawValue == expected, "\(testCase.id)")
@@ -369,13 +369,13 @@ struct ExtractionGoldenContractTests {
     }
 
     @Test("plain-text error cases: binary reports unsupported_format")
-    func plainTextErrorCases() throws {
+    func plainTextErrorCases() async throws {
         let cases = try Self.golden().errorCases.filter { $0.id == "text_binary_png" }
         #expect(cases.count == 1, "the count of error cases owned here is locked")
         for testCase in cases {
             let expected = try #require(testCase.expect.error)
             do {
-                let content = try Self.run(testCase)
+                let content = try await Self.run(testCase)
                 Issue.record("\(testCase.id) expected \(expected), but extracted \(content.count) characters")
             } catch let error as ExtractionError {
                 #expect(error.code.rawValue == expected, "\(testCase.id)")

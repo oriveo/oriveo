@@ -4,6 +4,8 @@ import XCTest
 /// Text fallback after the upstream rejects a native file block: through the real Service send chain (build the request, send it, read the status code, resend), with a scripted HTTP stand-in.
 final class NativeFileFallbackTests: XCTestCase {
 
+    private var holdsSharedProcessStateLock = false
+
     // MARK: - HTTP stand-in (scripted status codes and recorded request bodies)
 
     final class ScriptedProtocol: URLProtocol, @unchecked Sendable {
@@ -110,17 +112,44 @@ final class NativeFileFallbackTests: XCTestCase {
         return options
     }
 
-    private func relayStream(_ attachments: [Attachment], connection: UUID?) async throws -> String {
-        let stream = AnthropicService(session: ScriptedProtocol.session()).sendMessageStream(
-            apiKey: "relay-key", modelID: model.id, messages: [message(attachments)],
-            baseURL: "https://relay.test", requestOptions: options(connection: connection),
-            relayRequested: RelayRequestedConfig(transport: .anthropicMessages)
+    /// Production sends always run under a dispatch identity: the file_input projection reads from it;
+    /// without an identity, official native files are stripped of raw data fail-closed, which is not the fallback under test here.
+    private func withDispatchIdentity<T>(
+        kind: ProviderKind = .relay,
+        connection: UUID?,
+        model dispatchModel: AIModel? = nil,
+        _ body: () async throws -> T
+    ) async throws -> T {
+        let sendModel = dispatchModel ?? model
+        let provider = Provider(
+            id: connection ?? UUID(), kind: kind, status: .connected,
+            models: [sendModel], catalogModels: [sendModel],
+            apiKey: "", apiKeyPreview: "",
+            relayRequested: kind == .relay ? RelayRequestedConfig(transport: .anthropicMessages) : nil
         )
-        var text = ""
-        for try await event in stream {
-            if case let .delta(chunk) = event { text += chunk }
+        let identity = CapabilityEvidenceRequestIdentity.make(
+            provider: provider, model: sendModel, partitionID: "native-file-fallback",
+            hasExplicitValue: true, effectiveTransport: "anthropic_messages",
+            metadataETag: CapabilityRuntimeFixtures.defaultRevision
+        )
+        return try await CapabilityEvidenceRequestContext.$current.withValue(identity) {
+            try await body()
         }
-        return text
+    }
+
+    private func relayStream(_ attachments: [Attachment], connection: UUID?) async throws -> String {
+        try await withDispatchIdentity(connection: connection) {
+            let stream = AnthropicService(session: ScriptedProtocol.session()).sendMessageStream(
+                apiKey: "relay-key", modelID: model.id, messages: [message(attachments)],
+                baseURL: "https://relay.test", requestOptions: options(connection: connection),
+                relayRequested: RelayRequestedConfig(transport: .anthropicMessages)
+            )
+            var text = ""
+            for try await event in stream {
+                if case let .delta(chunk) = event { text += chunk }
+            }
+            return text
+        }
     }
 
     private func hasDocumentBlock(_ body: String) -> Bool {
@@ -128,14 +157,26 @@ final class NativeFileFallbackTests: XCTestCase {
     }
 
     override func setUp() async throws {
+        // The process-wide shared snapshot is serialized against Swift Testing cases marked .sharedProcessState (see SharedProcessStateTrait)
+        await SharedProcessStateLock.shared.acquire(holder: "xctest:\(name)")
+        holdsSharedProcessStateLock = true
         try await super.setUp()
         await MetadataClient.shared.resetForTesting()
+        // Ship capabilityRuntime like production does, so the dispatch identity can resolve the projection.
+        try await MetadataClient.shared.loadForTesting(
+            json: relayFixture(nativeFileWhitelist: false),
+            metadataETag: CapabilityRuntimeFixtures.defaultRevision
+        )
         NativeFileFallback.resetMemoryForTesting()
     }
 
     override func tearDown() async throws {
         NativeFileFallback.resetMemoryForTesting()
         ScriptedProtocol.reset([])
+        if holdsSharedProcessStateLock {
+            holdsSharedProcessStateLock = false
+            await SharedProcessStateLock.shared.release()
+        }
         try await super.tearDown()
     }
 
@@ -177,11 +218,13 @@ final class NativeFileFallbackTests: XCTestCase {
     func testRelayNonStreamingFallsBackTheSameWay() async throws {
         let connection = UUID()
         ScriptedProtocol.reset([(422, Self.rejection("unprocessable")), (200, Self.okJSON)])
-        let result = try await AnthropicService(session: ScriptedProtocol.session()).sendMessage(
-            apiKey: "relay-key", modelID: model.id, messages: [message([textPdf()])],
-            baseURL: "https://relay.test", requestOptions: options(connection: connection),
-            relayRequested: RelayRequestedConfig(transport: .anthropicMessages)
-        )
+        let result = try await withDispatchIdentity(connection: connection) {
+            try await AnthropicService(session: ScriptedProtocol.session()).sendMessage(
+                apiKey: "relay-key", modelID: model.id, messages: [message([textPdf()])],
+                baseURL: "https://relay.test", requestOptions: options(connection: connection),
+                relayRequested: RelayRequestedConfig(transport: .anthropicMessages)
+            )
+        }
         XCTAssertEqual(result.text, "ok")
         let bodies = ScriptedProtocol.recordedBodies()
         XCTAssertEqual(bodies.count, 2)
@@ -240,12 +283,27 @@ final class NativeFileFallbackTests: XCTestCase {
 
     func testDirectAnthropicDoesNotFallBack() async throws {
         ScriptedProtocol.reset([(400, Self.rejection("FIRST-REJECTION")), (200, Self.okStream)])
-        let stream = AnthropicService(session: ScriptedProtocol.session()).sendMessageStream(
-            apiKey: "sk-ant-test", modelID: model.id, messages: [message([textPdf()], kind: .anthropic)],
-            requestOptions: options(connection: UUID())
+        let connection = UUID()
+        // The dispatch route of an official direct connection is resolved from the catalog row: use claude-sonnet-4.5 from the fixture (it carries a route); this model still carries the allowlist.
+        let direct = AIModel(
+            id: "claude-sonnet-4.5", name: "claude-sonnet-4.5", capabilities: [.text, .image, .file],
+            reasoningModeAvailable: false, isAvailable: true, isDefault: true, priceTier: "premium",
+            nativeFileMimes: ["application/pdf"], pdfNativeDefault: true
+        )
+        var directOptions = options(connection: connection)
+        directOptions.capabilityEvidenceModel = direct
+        let turn = ChatMessage(
+            id: UUID(), role: .user, text: "summarize", providerKind: .anthropic, providerName: "P",
+            modelID: direct.id, modelName: direct.name, state: .delivered, attachments: [textPdf()]
         )
         do {
-            for try await _ in stream {}
+            try await withDispatchIdentity(kind: .anthropic, connection: connection, model: direct) {
+                let stream = AnthropicService(session: ScriptedProtocol.session()).sendMessageStream(
+                    apiKey: "sk-ant-test", modelID: direct.id, messages: [turn],
+                    requestOptions: directOptions
+                )
+                for try await _ in stream {}
+            }
             XCTFail("expected the upstream rejection to surface")
         } catch is ProviderServiceError {}
         XCTAssertEqual(ScriptedProtocol.recordedBodies().count, 1)
@@ -263,8 +321,8 @@ final class NativeFileFallbackTests: XCTestCase {
 
     // MARK: - Relay models inherit the official allowlist (production path)
 
-    /// The shared fixture with a native-file allowlist injected in memory for anthropic claude-sonnet-4.5; the fixture file itself is left untouched.
-    private func relayFixtureWithNativeFileWhitelist() throws -> String {
+    /// The shared fixture plus capabilityRuntime; with `nativeFileWhitelist`, a native-file allowlist is injected in memory for anthropic claude-sonnet-4.5. The shared fixture file itself is left untouched.
+    private func relayFixture(nativeFileWhitelist: Bool) throws -> String {
         let repoRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent() // Attachments/
             .deletingLastPathComponent() // OriveoTests/
@@ -273,13 +331,18 @@ final class NativeFileFallbackTests: XCTestCase {
             .deletingLastPathComponent() // repository root
         let url = repoRoot.appendingPathComponent("shared/test-fixtures/relay/metadata-fixture.json")
         var root = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        root["capabilityRuntime"] = try CapabilityRuntimeFixtures.runtimeEnvelope()
         var providers = try XCTUnwrap(root["providers"] as? [String: Any])
         var anthropic = try XCTUnwrap(providers["anthropic"] as? [String: Any])
         var models = try XCTUnwrap(anthropic["models"] as? [String: Any])
         var sonnet = try XCTUnwrap(models["claude-sonnet-4.5"] as? [String: Any])
-        sonnet["nativeFileMimes"] = ["application/pdf"]
-        sonnet["pdfNativeDefault"] = false
-        sonnet["attachmentExtraction"] = ["maxLines": 1234]
+        // Ship the catalog route as production does, so the official builder can resolve the dispatch route.
+        sonnet["transport"] = "anthropic_messages"
+        if nativeFileWhitelist {
+            sonnet["nativeFileMimes"] = ["application/pdf"]
+            sonnet["pdfNativeDefault"] = false
+            sonnet["attachmentExtraction"] = ["maxLines": 1234]
+        }
         models["claude-sonnet-4.5"] = sonnet
         anthropic["models"] = models
         providers["anthropic"] = anthropic
@@ -289,7 +352,11 @@ final class NativeFileFallbackTests: XCTestCase {
 
     /// The model that is sent comes straight out of Relay catalog resolution, with no hand-built allowlist: a scanned PDF must go out as a native block.
     func testRelayCatalogResolvedModelSendsScannedPdfAsNativeDocumentBlock() async throws {
-        try await MetadataClient.shared.loadForTesting(json: relayFixtureWithNativeFileWhitelist())
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(
+            json: relayFixture(nativeFileWhitelist: true),
+            metadataETag: CapabilityRuntimeFixtures.defaultRevision
+        )
         ProviderCatalogResolver.resetMemoForTesting()
 
         let local = AIModel(
@@ -316,13 +383,17 @@ final class NativeFileFallbackTests: XCTestCase {
             id: UUID(), role: .user, text: "summarize", providerKind: .relay, providerName: "P",
             modelID: resolved.id, modelName: resolved.name, state: .delivered, attachments: [scannedPdf()]
         )
-        let stream = AnthropicService(session: ScriptedProtocol.session()).sendMessageStream(
-            apiKey: "relay-key", modelID: resolved.id, messages: [turn],
-            baseURL: "https://relay.test", requestOptions: requestOptions,
-            relayRequested: RelayRequestedConfig(transport: .anthropicMessages)
-        )
-        // Without the allowlist this may throw outright (no text to extract and no native block allowed); the verdict is taken from the request body either way.
-        do { for try await _ in stream {} } catch {}
+        // Before the fix this could throw outright (a scan has no text and cannot go as a native block); either way the verdict lands on the request body assertions.
+        do {
+            try await withDispatchIdentity(connection: provider.id, model: resolved) {
+                let stream = AnthropicService(session: ScriptedProtocol.session()).sendMessageStream(
+                    apiKey: "relay-key", modelID: resolved.id, messages: [turn],
+                    baseURL: "https://relay.test", requestOptions: requestOptions,
+                    relayRequested: RelayRequestedConfig(transport: .anthropicMessages)
+                )
+                for try await _ in stream {}
+            }
+        } catch {}
 
         let bodies = ScriptedProtocol.recordedBodies()
         XCTAssertFalse(bodies.isEmpty, "a scanned PDF should produce a request")

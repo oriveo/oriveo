@@ -66,7 +66,7 @@ struct AttachmentImportBoundaryTests {
             // A PDF / Office file may be handed to a model with native file support together with its error code;
             // what it must not be is an empty text that counts as a successful extraction.
             #expect(attachment.extractionErrorCode != nil, "A damaged file must not count as a successful extraction")
-        case .oversized, .unsupported:
+        case .oversized, .unsupported, .mediumUnavailable:
             Issue.record("The damaged \(fileName) was classified as \(result), so the user never sees why the file could not be processed")
         }
     }

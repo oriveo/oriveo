@@ -8,7 +8,7 @@ import Testing
 /// then says these files are not supported, and the primary action reuses "Switch Model".
 /// The error shown is still the first one; 413, a successful fallback, and non-relay connections get no marker.
 /// Goes through the production `AppState.sendMessage`, with a scripted stand-in for HTTP.
-@Suite("Relay file-rejection prompt card (iOS)", .serialized)
+@Suite("Relay file-rejection prompt card (iOS)", .serialized, .sharedProcessState)
 @MainActor
 struct RelayFileUnsupportedCardTests {
 

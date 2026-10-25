@@ -12,6 +12,8 @@ final class AttachmentTransportTests: XCTestCase {
         let imagePlaceholderText: String?
         /// Whether the builder has a branch that consumes `delivery.native` to assemble native file blocks.
         let builderEmitsNativeParts: Bool
+        /// Whether the builder can assemble image parts; false = text only, images always become a placeholder.
+        let builderEmitsImageParts: Bool
     }
 
     /// Exhaustive switch: adding a route without registering it here does not compile.
@@ -20,19 +22,21 @@ final class AttachmentTransportTests: XCTestCase {
             _ provider: ProviderKind,
             native: NativeFileMode = .off,
             placeholder: String? = nil,
-            emitsNative: Bool = false
+            emitsNative: Bool = false,
+            emitsImages: Bool = true
         ) -> HandPassed {
             HandPassed(
                 provider: provider,
                 nativeFiles: native,
                 imagePlaceholderText: placeholder,
-                builderEmitsNativeParts: emitsNative
+                builderEmitsNativeParts: emitsNative,
+                builderEmitsImageParts: emitsImages
             )
         }
         switch transport {
         case .openAIChat, .relayOpenAIChat: return row(.openAI)
         // Previously this skipped the delivery decision and dropped files entirely; now it follows the OpenAI-compatible route's text injection declaration.
-        case .relayLlamaCppNative: return row(.openAI, placeholder: textOnlyRouteImagePlaceholder)
+        case .relayLlamaCppNative: return row(.openAI, placeholder: textOnlyRouteImagePlaceholder, emitsImages: false)
         // The four direct routes have been verified against the real provider and go native by allow-list; subscription and Relay routes of the same protocol route the same way and fall back to text when the upstream rejects them.
         case .openAIResponses: return row(.openAI, native: .always, emitsNative: true)
         case .codexSubscription, .relayOpenAIResponses:
@@ -44,12 +48,12 @@ final class AttachmentTransportTests: XCTestCase {
         case .geminiGenerateContent: return row(.gemini, native: .always, emitsNative: true)
         case .relayGeminiGenerateContent: return row(.gemini, native: .alwaysWithTextFallback, emitsNative: true)
         // Previously this skipped the delivery decision and dropped files entirely; now it only injects text, and the builder has no native file block branch.
-        case .geminiInteractions: return row(.gemini, placeholder: textOnlyRouteImagePlaceholder)
+        case .geminiInteractions: return row(.gemini, placeholder: textOnlyRouteImagePlaceholder, emitsImages: false)
         case .openRouterChat: return row(.openRouter, native: .always, emitsNative: true)
         case .grokChat, .grokResponses: return row(.grok)
         // Routes that send only a string content: images arrive as a placeholder instead of being dropped silently.
-        case .miniMaxChat, .miniMaxAnthropicWeb: return row(.miniMax, placeholder: textOnlyRouteImagePlaceholder)
-        case .deepSeekChat: return row(.deepseek, placeholder: "[Image omitted: unsupported by DeepSeek]")
+        case .miniMaxChat, .miniMaxAnthropicWeb: return row(.miniMax, placeholder: textOnlyRouteImagePlaceholder, emitsImages: false)
+        case .deepSeekChat: return row(.deepseek, placeholder: "[Image omitted: unsupported by DeepSeek]", emitsImages: false)
         case .qwenChat: return row(.qwen)
         case .moonshotChat: return row(.moonshot)
         case .zhipuChat: return row(.zhipu)
@@ -90,6 +94,7 @@ final class AttachmentTransportTests: XCTestCase {
             XCTAssertEqual(profile.effectiveNativeFiles, expected.nativeFiles, "\(transport)")
             XCTAssertEqual(profile.imagePlaceholderText, expected.imagePlaceholderText, "\(transport)")
             XCTAssertEqual(profile.supportsNativeFiles, expected.builderEmitsNativeParts, "\(transport)")
+            XCTAssertEqual(profile.supportsImageParts, expected.builderEmitsImageParts, "\(transport)")
             // The wrapper format used to be derived from the provider.
             XCTAssertEqual(
                 profile.wrapper,
@@ -97,6 +102,30 @@ final class AttachmentTransportTests: XCTestCase {
                 "\(transport)"
             )
         }
+    }
+
+    /// DeepSeek / MiniMax no longer hard-code "no images" by kind: they can assemble image parts, and the route placeholder is only used when the projection says placeholder.
+    func testDeepSeekAndMiniMaxRoutesEmitImagePartsAndKeepRoutePlaceholder() {
+        XCTAssertEqual(
+            Self.allTransports.filter { !$0.profile.supportsImageParts },
+            [.relayLlamaCppNative, .geminiInteractions, .toolLoop(.deepseek), .toolLoop(.miniMax)]
+        )
+        for transport in [AttachmentTransport.deepSeekChat, .miniMaxChat, .miniMaxAnthropicWeb] {
+            XCTAssertTrue(transport.profile.supportsImageParts, "\(transport)")
+            XCTAssertNotNil(transport.profile.imagePlaceholderText, "\(transport)")
+        }
+    }
+
+    /// Only routes whose builder assembles video parts skip the video placeholder; every other route writes one placeholder line per video instead of silently dropping it.
+    func testOnlyVideoCapableRoutesSkipTheVideoPlaceholder() {
+        XCTAssertEqual(
+            Self.allTransports.filter { $0.profile.supportsVideoParts },
+            [.geminiGenerateContent, .relayGeminiGenerateContent, .moonshotChat]
+        )
+        for transport in Self.allTransports where !transport.profile.supportsVideoParts {
+            XCTAssertNotNil(transport.profile.videoPlaceholderText, "\(transport)")
+        }
+        XCTAssertEqual(AttachmentTransport.openAIChat.profile.videoPlaceholderText, textOnlyRouteVideoPlaceholder)
     }
 
     func testNativeFilesAreOnlyEnabledWhereTheBuilderCanEmitThem() {

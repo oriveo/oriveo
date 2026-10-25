@@ -202,7 +202,7 @@ final class AttachmentDeliveryTests: XCTestCase {
             )
 
             let expected = AttachmentInjector.injectAll(
-                intoUserText: "question\n\n[image]",
+                intoUserText: "question",
                 fileAttachments: [
                     ("scan.pdf", "application/pdf", 12_345, nil, .scannedPdf),
                     ("big.txt", "text/plain", 150_000,
@@ -216,7 +216,7 @@ final class AttachmentDeliveryTests: XCTestCase {
                 wrapper: AttachmentWrapperVersion.resolve(provider: provider)
             )
 
-            XCTAssertEqual(plan.injectedText, expected.text)
+            XCTAssertEqual(plan.injectedText, expected.text + "\n\n[image]")
             XCTAssertEqual(plan.skipped.map(\.attachment.fileName), expected.skipped.map(\.fileName))
             XCTAssertEqual(plan.skipped.map(\.attachment.fileName), ["big2.txt"])
             XCTAssertEqual(plan.skipped.first?.reason, .totalCapExceeded)

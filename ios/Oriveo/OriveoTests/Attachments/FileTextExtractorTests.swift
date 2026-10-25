@@ -74,7 +74,7 @@ final class FileTextExtractorTests: XCTestCase {
 
     // Custom limits (D14)
     /// A single line over the byte limit: hard-cut inside the line at a character boundary, keeping the beginning, never truncating to empty content.
-    func testSingleOversizedLineIsCutInsideTheLine() throws {
+    func testSingleOversizedLineIsCutInsideTheLine() async throws {
         let limits = FileExtractionLimits(maxLines: 500, maxBytes: 10, totalCap: 204_800, maxInputFileBytes: 1_000_000, maxFiles: 3)
         // Each CJK character is 3 bytes: 10 bytes fit 3 characters, and the 4th must not be cut in half.
         let r = FileTextExtractor.truncate(rawText: "\u{4E00}\u{4E8C}\u{4E09}\u{56DB}\u{4E94}\u{516D}", sizeBytes: 18, limits: limits)
@@ -93,7 +93,7 @@ final class FileTextExtractorTests: XCTestCase {
 
         // Production path: minified single-line JSON still has content after extract, and the block given to the model carries the truncation marker.
         let json = "{\"k\":\"" + String(repeating: "v", count: 400_000) + "\"}"
-        let extracted = try FileTextExtractor.extract(data: Data(json.utf8), fileName: "min.json", mimeType: "application/json")
+        let extracted = try await FileTextExtractor.extractInBackground(data: Data(json.utf8), fileName: "min.json", mimeType: "application/json")
         XCTAssertEqual(extracted.content.utf8.count, FileExtractionLimits.default.maxBytes)
         XCTAssertTrue(extracted.truncated)
         let block = AttachmentInjector.formatAttachment(
@@ -119,19 +119,22 @@ final class FileTextExtractorTests: XCTestCase {
         XCTAssertEqual(r.content.components(separatedBy: "\n").count, 10)
     }
 
-    func testFileTooLargeError() {
+    func testFileTooLargeError() async {
         let customLimits = FileExtractionLimits(
             maxLines: 500, maxBytes: 102400, totalCap: 102400,
             maxInputFileBytes: 10, maxFiles: 3
         )
         let data = Data(repeating: 0x61, count: 11) // "aaaaaaaaaaa"
-        XCTAssertThrowsError(try FileTextExtractor.extract(data: data, fileName: "test.txt", mimeType: "text/plain", limits: customLimits)) { err in
-            guard let e = err as? ExtractionError else { return XCTFail("wrong error type") }
+        do {
+            _ = try await FileTextExtractor.extractInBackground(data: data, fileName: "test.txt", mimeType: "text/plain", limits: customLimits)
+            XCTFail("expected fileTooLarge")
+        } catch {
+            guard let e = error as? ExtractionError else { return XCTFail("wrong error type") }
             XCTAssertEqual(e.code, .fileTooLarge)
         }
     }
 
-    func testInvalidUTF8InsideODFIsReportedAsCorruption() throws {
+    func testInvalidUTF8InsideODFIsReportedAsCorruption() async throws {
         guard let archive = Archive(accessMode: .create) else {
             return XCTFail("unable to create archive")
         }
@@ -144,13 +147,14 @@ final class FileTextExtractorTests: XCTestCase {
         )
         let zip = try XCTUnwrap(archive.data)
 
-        XCTAssertThrowsError(
-            try FileTextExtractor.extract(
+        do {
+            _ = try await FileTextExtractor.extractInBackground(
                 data: zip,
                 fileName: "damaged.odt",
                 mimeType: "application/vnd.oasis.opendocument.text"
             )
-        ) { error in
+            XCTFail("expected corruptedFile")
+        } catch {
             guard let extractionError = error as? ExtractionError else {
                 return XCTFail("wrong error type")
             }
@@ -162,16 +166,16 @@ final class FileTextExtractorTests: XCTestCase {
 
     private static let oleHeader = Data([0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1])
 
-    private func officeExtractionCode(data: Data, fileName: String, mimeType: String) -> ExtractionErrorCode? {
+    private func officeExtractionCode(data: Data, fileName: String, mimeType: String) async -> ExtractionErrorCode? {
         do {
-            _ = try FileTextExtractor.extract(data: data, fileName: fileName, mimeType: mimeType)
+            _ = try await FileTextExtractor.extractInBackground(data: data, fileName: fileName, mimeType: mimeType)
             return nil
         } catch {
             return (error as? ExtractionError)?.code ?? .extractionError
         }
     }
 
-    func testPasswordProtectedOOXMLIsReportedAsPasswordProtected() {
+    func testPasswordProtectedOOXMLIsReportedAsPasswordProtected() async {
         let data = Self.oleHeader + Data(repeating: 0, count: 2_048)
         let cases = [
             ("a.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
@@ -179,21 +183,22 @@ final class FileTextExtractorTests: XCTestCase {
             ("a.PPTX", "application/vnd.openxmlformats-officedocument.presentationml.presentation"),
         ]
         for (name, mime) in cases {
-            XCTAssertEqual(officeExtractionCode(data: data, fileName: name, mimeType: mime), .passwordProtectedOffice, name)
+            let code = await officeExtractionCode(data: data, fileName: name, mimeType: mime)
+            XCTAssertEqual(code, .passwordProtectedOffice, name)
         }
     }
 
-    func testOLEHeaderShorterThanSignatureIsNotPasswordProtected() {
+    func testOLEHeaderShorterThanSignatureIsNotPasswordProtected() async {
         let mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         for count in [0, 4, 7] {
-            let code = officeExtractionCode(data: Self.oleHeader.prefix(count), fileName: "short.docx", mimeType: mime)
+            let code = await officeExtractionCode(data: Self.oleHeader.prefix(count), fileName: "short.docx", mimeType: mime)
             XCTAssertNotNil(code, "\(count) bytes are not a valid docx")
             XCTAssertNotEqual(code, .passwordProtectedOffice, "\(count) bytes are too few to compare the header")
         }
     }
 
     // Legacy .doc/.xls/.ppt files are OLE containers themselves and must not be reported as password-protected.
-    func testLegacyOLEOfficeFormatsAreNotPasswordProtected() {
+    func testLegacyOLEOfficeFormatsAreNotPasswordProtected() async {
         let data = Self.oleHeader + Data(repeating: 0, count: 2_048)
         let cases = [
             ("old.doc", "application/msword"),
@@ -203,11 +208,12 @@ final class FileTextExtractorTests: XCTestCase {
             ("old.doc", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
         ]
         for (name, mime) in cases {
-            XCTAssertEqual(officeExtractionCode(data: data, fileName: name, mimeType: mime), .unsupportedFormat, "\(name) \(mime)")
+            let code = await officeExtractionCode(data: data, fileName: name, mimeType: mime)
+            XCTAssertEqual(code, .unsupportedFormat, "\(name) \(mime)")
         }
     }
 
-    func testRegularZipDocxStillExtracts() throws {
+    func testRegularZipDocxStillExtracts() async throws {
         guard let archive = Archive(accessMode: .create) else {
             return XCTFail("unable to create archive")
         }
@@ -219,7 +225,7 @@ final class FileTextExtractorTests: XCTestCase {
             provider: { position, size in xml[position..<(position + size)] }
         )
         let zip = try XCTUnwrap(archive.data)
-        let extracted = try FileTextExtractor.extract(
+        let extracted = try await FileTextExtractor.extractInBackground(
             data: zip,
             fileName: "plain.docx",
             mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
