@@ -11,15 +11,91 @@ final class ConversationStore: @unchecked Sendable {
     private let dbPool: DatabasePool
     private let attachmentFileStore: AttachmentFileStore
     private let continuationOrphanSweep: (() throws -> Void)?
+    /// The image partition this database belongs to. When given, the entry points that delete message rows
+    /// purge images in the background after commit, by reference set; nil (a temporary store used for reading)
+    /// purges no images.
+    private let imagePartitionUID: String?
+    private let imagePurgeLock = NSLock()
+    nonisolated(unsafe) private var lastImagePurge: Task<Void, Never>?
 
     nonisolated init(
         dbPool: DatabasePool,
         attachmentFileStore: AttachmentFileStore,
-        continuationOrphanSweep: (() throws -> Void)? = nil
+        continuationOrphanSweep: (() throws -> Void)? = nil,
+        imagePartitionUID: String? = nil
     ) {
         self.dbPool = dbPool
         self.attachmentFileStore = attachmentFileStore
         self.continuationOrphanSweep = continuationOrphanSweep
+        self.imagePartitionUID = imagePartitionUID
+    }
+
+    /// Waits for the most recent post-delete image purge to finish (for tests).
+    nonisolated func waitForPendingImagePurge() async {
+        let task = imagePurgeLock.withLock { lastImagePurge }
+        await task?.value
+    }
+
+    /// After the transaction commits, off the write queue, purges images in the background: a candidate file is only deleted
+    /// when its key is not in this partition's reference set. Writes nothing to the database. The reference set is read
+    /// from the database connection bound to this store, not through the shared database switch.
+    nonisolated private func purgeImagesAfterCommit(_ candidates: Set<String>) {
+        guard !candidates.isEmpty, let partitionUID = imagePartitionUID else { return }
+        let pool = dbPool
+        imagePurgeLock.withLock {
+            let previous = lastImagePurge
+            lastImagePurge = Task.detached(priority: .utility) {
+                await previous?.value
+                ImageOrphanSweeper.purgeUnreferencedImages(
+                    candidates,
+                    partitionUID: partitionUID,
+                    references: { try ImageOrphanSweeper.referenceKeys(in: pool) }
+                )
+            }
+        }
+    }
+
+    /// Image candidate keys of the attachments of messages about to be deleted: `localImageID`.
+    /// Must be read before the rows are deleted and inside the same write transaction (deleting a message cascades to its attachments).
+    nonisolated private static func imagePurgeCandidates(
+        db: Database,
+        messageIDs: [String] = [],
+        conversationIDs: [String] = []
+    ) throws -> Set<String> {
+        var candidates = Set<String>()
+        let lookups: [(column: String, ids: [String])] = [
+            ("a.messageID", messageIDs),
+            ("m.conversationID", conversationIDs)
+        ]
+        for (column, ids) in lookups where !ids.isEmpty {
+            for chunk in batches(ids) {
+                let placeholders = chunk.map { _ in "?" }.joined(separator: ",")
+                let rows = try Row.fetchCursor(
+                    db,
+                    sql: """
+                        SELECT a.localImageID AS localImageID
+                        FROM attachment a
+                        JOIN message m ON m.id = a.messageID
+                        WHERE \(column) IN (\(placeholders))
+                        """,
+                    arguments: StatementArguments(chunk)
+                )
+                while let row = try rows.next() {
+                    if let localImageID: String = row["localImageID"], !localImageID.isEmpty {
+                        candidates.insert(localImageID)
+                    }
+                }
+            }
+        }
+        return candidates
+    }
+
+    nonisolated static let messageIDBatchLimit = 500
+
+    nonisolated private static func batches(_ ids: [String]) -> [[String]] {
+        stride(from: 0, to: ids.count, by: messageIDBatchLimit).map {
+            Array(ids[$0..<Swift.min($0 + messageIDBatchLimit, ids.count)])
+        }
     }
 
     /// In-process write generation of this database file (incremented by every write transaction
@@ -207,29 +283,50 @@ final class ConversationStore: @unchecked Sendable {
     }
 
     /// Same accounting as `CostSummaryCalculator.aggregates(from:)` without loading messages.
+    /// One row per (provider, non-USD currency); the USD amount, the original-currency amount and the billed message count are merged per provider in Swift.
     nonisolated func fetchMonthlyCostAggregates(
         now: Date,
         excludingConversationIDs: Set<UUID> = []
     ) throws -> [MonthlyCostAggregate] {
         let bounds = CostSummaryCalculator.utcMonthBounds(containing: now)
         return try dbPool.read { db in
+            // Amounts add up only raw values > 0 (epsilon is judged on the total, in makeMonthlySummary); the billed message count is still judged per message at > epsilon.
+            // The non-USD part counts when its source is upstream / localEstimate and the amount is positive.
+            let nonUsdPositive = """
+                (m.nonUsdCostCurrency IS NOT NULL AND m.nonUsdCostAmount > 0
+                 AND m.nonUsdCostSource IN ('\(CostSource.upstream.rawValue)', '\(CostSource.localEstimate.rawValue)'))
+                """
+            // The non-USD part is recorded (for counting): same as above with the amount > epsilon.
+            let nonUsdBilled = """
+                (m.nonUsdCostCurrency IS NOT NULL AND m.nonUsdCostAmount > ?
+                 AND m.nonUsdCostSource IN ('\(CostSource.upstream.rawValue)', '\(CostSource.localEstimate.rawValue)'))
+                """
+            // The USD part is recorded (for counting): the amount > epsilon and the source is empty / upstream / localEstimate.
+            let usdBilled = """
+                (m.estimatedCost > ? AND (m.costSource IS NULL
+                 OR m.costSource IN ('\(CostSource.upstream.rawValue)', '\(CostSource.localEstimate.rawValue)')))
+                """
             var sql = """
                 SELECT COALESCE(m.providerID, c.providerID) AS pid,
                        m.providerKind AS providerKind,
-                       SUM(m.estimatedCost) AS cost
+                       CASE WHEN \(nonUsdPositive) THEN m.nonUsdCostCurrency END AS currency,
+                       SUM(CASE WHEN m.estimatedCost > 0 THEN m.estimatedCost ELSE 0 END) AS cost,
+                       SUM(CASE WHEN \(nonUsdPositive) THEN m.nonUsdCostAmount ELSE 0 END) AS nonUsdAmount,
+                       SUM(CASE WHEN \(usdBilled) OR \(nonUsdBilled) THEN 1 ELSE 0 END) AS billed
                 FROM message m
                 JOIN conversation c ON c.id = m.conversationID
                 WHERE c.isDraft = 0
                   AND m.role = ?
                   AND m.state = ?
-                  AND m.estimatedCost > ?
+                  AND (m.estimatedCost > 0 OR \(nonUsdPositive))
                   AND COALESCE(m.createdAt, c.updatedAt) >= ?
                   AND COALESCE(m.createdAt, c.updatedAt) < ?
                 """
+            let epsilon = CostFormatter.costEpsilon
             var arguments: [DatabaseValueConvertible] = [
+                epsilon, epsilon,               // billed: usd, nonUsd
                 ChatRole.assistant.rawValue,
                 ChatMessageState.delivered.rawValue,
-                CostFormatter.costEpsilon,
                 bounds.start,
                 bounds.end
             ]
@@ -238,17 +335,35 @@ final class ConversationStore: @unchecked Sendable {
                 sql += " AND c.id NOT IN (\(placeholders))"
                 arguments.append(contentsOf: excludingConversationIDs.map(\.uuidString))
             }
-            sql += " GROUP BY pid, m.providerKind"
+            sql += " GROUP BY pid, m.providerKind, currency"
             let rows = try Row.fetchAll(db, sql: sql, arguments: StatementArguments(arguments))
-            return rows.compactMap { row in
+            var grouped: [String: MonthlyCostAggregate] = [:]
+            var order: [String] = []
+            for row in rows {
                 guard let pid: String = row["pid"],
                       let providerID = UUID(uuidString: pid),
                       let kindRaw: String = row["providerKind"],
                       let kind = ProviderKind(rawValue: kindRaw),
                       let cost: Double = row["cost"]
-                else { return nil }
-                return MonthlyCostAggregate(providerKind: kind, providerID: providerID, cost: cost)
+                else { continue }
+                let currency: String? = row["currency"]
+                let nonUsdAmount: Double = row["nonUsdAmount"] ?? 0
+                let aggregate = MonthlyCostAggregate(
+                    providerKind: kind,
+                    providerID: providerID,
+                    cost: cost,
+                    nonUsdCosts: currency.map { [$0: nonUsdAmount] } ?? [:],
+                    billedMessageCount: row["billed"] ?? 0
+                )
+                let key = "\(kindRaw)|\(pid)"
+                if let previous = grouped[key] {
+                    grouped[key] = previous.adding(aggregate)
+                } else {
+                    grouped[key] = aggregate
+                    order.append(key)
+                }
             }
+            return order.compactMap { grouped[$0] }
         }
     }
 
@@ -285,11 +400,16 @@ final class ConversationStore: @unchecked Sendable {
     /// (see `upsertConversation(_:into:...)`).
     nonisolated func replaceAllConversations(_ conversations: [Conversation]) throws {
         var referencedFileIDs = Set<String>()
+        var imageCandidates = Set<String>()
+        let collectsImages = imagePartitionUID != nil
 
         try write { db in
             let keptIDs = Set(conversations.map { $0.id.uuidString })
             let existingIDs = try String.fetchAll(db, sql: "SELECT id FROM conversation")
             let removedIDs = existingIDs.filter { !keptIDs.contains($0) }
+            if collectsImages, !removedIDs.isEmpty {
+                imageCandidates.formUnion(try Self.imagePurgeCandidates(db: db, conversationIDs: removedIDs))
+            }
             for start in stride(from: 0, to: removedIDs.count, by: 500) {
                 let chunk = Array(removedIDs[start..<min(start + 500, removedIDs.count)])
                 let placeholders = chunk.map { _ in "?" }.joined(separator: ",")
@@ -309,7 +429,8 @@ final class ConversationStore: @unchecked Sendable {
                 try upsertConversation(
                     conversation,
                     into: db,
-                    referencedFileIDs: &referencedFileIDs
+                    referencedFileIDs: &referencedFileIDs,
+                    imageCandidates: &imageCandidates
                 )
             }
 
@@ -318,6 +439,7 @@ final class ConversationStore: @unchecked Sendable {
             // referencedFileIDs alone would delete their sidecars as orphans.
             referencedFileIDs.formUnion(try Self.allReferencedSidecarFileIDs(db: db))
         }
+        purgeImagesAfterCommit(imageCandidates)
         try continuationOrphanSweep?()
         attachmentFileStore.prune(keeping: referencedFileIDs)
     }
@@ -350,6 +472,7 @@ final class ConversationStore: @unchecked Sendable {
 
         let prepared = conversations.map(deriveConversationForMutationWrite)
         var referencedFileIDs = Set<String>()
+        var imageCandidates = Set<String>()
 
         try write { db in
             for conversation in prepared {
@@ -357,10 +480,12 @@ final class ConversationStore: @unchecked Sendable {
                     conversation,
                     into: db,
                     referencedFileIDs: &referencedFileIDs,
+                    imageCandidates: &imageCandidates,
                     deletingMessageIDs: deletingMessageIDs[conversation.id] ?? []
                 )
             }
         }
+        purgeImagesAfterCommit(imageCandidates)
         try continuationOrphanSweep?()
     }
 
@@ -484,6 +609,33 @@ final class ConversationStore: @unchecked Sendable {
         }
         try continuationOrphanSweep?()
         try pruneAttachmentFilesToDatabase()
+    }
+
+    /// A conversation created empty by a realtime session on the home screen: inside one write transaction, deletes the
+    /// conversation only if it exists and has zero messages, and records the deletion journal entry. It does not count as a
+    /// user deletion (no deletion event is reported); when the conversation is already gone or has messages nothing is deleted and false is returned.
+    nonisolated func deleteConversationIfEmpty(id: UUID, recordDeletion: Bool = true) throws -> Bool {
+        let key = id.uuidString
+        let deleted = try write { db -> Bool in
+            let exists = try Bool.fetchOne(
+                db, sql: "SELECT EXISTS(SELECT 1 FROM conversation WHERE id = ?)", arguments: [key]
+            ) ?? false
+            guard exists else { return false }
+            let count = try Int.fetchOne(
+                db, sql: "SELECT COUNT(*) FROM message WHERE conversationID = ?", arguments: [key]
+            ) ?? 0
+            guard count == 0 else { return false }
+            try Self.removeFromSearchIndex(db: db, conversationID: key)
+            try db.execute(sql: "DELETE FROM conversation WHERE id = ?", arguments: [key])
+            if recordDeletion {
+                try Self.recordDeletions(db: db, ids: [key])
+            }
+            return true
+        }
+        guard deleted else { return false }
+        try continuationOrphanSweep?()
+        try pruneAttachmentFilesToDatabase()
+        return true
     }
 
     nonisolated func deleteConversations(ids: [UUID], recordDeletion: Bool = true) throws {
@@ -1317,15 +1469,17 @@ final class ConversationStore: @unchecked Sendable {
     nonisolated private func deriveConversationForMutationWrite(_ conversation: Conversation) -> Conversation {
         var derived = conversation
         ConversationListMetadata.apply(to: &derived)
-        let deliveredCosts = derived.messages
-            .filter { $0.state == .delivered && $0.estimatedCost > CostFormatter.costEpsilon }
-            .map(\.estimatedCost)
-        if deliveredCosts.isEmpty {
+        let totals = CostSummaryCalculator.conversationTotals(of: derived.messages)
+        if totals.estimatedCost <= CostFormatter.costEpsilon {
             derived.estimatedCost = conversation.estimatedCost > CostFormatter.costEpsilon
                 ? conversation.estimatedCost
                 : 0
         } else {
-            derived.estimatedCost = deliveredCosts.reduce(0, +)
+            derived.estimatedCost = totals.estimatedCost
+        }
+        // The non-USD totals follow the messages the same way: with no non-USD part among them, the value carried by the conversation is kept.
+        if !totals.nonUsdCostTotals.isEmpty {
+            derived.nonUsdCostTotals = totals.nonUsdCostTotals
         }
         derived.isDraft = derived.messages.isEmpty && conversation.isDraft
         return derived
@@ -1359,6 +1513,7 @@ final class ConversationStore: @unchecked Sendable {
         let pinnedNoteIds: String?
         let instructions: String
         let contextCap: String?
+        let nonUsdCostTotals: String?
 
         nonisolated init(from summary: ConversationSummary) {
             id = summary.id.uuidString
@@ -1387,6 +1542,7 @@ final class ConversationStore: @unchecked Sendable {
             pinnedNoteIds = RecordMappers.encodePinnedNoteIds(summary.pinnedNoteIds)
             instructions = summary.instructions
             contextCap = summary.contextCap?.storageText
+            nonUsdCostTotals = RecordMappers.encodeNonUsdCostTotals(summary.nonUsdCostTotals)
         }
 
         nonisolated init(
@@ -1424,6 +1580,7 @@ final class ConversationStore: @unchecked Sendable {
             pinnedNoteIds = RecordMappers.encodePinnedNoteIds(conversation.pinnedNoteIds)
             instructions = conversation.instructions
             contextCap = conversation.contextCap?.storageText
+            nonUsdCostTotals = RecordMappers.encodeNonUsdCostTotals(conversation.nonUsdCostTotals)
         }
 
         nonisolated var arguments: [DatabaseValueConvertible?] {
@@ -1431,7 +1588,8 @@ final class ConversationStore: @unchecked Sendable {
              remoteMessageCount,
              estimatedCost, isDraft, draftText, createdAt, updatedAt, folderID,
              useMemory, skillId, metadataUpdatedAt, messagesHydratedAt, messagesStale,
-             deletedAt, isConflictCopy, originalConversationId, pinnedNoteIds, instructions, contextCap]
+             deletedAt, isConflictCopy, originalConversationId, pinnedNoteIds, instructions, contextCap,
+             nonUsdCostTotals]
         }
     }
 
@@ -1441,8 +1599,9 @@ final class ConversationStore: @unchecked Sendable {
             remoteMessageCount,
             estimatedCost, isDraft, draftText, createdAt, updatedAt, folderID,
             useMemory, skillId, metadataUpdatedAt, messagesHydratedAt, messagesStale,
-            deletedAt, isConflictCopy, originalConversationId, pinnedNoteIds, instructions, contextCap
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            deletedAt, isConflictCopy, originalConversationId, pinnedNoteIds, instructions, contextCap,
+            nonUsdCostTotals
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             title = excluded.title,
             hasCustomTitle = excluded.hasCustomTitle,
@@ -1468,7 +1627,8 @@ final class ConversationStore: @unchecked Sendable {
             originalConversationId = excluded.originalConversationId,
             pinnedNoteIds = excluded.pinnedNoteIds,
             instructions = excluded.instructions,
-            contextCap = excluded.contextCap
+            contextCap = excluded.contextCap,
+            nonUsdCostTotals = excluded.nonUsdCostTotals
         """
 
     /// Metadata-only writeback: never touch the local `messageCount` or message rows.
@@ -1480,8 +1640,9 @@ final class ConversationStore: @unchecked Sendable {
             remoteMessageCount,
             estimatedCost, isDraft, draftText, createdAt, updatedAt, folderID,
             useMemory, skillId, metadataUpdatedAt, messagesHydratedAt, messagesStale,
-            deletedAt, isConflictCopy, originalConversationId, pinnedNoteIds, instructions, contextCap
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            deletedAt, isConflictCopy, originalConversationId, pinnedNoteIds, instructions, contextCap,
+            nonUsdCostTotals
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             title = excluded.title,
             hasCustomTitle = excluded.hasCustomTitle,
@@ -1504,7 +1665,8 @@ final class ConversationStore: @unchecked Sendable {
             originalConversationId = excluded.originalConversationId,
             pinnedNoteIds = excluded.pinnedNoteIds,
             instructions = excluded.instructions,
-            contextCap = excluded.contextCap
+            contextCap = excluded.contextCap,
+            nonUsdCostTotals = excluded.nonUsdCostTotals
         """
 
 
@@ -1589,7 +1751,11 @@ final class ConversationStore: @unchecked Sendable {
         return (localFileID, originalFileID)
     }
 
-    nonisolated private func pruneAttachmentFilesToDatabase() throws {
+    /// Aligns the attachment file directory with the references in the database (deletes files the database no longer references). The launch orphan sweep calls it too.
+    /// - Parameter launchGuard: passed on the launch path: nothing is deleted when the partition is not the active one, only files outside the grace period are deleted, and a round has a limit.
+    ///   Deletion paths pass nil: the files of a conversation just deleted are aligned immediately.
+    nonisolated func pruneAttachmentFilesToDatabase(launchGuard: AttachmentLaunchPruneGuard? = nil) throws {
+        if let launchGuard, launchGuard.currentUID() != launchGuard.partitionUID { return }
         let referencedFileIDs = try dbPool.read { db in
             let rows = try Row.fetchAll(
                 db,
@@ -1606,7 +1772,11 @@ final class ConversationStore: @unchecked Sendable {
             }
             return ids
         }
-        attachmentFileStore.prune(keeping: referencedFileIDs)
+        if let launchGuard {
+            attachmentFileStore.pruneOnLaunch(keeping: referencedFileIDs, guard: launchGuard)
+        } else {
+            attachmentFileStore.prune(keeping: referencedFileIDs)
+        }
     }
 
     nonisolated private func upsertMessageRows(
@@ -1625,10 +1795,11 @@ final class ConversationStore: @unchecked Sendable {
                         errorTitle, errorDetail, createdAt, sortOrder, citations,
                         reasoningText, reasoningDurationMs,
                         cachedInputTokens, cacheCreation5mTokens, cacheCreation1hTokens, costSource,
+                        nonUsdCostCurrency, nonUsdCostAmount, nonUsdCostSource,
                         inputTokens, outputTokens, cacheCreationInputTokens,
                         capabilityExecution, unhandledToolCalls, toolSteps, toolFallbackNotice,
                         recoveryPrimaryAction, stopReason, memoryItemIds
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(id) DO UPDATE SET
                         text = excluded.text,
                         quoteContext = excluded.quoteContext,
@@ -1645,6 +1816,9 @@ final class ConversationStore: @unchecked Sendable {
                         cacheCreation5mTokens = excluded.cacheCreation5mTokens,
                         cacheCreation1hTokens = excluded.cacheCreation1hTokens,
                         costSource = excluded.costSource,
+                        nonUsdCostCurrency = excluded.nonUsdCostCurrency,
+                        nonUsdCostAmount = excluded.nonUsdCostAmount,
+                        nonUsdCostSource = excluded.nonUsdCostSource,
                         inputTokens = excluded.inputTokens,
                         outputTokens = excluded.outputTokens,
                         cacheCreationInputTokens = excluded.cacheCreationInputTokens,
@@ -1681,6 +1855,9 @@ final class ConversationStore: @unchecked Sendable {
                     message.cacheCreation5mTokens,
                     message.cacheCreation1hTokens,
                     message.costSource?.rawValue,
+                    message.nonUsdCost?.currencyCode,
+                    message.nonUsdCost?.amount,
+                    message.nonUsdCost?.costSource.rawValue,
                     message.inputTokens,
                     message.outputTokens,
                     message.cacheCreationInputTokens,
@@ -1757,11 +1934,16 @@ final class ConversationStore: @unchecked Sendable {
         _ conversation: Conversation,
         into db: Database,
         referencedFileIDs: inout Set<String>,
+        imageCandidates: inout Set<String>,
         deletingMessageIDs: Set<UUID> = []
     ) throws {
         let convIDString = conversation.id.uuidString
+        let collectsImages = imagePartitionUID != nil
         if !deletingMessageIDs.isEmpty {
             let ids = deletingMessageIDs.map(\.uuidString)
+            if collectsImages {
+                imageCandidates.formUnion(try Self.imagePurgeCandidates(db: db, messageIDs: ids))
+            }
             let placeholders = ids.map { _ in "?" }.joined(separator: ",")
             try db.execute(
                 sql: "DELETE FROM message WHERE conversationID = ? AND id IN (\(placeholders))",
@@ -1816,6 +1998,9 @@ final class ConversationStore: @unchecked Sendable {
         let newMessageIDs = Set(conversation.messages.map { $0.id.uuidString })
         let toDelete = existingMessageIDs.filter { !newMessageIDs.contains($0) }
         if !toDelete.isEmpty {
+            if collectsImages {
+                imageCandidates.formUnion(try Self.imagePurgeCandidates(db: db, messageIDs: toDelete))
+            }
             let placeholders = toDelete.map { _ in "?" }.joined(separator: ",")
             try db.execute(
                 sql: "DELETE FROM message WHERE id IN (\(placeholders))",
@@ -1832,10 +2017,11 @@ final class ConversationStore: @unchecked Sendable {
                         errorTitle, errorDetail, createdAt, sortOrder, citations,
                         reasoningText, reasoningDurationMs,
                         cachedInputTokens, cacheCreation5mTokens, cacheCreation1hTokens, costSource,
+                        nonUsdCostCurrency, nonUsdCostAmount, nonUsdCostSource,
                         inputTokens, outputTokens, cacheCreationInputTokens,
                         capabilityExecution, unhandledToolCalls, toolSteps, toolFallbackNotice,
                         recoveryPrimaryAction, stopReason, memoryItemIds
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(id) DO UPDATE SET
                         text = excluded.text,
                         quoteContext = excluded.quoteContext,
@@ -1852,6 +2038,9 @@ final class ConversationStore: @unchecked Sendable {
                         cacheCreation5mTokens = excluded.cacheCreation5mTokens,
                         cacheCreation1hTokens = excluded.cacheCreation1hTokens,
                         costSource = excluded.costSource,
+                        nonUsdCostCurrency = excluded.nonUsdCostCurrency,
+                        nonUsdCostAmount = excluded.nonUsdCostAmount,
+                        nonUsdCostSource = excluded.nonUsdCostSource,
                         inputTokens = excluded.inputTokens,
                         outputTokens = excluded.outputTokens,
                         cacheCreationInputTokens = excluded.cacheCreationInputTokens,
@@ -1888,6 +2077,9 @@ final class ConversationStore: @unchecked Sendable {
                     message.cacheCreation5mTokens,
                     message.cacheCreation1hTokens,
                     message.costSource?.rawValue,
+                    message.nonUsdCost?.currencyCode,
+                    message.nonUsdCost?.amount,
+                    message.nonUsdCost?.costSource.rawValue,
                     message.inputTokens,
                     message.outputTokens,
                     message.cacheCreationInputTokens,

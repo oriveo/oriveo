@@ -245,6 +245,22 @@ enum DatabaseSchema {
             // Conversation-level context budget cap, stored as text (auto / unlimited / decimal); NULL = follow the global default.
             try db.execute(sql: "ALTER TABLE conversation ADD COLUMN contextCap TEXT")
         }
+        migrator.registerMigration("v42_tool_call_memory_facts_revision") { db in
+            // A rejection memory only applies while the modelFactsRevision matches the one at the time of recording and the hand-entered
+            // declaration has not changed since. Old rows have both columns NULL: they lapse as soon as a revision exists.
+            try db.execute(sql: "ALTER TABLE connection_tool_call_memory ADD COLUMN factsRevision TEXT")
+            try db.execute(sql: "ALTER TABLE connection_tool_call_memory ADD COLUMN handEnteredDeclaration INTEGER")
+        }
+        migrator.registerMigration("v43_message_non_usd_cost") { db in
+            // A message's estimatedCost only ever holds the USD part; the single non-USD part is recorded in three columns
+            // (currency / original-currency amount / source) with no conversion; a conversation records non-USD totals
+            // (JSON, currency code -> amount). Old rows have the three columns NULL (= no non-USD part); a non-USD estimate
+            // dropped earlier stays unknown and is not backfilled.
+            try db.execute(sql: "ALTER TABLE message ADD COLUMN nonUsdCostCurrency TEXT")
+            try db.execute(sql: "ALTER TABLE message ADD COLUMN nonUsdCostAmount REAL")
+            try db.execute(sql: "ALTER TABLE message ADD COLUMN nonUsdCostSource TEXT")
+            try db.execute(sql: "ALTER TABLE conversation ADD COLUMN nonUsdCostTotals TEXT")
+        }
         return migrator
     }
 

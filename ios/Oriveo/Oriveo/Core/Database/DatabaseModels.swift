@@ -13,6 +13,8 @@ struct ConversationSummary: Identifiable, Hashable {
     var messageCount: Int
     var remoteMessageCount: Int = 0
     var estimatedCost: Double
+    /// v43: non-USD totals (currency code -> amount); empty = none.
+    var nonUsdCostTotals: [String: Double] = [:]
     var isDraft: Bool
     var draftText: String
     var createdAt: Date
@@ -76,6 +78,8 @@ struct ConversationRecord {
     let pinnedNoteIds: String?
     let instructions: String
     let contextCap: ContextBudgetCap?
+    /// v43_message_non_usd_cost: non-USD totals as JSON (currency code -> amount); NULL on old rows.
+    let nonUsdCostTotals: String?
 
     nonisolated init(row: Row) {
         id = row["id"]
@@ -105,6 +109,7 @@ struct ConversationRecord {
         instructions = row["instructions"] ?? ""
         // Rows from before v40 are NULL; text that cannot be decoded also counts as following the global default.
         contextCap = (row["contextCap"] as String?).flatMap(ContextBudgetCap.init(storageText:))
+        nonUsdCostTotals = row["nonUsdCostTotals"]
     }
 }
 
@@ -136,6 +141,10 @@ struct MessageRecord {
     let cacheCreation5mTokens: Int?
     let cacheCreation1hTokens: Int?
     let costSource: String?
+    /// v43_message_non_usd_cost: the only non-USD part (currency / original-currency amount / source); the three columns are NULL on old messages.
+    let nonUsdCostCurrency: String?
+    let nonUsdCostAmount: Double?
+    let nonUsdCostSource: String?
     let capabilityExecution: String?
     let unhandledToolCalls: String?
     /// JSON array of remote MCP tool step summaries.
@@ -176,6 +185,9 @@ struct MessageRecord {
         cacheCreation5mTokens = row["cacheCreation5mTokens"]
         cacheCreation1hTokens = row["cacheCreation1hTokens"]
         costSource = row["costSource"]
+        nonUsdCostCurrency = row["nonUsdCostCurrency"]
+        nonUsdCostAmount = row["nonUsdCostAmount"]
+        nonUsdCostSource = row["nonUsdCostSource"]
         capabilityExecution = row["capabilityExecution"]
         unhandledToolCalls = row["unhandledToolCalls"]
         toolSteps = row["toolSteps"]

@@ -2,14 +2,53 @@ import Foundation
 import OriveoProviderKit
 
 enum RecordMappers {
-    nonisolated static func sortMessages(_ messages: [ChatMessage]) -> [ChatMessage] {
-        messages.sorted { lhs, rhs in
-            if lhs.state == .delivered && rhs.state != .delivered { return true }
-            if lhs.state != .delivered && rhs.state == .delivered { return false }
-            let lhsTime = lhs.createdAt ?? .distantPast
-            let rhsTime = rhs.createdAt ?? .distantPast
-            if lhsTime != rhsTime { return lhsTime < rhsTime }
-            return lhs.id.uuidString < rhs.id.uuidString
+    /// The single entry point for every message sort. Swift's sort is not stable, so the input index is the
+    /// fallback: two messages the comparator cannot order (both missing createdAt) keep their input order.
+    nonisolated static func sortMessages<S: Sequence>(_ messages: S) -> [ChatMessage] where S.Element == ChatMessage {
+        messages.enumerated()
+            .sorted { lhs, rhs in
+                if messageOrderPrecedes(lhs.element, rhs.element) { return true }
+                if messageOrderPrecedes(rhs.element, lhs.element) { return false }
+                return lhs.offset < rhs.offset
+            }
+            .map(\.element)
+    }
+
+    /// Message order: non-delivered messages always come after delivered ones; within a group the order key is (createdAt in milliseconds, roleRank, id).
+    /// A message without createdAt (nil, or a millisecond value <= 0, e.g. from an old backup import) sorts before those with a time; two
+    /// such messages do not lead each other, and `sortMessages` keeps their input order (no roleRank, no id comparison).
+    /// roleRank: user=0 < assistant=1, so when the user and assistant messages of one turn are equal after millisecond truncation the user
+    /// message always comes first, instead of the UUID string order deciding.
+    /// Only for `sortMessages`: handing it straight to `sort(by:)` would lose the input order for messages without createdAt.
+    nonisolated static func messageOrderPrecedes(_ lhs: ChatMessage, _ rhs: ChatMessage) -> Bool {
+        if lhs.state == .delivered && rhs.state != .delivered { return true }
+        if lhs.state != .delivered && rhs.state == .delivered { return false }
+        let lhsMillis = orderMillis(lhs)
+        let rhsMillis = orderMillis(rhs)
+        switch (lhsMillis, rhsMillis) {
+        case (nil, nil): return false
+        case (nil, _?): return true
+        case (_?, nil): return false
+        case let (l?, r?) where l != r: return l < r
+        default: break
+        }
+        let lhsRank = roleRank(lhs.role)
+        let rhsRank = roleRank(rhs.role)
+        if lhsRank != rhsRank { return lhsRank < rhsRank }
+        return lhs.id.uuidString.uppercased() < rhs.id.uuidString.uppercased()
+    }
+
+    /// createdAt in milliseconds for ordering (truncated); missing (nil or <= 0) -> nil.
+    nonisolated private static func orderMillis(_ message: ChatMessage) -> Int64? {
+        guard let createdAt = message.createdAt else { return nil }
+        let millis = Int64((createdAt.timeIntervalSince1970 * 1000).rounded(.down))
+        return millis > 0 ? millis : nil
+    }
+
+    nonisolated private static func roleRank(_ role: ChatRole) -> Int {
+        switch role {
+        case .user: return 0
+        case .assistant: return 1
         }
     }
 
@@ -22,7 +61,7 @@ enum RecordMappers {
             return nil
         }
 
-        return ConversationSummary(
+        var summary = ConversationSummary(
             id: id,
             title: record.title,
             hasCustomTitle: record.hasCustomTitle,
@@ -50,6 +89,28 @@ enum RecordMappers {
             instructions: record.instructions,
             contextCap: record.contextCap
         )
+        summary.nonUsdCostTotals = decodeNonUsdCostTotals(record.nonUsdCostTotals)
+        return summary
+    }
+
+    /// Storage shape of a conversation's non-USD totals: a JSON object (currency code -> amount); an empty table is stored as NULL.
+    nonisolated static func encodeNonUsdCostTotals(_ totals: [String: Double]) -> String? {
+        guard !totals.isEmpty,
+              let data = try? JSONSerialization.data(withJSONObject: totals, options: [.sortedKeys]) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    nonisolated static func decodeNonUsdCostTotals(_ raw: String?) -> [String: Double] {
+        guard let data = raw?.data(using: .utf8),
+              let decoded = try? JSONDecoder().decode([String: Double].self, from: data) else { return [:] }
+        return decoded
+    }
+
+    /// The three columns of a message's non-USD part -> a value; if any column is missing (or the source is not recognized) there is none.
+    nonisolated static func nonUsdCost(currency: String?, amount: Double?, source: String?) -> NonUsdCost? {
+        guard let currency, !currency.isEmpty, let amount,
+              let costSource = source.flatMap(CostSource.init(rawValue:)) else { return nil }
+        return NonUsdCost(currencyCode: currency, amount: amount, costSource: costSource)
     }
 
     nonisolated static func thread(
@@ -97,6 +158,7 @@ enum RecordMappers {
         conversation.pinnedNoteIds = thread.summary.pinnedNoteIds
         conversation.instructions = thread.summary.instructions
         conversation.contextCap = thread.summary.contextCap
+        conversation.nonUsdCostTotals = thread.summary.nonUsdCostTotals
         return conversation
     }
 
@@ -168,6 +230,11 @@ enum RecordMappers {
             cacheCreation5mTokens: record.cacheCreation5mTokens,
             cacheCreation1hTokens: record.cacheCreation1hTokens,
             costSource: record.costSource.flatMap(CostSource.init(rawValue:)),
+            nonUsdCost: nonUsdCost(
+                currency: record.nonUsdCostCurrency,
+                amount: record.nonUsdCostAmount,
+                source: record.nonUsdCostSource
+            ),
             capabilityExecution: capabilityExecution,
             unhandledToolCalls: unhandledToolCalls,
             toolFallbackNotice: record.toolFallbackNotice,

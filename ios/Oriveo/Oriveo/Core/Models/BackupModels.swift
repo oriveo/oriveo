@@ -101,8 +101,10 @@ nonisolated struct BackupConversation: Codable {
     var updatedAt: Date
     var folderID: UUID?
     var pinnedNoteIds: [UUID]?   // Optional: backward compatible with old backups (missing key = no pinned notes)
-    var instructions: String?    // Optional: empty is written as nil; a missing key in old backups = ""
+    var instructions: String?    // Export always writes the key (empty is written as ""); a missing key / null in old backups = nil, and a merge leaves the local value alone
     var contextCap: BackupContextCap?   // Optional: nil writes no key; a missing key or invalid value = follow the global default
+    /// Non-USD conversation totals: export always writes the key ({} when there are none); a missing key in old backups = nil, and a merge leaves the local value alone.
+    var nonUsdCostTotals: [String: Double]?
 
     init(from conversation: Conversation) {
         self.id = conversation.id
@@ -117,8 +119,9 @@ nonisolated struct BackupConversation: Codable {
         self.updatedAt = conversation.updatedAt
         self.folderID = conversation.folderID
         self.pinnedNoteIds = conversation.pinnedNoteIds.isEmpty ? nil : conversation.pinnedNoteIds
-        self.instructions = conversation.instructions.isEmpty ? nil : conversation.instructions
+        self.instructions = conversation.instructions
         self.contextCap = conversation.contextCap.map(BackupContextCap.init(cap:))
+        self.nonUsdCostTotals = conversation.nonUsdCostTotals
     }
 
     func toConversation() -> Conversation {
@@ -140,6 +143,7 @@ nonisolated struct BackupConversation: Codable {
         conv.pinnedNoteIds = pinnedNoteIds ?? []
         conv.instructions = ConversationInstructions.normalize(instructions ?? "")
         conv.contextCap = contextCap?.cap
+        conv.nonUsdCostTotals = nonUsdCostTotals ?? [:]
         return conv
     }
 }
@@ -538,11 +542,28 @@ enum BackupError: LocalizedError {
     }
 }
 
+// MARK: - Backup coding marker
+
+extension CodingUserInfoKey {
+    /// Marks an encoder/decoder as serializing a backup payload, so device-local message fields
+    /// (the recovery action of an error card) are dropped on export and ignored on import.
+    /// Local persistence never sets it.
+    nonisolated static let backupPayload = CodingUserInfoKey(rawValue: "oriveo.backupPayload")!
+}
+
+extension Encoder {
+    nonisolated var isBackupPayload: Bool { userInfo[.backupPayload] as? Bool == true }
+}
+
+extension Decoder {
+    nonisolated var isBackupPayload: Bool { userInfo[.backupPayload] as? Bool == true }
+}
 
 nonisolated enum CanonicalJSON {
     static func encode<T: Encodable>(_ value: T) throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        encoder.userInfo[.backupPayload] = true
         encoder.dateEncodingStrategy = .iso8601
         return try encoder.encode(value)
     }

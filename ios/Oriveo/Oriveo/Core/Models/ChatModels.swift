@@ -84,11 +84,19 @@ nonisolated enum LocalCustomFragmentDisposition: Hashable, Sendable {
     /// "Retry without the additional request body": affects this one request only. Custom fields
     /// for web search and thinking are still sent, and the saved body and its switch are untouched.
     case omitAdditionalBodyForExplicitRetry
+    /// "Resend without this parameter": this one request explicitly leaves out the rejected parameter and
+    /// everything else goes as usual; the negative cache and the settings are untouched.
+    case omitParameterForExplicitRetry(String)
 
     /// What a retry tapped on a failed message should carry this time. It reads only the marker
     /// persisted on the failed message, never the current settings: a retry changes this one
     /// request, not what is saved.
-    static func forExplicitRetry(errorTitle: String?, recoveryDescriptorCount: Int?) -> Self {
+    static func forExplicitRetry(
+        errorTitle: String?, recoveryDescriptorCount: Int?, recoveryPrimaryAction: String? = nil
+    ) -> Self {
+        if let parameter = officialRejectedParameterName(recoveryAction: recoveryPrimaryAction) {
+            return .omitParameterForExplicitRetry(parameter)
+        }
         if errorTitle == AdditionalRequestBody.upstreamRejectionTitleKey {
             return .omitAdditionalBodyForExplicitRetry
         }
@@ -99,6 +107,12 @@ nonisolated enum LocalCustomFragmentDisposition: Hashable, Sendable {
             return .omitForExplicitRetry
         }
         return .include
+    }
+
+    /// The parameter names this one request explicitly omits; empty for every other case.
+    var omittedParameters: Set<String> {
+        if case let .omitParameterForExplicitRetry(parameter) = self { return [parameter] }
+        return []
     }
 }
 
@@ -631,6 +645,8 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
     var cacheCreation5mTokens: Int? = nil
     var cacheCreation1hTokens: Int? = nil
     var costSource: CostSource? = nil
+    /// The only non-USD part of the cost; `estimatedCost` only ever holds the USD part. nil when there is none.
+    var nonUsdCost: NonUsdCost? = nil
     /// terminal execution truth. It is a compact local fact projection only: no
     /// provider/model/prompt/response/error/custom fields are retained here.
     var capabilityExecution: CapabilityExecutionResult? = nil
@@ -641,10 +657,35 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
     var toolFallbackNotice: String? = nil
     /// Primary recovery action shown on an error card (for example switching the key or removing an
     /// unsupported image). Encoded under the key `managedPrimaryAction` to stay interoperable with other builds.
+    /// It describes a device-local error, so backups neither write nor read it.
     var recoveryPrimaryAction: String? = nil
 
+    /// Per-currency cost text (USD first, joined with " + "; a part whose amount is unavailable shows "No data").
     var estimatedCostText: String {
-        CostFormatter.format(estimatedCost)
+        CostFormatter.messageText(estimatedCost: estimatedCost, nonUsdCost: nonUsdCost)
+    }
+
+    /// The recorded non-USD part (source upstream / localEstimate and a positive amount); nil when the amount is unavailable or zero.
+    nonisolated var billedNonUsdCost: NonUsdCost? {
+        guard let nonUsdCost,
+              nonUsdCost.costSource == .upstream || nonUsdCost.costSource == .localEstimate,
+              nonUsdCost.amount > CostFormatter.costEpsilon else { return nil }
+        return nonUsdCost
+    }
+
+    /// A billed message: the USD part is recorded (source upstream / localEstimate; an empty source with an amount > 0 counts as a local estimate),
+    /// or the non-USD part is recorded. A mixed-currency message counts once.
+    nonisolated var isBilled: Bool {
+        let usdRecorded = estimatedCost > CostFormatter.costEpsilon
+            && (costSource == nil || costSource == .upstream || costSource == .localEstimate)
+        return usdRecorded || billedNonUsdCost != nil
+    }
+
+    /// Has a displayable cost: the USD part is positive, or there is a non-USD part (positive or unavailable). A message with only a non-USD part does not show $0.
+    nonisolated var hasDisplayableCost: Bool {
+        if estimatedCost > CostFormatter.costEpsilon { return true }
+        guard let nonUsdCost else { return false }
+        return nonUsdCost.costSource == .unknown || nonUsdCost.amount > CostFormatter.costEpsilon
     }
 
     nonisolated static func mergeByIdAndCreatedAt(_ local: [ChatMessage], _ cloud: [ChatMessage]) -> [ChatMessage] {
@@ -778,6 +819,7 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
         cacheCreation5mTokens: Int? = nil,
         cacheCreation1hTokens: Int? = nil,
         costSource: CostSource? = nil,
+        nonUsdCost: NonUsdCost? = nil,
         capabilityExecution: CapabilityExecutionResult? = nil,
         unhandledToolCalls: [UnhandledToolCall]? = nil,
         toolFallbackNotice: String? = nil,
@@ -812,6 +854,7 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
         self.cacheCreation5mTokens = cacheCreation5mTokens
         self.cacheCreation1hTokens = cacheCreation1hTokens
         self.costSource = costSource
+        self.nonUsdCost = nonUsdCost
         // execution truth is device-local GRDB data; it must never cross the Codable/cloud
         // message envelope (nor carry provider response data).
         self.capabilityExecution = capabilityExecution
@@ -826,7 +869,7 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
         case estimatedCost, state, errorTitle, errorDetail
         case estimatedCostText, attachments, quoteContext, citations, toolSteps, createdAt
         case inputTokens, outputTokens, cachedInputTokens, cacheCreationInputTokens
-        case cacheCreation5mTokens, cacheCreation1hTokens, costSource
+        case cacheCreation5mTokens, cacheCreation1hTokens, costSource, nonUsdCost
         case recoveryPrimaryAction = "managedPrimaryAction"
         // Why the stream ended, stored as the fixture raw value; unknown strings read as unknown.
         case stopReason
@@ -873,11 +916,14 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
         cacheCreation5mTokens = try c.decodeIfPresent(Int.self, forKey: .cacheCreation5mTokens)
         cacheCreation1hTokens = try c.decodeIfPresent(Int.self, forKey: .cacheCreation1hTokens)
         costSource = try c.decodeIfPresent(CostSource.self, forKey: .costSource)
+        nonUsdCost = try? c.decodeIfPresent(NonUsdCost.self, forKey: .nonUsdCost)
         stopReason = StopReason.fromStored(try? c.decodeIfPresent(String.self, forKey: .stopReason))
         capabilityExecution = nil
         unhandledToolCalls = nil
         toolFallbackNotice = nil
-        recoveryPrimaryAction = try c.decodeIfPresent(String.self, forKey: .recoveryPrimaryAction)
+        recoveryPrimaryAction = decoder.isBackupPayload
+            ? nil
+            : try c.decodeIfPresent(String.self, forKey: .recoveryPrimaryAction)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -911,7 +957,10 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
         try c.encodeIfPresent(cacheCreation5mTokens, forKey: .cacheCreation5mTokens)
         try c.encodeIfPresent(cacheCreation1hTokens, forKey: .cacheCreation1hTokens)
         try c.encodeIfPresent(costSource, forKey: .costSource)
-        try c.encodeIfPresent(recoveryPrimaryAction, forKey: .recoveryPrimaryAction)
+        try c.encodeIfPresent(nonUsdCost, forKey: .nonUsdCost)
+        if !encoder.isBackupPayload {
+            try c.encodeIfPresent(recoveryPrimaryAction, forKey: .recoveryPrimaryAction)
+        }
         try c.encodeIfPresent(stopReason?.rawValue, forKey: .stopReason)
     }
 }
@@ -938,6 +987,8 @@ struct Conversation: Identifiable, Hashable, Codable {
     var modelID: String
     var previewText: String
     var estimatedCost: Double
+    /// Non-USD totals (currency code -> amount): recomputed from the messages when they are local; only used while the messages are not loaded.
+    var nonUsdCostTotals: [String: Double] = [:]
     var isDraft: Bool
     var messages: [ChatMessage]
     var draftText: String = ""
@@ -1201,19 +1252,116 @@ enum ConversationListMetadata {
 }
 
 enum CostFormatter {
+    /// Floating-point noise threshold: values below it count as 0.
     nonisolated static let costEpsilon: Double = 0.00001
 
     nonisolated static func format(_ value: Double) -> String {
-        guard value.isFinite, value > costEpsilon else { return "" }
-        if value < 0.0001 { return String(format: "$%.5f", value) }
-        if value < 0.01 { return String(format: "$%.4f", value) }
-        return String(format: "$%.2f", value)
+        guard value.isFinite, value > costEpsilon, let digits = fractionDigits(value) else { return "" }
+        return String(format: "$%.\(digits)f", roundedHalfAwayFromZero(value, digits: digits))
+    }
+
+    /// Round half away from zero (the same rule on every platform); printf itself rounds half to even on the binary value, so round first and hand the result to it.
+    nonisolated static func roundedHalfAwayFromZero(_ value: Double, digits: Int) -> Double {
+        let scale = pow(10, Double(digits))
+        return (value * scale).rounded(.toNearestOrAwayFromZero) / scale
+    }
+
+    /// The number of fraction digits `format` uses; nil when the amount is not displayed.
+    nonisolated static func fractionDigits(_ value: Double) -> Int? {
+        guard value.isFinite, value > costEpsilon else { return nil }
+        if value < 0.0001 { return 5 }
+        if value < 0.01 { return 4 }
+        return 2
+    }
+
+    /// Per-currency cost text: parts joined with " + ", USD first. USD keeps the "$" style and precision of `usd`,
+    /// other currencies use the system currency format (UI locale, standard symbol), with the digits taken from that part's own amount via `fractionDigits`.
+    /// Parts whose amount is 0 are omitted; the result is empty when all are omitted. No conversion and no adding across currencies.
+    nonisolated static func format(
+        parts: [CurrencyAmount],
+        locale: Locale,
+        usd: (Double) -> String = { format($0) }
+    ) -> String {
+        parts
+            .map { part in
+                part.currencyCode == CostCalculator.usd
+                    ? usd(part.amount)
+                    : formatNonUsd(part.amount, currencyCode: part.currencyCode, locale: locale)
+            }
+            .filter { !$0.isEmpty }
+            .joined(separator: " + ")
+    }
+
+    /// The amount parts of one message: USD (`estimatedCost`) first, then the non-USD part when its amount is available.
+    nonisolated static func parts(estimatedCost: Double, nonUsdCost: NonUsdCost?) -> [CurrencyAmount] {
+        var parts = [CurrencyAmount(currencyCode: CostCalculator.usd, amount: estimatedCost)]
+        if let nonUsdCost, nonUsdCost.costSource != .unknown {
+            parts.append(CurrencyAmount(currencyCode: nonUsdCost.currencyCode, amount: nonUsdCost.amount))
+        }
+        return parts
+    }
+
+    /// Currencies whose amount is unavailable (a second non-USD currency is recorded as {first currency, 0, unknown}): shows the existing "No data" copy, never 0.
+    nonisolated static func notAvailableParts(_ nonUsdCost: NonUsdCost?) -> [String] {
+        guard let nonUsdCost, nonUsdCost.costSource == .unknown else { return [] }
+        return [nonUsdCost.currencyCode]
+    }
+
+    /// The amount parts of a conversation / summary total: USD first, the rest by ascending currency code; parts whose amount is 0 are omitted.
+    nonisolated static func parts(usd: Double, nonUsdTotals: [String: Double]) -> [CurrencyAmount] {
+        [CurrencyAmount(currencyCode: CostCalculator.usd, amount: usd)]
+            + nonUsdTotals.sorted { $0.key < $1.key }.map { CurrencyAmount(currencyCode: $0.key, amount: $0.value) }
+    }
+
+    /// One non-USD amount; empty when it is not displayed.
+    nonisolated static func formatNonUsd(_ amount: Double, currencyCode: String, locale: Locale) -> String {
+        guard let digits = fractionDigits(amount) else { return "" }
+        return NonUsdCurrencyFormatters.shared.string(
+            from: amount, locale: locale, currencyCode: currencyCode, digits: digits
+        )
+    }
+
+    /// The cost text of one message (metadata row / bubble): the amount parts plus "No data" for the unavailable ones.
+    static func messageText(estimatedCost: Double, nonUsdCost: NonUsdCost?) -> String {
+        let amounts = format(
+            parts: parts(estimatedCost: estimatedCost, nonUsdCost: nonUsdCost),
+            locale: AppLocalization.currentLocale
+        )
+        let unavailable = notAvailableParts(nonUsdCost).map { _ in L10n.tr("No data", table: .chat) }
+        return ([amounts].filter { !$0.isEmpty } + unavailable).joined(separator: " + ")
+    }
+
+    /// Conversation / summary total text (UI locale).
+    static func totalsText(usd: Double, nonUsdTotals: [String: Double], usdFormat: (Double) -> String = { format($0) }) -> String {
+        format(parts: parts(usd: usd, nonUsdTotals: nonUsdTotals), locale: AppLocalization.currentLocale, usd: usdFormat)
     }
 
     nonisolated static func formatPerMillion(_ perTokenPrice: Double) -> String {
         guard perTokenPrice > 0 else { return "" }
-        let perMillion = perTokenPrice * 1_000_000
-        return "$\(String(format: "%g", Double(String(format: "%.3g", perMillion))!))/M"
+        return "$\(perMillionDigitsText(perTokenPrice))/M"
+    }
+
+    /// The numeric part of a USD per-million price label: three significant digits, `%g` strips trailing zeros (integers carry no decimals). Non-USD takes its fraction digits from it.
+    nonisolated private static func perMillionDigitsText(_ perTokenPrice: Double) -> String {
+        String(format: "%g", Double(String(format: "%.3g", perTokenPrice * 1_000_000))!)
+    }
+
+    /// Per-million-token price in a given currency: USD keeps the "$" style above; other currencies use the same precision (as many
+    /// fraction digits as the USD label would show for this amount) in the system currency format (UI locale, standard symbol and symbol
+    /// position, see `NonUsdCurrencyFormatters`). An empty `currencyCode` means USD.
+    nonisolated static func formatPerMillion(_ perTokenPrice: Double, currencyCode: String?, locale: Locale) -> String {
+        let code = CostCalculator.normalizedCurrency(currencyCode)
+        guard code != CostCalculator.usd else { return formatPerMillion(perTokenPrice) }
+        guard perTokenPrice.isFinite, perTokenPrice >= 0 else { return "" }
+        let text = perMillionDigitsText(perTokenPrice)
+        guard let perMillion = Double(text) else { return "" }
+        // `%g` writes very small / very large values in exponent form (e.g. 1.23e-06); fraction digits = mantissa fraction digits - exponent.
+        let parts = text.lowercased().split(separator: "e", maxSplits: 1)
+        let mantissaDigits = parts[0].split(separator: ".", maxSplits: 1).dropFirst().first?.count ?? 0
+        let exponent = parts.count > 1 ? Int(parts[1]) ?? 0 : 0
+        return NonUsdCurrencyFormatters.shared.string(
+            from: perMillion, locale: locale, currencyCode: code, digits: max(0, mantissaDigits - exponent)
+        ) + "/M"
     }
 
     nonisolated static func parse(_ text: String) -> Double {
@@ -1238,6 +1386,19 @@ enum CostFormatter {
         }
         let number = formatter.string(from: NSNumber(value: value)) ?? "\(value)"
         return "$\(number)"
+    }
+}
+
+nonisolated struct NonUsdCurrencyFormatters: Sendable {
+    static let shared = NonUsdCurrencyFormatters()
+
+    func string(from amount: Double, locale: Locale, currencyCode: String, digits: Int) -> String {
+        amount.formatted(
+            FloatingPointFormatStyle<Double>.Currency(code: currencyCode, locale: locale)
+                .presentation(.standard)
+                .precision(.fractionLength(digits))
+                .rounded(rule: .toNearestOrAwayFromZero)
+        )
     }
 }
 

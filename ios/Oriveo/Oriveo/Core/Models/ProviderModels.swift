@@ -864,6 +864,10 @@ struct AIModel: Identifiable, Hashable, Codable, Sendable {
     var createdAt: TimeInterval? = nil
     var promptPrice: Double? = nil
     var completionPrice: Double? = nil
+    /// Currency of the unit prices (nil = USD): only filled at display time by `CatalogModelBuilder.connectionPriced`
+    /// from the price the connection selected. Not in `CodingKeys` and not filled on the persistence path: it follows
+    /// the connection's effective region and the catalog, so the price is selected again on every display.
+    var priceCurrencyCode: String? = nil
     var billingSku: String? = nil
     var pricingUnit: String = "per_token"
     var sourceSummary: ModelSourceSummary? = nil
@@ -893,6 +897,11 @@ struct AIModel: Identifiable, Hashable, Codable, Sendable {
     var toolCall: Bool? = nil
     var libraryAgentic: Bool? = nil
     var upstreamReasoningLevels: [String] = []
+    /// The input media the upstream declares per model (the `input_modalities` of a Codex subscription `/models`, verbatim).
+    /// **nil = the upstream declared nothing** (a Grok subscription `/models` does not send it, or a cold start has not fetched it yet);
+    /// the subscription input verdict then falls to the `model-facts` dictionary; non-nil is first-hand, and a medium missing from the list is not accepted.
+    /// Same discipline as `upstreamReasoningLevels`: **not in `CodingKeys`**, refilled on every catalog fetch.
+    var upstreamInputModalities: [String]? = nil
     /// Outbound protocol the upstream declares for this model. Nil means the upstream declared nothing,
     /// so the seed `apiBackend` applies, then chat completions
     /// (`CapabilityControlResolution.subscriptionFinalTransport`). Refilled on every catalog fetch.
