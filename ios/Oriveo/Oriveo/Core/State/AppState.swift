@@ -198,6 +198,8 @@ final class AppState {
     var memorySuggestions = MemorySuggestionController()
     /// The background memory candidate generation triggered by the latest fresh send; tests await it before reading the repository.
     @ObservationIgnored private(set) var memoryCandidateGeneration: Task<Void, Never>?
+    /// Test seam: when non-nil, `memoryCandidateRepository()` returns its result (simulates a candidate repository that cannot be opened).
+    @ObservationIgnored var memoryCandidateRepositoryOverride: (() -> MemoryCandidateRepository?)?
     var hasCompletedOnboarding: Bool {
         didSet { persistSessionIfNeeded() }
     }
@@ -257,6 +259,11 @@ final class AppState {
     var pendingComposerPrefill: String?
     /// A quote waiting to be attached to the composer (new conversation that carries the summary). ChatView consumes it when it appears and resets it to nil; nothing is sent automatically.
     var pendingComposerQuote: QuoteContext?
+    /// Set to true when the new-chat chain is empty but connections exist; ChatView opens the model picker when it sees this and resets it to false.
+    var pendingNewChatModelPicker = false
+    /// The connection a new chat that carries a summary is restricted to when the conversation's model cannot send: the draft takes its model from this
+    /// connection's new-chat chain and does not write last used. Cleared on a new chat and whenever last used is written (model pick, send).
+    var pendingNewChatProviderID: UUID?
     /// Instructions written in conversation settings while still a draft (no conversation yet), already normalized. On the first send they are written
     /// into the new object, saved, and then cleared; a new chat / switching conversations clears them. In memory only.
     var pendingDraftInstructions: String = ""
@@ -323,6 +330,10 @@ final class AppState {
     }
 
     var _testingBeforeConversationProjectionUpsert: ((Conversation) -> Void)?
+    /// A simulated write failure when the home realtime empty conversation is deleted.
+    var _testingEmptyConversationDeleteFailure: Error?
+    /// The home realtime empty conversation delete finished (after the callback): tests wait on it for the delete to end.
+    var _testingAfterEmptyConversationDelete: ((UUID, Bool) -> Void)?
 
     func _testingSetPendingChatAnchorUserMessageID(_ userMessageID: UUID, in conversationID: UUID) {
         pendingChatAnchorUserMessageIDs[conversationID] = userMessageID
@@ -347,6 +358,11 @@ final class AppState {
 
     func streamingReasoningDidChange(in conversationID: UUID) -> AnyPublisher<ReasoningStreamDelta, Never> {
         chatManager.streamingReasoningDidChange(in: conversationID)
+    }
+
+    /// The stream-finished signal for `conversationID` (completed, failed or stopped).
+    func streamingDidFinish(in conversationID: UUID) -> AnyPublisher<Void, Never> {
+        chatManager.streamingDidFinish(in: conversationID)
     }
 
     func streamingActivity(in conversationID: UUID) -> StreamActivityState? {
@@ -412,11 +428,15 @@ final class AppState {
     @ObservationIgnored private var providerLookup: [UUID: Provider] = [:]
     @ObservationIgnored private var conversationLookup: [UUID: Conversation] = [:]
     @ObservationIgnored private var boundPartitionUID: String
+    /// The launch time: the grace period of the launch orphan sweep counts from it (images written during this run are never candidates). Tests can inject it.
+    @ObservationIgnored let launchedAt: Date
     /// In-memory copy of the current partition's memory items: request snapshots read it, so the database is not read on the main thread.
     @ObservationIgnored let memoryItemsCache = MemoryItemsCache()
     /// Lowercased id of the memory item to edit after "This one is wrong"; the memory page takes it when it appears.
     var pendingMemoryEditItemID: String?
     private(set) var providersVersion: UInt = 0
+    /// The local connection list has been loaded by `loadSession`: until then a conversation whose connection cannot be found only counts as "loading", not deleted.
+    private(set) var providersLoaded = false
     private(set) var conversationsVersion: UInt = 0
     /// The model display name lookup shared by Home and folder conversation rows (built in the background, reused by
     /// fingerprint); see `ConversationModelLookupStore`.
@@ -429,8 +449,10 @@ final class AppState {
         sessionUID: String? = nil,
         providerSession: URLSession = .shared,
         toolCallMemory: ToolCallMemoryStore = .shared,
-        mcpServerDirectory: McpServerDirectory? = nil
+        mcpServerDirectory: McpServerDirectory? = nil,
+        launchedAt: Date = Date()
     ) {
+        self.launchedAt = launchedAt
         let isRunningTests = AppRuntime.isRunningTests
         self.mcpServerDirectory = mcpServerDirectory ?? McpServerDirectory()
         let requestedSessionUID = sessionUID
@@ -593,6 +615,7 @@ final class AppState {
     }
 
     func setActiveModel(providerID: UUID, modelID: String) {
+        pendingNewChatProviderID = nil
         if let provider = provider(for: providerID),
            let model = ProviderSelectionSnapshot.currentModel(storedModelID: modelID, in: provider) {
             let nextRef = LastUsedModelRef(
@@ -669,6 +692,11 @@ final class AppState {
     var localMonthlyCostByProvider: [UUID: Double] {
         _ = conversationsVersion
         return conversationManager.localMonthlyCostByProvider
+    }
+
+    var localMonthlyActivityByProvider: [UUID: ProviderMonthlyActivity] {
+        _ = conversationsVersion
+        return conversationManager.localMonthlyActivityByProvider
     }
 
     var draftConversation: Conversation? {
@@ -894,12 +922,25 @@ final class AppState {
     func replaceConversationProjectionOrThrow(
         _ replacement: [Conversation],
         persistedUID: String? = nil
-    ) throws {
+    ) async throws {
         let persistedUID = persistedUID ?? boundPartitionUID
+        guard boundPartitionUID == persistedUID else { throw BackupError.sessionChangedDuringImport }
+        // The whole-table write is queued on the persist queue so the main thread never waits on database IO.
         // The readback is a summary: the database holds the bodies, so all messages and attachments are
         // not loaded into memory again. Conversations passed in with full threads keep them, which saves
         // a hydrate when one is opened right away.
-        let refreshedProjection = try conversationRuntimeBridge.replaceAllConversations(replacement, uid: persistedUID)
+        let bridge = conversationRuntimeBridge
+        let queue = conversationPersistQueue
+        let refreshedProjection = try await withCheckedThrowingContinuation {
+            (continuation: CheckedContinuation<[Conversation], Error>) in
+            queue.async(qos: .userInitiated) {
+                continuation.resume(with: Result {
+                    try bridge.replaceAllConversations(replacement, uid: persistedUID)
+                })
+            }
+        }
+        // The partition was switched while the write ran: the memory of the new partition stays as it is.
+        guard boundPartitionUID == persistedUID else { return }
         let refreshedByID = Dictionary(uniqueKeysWithValues: refreshedProjection.map { ($0.id, $0) })
         conversations = replacement.compactMap { conversation in
             guard var refreshed = refreshedByID[conversation.id] else { return conversation }
@@ -990,6 +1031,50 @@ final class AppState {
     /// conversations are kept from coming back by `recoveryProjectionExcludingDeleted` instead.
     /// What this protects is message truncation, which has no journal and depends on the snapshot
     /// being fresh.
+    func deleteConversationIfEmpty(id: UUID, completion: @escaping @MainActor @Sendable (Bool) -> Void) {
+        guard let current = conversations.first(where: { $0.id == id }), current.messages.isEmpty else {
+            completion(false)
+            #if DEBUG
+            _testingAfterEmptyConversationDelete?(id, false)
+            #endif
+            return
+        }
+        let persistedUID = boundPartitionUID
+        chatManager.discardStreamingResources(for: id)
+        conversations.removeAll { $0.id == id }
+        completion(true)
+
+        let bridge = conversationRuntimeBridge
+        var injectedFailure: Error?
+        #if DEBUG
+        injectedFailure = _testingEmptyConversationDeleteFailure
+        #endif
+        conversationPersistQueue.async(qos: .userInitiated) { [injectedFailure] in
+            var deleted = false
+            Self.runConversationPersistWrite(op: "delete_empty_conversation") {
+                if let injectedFailure { throw injectedFailure }
+                deleted = try bridge.deleteConversationIfEmpty(id: id, uid: persistedUID)
+            }
+            // Not deleted: the stored conversation (if still there) is read back as is, so memory and the database agree.
+            let stored = deleted ? nil : (try? bridge.fetchConversationProjections(
+                ids: [id], uid: persistedUID, hydrateFilePayloads: false
+            ))?.first
+            Task { @MainActor [weak self, deleted, stored] in
+                guard let self else { return }
+                if self.partitionIsStillBound(persistedUID) {
+                    if deleted {
+                        self.persistRecoverySnapshotAfterDestructiveChange()
+                    } else if let stored, !self.conversations.contains(where: { $0.id == id }) {
+                        self.conversations.insert(stored, at: 0)
+                    }
+                }
+                #if DEBUG
+                self._testingAfterEmptyConversationDelete?(id, deleted)
+                #endif
+            }
+        }
+    }
+
     func persistRecoverySnapshotAfterDestructiveChange() {
         guard persistsSession else { return }
         let persistedUID = boundPartitionUID
@@ -1069,12 +1154,12 @@ final class AppState {
 
     func currentModel(for conversation: Conversation) -> AIModel? {
         guard let provider = provider(for: conversation.providerID) else { return nil }
-        if provider.kind == .relay {
-            // Relay: a removed conversation model is not replaced; an empty conversation model falls back to the last-used model.
-            if case .removed = conversationModelState(for: conversation) { return nil }
-            if conversation.modelID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                return fallbackModel(in: provider)
-            }
+        // Relay: a removed conversation model is not replaced.
+        if provider.kind == .relay, case .removed = conversationModelState(for: conversation) { return nil }
+        // An empty conversation model follows the new-chat chain (last used on this connection, then the catalog default,
+        // then the first available one); the connection's isDefault is not read.
+        if conversation.modelID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return fallbackModel(in: provider)
         }
         return ProviderSelectionSnapshot.currentModel(
             storedModelID: conversation.modelID,
@@ -1083,7 +1168,8 @@ final class AppState {
     }
 
     /// Conversation model state: a relay conversation whose stored model is no longer among the connection's
-    /// enabled models is `removed`.
+    /// enabled models is `removed`; an official conversation model that was retired or is missing from the
+    /// catalog is `retired` / `missing`.
     func conversationModelState(for conversation: Conversation) -> ProviderSelectionSnapshot.ConversationModelState {
         guard let provider = provider(for: conversation.providerID) else { return .resolved }
         return ProviderSelectionSnapshot.conversationModelState(
@@ -1094,18 +1180,42 @@ final class AppState {
 
     /// The model used by send / retry / continue / regenerate: nil when the conversation model was removed, and
     /// the caller returns immediately without sending any request.
+    /// A retired or missing official conversation model is nil as well; when an alias is available this returns the
+    /// enabled canonical model. When an official conversation model is judged available but cannot be resolved to a
+    /// model (catalog pending, bundled snapshot, ...) the stored id is sent as is: if the upstream really lacks the
+    /// model it answers 404, which beats silently swapping in the default model. Relays are unchanged.
     func sendableModel(for conversation: Conversation, provider: Provider) -> AIModel? {
-        if case .removed = conversationModelState(for: conversation) { return nil }
-        return currentModel(for: conversation) ?? provider.defaultModel
+        if conversationModelState(for: conversation).blocksSend { return nil }
+        let storedID = conversation.modelID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !storedID.isEmpty, provider.kind != .relay, provider.authMode != .subscription else {
+            return currentModel(for: conversation)
+        }
+        // Not through currentModel: when it cannot resolve the id it falls back to the default model by itself.
+        if let model = ProviderSelectionSnapshot.selectedModel(storedModelID: storedID, in: provider) {
+            return model
+        }
+        return AIModel(
+            id: storedID,
+            name: ModelResolver.displayName(forManualModelID: storedID, providerKind: provider.kind),
+            capabilities: [.text],
+            reasoningModeAvailable: false,
+            isAvailable: true,
+            isDefault: false,
+            priceTier: "",
+            summary: nil,
+            groupKey: nil,
+            groupName: nil
+        )
     }
 
-    /// Fallback model for a connection: a relay uses the last-used model (if it points at this connection and is enabled),
-    /// then the first enabled one; official providers keep taking the default model.
+    /// Fallback model for a connection = the new-chat chain limited to this connection: last used (if it points at this
+    /// connection and is available), then the catalog default, then the first available one; the connection's isDefault
+    /// is not read. A relay follows the same chain.
+    /// Credentials are not judged: an existing conversation with an empty modelID does not end up without a model
+    /// because a credential is missing; the missing-credential guard sits where a conversation is opened on a
+    /// specific connection and in the summary card layout.
     func fallbackModel(in provider: Provider) -> AIModel? {
-        guard provider.kind == .relay else {
-            return ProviderSelectionSnapshot.defaultModel(in: provider)
-        }
-        return ProviderSelectionSnapshot.relayFallbackModel(in: provider, lastUsedModelRef: lastUsedModelRef)
+        return ProviderSelectionSnapshot.newChatModel(in: provider, lastUsedModelRef: lastUsedModelRef)
     }
 
     func startOnboarding() {
@@ -1199,7 +1309,7 @@ final class AppState {
             messageID: messageID,
             fromNoteID: noteID
         )
-        navigation.attemptNavigate(to: .chat(conversationID: conversationID))
+        presentChat(conversationID: conversationID)
     }
 
     // MARK: - (v1 )
@@ -1313,15 +1423,17 @@ final class AppState {
         verifiedModelID: String? = nil
     ) {
         guard let provider = provider(for: providerID) else { return }
-        // After setup, select the model that was just verified; if it is not among the enabled models, fall back to the fallback model.
+        // After setup, select the model that was just verified; if it is not among the enabled models, navigate by the
+        // fallback model only and do not write last used.
         let verifiedModel = verifiedModelID.flatMap {
             ModelResolver.matchingModel(modelID: $0, in: provider.models, providerKind: provider.kind)
         }
-        guard let selectedModel = verifiedModel ?? fallbackModel(in: provider) else { return }
+        guard verifiedModel != nil || fallbackModel(in: provider) != nil else { return }
 
-        // Every successful setup selects the exact model produced by the verified persistence
-        // path before navigation changes. Entry points differ only in where the caller resumes.
-        setActiveModel(providerID: provider.id, modelID: selectedModel.id)
+        // Only a verified model writes last used; a fallback result only navigates.
+        if let verifiedModel {
+            setActiveModel(providerID: provider.id, modelID: verifiedModel.id)
+        }
 
         switch entryPoint {
         case .welcome:
@@ -1351,8 +1463,9 @@ final class AppState {
         let verifiedModel = verifiedModelID.flatMap {
             ModelResolver.matchingModel(modelID: $0, in: provider.models, providerKind: provider.kind)
         }
-        if let selectedModel = verifiedModel ?? fallbackModel(in: provider) {
-            setActiveModel(providerID: provider.id, modelID: selectedModel.id)
+        // Only a verified model writes last used; without one the fallback result is not written.
+        if let verifiedModel {
+            setActiveModel(providerID: provider.id, modelID: verifiedModel.id)
         }
         providerDetailNotice = ProviderDetailNotice(providerID: providerID, kind: .addedModels(addedModelCount))
         pendingNavigationPathCommitTask?.cancel()
@@ -1491,28 +1604,58 @@ final class AppState {
         startNewChat()
     }
 
-    func startNewChat(preferredProviderID: UUID? = nil, preferredModelID: String? = nil) {
+    /// Returns whether the chat page was opened; false when routed to the connection detail or to adding a connection.
+    @discardableResult
+    func startNewChat(
+        preferredProviderID: UUID? = nil,
+        preferredModelID: String? = nil,
+        recordsLastUsed: Bool = true
+    ) -> Bool {
         pendingDraftInstructions = ""
+        pendingNewChatModelPicker = false
+        pendingNewChatProviderID = nil
         directiveSuggestions.clearAll()
         memorySuggestions.clearAll()
-        let resolvedProvider: Provider
-        let resolvedModelID: String
 
+        let preferredModelID = preferredModelID.flatMap {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0
+        }
         if let pid = preferredProviderID, let p = providers.first(where: { $0.id == pid }) {
-            resolvedProvider = p
-            resolvedModelID = preferredModelID ?? fallbackModel(in: p)?.id ?? ""
-        } else if let active = activeModel {
-            resolvedProvider = active.provider
-            resolvedModelID = preferredModelID ?? active.model.id
-        } else {
-            selectedTab = .providers
-            openProviderSetup(from: .providers)
-            return
+            // A restricted connection does not cross over to another one. When this connection has no usable model, no
+            // conversation is opened with an empty id and last used is not written; the user goes to the connection
+            // detail to pick a model. A connection missing its credential cannot start one either, by the same rule
+            // as the summary card layout; the same goes when a model is specified (model row in the detail page,
+            // new conversation with a summary).
+            let isUsable = ProviderSelectionSnapshot.isUsableForNewChat(p)
+            guard isUsable, let modelID = preferredModelID ?? fallbackModel(in: p)?.id else {
+                selectedTab = .providers
+                openProviderDetail(providerID: p.id)
+                return false
+            }
+            // Last used is written only once both the connection and the model are settled. A call that does not record
+            // last used (with a summary and a conversation model that cannot send) only restricts to this connection,
+            // and the draft opens on this connection's new-chat chain.
+            if recordsLastUsed {
+                setActiveModel(providerID: p.id, modelID: modelID)
+            } else {
+                pendingNewChatProviderID = p.id
+            }
+        } else if activeModel == nil {
+            // A new conversation that is not tied to a connection does not rewrite last used: the chat page judges the
+            // retirement notice from the unrewritten last used; a call that carries a model but no connection does not
+            // write it either.
+            // Chain empty: with any connection, open the new-chat page and its model picker; only without one go to
+            // adding a connection.
+            guard !providers.isEmpty else {
+                selectedTab = .providers
+                openProviderSetup(from: .providers)
+                return false
+            }
+            pendingNewChatModelPicker = true
         }
 
-        setActiveModel(providerID: resolvedProvider.id, modelID: resolvedModelID)
-
         presentChat(conversationID: nil)
+        return true
     }
 
     /// Start a new conversation with the original conversation's provider/model and attach a reference to the
@@ -1538,12 +1681,28 @@ final class AppState {
         }
         guard let quote else { return false }
         pendingComposerQuote = quote
-        startNewChat(preferredProviderID: conversation.providerID, preferredModelID: conversation.modelID)
+        // Take the model the conversation can send with (same as send / retry) and write last used only when it can
+        // send; when it is retired, missing or removed, open on this connection's new-chat chain without writing it
+        // and without reading the connection's isDefault.
+        let sendable = provider(for: conversation.providerID).flatMap {
+            sendableModel(for: conversation, provider: $0)
+        }
+        guard startNewChat(
+            preferredProviderID: conversation.providerID,
+            preferredModelID: sendable?.id,
+            recordsLastUsed: sendable != nil
+        ) else {
+            // The chat page was not opened (missing credential, no usable model and routed to the detail page, ...): leave no quote behind.
+            pendingComposerQuote = nil
+            return false
+        }
         return true
     }
 
     func startNewChatWithProviderFallback() async {
-        if activeModel != nil || primaryProvider != nil || !providers.isEmpty {
+        // activeModel already includes the last tier across connections; with connections but no usable model,
+        // startNewChat opens the model picker; only without any connection does it go to adding one.
+        if activeModel != nil || !providers.isEmpty {
             startNewChat()
             return
         }
@@ -1551,22 +1710,19 @@ final class AppState {
         openProviderSetup(from: .providers)
     }
 
-    func ensureActiveModelWithProviderFallback() async -> Bool {
+    /// Makes sure activeModel is ready. Returns true when it is ready to send; false means the user was routed to the
+    /// model picker (connections exist but the chain is empty) or to provider setup, and the caller should abort the follow-up action.
+    /// - Parameter prefillOnModelPicker: text carried into the new-chat composer when routed to the model picker
+    ///   (the home input draft); it is never sent automatically.
+    func ensureActiveModelWithProviderFallback(prefillOnModelPicker: String? = nil) async -> Bool {
         if activeModel != nil {
             return true
         }
 
-        if let primary = primaryProvider,
-           let defaultModel = fallbackModel(in: primary) {
-            setActiveModel(providerID: primary.id, modelID: defaultModel.id)
-            return true
-        }
-
-        if !providers.isEmpty,
-           let any = providers.first,
-           let defaultModel = fallbackModel(in: any) {
-            setActiveModel(providerID: any.id, modelID: defaultModel.id)
-            return true
+        // activeModel is already the new-chat chain across all connections; when it is empty and connections exist, open the model picker.
+        if !providers.isEmpty {
+            startNewChat(withPrefilledText: prefillOnModelPicker ?? "")
+            return false
         }
 
         selectedTab = .providers
@@ -1579,6 +1735,12 @@ final class AppState {
         guard provider(for: providerID)?.kind != .relay else { return }
         providerManager.setDefaultModel(modelID: modelID, for: providerID)
         setActiveModel(providerID: providerID, modelID: modelID)
+    }
+
+    /// Restores the default model when a delete is undone: only the connection default is restored and last used is not written.
+    func restoreDefaultModel(modelID: String, for providerID: UUID) {
+        guard provider(for: providerID)?.kind != .relay else { return }
+        providerManager.setDefaultModel(modelID: modelID, for: providerID)
     }
 
     @discardableResult
@@ -1676,22 +1838,6 @@ final class AppState {
         conversationManager.updateDraftText(text, in: conversationID)
     }
 
-    func prepareConversationSelectionForSend(
-        conversationID: UUID?,
-        providerID: UUID,
-        modelID: String?,
-        needsRepair: Bool
-    ) {
-        guard needsRepair,
-              let conversationID,
-              let modelID,
-              !modelID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return
-        }
-
-        selectModel(modelID: modelID, providerID: providerID, for: conversationID)
-    }
-
     /// Called when the composer's send is tapped: non-nil means this turn's attachments do not fit, so do not send and do not clear the composer.
     func composerAttachmentOverLimit(
         text: String,
@@ -1738,7 +1884,9 @@ final class AppState {
         in conversationID: UUID?,
         generationParameterDraftSessionID: UUID? = nil,
         capabilitySelection: ChatCapabilitySelection = ChatCapabilitySelection(),
-        evaluatesDirectiveSuggestion: Bool = true
+        evaluatesDirectiveSuggestion: Bool = true,
+        /// A voice conversation turn passes .voice; nil means a normal send.
+        delivery: ContextDelivery? = nil
     ) async -> ChatSendOutcome {
         let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedText.isEmpty || !attachments.isEmpty else { return .refused }
@@ -1753,6 +1901,10 @@ final class AppState {
             }
             let newConversation = createConversationForFirstSend(provider: active.provider, modelID: active.model.id)
             targetConversationID = newConversation.id
+            // First sentence of a voice conversation: hand the new conversation id to the voice session before the chat page
+            // opens (same beat as the realtime makeConversation), so the home voice bar does not keep rendering "no
+            // conversation" once the chat page is already open.
+            if delivery == .voice { VoiceSendContext.onConversationCreated?(targetConversationID) }
 
             presentChat(conversationID: targetConversationID)
         }
@@ -1823,37 +1975,58 @@ final class AppState {
             useMemory: useMemory,
             capabilitySelection: capabilitySelection
         )
+        // When mode=tool was decided but the request does not actually carry propose_memory, this turn runs as fallback, at most once per message.
+        let proposeFallback = ProposeFallbackOnce()
+        let proposeContext = memoryMode == .tool
+            ? proposeMemoryContext(
+                text: text, conversationID: targetConversationID, useMemory: useMemory, fallback: proposeFallback
+            )
+            : nil
+        // If the repository cannot be opened no tool is carried: this turn runs as fallback.
+        let sentMemoryMode: MemoryPropose.Mode = memoryMode == .tool && proposeContext == nil ? .fallback : memoryMode
         let outcome = await chatManager.sendMessageOutcome(
             text,
             attachments: attachments,
             quoteContext: quoteContext,
             in: targetConversationID,
             capabilitySelection: capabilitySelection,
-            proposeMemory: memoryMode == .tool
-                ? proposeMemoryContext(text: text, conversationID: targetConversationID, useMemory: useMemory)
-                : nil
+            proposeMemory: proposeContext,
+            delivery: delivery
         )
         guard case .sent(let userMessageID) = outcome else { return outcome }
+        // Every actual send (the first message of a new conversation and existing conversations) writes last used: the connection and model sent with this time.
+        if let sentConversation = conversation(for: targetConversationID),
+           let sentProvider = provider(for: sentConversation.providerID),
+           let sentModel = sendableModel(for: sentConversation, provider: sentProvider) {
+            setActiveModel(providerID: sentProvider.id, modelID: sentModel.id)
+        }
         // Only a freshly sent message is evaluated: edit-resend and automatic sends from guided flows are not; resend / regenerate do not come through here.
-        guard evaluatesDirectiveSuggestion, !isEditResend, memoryMode != .none else { return .sent(targetConversationID) }
+        guard evaluatesDirectiveSuggestion, !isEditResend, sentMemoryMode != .none else { return .sent(targetConversationID) }
+        // The fallback already ran during the send because no tool was carried: do not override its result in tool mode here.
+        guard proposeFallback.markSettled() else { return .sent(targetConversationID) }
         // Routing: memory -> memory bar; conversationInstruction -> instruction bar; none -> nothing.
-        // With mode=tool the v1 memory routing does not run and the instruction bar works as before.
+        // With mode=tool neither the v1 memory routing nor the lexical instruction bar runs; the instruction bar comes only from the
+        // model's instruct. In the other modes the lexical instruction bar is gated on the recognizer language being one of the suggestion languages.
         let suggestion = MemoryIntent.classify(text).suggestion
         memorySuggestions.reset(conversationID: targetConversationID)
-        directiveSuggestions.evaluate(
-            text: text,
-            messageID: userMessageID,
-            conversationID: targetConversationID,
-            instructions: conversation(for: targetConversationID)?.instructions ?? "",
-            suggestion: suggestion
-        )
+        if sentMemoryMode == .tool {
+            directiveSuggestions.beginToolTurn(messageID: userMessageID, conversationID: targetConversationID)
+        } else {
+            directiveSuggestions.evaluate(
+                text: text,
+                messageID: userMessageID,
+                conversationID: targetConversationID,
+                instructions: conversation(for: targetConversationID)?.instructions ?? "",
+                suggestion: suggestion
+            )
+        }
         generateMemoryCandidate(
             text: text,
             messageID: userMessageID,
             assistantMessageID: assistantMessageID(after: userMessageID, in: targetConversationID),
             conversationID: targetConversationID,
             suggestion: suggestion,
-            mode: memoryMode,
+            mode: sentMemoryMode,
             useMemory: useMemory
         )
         return .sent(targetConversationID)
@@ -1867,16 +2040,15 @@ final class AppState {
     }
 
     /// The propose_memory mode for this send.
-    private func memoryProposeMode(
+    func memoryProposeMode(
         conversation: Conversation,
         freshSend: Bool,
         useMemory: Bool,
         capabilitySelection: ChatCapabilitySelection
     ) -> MemoryPropose.Mode {
         let provider = provider(for: conversation.providerID)
-        let model = provider.flatMap {
-            ProviderSelectionSnapshot.currentModel(storedModelID: conversation.modelID, in: $0)
-        }
+        // The same model resolution as sending.
+        let model = provider.flatMap { sendableModel(for: conversation, provider: $0) }
         // Relay web search uses the same criterion as ChatManager when sending (switch + default layer + user override), not the composer's raw selection.
         var webSearchEnabled = capabilitySelection.webSearchEnabled
         if let provider, let model, ProviderForm.of(provider) == .relay {
@@ -1884,7 +2056,7 @@ final class AppState {
                 provider: provider, model: model, conversationID: conversation.id, skillID: conversation.skillId
             )
         }
-        return ProposeMemoryRuntime.shared.mode(
+        let mode = ProposeMemoryRuntime.shared.mode(
             purpose: .chat,
             freshSend: freshSend,
             memoryEnabled: useMemory,
@@ -1897,13 +2069,28 @@ final class AppState {
             } ?? false,
             toolCallMemory: chatManager.toolCallMemory
         )
+        // The MiniMax web route (Anthropic messages web recipe) sends the request without clientTools: judged with the same
+        // criterion as the outbound dispatch, so the answer is fallback.
+        // Gemini Interactions and llama.cpp native /completion are already excluded by ProposeMemoryRuntime's tool decision.
+        if mode == .tool, provider?.kind == .miniMax, let model,
+           MiniMaxService.exactAnthropicWebRecipe(
+               modelID: model.id, requested: capabilitySelection.typedPreferences?.web == .automatic
+           ) != nil {
+            return .fallback
+        }
+        return mode
     }
 
     /// The propose context handed to ChatManager for mode=tool: the first candidate created becomes this turn's bar;
-    /// if the first leg is rejected and degrades, this turn runs the fallback (v1 path) and the bar is attached to the same assistant message.
-    /// If the repository cannot be opened, no tool is carried.
-    private func proposeMemoryContext(text: String, conversationID: UUID, useMemory: Bool) -> ProposeMemoryTurnContext? {
+    /// if the first leg is rejected and degrades, or the request did not actually carry propose_memory, this turn runs the
+    /// fallback (v1 path) and the bar is attached to the same assistant message, at most once per message.
+    /// If the repository cannot be opened, no tool is carried. instruct attaches only to the latest user message of the
+    /// conversation; a late one is dropped.
+    func proposeMemoryContext(
+        text: String, conversationID: UUID, useMemory: Bool, fallback: ProposeFallbackOnce? = nil
+    ) -> ProposeMemoryTurnContext? {
         guard let repository = memoryCandidateRepository() else { return nil }
+        let fallback = fallback ?? ProposeFallbackOnce()
         return ProposeMemoryTurnContext(
             repository: repository,
             userText: text,
@@ -1913,7 +2100,27 @@ final class AppState {
                     candidate, messageID: assistantMessageID, conversationID: conversationID
                 )
             },
+            onInstruct: { [weak self] sentence, userMessageID in
+                guard let self, self.latestUserMessageID(in: conversationID) == userMessageID else { return }
+                self.directiveSuggestions.offerInstruct(
+                    sentence: sentence,
+                    messageID: userMessageID,
+                    conversationID: conversationID,
+                    instructions: self.conversation(for: conversationID)?.instructions ?? ""
+                )
+            },
             onDegraded: { [weak self] userMessageID, assistantMessageID in
+                guard fallback.begin() else { return }
+                // Ran before the send returned (the request carried no tool): do the bar clearing that would have followed the send.
+                if !fallback.settled { self?.memorySuggestions.reset(conversationID: conversationID) }
+                // Degrade as fallback: the lexical instruction bar (language-gated) plus the v1 memory path.
+                self?.directiveSuggestions.evaluate(
+                    text: text,
+                    messageID: userMessageID,
+                    conversationID: conversationID,
+                    instructions: self?.conversation(for: conversationID)?.instructions ?? "",
+                    suggestion: MemoryIntent.classify(text).suggestion
+                )
                 self?.generateMemoryCandidate(
                     text: text,
                     messageID: userMessageID,
@@ -1940,6 +2147,11 @@ final class AppState {
     /// The last assistant message of this conversation.
     private func latestAssistantMessageID(in conversationID: UUID) -> UUID? {
         conversation(for: conversationID)?.messages.last(where: { $0.role == .assistant })?.id
+    }
+
+    /// The last user message of this conversation.
+    private func latestUserMessageID(in conversationID: UUID) -> UUID? {
+        conversation(for: conversationID)?.messages.last(where: { $0.role == .user })?.id
     }
 
     /// After a fresh user send, generate a memory candidate in the background; failures are only logged.
@@ -2119,11 +2331,42 @@ final class AppState {
     /// Create the conversation for the first send: pending instructions are written into the object first, then saved, and then cleared.
     @discardableResult
     func createConversationForFirstSend(provider: Provider, modelID: String) -> Conversation {
-        var conversation = createConversation(provider: provider, modelID: modelID)
-        conversation.instructions = ConversationInstructions.normalize(pendingDraftInstructions)
+        let conversation = conversationForFirstSend(provider: provider, modelID: modelID)
         pendingDraftInstructions = ""
         upsertConversationProjection(conversation)
         return conversation
+    }
+
+    /// The conversation the first send will create (not saved): the opening plan of the home realtime session is assembled from its defaults.
+    func conversationForFirstSend(provider: Provider, modelID: String) -> Conversation {
+        var conversation = createConversation(provider: provider, modelID: modelID)
+        conversation.instructions = ConversationInstructions.normalize(pendingDraftInstructions)
+        return conversation
+    }
+
+    /// Creates the conversation before the home realtime session's first message is saved: the model is the one currently
+    /// shown in the home pill, and the chat page opens right away (same as a first send from home).
+    func createConversationForRealtimeVoice() -> UUID? {
+        guard let active = activeModel else { return nil }
+        let conversation = createConversationForFirstSend(provider: active.provider, modelID: active.model.id)
+        // Last used was already written when the call started (recordLastUsedForRealtimeVoice), so it is not written again here.
+        presentChat(conversationID: conversation.id)
+        return conversation.id
+    }
+
+    /// Starting a realtime call is actual use: an existing conversation writes its sendable model and writes nothing when
+    /// it cannot send; the home page (conversation id nil) writes the model currently selected in the pill.
+    func recordLastUsedForRealtimeVoice(conversationID: UUID?) {
+        guard let conversationID else {
+            guard let active = activeModel else { return }
+            setActiveModel(providerID: active.provider.id, modelID: active.model.id)
+            return
+        }
+        guard let conversation = conversation(for: conversationID),
+              let provider = provider(for: conversation.providerID),
+              let model = sendableModel(for: conversation, provider: provider)
+        else { return }
+        setActiveModel(providerID: provider.id, modelID: model.id)
     }
 
     private func createConversation(provider: Provider, modelID: String) -> Conversation {
@@ -2146,7 +2389,33 @@ final class AppState {
         )
     }
 
-    func loadSession(boundTo uid: String? = nil) {
+    /// Starts this partition's attachment sweep (sidecar files plus orphan images). The grace period counts from the launch time,
+    /// so files written during this run are never candidates.
+    @discardableResult
+    func startAttachmentCleanup(uid: String) -> Task<Void, Never> {
+        let bridge = conversationRuntimeBridge
+        let imageReferences = try? bridge.imageReferenceReader(uid: uid)
+        let sweepLaunchedAt = launchedAt
+        let queue = conversationPersistQueue
+        return Task.detached(priority: .utility) {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                queue.async(qos: .utility) {
+                    try? bridge.pruneAttachmentFiles(uid: uid, launchedAt: sweepLaunchedAt)
+                    continuation.resume()
+                }
+            }
+            guard let imageReferences else { return }
+            await ImageOrphanSweeper.sweepOnLaunch(
+                partitionUID: uid,
+                references: imageReferences,
+                launchedAt: sweepLaunchedAt
+            )
+        }
+    }
+
+    /// Loads the current partition's data into memory.
+    /// - Parameter startsAttachmentCleanup: whether to start this partition's attachment sweep here (sidecar files plus orphan images).
+    func loadSession(boundTo uid: String? = nil, startsAttachmentCleanup: Bool = true) {
         resetTransientNoteContext()
         preferences = AppPreferencesStore.load()
         let activeUID = uid ?? AppSessionStore.activeUID
@@ -2235,6 +2504,9 @@ final class AppState {
         conversationPersistQueue.async(qos: .utility) {
             try? journalBridge.pruneDeletionJournal(uid: journalUID)
         }
+        if startsAttachmentCleanup {
+            startAttachmentCleanup(uid: activeUID)
+        }
 
         migrateProvidersToDeterministicIDsIfNeeded(uid: activeUID)
         migrateLlamaCppConnectionsToChatChannelIfNeeded(uid: activeUID)
@@ -2246,6 +2518,7 @@ final class AppState {
         }
 
         skillManager.reloadCacheForCurrentAccount()
+        providersLoaded = true
 
         if !providers.isEmpty {
             Task {
@@ -2446,6 +2719,7 @@ final class AppState {
 
     /// The memory candidate repository of the current partition; once confirmed, a candidate becomes an item through the same partition's item repository. nil when the database cannot be opened.
     func memoryCandidateRepository() -> MemoryCandidateRepository? {
+        if let memoryCandidateRepositoryOverride { return memoryCandidateRepositoryOverride() }
         guard let items = memoryItemRepository() else { return nil }
         return MemoryCandidateRepository.forPartition(sessionPartitionUID, items: items)
     }
@@ -2529,13 +2803,13 @@ final class AppState {
         let (resolvedProviderID, resolvedModelID) = resolveModelForSkill(skill)
 
         guard let providerID = resolvedProviderID,
-              let provider = provider(for: providerID) else {
+              let provider = provider(for: providerID),
+              let modelID = resolvedModelID else {
+            // No usable provider: only show a prompt, do not force a navigation.
             ToastManager.shared.show(L10n.tr("You need at least one AI provider to start a conversation."))
             showSkillProviderPrompt = true
             return
         }
-
-        let modelID = resolvedModelID ?? fallbackModel(in: provider)?.id ?? ""
 
         var conversation = createConversation(provider: provider, modelID: modelID)
         conversation.title = skill.localizedName
@@ -2554,8 +2828,12 @@ final class AppState {
         //    not a UUID).
         if let suggestedModelId = skill.suggestedModelId,
            let suggestedProviderId = skill.suggestedProviderId {
-            if let provider = providers.first(where: { $0.kind.rawValue == suggestedProviderId }),
-               ProviderSelectionSnapshot.currentModel(storedModelID: suggestedModelId, in: provider) != nil {
+            // Drop connections that are not usable first, then match by kind (same criterion as the new-chat chain).
+            if let provider = providers.first(where: {
+                ProviderSelectionSnapshot.isUsableForNewChat($0) && $0.kind.rawValue == suggestedProviderId
+            }),
+               // Only an enabled and available model counts: not enabled, retired or absent from the catalog are all skipped.
+               ProviderSelectionSnapshot.availableEnabledModel(storedModelID: suggestedModelId, in: provider) != nil {
                 return (provider.id, suggestedModelId)
             }
         }
@@ -2574,15 +2852,19 @@ final class AppState {
     }
 
     private func bestModelForCapability(_ hint: String) -> (providerID: UUID, modelID: String)? {
+        // The current connection first (the one the new-chat chain picked), then the connection list order; unusable connections are skipped.
+        let usable = providers.filter { ProviderSelectionSnapshot.isUsableForNewChat($0) }
         let sortedProviders: [Provider]
         if let active = activeModel {
-            sortedProviders = [active.provider] + providers.filter { $0.id != active.provider.id }
+            sortedProviders = [active.provider] + usable.filter { $0.id != active.provider.id }
         } else {
-            sortedProviders = providers
+            sortedProviders = usable
         }
 
         for provider in sortedProviders {
-            for model in provider.models {
+            // The capability-match tier also requires an available, enabled model first.
+            let unavailable = ProviderSelectionSnapshot.unavailableEnabledModelIDs(in: provider)
+            for model in provider.models where !unavailable.contains(model.id) {
                 let matched: Bool
                 switch hint {
                 case "reasoning":
@@ -2629,4 +2911,25 @@ struct ProviderDetailNotice: Equatable {
 
     let providerID: UUID
     let kind: Kind
+}
+
+/// The fallback gate of one fresh mode=tool send: degradation and "the request did not carry propose_memory" share it, so the fallback runs at most once per message;
+/// `settled` records whether the post-send suggestion-bar decision has already run (when the fallback ran first, that decision is no longer overridden by tool).
+@MainActor
+final class ProposeFallbackOnce {
+    private(set) var ran = false
+    private(set) var settled = false
+
+    /// Returns true on the first call.
+    func begin() -> Bool {
+        guard !ran else { return false }
+        ran = true
+        return true
+    }
+
+    /// The post-send decision starts: returns false when the fallback has already run.
+    func markSettled() -> Bool {
+        settled = true
+        return !ran
+    }
 }
