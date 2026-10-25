@@ -2251,7 +2251,7 @@ final class ProviderManager {
               let model = provider.models.first(where: { $0.id == modelID }) else { return }
         RelayNegativeCache.shared.clear(
             connectionID: providerID.uuidString, modelID: modelID,
-            transport: RelayEndpointResolver.effectiveTransport(provider: provider, model: model).rawValue,
+            transport: RelayFirstSendTransport.current(provider: provider, model: model).rawValue,
             kinds: [kind]
         )
     }
@@ -2278,10 +2278,10 @@ final class ProviderManager {
             overrides.sources[.reasoningLevels] = stored == nil ? nil : .user
             model.relayCapabilityOverrides = overrides.isEmpty ? nil : overrides
         }
-        // When the user changes the level override, clear the level-rejection record of the model's current effective protocol.
+        // When the user changes the level override, clear the level-rejection record of the model's first-send protocol.
         RelayNegativeCache.shared.clear(
             connectionID: providerID.uuidString, modelID: modelID,
-            transport: RelayEndpointResolver.effectiveTransport(provider: provider, model: model).rawValue,
+            transport: RelayFirstSendTransport.current(provider: provider, model: model).rawValue,
             kinds: RelayReasoningTier.kinds
         )
     }
