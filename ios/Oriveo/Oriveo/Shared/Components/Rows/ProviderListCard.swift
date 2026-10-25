@@ -3,6 +3,8 @@ import SwiftUI
 struct ProviderListCard: View {
     let provider: Provider
     var monthlyEstimatedCost: Double = 0
+    /// This month's non-USD amounts (currency code to original amount), shown apart from USD without conversion.
+    var monthlyNonUsdCosts: [String: Double] = [:]
     var providerBalance: ProviderBalance? = nil
     @Environment(\.colorScheme) private var colorScheme
 
@@ -26,6 +28,7 @@ struct ProviderListCard: View {
         ProviderListCardPresentation.trailingAmount(
             providerKind: provider.kind,
             monthlyEstimatedCost: monthlyEstimatedCost,
+            monthlyNonUsdCosts: monthlyNonUsdCosts,
             providerBalance: providerBalance
         )
     }
@@ -215,6 +218,7 @@ enum ProviderListCardPresentation {
     static func trailingAmount(
         providerKind: ProviderKind,
         monthlyEstimatedCost: Double,
+        monthlyNonUsdCosts: [String: Double] = [:],
         providerBalance: ProviderBalance?
     ) -> ProviderListTrailingAmount? {
         // Providers that expose a prepaid balance show what is left; everyone else shows
@@ -226,11 +230,15 @@ enum ProviderListCardPresentation {
                 isZero: providerBalance?.total == 0
             )
         }
-        let formatted = CostFormatter.format(monthlyEstimatedCost)
+        let formatted = CostFormatter.totalsText(
+            usd: monthlyEstimatedCost,
+            nonUsdTotals: monthlyNonUsdCosts,
+            usdFormat: { compactCurrencyText(CostFormatter.format($0)) }
+        )
         return ProviderListTrailingAmount(
             label: .usage,
-            text: formatted.isEmpty ? "$0" : compactCurrencyText(formatted),
-            isZero: monthlyEstimatedCost <= CostFormatter.costEpsilon
+            text: formatted.isEmpty ? "$0" : formatted,
+            isZero: monthlyEstimatedCost <= CostFormatter.costEpsilon && monthlyNonUsdCosts.isEmpty
         )
     }
 

@@ -11,7 +11,11 @@ extension AIModel {
         guard promptPrice != nil || completionPrice != nil else { return "" }
         guard prompt > 0 || completion > 0 else { return "" }
 
-        return CostFormatter.formatPerMillion(prompt > 0 ? prompt : completion)
+        return CostFormatter.formatPerMillion(
+            prompt > 0 ? prompt : completion,
+            currencyCode: priceCurrencyCode,
+            locale: AppLocalization.currentLocale
+        )
     }
 
     func visibleMetadataCapabilities(
@@ -61,9 +65,11 @@ struct ModelCapabilityEvidencePresentation {
             .filter { $0 != .automatic }
             .map { "reasoning_level/\($0.rawValue)" }
     )
-    private static let governedKeys = reasoningKeys.union([
-        "tool_call", "web_search", "vision_input",
-    ])
+    private static let toolCallKey = "tool_call"
+    private static let webSearchKey = "web_search"
+    private static let governedKeys = reasoningKeys
+        .union([toolCallKey, webSearchKey])
+        .union(CapabilityEvidenceFacade.inputCapabilityKeys)
 
     let projection: CapabilityEvidenceProjection
     private let webControlAvailable: Bool
@@ -139,7 +145,9 @@ struct ModelCapabilityEvidencePresentation {
         let webVerdict = CapabilityControlResolution.resolve(
             provider: provider, model: model, capability: "web"
         )
-        webControlAvailable = webVerdict.isAvailable
+        // The web badge / filter only accepts auto_available: managed_only, custom_only, unknown and
+        // unavailable never light it up.
+        webControlAvailable = webVerdict.state == .autoAvailable
         relayWebSupported = ProviderForm.of(provider) == .relay
             ? RelayWebProbe.fact(provider: provider, model: model, preference: nil)?.truth == .supported
             : nil
@@ -158,22 +166,32 @@ struct ModelCapabilityEvidencePresentation {
             if isSubscriptionLink { return reasoningControlAvailable }
             return reasoningControlAvailable && Self.reasoningKeys.contains { permitsDisplay($0) }
         case .image:
-            return permitsDisplay("vision_input")
+            return permitsInputDisplay(CapabilityEvidenceFacade.visionInputKey)
+        case .file:
+            return permitsInputDisplay(CapabilityEvidenceFacade.fileInputKey)
+        case .video:
+            return permitsInputDisplay(CapabilityEvidenceFacade.videoInputKey)
         case .web:
             if let relayWebSupported { return relayWebSupported }
             if isSubscriptionLink { return webControlAvailable }
-            return webControlAvailable && permitsDisplay("web_search")
+            return webControlAvailable && permitsDisplay(Self.webSearchKey)
         default:
             return true
         }
     }
 
     func permitsToolCallDisplay() -> Bool {
-        if let resolution = projection.resolution(for: "tool_call") {
+        if let resolution = projection.resolution(for: Self.toolCallKey) {
             if resolution.support == .supported { return true }
             if resolution.support == .unsupported { return false }
         }
         return toolCallDecision.verdict == true
+    }
+
+    /// Input-capability badges (image / file / video) only follow the projection's `visible`:
+    /// unknown, unavailable, or missing projections never light up.
+    private func permitsInputDisplay(_ key: String) -> Bool {
+        projection.inputProjection(for: key)?.visible == true
     }
 
     private func permitsDisplay(_ key: String) -> Bool {
@@ -709,6 +727,53 @@ enum RelayKindAssetResolver {
         }
     }
 }
+struct ModelMetadataInlineStrip: View {
+    let model: AIModel
+    let provider: Provider
+    let capabilityEvidenceRevision: UInt64
+    var maxCapabilities: Int = 3
+    var prominentPrice: Bool = false
+    var compact: Bool = false
+    var metadataGeneration: UInt64 = MetadataClient.sharedSnapshotGeneration()
+
+    private func projectedCapabilities(at revision: UInt64) -> [ModelCapability] {
+        _ = revision
+        return model.visibleMetadataCapabilities(
+            provider: provider,
+            maxCapabilities: maxCapabilities
+        )
+    }
+
+    var body: some View {
+        let visibleCapabilities = projectedCapabilities(at: capabilityEvidenceRevision)
+        let price = CatalogModelBuilder.connectionPriced(model, provider: provider).normalizedPriceTier
+        if !price.isEmpty || !visibleCapabilities.isEmpty {
+            ViewThatFits(in: .horizontal) {
+                metadataRow(capabilities: visibleCapabilities, price: price)
+                metadataRow(capabilities: Array(visibleCapabilities.prefix(max(1, maxCapabilities - 1))), price: price)
+                metadataRow(capabilities: Array(visibleCapabilities.prefix(1)), price: price)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func metadataRow(capabilities: [ModelCapability], price: String) -> some View {
+        HStack(spacing: OriveoTheme.Spacing.sm) {
+            if !price.isEmpty {
+                Text(price)
+                    .font(OriveoTheme.Typography.footnote.weight(.medium))
+                    .foregroundStyle(prominentPrice ? OriveoTheme.Palette.primary : OriveoTheme.Palette.textSecondary)
+                    .fixedSize()
+            }
+
+            if !capabilities.isEmpty {
+                HeroModelCapabilityStrip(capabilities: capabilities, compact: compact)
+                    .fixedSize()
+            }
+        }
+    }
+}
+
 struct ModelListMetadataRow: View {
     let model: AIModel
     let provider: Provider
@@ -721,9 +786,10 @@ struct ModelListMetadataRow: View {
     var showPrice: Bool = true
     var statusTitle: String? = nil
     var statusTone: StatusTone = .primary
+    var metadataGeneration: UInt64 = MetadataClient.sharedSnapshotGeneration()
 
-    private var normalizedPrice: String {
-        model.normalizedPriceTier
+    private func connectionPriceTier() -> String {
+        showPrice ? CatalogModelBuilder.connectionPriced(model, provider: provider).normalizedPriceTier : ""
     }
 
     private var rowSpacing: CGFloat {
@@ -740,18 +806,19 @@ struct ModelListMetadataRow: View {
 
     var body: some View {
         let visibleCapabilities = resolvedCapabilities(at: capabilityEvidenceRevision)
-        let includePrice = showPrice && !normalizedPrice.isEmpty
+        let price = connectionPriceTier()
+        let includePrice = !price.isEmpty
 
         if statusTitle != nil || includePrice || !visibleCapabilities.isEmpty {
             ViewThatFits(in: .horizontal) {
-                metadataRow(capabilities: visibleCapabilities, includePrice: includePrice)
+                metadataRow(capabilities: visibleCapabilities, price: price)
 
                 if includePrice, visibleCapabilities.count > 2 {
-                    metadataRow(capabilities: Array(visibleCapabilities.prefix(2)), includePrice: true)
+                    metadataRow(capabilities: Array(visibleCapabilities.prefix(2)), price: price)
                 }
 
-                metadataRow(capabilities: Array(visibleCapabilities.prefix(1)), includePrice: includePrice)
-                metadataRow(capabilities: visibleCapabilities, includePrice: false)
+                metadataRow(capabilities: Array(visibleCapabilities.prefix(1)), price: price)
+                metadataRow(capabilities: visibleCapabilities, price: "")
 
                 if let statusTitle {
                     StatusPill(title: statusTitle, tone: statusTone, compact: true)
@@ -759,14 +826,14 @@ struct ModelListMetadataRow: View {
                 }
 
                 if includePrice {
-                    priceLabel
+                    priceLabel(price)
                 }
             }
         }
     }
 
     @ViewBuilder
-    private func metadataRow(capabilities: [ModelCapability], includePrice: Bool) -> some View {
+    private func metadataRow(capabilities: [ModelCapability], price: String) -> some View {
         HStack(spacing: rowSpacing) {
             if let statusTitle {
                 StatusPill(title: statusTitle, tone: statusTone, compact: true)
@@ -778,19 +845,19 @@ struct ModelListMetadataRow: View {
                     .fixedSize(horizontal: true, vertical: false)
             }
 
-            if includePrice, !normalizedPrice.isEmpty {
+            if !price.isEmpty {
                 if !capabilities.isEmpty || statusTitle != nil {
                     Spacer(minLength: compact ? 8 : 12)
                 }
 
-                priceLabel
+                priceLabel(price)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var priceLabel: some View {
-        Text(normalizedPrice)
+    private func priceLabel(_ price: String) -> some View {
+        Text(price)
             .font(compact ? OriveoTheme.Typography.caption.weight(.medium) : OriveoTheme.Typography.footnote.weight(.medium))
             .monospacedDigit()
             .foregroundStyle(prominentPrice ? OriveoTheme.Palette.primary : OriveoTheme.Palette.textTertiary)
