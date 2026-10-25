@@ -63,7 +63,7 @@ private func qwenRequestBody(from request: URLRequest) -> Data? {
     return data.isEmpty ? nil : data
 }
 
-@Suite("Qwen Service", .serialized)
+@Suite("Qwen Service", .serialized, .sharedProcessState)
 struct QwenServiceTests {
 
     @Test("Sync Provider Uses Metadata Only Catalog")

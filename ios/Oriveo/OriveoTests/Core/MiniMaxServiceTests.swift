@@ -122,13 +122,14 @@ private func loadMiniMaxContinuationMetadata() async throws {
     """)
 }
 
-private func loadMiniMaxWebMetadata() async throws {
+private func loadMiniMaxWebMetadata(visionWireFamily: String? = nil) async throws {
     await MetadataClient.shared.resetForTesting()
+    let vision = visionWireFamily.map { #","vision_input":{"state":"auto_available","wireFamily":"\#($0)"}"# } ?? ""
     try await MetadataClient.shared.loadForTesting(json: """
     {
       "version":1,
       "providers":{"miniMax":{"resolveMap":{"MiniMax-M3":"MiniMax-M3","MiniMax-M2":"MiniMax-M2"},"models":{
-        "MiniMax-M3":{"canonicalModelId":"MiniMax-M3","transport":"openai_chat","pricing":{"promptPerMToken":1,"completionPerMToken":2},"capabilityControls":{"web":{"state":"auto_available","recipeRef":"minimax.messages.web.v1"}}},
+        "MiniMax-M3":{"canonicalModelId":"MiniMax-M3","transport":"openai_chat","pricing":{"promptPerMToken":1,"completionPerMToken":2},"capabilityControls":{"web":{"state":"auto_available","recipeRef":"minimax.messages.web.v1"}\(vision)}},
         "MiniMax-M2":{"canonicalModelId":"MiniMax-M2","transport":"openai_chat","capabilities":["text","reasoning"]}
       }}},
       "capabilityRuntime":{"schemaVersion":2,"revision":"minimax-web-test","generatedAt":"2026-08-23T00:00:00Z","recipes":{
@@ -152,7 +153,7 @@ private func miniMaxJSON(_ value: Any) -> Data? {
     return try? JSONSerialization.data(withJSONObject: envelope, options: [.sortedKeys])
 }
 
-@Suite("MiniMax Service", .serialized)
+@Suite("MiniMax Service", .serialized, .sharedProcessState)
 struct MiniMaxServiceTests {
 
     @Test("Thinking Tag Parser Extracts Mini Max Reasoning")
@@ -757,6 +758,59 @@ struct MiniMaxServiceTests {
             ) {}
         }
         #expect(try store.load(messageID: assistantID) == nil)
+        await MetadataClient.shared.resetForTesting()
+    }
+    @Test("MiniMax-M3 vision auto: Chat sends image_url parts and Anthropic Web sends image blocks, with no placeholder")
+    func m3VisionAutoSendsImagePartsOnChatAndWeb() async throws {
+        defer { MiniMaxMockURLProtocol.requestHandler = nil }
+        var bodies: [Data] = []
+        MiniMaxMockURLProtocol.requestHandler = { request in
+            let url = try #require(request.url)
+            bodies.append(try #require(miniMaxRequestBody(from: request)))
+            return (miniMaxHTTPResponse(url: url, statusCode: 200), Data(#"{"choices":[{"message":{"content":"ok"}}]}"#.utf8))
+        }
+        let imageBase64 = "SU1BR0UtQllURVMtTUFSS0VS"
+        for (web, wireFamily) in [(false, "openai_chat.image_url"), (true, "anthropic.image")] {
+            try await loadMiniMaxWebMetadata(visionWireFamily: wireFamily)
+            let model = MetadataClient.shared.syncCurrentCapabilityEvidenceModel(
+                TestFactories.makeModel(id: "MiniMax-M3", capabilities: [.text, .image]), providerKind: .miniMax
+            )
+            var options = web ? miniMaxWebOptions() : ChatRequestOptions()
+            options.capabilityEvidenceModel = model
+            var message = makeMiniMaxUserMessage("look")
+            message.attachments = [Attachment(id: UUID(), kind: .image, fileName: "p.png", mimeType: "image/png", base64Data: imageBase64)]
+            let identity = CapabilityEvidenceRequestIdentity(query: .init(
+                partitionID: "minimax-vision", connectionInstanceID: "minimax-vision-\(UUID().uuidString)",
+                connectionGeneration: "g", credentialEpoch: "c",
+                providerKind: ProviderKind.miniMax.rawValue, authMode: ProviderAuthMode.apiKey.rawValue,
+                modelID: model.id, effectiveTransport: "openai_chat", now: 0, hasExplicitValue: true
+            ))
+            _ = try? await CapabilityEvidenceRequestContext.$current.withValue(identity) {
+                try await MiniMaxService(session: makeMiniMaxMockSession()).sendMessage(
+                    apiKey: "key", modelID: "MiniMax-M3", messages: [message],
+                    baseURL: nil, reasoningMode: .automatic, requestOptions: options
+                )
+            }
+        }
+        try #require(bodies.count == 2)
+        func lastUserContent(_ data: Data) throws -> [[String: Any]] {
+            let body = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+            let messages = try #require(body["messages"] as? [[String: Any]])
+            let user = try #require(messages.last { $0["role"] as? String == "user" })
+            return try #require(user["content"] as? [[String: Any]], "content should be a parts array: \(String(decoding: data, as: UTF8.self))")
+        }
+        let chat = try lastUserContent(bodies[0])
+        #expect(chat.first?["type"] as? String == "text" && chat.first?["text"] as? String == "look")
+        let imageURL = (chat.first { $0["type"] as? String == "image_url" }?["image_url"] as? [String: Any])?["url"] as? String
+        #expect(imageURL?.hasPrefix("data:image/") == true && imageURL?.hasSuffix(";base64,\(imageBase64)") == true)
+        #expect(String(decoding: bodies[1], as: UTF8.self).contains("web_search"), "precondition: the second request takes the web route")
+        let webContent = try lastUserContent(bodies[1])
+        #expect(webContent.first?["type"] as? String == "text" && webContent.first?["text"] as? String == "look")
+        let source = webContent.first { $0["type"] as? String == "image" }?["source"] as? [String: Any]
+        #expect(source?["type"] as? String == "base64" && source?["data"] as? String == imageBase64)
+        for body in bodies {
+            #expect(!String(decoding: body, as: UTF8.self).contains("[Image omitted"))
+        }
         await MetadataClient.shared.resetForTesting()
     }
 }

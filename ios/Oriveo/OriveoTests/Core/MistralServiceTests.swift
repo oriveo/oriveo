@@ -132,7 +132,7 @@ private func mistralJSON(_ value: Any) -> Data? {
     return try? JSONSerialization.data(withJSONObject: envelope, options: [.sortedKeys])
 }
 
-@Suite("Mistral Service", .serialized)
+@Suite("Mistral Service", .serialized, .sharedProcessState)
 struct MistralServiceTests {
 
     @Test("Non Streaming Continuation Round Trips Native Content Shapes")

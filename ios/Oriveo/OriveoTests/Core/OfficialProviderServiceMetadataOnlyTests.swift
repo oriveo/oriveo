@@ -37,7 +37,7 @@ private func officialProviderMetadataOnlyHTTPResponse(url: URL, statusCode: Int)
     HTTPURLResponse(url: url, statusCode: statusCode, httpVersion: nil, headerFields: nil)!
 }
 
-@Suite("Official Provider Service Metadata-only", .serialized)
+@Suite("Official Provider Service Metadata-only", .serialized, .sharedProcessState)
 struct OfficialProviderServiceMetadataOnlyTests {
     @Test("Open AIOfficial Paths Are Metadata Only")
     func openAIOfficialPathsAreMetadataOnly() async throws {

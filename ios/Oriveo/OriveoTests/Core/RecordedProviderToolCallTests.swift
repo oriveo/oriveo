@@ -152,7 +152,7 @@ private func responsesSnapshot(providerKey: String, baseURL: String, modelID: St
 }
 
 
-@Suite("Recorded Provider Tool Call Tests", .serialized)
+@Suite("Recorded Provider Tool Call Tests", .serialized, .sharedProcessState)
 struct RecordedProviderToolCallTests {
     static let providers = [
         "groq", "together", "fireworks", "qwen", "zhipu", "siliconflow", "deepseek",

@@ -150,7 +150,7 @@ private func makeUserMessage(kind: ProviderKind) -> ChatMessage {
 
 // MARK: - Shared corpus against the iOS parse layer
 
-@Suite("Tool call shared corpus (parse layer)", .serialized)
+@Suite("Tool call shared corpus (parse layer)", .serialized, .sharedProcessState)
 struct ProviderToolCallFixtureParsingTests {
     @Test("fixture directory has all eight files and expected.json maps each one")
     func manifestCoversAllFixtures() throws {
@@ -313,7 +313,7 @@ struct ProviderToolCallFixtureParsingTests {
 // MARK: - Production path: real Service → ChatManager → message fields
 
 @MainActor
-@Suite("Unhandled tool-call production path", .serialized)
+@Suite("Unhandled tool-call production path", .serialized, .sharedProcessState)
 struct UnhandledToolCallProductionPathTests {
     private struct Harness {
         let state: AppState
@@ -328,9 +328,11 @@ struct UnhandledToolCallProductionPathTests {
         }
     }
 
-    private func makeHarness(kind: ProviderKind, modelID: String, toolCall: Bool? = nil, subscription: Bool = false) -> Harness {
+    private func makeHarness(
+        kind: ProviderKind, modelID: String, toolCall: Bool? = nil, subscription: Bool = false, isManual: Bool = false
+    ) -> Harness {
         let state = AppState(seedDemoData: true)
-        var model = TestFactories.makeModel(id: modelID, capabilities: [.text])
+        var model = TestFactories.makeModel(id: modelID, capabilities: [.text], isManual: isManual)
         model.toolCall = toolCall
         // This case is specifically the chat leg where the upstream explicitly declares a
         // chat backend. Grok subscription already defaults to Responses when undeclared
@@ -407,7 +409,7 @@ struct UnhandledToolCallProductionPathTests {
     @Test("DeepSeek (ProviderKit assembler + StreamState path) also reaches ChatManager")
     func deepSeekStreamStatePathReachesChatManager() async throws {
         await MetadataClient.shared.resetForTesting()
-        let harness = makeHarness(kind: .deepseek, modelID: "deepseek-chat", toolCall: false)
+        let harness = makeHarness(kind: .deepseek, modelID: "deepseek-chat", toolCall: false, isManual: true)
 
         let service = DeepSeekService(session: try ToolCallFixtureURLProtocol.session(serving: "openai_chat.tool_calls.sse"))
         let collected = try await collect(service.sendMessageStream(
@@ -438,7 +440,7 @@ struct UnhandledToolCallProductionPathTests {
 // MARK: - Notice-card UI / persistence boundary
 
 @MainActor
-@Suite("Unhandled tool-call notice card")
+@Suite("Unhandled tool-call notice card", .sharedProcessState)
 struct UnhandledToolCallCardTests {
     @Test("single-tool / multi-tool copy follows the baseline; card starts collapsed and expansion notifies layout")
     func cardHeadlineAndExpansion() {

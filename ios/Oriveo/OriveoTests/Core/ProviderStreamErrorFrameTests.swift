@@ -53,7 +53,7 @@ private final class StreamErrorFrameURLProtocol: URLProtocol, @unchecked Sendabl
 /// Streams used to skip in-stream error frames as empty frames: the user saw an empty reply and the message was
 /// recorded as delivered. Every case replays a frame taken from the vendor documentation (copied byte for byte,
 /// see the source of each constant) through the real service's parsing loop.
-@Suite("In-stream error frames: every official service fails with the upstream error (iOS)", .serialized)
+@Suite("In-stream error frames: every official service fails with the upstream error (iOS)", .serialized, .sharedProcessState)
 struct ProviderStreamErrorFrameTests {
     /// The example frame from OpenRouter's streaming documentation ("Errors after the response is committed"): the
     /// error sits at the top level next to `choices` and `finish_reason: "error"`, and may be the only frame in the

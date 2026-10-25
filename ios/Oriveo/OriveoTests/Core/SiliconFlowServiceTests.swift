@@ -37,15 +37,31 @@ private func siliconFlowHTTPResponse(url: URL, statusCode: Int) -> HTTPURLRespon
     HTTPURLResponse(url: url, statusCode: statusCode, httpVersion: nil, headerFields: nil)!
 }
 
-@Suite("SiliconFlow Service", .serialized)
+@Suite("SiliconFlow Service", .serialized, .sharedProcessState)
 struct SiliconFlowServiceTests {
 
     @Test("Attachment Support Matches Open AICompatible")
-    func attachmentSupportMatchesOpenAICompatible() {
+    func attachmentSupportMatchesOpenAICompatible() async throws {
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(json: """
+        {
+          "version": 1,
+          "contractVersion": 1,
+          "providers": {
+            "siliconFlow": {
+              "attachmentSupport": { "image": true, "nativeFile": false, "textFileInline": true },
+              "resolveMap": {},
+              "models": {}
+            }
+          }
+        }
+        """)
+
         let support = ProviderKind.siliconFlow.attachmentSupport
         #expect(support.image == true)
         #expect(support.nativeFile == false)
         #expect(support.textFileInline == true)
+        await MetadataClient.shared.resetForTesting()
     }
 
     @Test("Vl Model Supports Image And File Attachment")

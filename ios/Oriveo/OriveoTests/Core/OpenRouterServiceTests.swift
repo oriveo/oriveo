@@ -123,7 +123,7 @@ private func makeOpenRouterMessage(
     )
 }
 
-@Suite("OpenRouter Service", .serialized)
+@Suite("OpenRouter Service", .serialized, .sharedProcessState)
 struct OpenRouterServiceTests {
 
     @Test("Non Streaming Continuation Round Trips Reasoning Details And Tool Calls")

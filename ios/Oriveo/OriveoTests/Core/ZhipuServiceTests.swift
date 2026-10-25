@@ -37,7 +37,7 @@ private func zhipuHTTPResponse(url: URL, statusCode: Int) -> HTTPURLResponse {
     HTTPURLResponse(url: url, statusCode: statusCode, httpVersion: nil, headerFields: nil)!
 }
 
-@Suite("Zhipu Service", .serialized)
+@Suite("Zhipu Service", .serialized, .sharedProcessState)
 struct ZhipuServiceTests {
 
     @Test("Sync Provider Uses Metadata Only Catalog")

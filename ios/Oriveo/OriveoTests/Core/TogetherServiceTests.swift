@@ -73,7 +73,7 @@ private func officialUserMessage(
     )
 }
 
-@Suite("Together Service", .serialized)
+@Suite("Together Service", .serialized, .sharedProcessState)
 struct TogetherServiceTests {
 
     private static let imageMetadataJSON = """
