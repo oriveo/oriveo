@@ -446,7 +446,7 @@ struct RelayModelAdvancedBoard: Equatable {
             capability: capability,
             state: state,
             source: source(
-                capability, provider: provider, model: model, now: now,
+                capability, provider: provider, model: model, partitionID: partitionID, now: now,
                 negativeCache: negativeCache, toolMemory: toolMemory
             ),
             control: overridden.map { $0 ? .on : .off } ?? .auto
@@ -483,13 +483,22 @@ struct RelayModelAdvancedBoard: Equatable {
         _ capability: Capability,
         provider: Provider,
         model: AIModel,
+        partitionID: String,
         now: Date,
         negativeCache: RelayNegativeCache,
         toolMemory: ToolCallMemoryStore
     ) -> Source? {
         let key = capability.overrideKey
+        let transport = RelayFirstSendTransport.current(provider: provider, model: model).rawValue
         if let overrides = model.relayCapabilityOverrides, overrides.value(for: key) != nil {
-            return (overrides.sources[key] ?? .user) == .user ? .user : .tested
+            if (overrides.sources[key] ?? .user) == .user { return .user }
+            // Same order on a local connection: a tested vision override cannot outrank the negative cache either.
+            let rejectedImage = capability == .image
+                && negativeCache.isRejected(
+                    connectionID: provider.id.uuidString, modelID: model.id,
+                    transport: transport, kind: .image, now: now
+                )
+            return rejectedImage ? .detected : .tested
         }
         if RelayCatalogBoardModel.isLocal(provider) {
             let declared: Bool? = switch capability {
@@ -508,7 +517,7 @@ struct RelayModelAdvancedBoard: Equatable {
         }
         if let cacheKind, negativeCache.isRejected(
             connectionID: provider.id.uuidString, modelID: model.id,
-            transport: RelayFirstSendTransport.current(provider: provider, model: model).rawValue,
+            transport: transport,
             kind: cacheKind, now: now
         ) {
             return .detected
@@ -516,11 +525,23 @@ struct RelayModelAdvancedBoard: Equatable {
         if capability == .toolCall, toolMemory.lookup(connectionID: provider.id, modelID: model.id)?.toolCall == true {
             return .detected
         }
+        // The catalog source for vision / tools reads the capability facade: it counts as given by the catalog only when the Relay declaration for that key is visible (not unsupported);
+        // an unsupported declaration that did not fit the envelope draws no source.
+        // The identity is built from the protocol actually sent first (Auto is resolved to the first-send protocol by uiDispatchIdentity).
+        func declaredByFacade(_ key: String) -> Bool {
+            let identity = CapabilityEvidenceProductionAdapter.uiDispatchIdentity(
+                provider: provider, model: model, partitionID: partitionID
+            )
+            guard let resolution = CapabilityEvidenceProductionAdapter.capabilityProjection(
+                provider: provider, model: model, identity: identity, keys: [key]
+            ).resolution(for: key) else { return false }
+            return resolution.source == .relayDeclaration && resolution.support != .unsupported
+        }
         let inherited: Bool = switch capability {
-        case .image: model.capabilities.contains(.image)
+        case .image: declaredByFacade(CapabilityEvidenceFacade.visionInputKey)
         case .file: !model.nativeFileMimes.isEmpty
         case .imageGeneration: model.capabilities.contains(.imageGen)
-        case .toolCall: model.toolCall != nil
+        case .toolCall: declaredByFacade("tool_call")
         case .web: false
         }
         return inherited ? .catalog : nil

@@ -281,13 +281,14 @@ struct RelayCatalogBoardModel: Equatable {
     }
 
     static func protocolTransport(provider: Provider, model: AIModel) -> RelayTransport? {
-        isLocal(provider) ? nil : RelayEndpointResolver.effectiveTransport(provider: provider, model: model)
+        // The protocol column and the filter use the protocol actually sent first (Claude-family auto first-sends Messages), the same answer as sending.
+        isLocal(provider) ? nil : RelayFirstSendTransport.current(provider: provider, model: model)
     }
 
     /// When `current` is key(id) and that key still exists and the catalog is non-zero, the key chip is placed after All; otherwise it does not appear.
     static func filters(provider: Provider, models: [AIModel], current: Filter = .all) -> [Filter] {
         guard !isLocal(provider) else { return [] }
-        let present = Set(models.map { RelayEndpointResolver.effectiveTransport(provider: provider, model: $0) })
+        let present = Set(models.compactMap { protocolTransport(provider: provider, model: $0) })
         let ordered = filterOrder.filter(present.contains)
         let transports = ordered.count >= 2 ? ordered.map(Filter.transport) : []
         if case let .key(keyID) = current, isListingKey(provider: provider, keyID: keyID) {
@@ -497,16 +498,20 @@ struct RelayCatalogBoardModel: Equatable {
     ) -> Support {
         switch capability {
         case .image:
-            // The same set of facts as the composer's photo-library entry and the model options image card.
-            let state = ModelOptionsTiles.vision(
-                isVisible: ChatView.photoPickerVisible(provider: provider, model: model, partitionID: partitionID),
-                supportUnknown: RelayRejectionRecording.imageSupportUnknown(provider: provider, model: model)
-            )
-            switch state {
-            case .available: return .supported
-            case .unknown: return .unknown
-            case .hidden: return .unsupported
+            // A user override comes before the negative cache (same order as the entry point: user > negative cache > tested > engine declaration > official catalog),
+            // and the override is left to the entry point to judge; not user-set and the negative cache unexpired -> unsupported (same answer as the Detected source);
+            // entry not visible -> unsupported; visible but no positive Relay vision evidence -> unknown; any other visible case -> supported.
+            if !RelayCapabilityTest.isUserSet(model.relayCapabilityOverrides, .image), negativeCache.isRejected(
+                connectionID: provider.id.uuidString, modelID: model.id,
+                transport: RelayFirstSendTransport.current(provider: provider, model: model).rawValue,
+                kind: .image, now: now
+            ) {
+                return .unsupported
             }
+            guard ChatView.photoPickerVisible(provider: provider, model: model, partitionID: partitionID) else {
+                return .unsupported
+            }
+            return RelayRejectionRecording.imageSupportUnknown(provider: provider, model: model) ? .unknown : .supported
         case .file:
             // A user override comes before everything (the same answer as the file row on the Advanced page); otherwise draw the model facts:
             // negative cache not expired -> unsupported; native allowlist non-empty -> supported; wire authorization is left to the model options.
