@@ -242,6 +242,10 @@ struct HomeView: View {
     @State private var pendingHeroSend: HeroPendingSend?
     @State private var showsHeroMissingProviderKeyPrompt = false
     @State private var isPreparingHeroSend = false
+    @State private var heroVoiceFeeds = HomeVoiceBarFeedCache()
+    @State private var pendingHeroVoiceStart = PendingVoiceEntry()
+    @Namespace private var voiceOrbNamespace
+    @State private var dictationProbe = ComposerSelectionProbe()
 
 
     private var conversations: [Conversation] {
@@ -343,6 +347,25 @@ struct HomeView: View {
             .oriveoContentWidth()
         }
         .auroraBackground()
+        // Dictation host: the home draft slot. It stays mounted even without a mic on this page, because the slot
+        // `draft:home` is shared with the new-conversation composer (ChatComposerBar): a recording started there
+        // can finish transcribing after the user returns home, and the text must land in the home draft.
+        .modifier(HomeDictationHost(
+            controller: DictationHub.shared.controller,
+            canSend: { !isSendingFromHero },
+            onInsert: { transcript in
+                heroText = dictationProbe.insert(transcript: transcript, currentText: heroText)
+            },
+            onSend: { Task { await sendFromHero() } }
+        ))
+        // Voice conversation host: ending with zero turns leaves no trace; the first send creates the conversation
+        // and hands over to the chat page.
+        .onAppear { VoiceConversationSession.shared.hostAppeared(nil) }
+        .onDisappear { VoiceConversationSession.shared.hostDisappeared(nil) }
+        .onChange(of: VoiceConversationSession.shared.lastEnd) { _, end in
+            guard let end, let draft = VoiceConversationSession.shared.consumeEndDraft(end, host: nil) else { return }
+            heroText = heroText.isEmpty ? draft : heroText + " " + draft
+        }
         .animation(preferredAnimation, value: heroState)
         .animation(preferredAnimation, value: isEditing)
         // ⌘F: this window's pending request (also caught right after Home mounts) → expand and focus search
@@ -487,8 +510,20 @@ struct HomeView: View {
         .sheet(item: $heroDisclosureProvider) { kind in
             ProviderDisclosureSheet(
                 provider: kind,
-                onAccept: { Task { await acknowledgeHeroPrivacyAndSend() } },
-                onCancel: { pendingHeroSend = nil }
+                onAccept: {
+                    // First-use disclosure reached from the voice entry: record the acceptance, then start the conversation.
+                    if pendingHeroSend == nil {
+                        if pendingHeroVoiceStart.accept(kind, markAccepted: ProviderDisclosureStore.markAccepted) {
+                            Task { await beginHeroVoiceConversation() }
+                        }
+                        return
+                    }
+                    Task { await acknowledgeHeroPrivacyAndSend() }
+                },
+                onCancel: {
+                    pendingHeroSend = nil
+                    pendingHeroVoiceStart.decline()
+                }
             )
             .presentationDetents([.medium])
             .presentationDragIndicator(.hidden)
@@ -782,8 +817,26 @@ struct HomeView: View {
     // MARK: - Hero / Composer
 
     private var composerSection: some View {
-        auroraComposerCard
-            .padding(.horizontal, OriveoTheme.V2.Sp.s20)
+        VStack(alignment: .leading, spacing: 12) {
+            if let dictationController = DictationHub.shared.controller {
+                DictationPromptSlot(
+                    controller: dictationController,
+                    onCheckConnection: openDictationCheckConnection
+                )
+            }
+
+            auroraComposerCard
+        }
+        .padding(.horizontal, OriveoTheme.V2.Sp.s20)
+    }
+
+    /// Check Connection on the dictation card: open that connection's details when there is one, otherwise provider setup.
+    private func openDictationCheckConnection(_ providerID: UUID?) {
+        if let providerID {
+            appState.openProviderDetail(providerID: providerID)
+        } else {
+            appState.openProviderSetup(from: .providers)
+        }
     }
 
     // MARK: - Aurora Composer
@@ -795,11 +848,46 @@ struct HomeView: View {
     /// The composer card: purely flat while idle (no aurora ring, no divider), the ring lights up on focus;
     /// model pill plus a solid send button
     private var auroraComposerCard: some View {
+        auroraComposerCardContent
+            // The design is a 1px border plus padding 18/18/14 (border-box), so content sits 1pt further from each edge
+            .padding(.horizontal, 19)
+            .padding(.top, 19)
+            .padding(.bottom, 15)
+            .auroraGlassCard(cornerRadius: 26, focused: heroFocused)
+            // One transition when entering or leaving a voice conversation (spring, or a short fade under Reduce Motion).
+            .animation(
+                VoiceConversationBar.transitionAnimation(reduceMotion: reduceMotion),
+                value: heroVoiceConversationController != nil
+            )
+    }
+
+    /// Card content: while dictating the whole block becomes the recording bar; during a voice conversation it
+    /// becomes the voice bar. The send gate itself stays in sendFromHero.
+    @ViewBuilder
+    private var auroraComposerCardContent: some View {
+        if let voiceSurface = heroVoiceConversationController {
+            VoiceConversationBar(surface: voiceSurface, page: .home, orbNamespace: voiceOrbNamespace) {
+                VoiceConversationSession.shared.end(.user)
+            }
+            .transition(.opacity)
+        } else if VoiceConversationDemo.status != nil {
+            VoiceConversationDemo.bar
+        } else if let controller = DictationHub.shared.controller {
+            DictationInputSwitcher(controller: controller, canSend: !isSendingFromHero) {
+                auroraComposerIdleContent
+            }
+        } else {
+            auroraComposerIdleContent
+        }
+    }
+
+    private var auroraComposerIdleContent: some View {
         VStack(alignment: .leading, spacing: 12) {
             // The real input plus the decorative blinking cursor (shown while unfocused and empty)
             heroComposerInput
 
-            // Model pill (tonal, no stroke) plus the send button (solid violet circle); no attachment button
+            // Model pill (tonal, no stroke), the voice button and the send button (solid violet circle); no attachment button
+            let actions = heroComposerActions
             HStack(alignment: .center, spacing: 10) {
                 Button {
                     let active = appState.activeModel
@@ -817,14 +905,16 @@ struct HomeView: View {
 
                 Spacer(minLength: 0)
 
+                if actions.showsVoice {
+                    heroVoiceButton
+                        .transition(.opacity)
+                }
+
                 auroraSendButton
+                    .disabled(!actions.sendEnabled)
             }
+            .animation(.easeInOut(duration: 0.18), value: actions.showsVoice)
         }
-        // The design is a 1px border plus padding 18/18/14 (border-box), so content sits 1pt further from each edge
-        .padding(.horizontal, 19)
-        .padding(.top, 19)
-        .padding(.bottom, 15)
-        .auroraGlassCard(cornerRadius: 26, focused: heroFocused)
     }
 
     // Same values as the old TextField's font(composerPlaceholder) / foregroundStyle(textPrimary) / tint(accentGlow),
@@ -847,7 +937,8 @@ struct HomeView: View {
                 // The placeholder is drawn by the decorative layer below, so VoiceOver needs an explicit name
                 accessibilityLabel: composerPlaceholder,
                 maxLength: ChatInputLimit.maxUTF16,
-                onLengthLimitExceeded: ChatInputLimit.showLimitReachedToast
+                onLengthLimitExceeded: ChatInputLimit.showLimitReachedToast,
+                selectionProbe: dictationProbe
             )
             .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
             .accessibilityIdentifier("home_composer_input")
@@ -943,6 +1034,49 @@ struct HomeView: View {
     }
 
     /// The send button: a 44pt solid violet circle with a white arrow.up, no gradient, no shadow, no highlight
+    /// A voice conversation started from home that has not been handed over yet. The home bar gets a feed that
+    /// freezes on handover; the chat page's bar owns the controller exclusively.
+    private var heroVoiceConversationController: (any VoiceConversationSurface)? {
+        heroVoiceFeeds.feed(for: VoiceConversationSession.shared)
+    }
+
+    /// State of the two keys on the home card: with no active model the voice button still shows (entering it
+    /// resolves a model first); image-only models get no voice button.
+    private var heroComposerActions: HomeComposerActions {
+        VoiceConversationEntry.homeComposer(
+            isSending: isSendingFromHero || isPreparingHeroSend,
+            hasContent: !heroText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            voiceAvailable: DictationHub.shared.controller != nil,
+            modelProducesText: appState.activeModel.map { VoiceConversationEntry.modelProducesText($0.model) } ?? true
+        )
+    }
+
+    /// Style of the home voice button: accent waveform, no fill or stroke, 44x44 hit area.
+    private enum HeroVoiceButtonStyle {
+        static let symbol = "waveform"
+        static let font = Font.system(size: 17, weight: .semibold)
+        static let color = AuroraTheme.Colors.accent
+        static let hitSize: CGFloat = 44
+    }
+
+    /// Secondary voice button left of the send key; shown only for an empty draft when a voice conversation can
+    /// start. It morphs into the status orb when the voice bar appears.
+    private var heroVoiceButton: some View {
+        Button {
+            Task { await startVoiceFromHero() }
+        } label: {
+            Image(systemName: HeroVoiceButtonStyle.symbol)
+                .font(HeroVoiceButtonStyle.font)
+                .foregroundStyle(HeroVoiceButtonStyle.color)
+                .frame(width: HeroVoiceButtonStyle.hitSize, height: HeroVoiceButtonStyle.hitSize)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .voiceOrbMatched(voiceOrbNamespace, reduceMotion: reduceMotion)
+        .accessibilityLabel(Text(VoiceConversationCopy.startA11y))
+        .accessibilityIdentifier("home_voice_conversation_button")
+    }
+
     private var auroraSendButton: some View {
         Button {
             Task { await sendFromHero() }
@@ -960,9 +1094,53 @@ struct HomeView: View {
         .accessibilityIdentifier("home_send_button")
     }
 
+    /// Voice entry on home: make sure a model exists, pass the same key and disclosure gates as sending, then
+    /// start the conversation. Starting does not create a conversation.
+    @MainActor
+    private func startVoiceFromHero() async {
+        guard !isSendingFromHero, !isPreparingHeroSend, !VoiceConversationSession.shared.isActive else { return }
+        heroFocused = false
+        pendingHeroVoiceStart.decline()
+        guard await appState.ensureActiveModelWithProviderFallback(),
+              let activeModel = appState.activeModel else { return }
+        if shouldRequireBYOKKeyBeforeSend(
+            providerKind: activeModel.provider.kind,
+            hasConfiguredKey: appState.hasConfiguredProviderKey
+        ) {
+            showsHeroMissingProviderKeyPrompt = true
+            return
+        }
+        switch ChatVoiceConversationGate.evaluate(
+            providerKind: activeModel.provider.kind,
+            // The voice entry passes the provider's first-use disclosure too, instead of asking only at the first
+            // turn and leaving the bar stuck on "thinking".
+            providerDisclosureAccepted: { ProviderDisclosureStore.hasAccepted($0) }
+        ) {
+        case .providerDisclosure(let kind):
+            pendingHeroVoiceStart.hold(kind)
+            heroDisclosureProvider = kind
+        case .open:
+            await beginHeroVoiceConversation()
+        }
+    }
+
+    /// The conversation engine follows settings (realtime session or cascade); both create the conversation and
+    /// open the chat page only on the first persisted message or first send.
+    @MainActor
+    private func beginHeroVoiceConversation() async {
+        await VoiceConversationSession.shared.start(
+            origin: .home,
+            conversationID: nil,
+            host: appState
+        ) { [appState] text, conversationID in
+            await appState.sendMessageOutcome(text, in: conversationID, delivery: .voice)
+        }
+    }
+
     @MainActor
     private func sendFromHero() async {
         guard !isSendingFromHero, !isPreparingHeroSend else { return }
+        pendingHeroVoiceStart.decline()
         let trimmed = heroText.trimmingCharacters(in: .whitespacesAndNewlines)
         heroFocused = false
 
@@ -1536,5 +1714,29 @@ private struct HomeConversationEmptyState: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)
+    }
+}
+
+/// Dictation host for home: mounted only when there is a controller, with the slot fixed to the home draft;
+/// "transcribe and send" is unavailable while sending (the gate itself stays in sendFromHero).
+private struct HomeDictationHost: ViewModifier {
+    let controller: DictationController?
+    let canSend: () -> Bool
+    let onInsert: (String) -> Void
+    let onSend: () -> Void
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if let controller {
+            content.dictationHost(
+                controller: controller,
+                slotKey: RecordingStore.homeDraftKey,
+                canSend: canSend,
+                onInsert: onInsert,
+                onSend: onSend
+            )
+        } else {
+            content
+        }
     }
 }
