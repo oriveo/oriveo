@@ -505,7 +505,7 @@ struct ProviderModelSpecInline: View {
     }
 
     private func buildText(for items: [ProviderModelSpecification]) -> Text {
-        let separator = Text("  •  ")
+        let separator = Text("  ·  ")
             .font(.system(size: 11, weight: .regular))
             .foregroundStyle(OriveoTheme.Palette.textTertiary.opacity(0.7))
 
@@ -581,7 +581,7 @@ func catalogPriorityScore(for model: AIModel, provider: Provider) -> Int {
     if evidence.permitsDisplay(.image) {
         score += 18
     }
-    if model.capabilities.contains(.file) {
+    if evidence.permitsDisplay(.file) {
         score += 12
     }
     if evidence.permitsDisplay(.web) {
@@ -952,8 +952,301 @@ nonisolated private func filterModelsWithinGroup(
     }
 }
 
+// MARK: - Panel Slices
+
+/// Once a card / panel is flattened into sibling subviews, the position of each slice within the whole card (one scroll axis may host only one lazy stack,
+/// so a card can no longer be a VStack wrapping an inner LazyVStack). Each slice reports only its bounds; the host lazy container draws the whole-card look once per group.
+enum ProviderPanelSlice: Equatable {
+    case single
+    case first
+    case middle
+    case last
+
+    init(index: Int, count: Int) {
+        if count <= 1 {
+            self = .single
+        } else if index == 0 {
+            self = .first
+        } else if index == count - 1 {
+            self = .last
+        } else {
+            self = .middle
+        }
+    }
+
+    var closesTop: Bool { self == .single || self == .first }
+    var closesBottom: Bool { self == .single || self == .last }
+}
+
+/// The part of the whole-card rounded rectangle that belongs to this slice: only the closed edge carries rounded corners (used to clip the content of each row of the added panel).
+struct ProviderPanelSliceShape: Shape {
+    let slice: ProviderPanelSlice
+    let radius: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let top = slice.closesTop ? radius : 0
+        let bottom = slice.closesBottom ? radius : 0
+        return UnevenRoundedRectangle(
+            topLeadingRadius: top,
+            bottomLeadingRadius: bottom,
+            bottomTrailingRadius: bottom,
+            topTrailingRadius: top,
+            style: .continuous
+        )
+        .path(in: rect)
+    }
+}
+
+/// How the whole-card look is drawn: one definition shared by a group of slices, drawn once per card bounds by `providerPanelGroupSurfaces()` on the host lazy container.
+enum ProviderPanelGroupStyle: Equatable {
+    /// Catalog group card: drawn the same as `oriveoRoundedSurface(fill: surfaceElevated, radius: lg)`;
+    /// on the relay / local model library pages there is no outline and no shadow.
+    case catalogCard(flat: Bool)
+    /// Added-models panel: fill + inner outline on the rounded corners + one soft shadow; on the relay / local model library pages there is no outline and no shadow.
+    case enabledPanel(flat: Bool)
+}
+
+/// The bounds of one slice within its whole card. A slice reports only this, never fill / outline / shadow / highlight.
+struct ProviderPanelGroupFragment {
+    let groupID: String
+    let style: ProviderPanelGroupStyle
+    /// The index of this slice in the whole card and the card's slice count (catalog card: 0 = group header, the rest are rows).
+    let index: Int
+    let count: Int
+    let bounds: Anchor<CGRect>
+
+    var slice: ProviderPanelSlice { ProviderPanelSlice(index: index, count: count) }
+}
+
+/// The bounds of the slices built so far in the lazy container, collected in order of appearance; the container receives values only for built slices.
+struct ProviderPanelGroupBoundsKey: PreferenceKey {
+    static var defaultValue: [ProviderPanelGroupFragment] { [] }
+
+    static func reduce(value: inout [ProviderPanelGroupFragment], nextValue: () -> [ProviderPanelGroupFragment]) {
+        value.append(contentsOf: nextValue())
+    }
+}
+
+/// Where one whole card sits in the host container's coordinates: the union of the bounds of its built slices; when the first / last slice is not built (outside the viewport) it extends out of the viewport on that side.
+struct ProviderPanelGroupCard: Identifiable {
+    /// How far to extend toward an unbuilt first / last slice: the lazy stack recycles only slices entirely outside the viewport,
+    /// so the open edge of the outermost built slice is at least flush with the viewport edge, and extending beyond the corner radius + shadow range puts that side's corners and shadow outside the viewport.
+    static let unbuiltEdgeOverhang: CGFloat = 200
+
+    let id: String
+    let style: ProviderPanelGroupStyle
+    var frame: CGRect
+    var closesTop: Bool
+    var closesBottom: Bool
+
+    /// The rectangle the highlight gradient spans: from the nominal top edge of the whole card, at the nominal height, not stretching with the built slices.
+    /// The card `frame` is only the union of the built slices (plus the extension on the unbuilt side) and changes with slices being built / recycled while scrolling; a gradient spread over it
+    /// would stretch / squash as the same card scrolls.
+    var highlightFrame: CGRect
+
+    /// Nominal geometry: the group header (14pt padding above and below + two title lines), a catalog row (minimum height of a nested row), the hairline between slices.
+    static let nominalHeaderHeight: CGFloat = 72
+    static let nominalRowHeight: CGFloat = 62
+    static let nominalHairline: CGFloat = 0.5
+
+    /// The nominal distance from the top edge of slice `index` to the top edge of the whole card. The header slice includes the hairline under the header, a row slice includes the hairline under the row.
+    static func nominalOffset(ofSlice index: Int) -> CGFloat {
+        guard index > 0 else { return 0 }
+        return nominalHeaderHeight + nominalHairline + CGFloat(index - 1) * (nominalRowHeight + nominalHairline)
+    }
+
+    /// "Group header + row count x nominal row height + hairlines": determined only by the slice count.
+    static func nominalHeight(sliceCount count: Int) -> CGFloat {
+        let rows = max(count - 1, 0)
+        guard rows > 0 else { return nominalHeaderHeight }
+        return nominalHeaderHeight + nominalHairline + CGFloat(rows) * nominalRowHeight + CGFloat(rows - 1) * nominalHairline
+    }
+
+    static func cards(from fragments: [ProviderPanelGroupFragment], in proxy: GeometryProxy) -> [ProviderPanelGroupCard] {
+        var order: [String] = []
+        var cardsByID: [String: ProviderPanelGroupCard] = [:]
+        /// The built slice with the smallest index per card: the nominal top edge is derived back from it.
+        var anchorsByID: [String: (index: Int, minY: CGFloat, count: Int)] = [:]
+        for fragment in fragments {
+            let rect = proxy[fragment.bounds]
+            if anchorsByID[fragment.groupID].map({ fragment.index < $0.index }) ?? true {
+                anchorsByID[fragment.groupID] = (fragment.index, rect.minY, fragment.count)
+            }
+            if var card = cardsByID[fragment.groupID] {
+                card.frame = card.frame.union(rect)
+                card.closesTop = card.closesTop || fragment.slice.closesTop
+                card.closesBottom = card.closesBottom || fragment.slice.closesBottom
+                cardsByID[fragment.groupID] = card
+            } else {
+                order.append(fragment.groupID)
+                cardsByID[fragment.groupID] = ProviderPanelGroupCard(
+                    id: fragment.groupID,
+                    style: fragment.style,
+                    frame: rect,
+                    closesTop: fragment.slice.closesTop,
+                    closesBottom: fragment.slice.closesBottom,
+                    highlightFrame: .null
+                )
+            }
+        }
+        return order.compactMap { id in
+            guard var card = cardsByID[id], let anchor = anchorsByID[id] else { return nil }
+            card.highlightFrame = CGRect(
+                x: card.frame.minX,
+                y: anchor.minY - nominalOffset(ofSlice: anchor.index),
+                width: card.frame.width,
+                height: nominalHeight(sliceCount: anchor.count)
+            )
+            if !card.closesTop {
+                card.frame.origin.y -= unbuiltEdgeOverhang
+                card.frame.size.height += unbuiltEdgeOverhang
+            }
+            if !card.closesBottom {
+                card.frame.size.height += unbuiltEdgeOverhang
+            }
+            return card
+        }
+    }
+}
+
+/// One layer on the host container: the background layer draws fill / highlight / shadow, the overlay layer draws the outline (above the content, as before the flattening).
+private struct ProviderPanelGroupLayer: View {
+    let cards: [ProviderPanelGroupCard]
+    let part: ProviderPanelGroupSurface.Part
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            ForEach(cards) { card in
+                ProviderPanelGroupSurface(
+                    style: card.style,
+                    part: part,
+                    size: card.frame.size,
+                    highlight: card.highlightFrame.offsetBy(dx: -card.frame.minX, dy: -card.frame.minY)
+                )
+                    .frame(width: card.frame.width, height: card.frame.height)
+                    .offset(x: card.frame.minX, y: card.frame.minY)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+}
+
+/// The look of one whole card, with parameters matching the pre-flattening whole-card drawing one for one.
+private struct ProviderPanelGroupSurface: View {
+    enum Part {
+        case background
+        case overlay
+    }
+
+    let style: ProviderPanelGroupStyle
+    let part: Part
+    /// The size of this card, and the rectangle of the highlight gradient in this card's local coordinates (see `ProviderPanelGroupCard.highlightFrame`).
+    let size: CGSize
+    let highlight: CGRect
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    /// A top-leading to bottom-trailing gradient whose start and end points sit at the two corners of `highlight` (unit coordinates relative to this card); beyond the end point the last color (transparent) continues.
+    /// Still a single `shape.fill`, with no extra clipping layer added for the highlight.
+    private func highlightGradient(_ colors: [Color]) -> some View {
+        let measurable = size.width > 0 && size.height > 0
+        let start = measurable
+            ? UnitPoint(x: highlight.minX / size.width, y: highlight.minY / size.height)
+            : .topLeading
+        let end = measurable
+            ? UnitPoint(x: highlight.maxX / size.width, y: highlight.maxY / size.height)
+            : .bottomTrailing
+        return shape.fill(LinearGradient(colors: colors, startPoint: start, endPoint: end))
+    }
+
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: OriveoTheme.Radius.lg, style: .continuous)
+    }
+
+    var body: some View {
+        let dark = colorScheme == .dark
+        switch (style, part) {
+        case let (.catalogCard(flat), .background):
+            shape
+                .fill(OriveoTheme.Palette.surfaceElevated)
+                .overlay(highlightGradient([OriveoTheme.Palette.cardHighlight, Color.clear]))
+                .shadow(
+                    color: flat ? .clear : OriveoTheme.Palette.shadow,
+                    radius: flat ? 0 : (dark ? 16 : 8),
+                    y: flat ? 0 : (dark ? 10 : 6)
+                )
+                .shadow(
+                    color: flat ? .clear : OriveoTheme.Palette.shadow.opacity(0.6),
+                    radius: flat ? 0 : 2,
+                    y: flat ? 0 : 1
+                )
+        case let (.catalogCard(flat), .overlay):
+            shape
+                .stroke(flat ? Color.clear : OriveoTheme.Palette.border.opacity(0.66), lineWidth: 1)
+                .overlay {
+                    if dark {
+                        shape
+                            .stroke(OriveoTheme.Palette.hairline, lineWidth: 0.6)
+                            .blur(radius: 0.4)
+                            .mask(highlightGradient([.white, .white.opacity(0)]))
+                    }
+                }
+        case let (.enabledPanel(flat), .background):
+            shape
+                .fill(OriveoTheme.Palette.surfaceElevated)
+                .shadow(
+                    color: flat ? .clear : OriveoTheme.Palette.shadow.opacity(dark ? 0.45 : 0.55),
+                    radius: flat ? 0 : 12,
+                    x: 0,
+                    y: flat ? 0 : 6
+                )
+        case let (.enabledPanel(flat), .overlay):
+            // The outline sits inside the corner clipping: only the inner half of the line width remains.
+            shape
+                .stroke(flat ? Color.clear : OriveoTheme.Palette.border.opacity(0.72), lineWidth: 1)
+                .clipShape(shape)
+        }
+    }
+}
+
+extension View {
+    /// A slice reports its own bounds within the whole card (by group id); the look is drawn by the host lazy container.
+    func providerPanelSlice(
+        index: Int,
+        count: Int,
+        group groupID: String,
+        style: ProviderPanelGroupStyle
+    ) -> some View {
+        anchorPreference(key: ProviderPanelGroupBoundsKey.self, value: .bounds) { anchor in
+            [ProviderPanelGroupFragment(groupID: groupID, style: style, index: index, count: count, bounds: anchor)]
+        }
+    }
+
+    /// Attached to the host's single lazy container: reads the slice-bounds preference and draws each group's look once per whole-card bounds
+    /// (background layer: fill / highlight / shadow; overlay layer: outline, which does not receive taps). It only reads the preference and writes no view state.
+    func providerPanelGroupSurfaces() -> some View {
+        backgroundPreferenceValue(ProviderPanelGroupBoundsKey.self) { fragments in
+            GeometryReader { proxy in
+                ProviderPanelGroupLayer(cards: ProviderPanelGroupCard.cards(from: fragments, in: proxy), part: .background)
+            }
+        }
+        .overlayPreferenceValue(ProviderPanelGroupBoundsKey.self) { fragments in
+            GeometryReader { proxy in
+                ProviderPanelGroupLayer(cards: ProviderPanelGroupCard.cards(from: fragments, in: proxy), part: .overlay)
+            }
+            .allowsHitTesting(false)
+        }
+    }
+}
+
 // MARK: - Shared Catalog Group Views
 
+/// The catalog group list. **It hosts no lazy stack of its own**: it produces only sibling subviews (group headers, rows), placed lazily row by row by the host's single `LazyVStack`
+/// (the detail page's outer container / the home "Add model" page / the test host).
+/// Previously each group was "VStack card -> inner LazyVStack" nested in the outer LazyVStack: on iOS 26 lazy allocation of nested lazy stacks has a race,
+/// and closing the keyboard after a search expanded everything could freeze the main thread permanently (confirmed by Apple DTS).
+/// The host's spacing must be 0: the gap between groups is given explicitly here (`leadingSpacing` above the first group, `Spacing.sm` for the rest).
+/// Each slice reports only the whole-card bounds, and the host lazy container must attach `providerPanelGroupSurfaces()` to draw the whole-card look.
 struct ProviderCatalogGroupList: View {
     let provider: Provider
     let capabilityEvidenceRevision: UInt64
@@ -964,7 +1257,11 @@ struct ProviderCatalogGroupList: View {
     /// Passed only by the relay / local model-library subpages; the home "Add model" page and
     /// official providers always leave it nil.
     var catalogBoard: RelayCatalogBoardContext? = nil
+    /// The spacing above the first group: between the block placed before the list in the host and the first group.
+    var leadingSpacing: CGFloat = 0
     var onToggleGroup: (String) -> Void
+    /// The second argument is the frame of the tapped row in `coordinateSpaceName` (`.null` = unavailable),
+    /// taken once at the moment of the tap to set the start point of the fly-in animation.
     var onAddModel: (AIModel, CGRect) -> Void
     /// Tapping a catalog row on the board (read-only advanced page); nil means a tap enables the model.
     var onOpenModel: ((AIModel) -> Void)? = nil
@@ -974,40 +1271,56 @@ struct ProviderCatalogGroupList: View {
     @State private var rowFrames = CatalogRowFrameStore()
 
     var body: some View {
-        LazyVStack(spacing: OriveoTheme.Spacing.sm) {
-            ForEach(groups) { group in
-                ProviderCatalogGroupCard(
-                    provider: provider,
-                    capabilityEvidenceRevision: capabilityEvidenceRevision,
-                    group: group,
-                    isExpanded: shouldAutoExpandProviderCatalogGroups(searchText: searchText) ||
-                        expandedGroupIDs.contains(group.id),
-                    canToggle: !shouldAutoExpandProviderCatalogGroups(searchText: searchText),
-                    coordinateSpaceName: coordinateSpaceName,
-                    rowFrames: rowFrames,
-                    catalogBoard: catalogBoard,
-                    onToggle: { onToggleGroup(group.id) },
-                    onAddModel: onAddModel,
-                    onOpenModel: onOpenModel,
-                    onEnableAll: onEnableAllInGroup.map { enableAll in { enableAll(group) } }
-                )
+        let autoExpands = shouldAutoExpandProviderCatalogGroups(searchText: searchText)
+        let firstGroupID = groups.first?.id
+        let style = ProviderPanelGroupStyle.catalogCard(flat: catalogBoard != nil)
+        // Group headers and catalog rows are siblings in the host's single lazy stack, so identities are namespaced: a family id (qwen / deepseek / other) may equal
+        // a model id, and using the raw id would collide and make the lazy stack reuse the old view (the added section uses "enabled:"). Expansion state and group keys still use the raw id.
+        ForEach(groups, id: \.headerRowIdentity) { group in
+            let isExpanded = autoExpands || expandedGroupIDs.contains(group.id)
+            let sliceCount = isExpanded ? group.models.count + 1 : 1
+            let cardID = "catalog:\(group.id)"
+
+            ProviderCatalogGroupHeader(
+                provider: provider,
+                group: group,
+                isExpanded: isExpanded,
+                canToggle: !autoExpands,
+                catalogBoard: catalogBoard,
+                onToggle: { onToggleGroup(group.id) },
+                onEnableAll: onEnableAllInGroup.map { enableAll in { enableAll(group) } }
+            )
+            .providerPanelSlice(index: 0, count: sliceCount, group: cardID, style: style)
+            .padding(.top, group.id == firstGroupID ? leadingSpacing : OriveoTheme.Spacing.sm)
+
+            if isExpanded {
+                ForEach(Array(group.models.enumerated()), id: \.element.catalogRowIdentity) { index, model in
+                    ProviderCatalogGroupRow(
+                        provider: provider,
+                        capabilityEvidenceRevision: capabilityEvidenceRevision,
+                        model: model,
+                        showsDivider: index < group.models.count - 1,
+                        coordinateSpaceName: coordinateSpaceName,
+                        rowFrames: rowFrames,
+                        catalogBoard: catalogBoard,
+                        onAddModel: onAddModel,
+                        onOpenModel: onOpenModel
+                    )
+                    .providerPanelSlice(index: index + 1, count: sliceCount, group: cardID, style: style)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
             }
         }
     }
 }
 
-private struct ProviderCatalogGroupCard: View {
+struct ProviderCatalogGroupHeader: View {
     let provider: Provider
-    let capabilityEvidenceRevision: UInt64
     let group: ProviderCatalogGroup
     let isExpanded: Bool
     let canToggle: Bool
-    let coordinateSpaceName: String?
-    let rowFrames: CatalogRowFrameStore
     let catalogBoard: RelayCatalogBoardContext?
     var onToggle: () -> Void
-    var onAddModel: (AIModel, CGRect) -> Void
-    var onOpenModel: ((AIModel) -> Void)? = nil
     var onEnableAll: (() -> Void)? = nil
 
     /// "Add All" on a board group header; shown only while the group still has models that can be enabled (`RelayCatalogBoardModel.enableAllModelIDs`).
@@ -1081,34 +1394,17 @@ private struct ProviderCatalogGroupCard: View {
             }
 
             if isExpanded {
+                // Header/body divider: a full-width thin, faint hairline (the same 0.5pt / border 0.45 as the added-models panel),
+                // replacing the heavier solid line of the default Divider for a more refined, consistent look
                 Rectangle()
                     .fill(OriveoTheme.Palette.border.opacity(0.45))
                     .frame(height: 0.5)
-
-                LazyVStack(spacing: 0) {
-                    ForEach(Array(group.models.enumerated()), id: \.element.id) { index, model in
-                        catalogModelRow(for: model)
-
-                        if index < group.models.count - 1 {
-                            Rectangle()
-                                .fill(OriveoTheme.Palette.border.opacity(0.45))
-                                .frame(height: 0.5)
-                                .padding(.leading, OriveoTheme.Spacing.md)
-                        }
-                    }
-                }
-                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        // On the relay / local model-library pages the card is drawn like the detail page: no border, no shadow. Other callers are unchanged.
-        .oriveoRoundedSurface(
-            fill: OriveoTheme.Palette.surfaceElevated,
-            border: catalogBoard == nil ? OriveoTheme.Palette.border.opacity(0.66) : .clear,
-            radius: OriveoTheme.Radius.lg,
-            shadow: catalogBoard == nil ? .soft : .none
-        )
     }
 
+    /// A slight tint on the group header so the "parent panel" and the "child rows on white" have a visible hierarchy within the same card.
+    /// The expanded state uses a stronger tint to stress "this group is being browsed now"; the collapsed state uses clear.
     @ViewBuilder
     private var groupHeaderBackground: some View {
         if isExpanded {
@@ -1117,9 +1413,35 @@ private struct ProviderCatalogGroupCard: View {
             Color.clear
         }
     }
+}
+
+struct ProviderCatalogGroupRow: View {
+    let provider: Provider
+    let capabilityEvidenceRevision: UInt64
+    let model: AIModel
+    let showsDivider: Bool
+    let coordinateSpaceName: String?
+    let rowFrames: CatalogRowFrameStore
+    let catalogBoard: RelayCatalogBoardContext?
+    var onAddModel: (AIModel, CGRect) -> Void
+    var onOpenModel: ((AIModel) -> Void)? = nil
+
+    var body: some View {
+        VStack(spacing: 0) {
+            catalogModelRow
+
+            if showsDivider {
+                // Divider between rows: a thin, faint hairline aligned to the left edge of the child-row text (child rows are already flush at md)
+                Rectangle()
+                    .fill(OriveoTheme.Palette.border.opacity(0.45))
+                    .frame(height: 0.5)
+                    .padding(.leading, OriveoTheme.Spacing.md)
+            }
+        }
+    }
 
     @ViewBuilder
-    private func catalogModelRow(for model: AIModel) -> some View {
+    private var catalogModelRow: some View {
         let row = ProviderCatalogModelRow(
             model: model,
             provider: provider,
@@ -1133,6 +1455,8 @@ private struct ProviderCatalogGroupCard: View {
         .equatable()
 
         if let coordinateSpaceName {
+            // Write into the reference box rather than a preference/@State: it fires every scroll frame, and any view-state write
+            // would rebuild the whole catalog.
             row.onGeometryChange(for: CGRect.self) { proxy in
                 proxy.frame(in: .named(coordinateSpaceName))
             } action: { frame in
@@ -1142,4 +1466,14 @@ private struct ProviderCatalogGroupCard: View {
             row
         }
     }
+}
+
+private extension ProviderCatalogGroup {
+    /// The identity of the group header in the host lazy stack (see `ProviderCatalogGroupList.body`).
+    var headerRowIdentity: String { "group:" + id }
+}
+
+private extension AIModel {
+    /// The identity of a catalog row in the host lazy stack (see `ProviderCatalogGroupList.body`).
+    var catalogRowIdentity: String { "row:" + id }
 }

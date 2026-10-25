@@ -48,33 +48,38 @@ struct ProviderEnabledModelsSection: View, Equatable {
         false
     }
 
+    /// Hosts no container of its own: the group header and the rows are produced as siblings, placed lazily row by row by the single outer `LazyVStack` (spacing 0) of the detail page
+    /// (on iOS 26 lazy allocation of nested lazy stacks has a race). Both the spacing above the section and the spacing inside it are given explicitly here.
     var body: some View {
-        VStack(alignment: .leading, spacing: OriveoTheme.Spacing.md) {
-            ProviderSectionHeader(
-                title: catalogBoard == nil
-                    ? enabledModelsTitle(for: provider)
-                    : String(
-                        format: L10n.tr(RelayCatalogBoardModel.enabledSectionKey, table: .providers),
-                        Int64(provider.models.count)
-                    ),
-                trailing: usesManagedLibrary ? String(format: L10n.tr("%lld models"), provider.enabledModelCount) : nil,
-                helpMessage: L10n.tr("Added models appear in the model picker on the Home screen.", table: .providers)
-            )
+        ProviderSectionHeader(
+            title: catalogBoard == nil
+                ? enabledModelsTitle(for: provider)
+                : String(
+                    format: L10n.tr(RelayCatalogBoardModel.enabledSectionKey, table: .providers),
+                    Int64(provider.models.count)
+                ),
+            trailing: usesManagedLibrary ? L10n.format(L10n.tr("%lld models"), provider.enabledModelCount) : nil,
+            helpMessage: L10n.tr("Added models appear in the model picker on the Home screen.", table: .providers)
+        )
+        .padding(.top, OriveoTheme.Spacing.lg)
+        .padding(.bottom, OriveoTheme.Spacing.md)
+        .recordsEnabledModelsFragment(Self.headerFragmentID, in: enabledModelsFrameBox, coordinateSpaceName: coordinateSpaceName)
+        // Rows and the group header are siblings in the same lazy stack: the inserted first row carries a move(edge: .top) transition and must slide in from below the header, not over it.
+        .zIndex(1)
 
-            if provider.models.isEmpty {
-                emptyStatePanel
-            } else if showsServerGroups {
-                serverGroupedModelsPanel
-            } else {
-                groupedModelsPanel
-            }
-        }
-        .onGeometryChange(for: CGRect.self) { proxy in
-            proxy.frame(in: .named(coordinateSpaceName))
-        } action: { frame in
-            enabledModelsFrameBox.frame = frame
+        if provider.models.isEmpty {
+            emptyStatePanel
+                .recordsEnabledModelsFragment(Self.panelFragmentID, in: enabledModelsFrameBox, coordinateSpaceName: coordinateSpaceName)
+        } else if showsServerGroups {
+            serverGroupedModelsPanel
+                .recordsEnabledModelsFragment(Self.panelFragmentID, in: enabledModelsFrameBox, coordinateSpaceName: coordinateSpaceName)
+        } else {
+            groupedModelsPanel
         }
     }
+
+    private static let headerFragmentID = "__enabled_header__"
+    private static let panelFragmentID = "__enabled_panel__"
 
     // MARK: - Subviews
 
@@ -94,45 +99,44 @@ struct ProviderEnabledModelsSection: View, Equatable {
         .overlay(panelBorder.opacity(usesFlatPanel ? 0 : 1))
     }
 
+    /// A single grouped panel: all rows share one outer surface and one soft shadow;
+    /// rows are separated by a thin divider, in the iOS Settings.app style, which looks better and scrolls more smoothly than separate cards with multiple shadows.
+    /// Rows are produced as siblings and each reports only the bounds of the whole panel (`ProviderPanelSlice`); the panel look is drawn once for the whole block by the outer lazy container of the detail page.
+    @ViewBuilder
     private var groupedModelsPanel: some View {
         let enabledModels = sortedEnabledModels(for: provider).filter { model in
             // The model library subpage's protocol filter applies to this section as well as the catalog section.
             catalogBoard.map { RelayCatalogBoardModel.matches($0.filter, provider: provider, model: model) } ?? true
         }
         let catalogMembership = RelayCatalogMembership.Index(provider: provider)
-        return LazyVStack(spacing: 0) {
-            ForEach(Array(enabledModels.enumerated()), id: \.element.id) { index, model in
-                ProviderEnabledModelRow(
-                    model: model,
-                    provider: provider,
-                    capabilityEvidenceRevision: capabilityEvidenceRevision,
-                    isHighlighted: highlightedModelID == model.id,
-                    isMissingFromCatalog: catalogMembership.isMissingEnabledModel(model),
-                    isLast: index == enabledModels.count - 1,
-                    canSetDefault: ProviderEnabledModelRow.allowsSetDefault(provider: provider, model: model),
-                    canRemove: (usesManagedLibrary || provider.kind == .relay) && provider.models.count > 1,
-                    setDefaultAction: { onSetDefault(model) },
-                    chatAction: { onChat(model) },
-                    removeAction: { onRemove(model) },
-                    advancedAction: { onOpenAdvanced(model) },
-                    catalogBoard: catalogBoard
-                )
-                .equatable()
-                .transition(.asymmetric(
-                    insertion: .opacity.combined(with: .move(edge: .top)),
-                    removal: .opacity
-                ))
-            }
+        // The identity cannot be model.id directly: rows and the model library catalog rows are produced as siblings in the same lazy stack, and the catalog ForEach also uses model.id as identity.
+        // A model added from the catalog would collide with that catalog row's identity, the lazy stack would keep reusing the old catalog row view, and the new row in the added section could not be built.
+        ForEach(Array(enabledModels.enumerated()), id: \.element.enabledRowIdentity) { index, model in
+            let slice = ProviderPanelSlice(index: index, count: enabledModels.count)
+            ProviderEnabledModelRow(
+                model: model,
+                provider: provider,
+                capabilityEvidenceRevision: capabilityEvidenceRevision,
+                isHighlighted: highlightedModelID == model.id,
+                isMissingFromCatalog: catalogMembership.isMissingEnabledModel(model),
+                isLast: index == enabledModels.count - 1,
+                canSetDefault: ProviderEnabledModelRow.allowsSetDefault(provider: provider, model: model),
+                canRemove: (usesManagedLibrary || provider.kind == .relay) && provider.models.count > 1,
+                setDefaultAction: { onSetDefault(model) },
+                chatAction: { onChat(model) },
+                removeAction: { onRemove(model) },
+                advancedAction: { onOpenAdvanced(model) },
+                catalogBoard: catalogBoard
+            )
+            .equatable()
+            .clipShape(ProviderPanelSliceShape(slice: slice, radius: OriveoTheme.Radius.lg))
+            .providerPanelSlice(index: index, count: enabledModels.count, group: "enabled-models", style: .enabledPanel(flat: usesFlatPanel))
+            .recordsEnabledModelsFragment(model.id, in: enabledModelsFrameBox, coordinateSpaceName: coordinateSpaceName)
+            .transition(.asymmetric(
+                insertion: .opacity.combined(with: .move(edge: .top)),
+                removal: .opacity
+            ))
         }
-        .background(panelBackground)
-        .overlay(panelBorder.opacity(usesFlatPanel ? 0 : 1))
-        .clipShape(RoundedRectangle(cornerRadius: OriveoTheme.Radius.lg, style: .continuous))
-        .shadow(
-            color: usesFlatPanel ? .clear : OriveoTheme.Palette.shadow.opacity(colorScheme == .dark ? 0.45 : 0.55),
-            radius: usesFlatPanel ? 0 : 12,
-            x: 0,
-            y: usesFlatPanel ? 0 : 6
-        )
     }
 
     private var serverGroupedModelsPanel: some View {
@@ -164,7 +168,7 @@ struct ProviderEnabledModelsSection: View, Equatable {
                                     .foregroundStyle(OriveoTheme.Palette.textPrimary)
                                     .lineLimit(1)
 
-                                Text(String(format: L10n.tr("%lld models"), Int64(group.models.count)))
+                                Text(L10n.format(L10n.tr("%lld models"), Int64(group.models.count)))
                                     .font(OriveoTheme.Typography.footnote)
                                     .foregroundStyle(OriveoTheme.Palette.textSecondary)
                             }
@@ -240,7 +244,6 @@ struct ProviderEnabledModelsSection: View, Equatable {
     private func enabledModelsTitle(for provider: Provider) -> String {
         switch provider.kind {
         case .relay:
-            return L10n.tr("Models", table: .providers)
             return L10n.tr("Models", table: .providers)
         default:
             return L10n.tr("Added Models", table: .providers)
@@ -578,4 +581,26 @@ struct ProviderEnabledModelRow: View, Equatable {
         .accessibilityLabel(L10n.tr("More", table: .chat))
         .buttonStyle(.plain)
     }
+}
+
+extension View {
+    /// Records this fragment's frame in the box, and counts it in or out of the union as it appears and disappears.
+    func recordsEnabledModelsFragment(
+        _ id: String,
+        in box: ProviderDetailFrameBox,
+        coordinateSpaceName: String
+    ) -> some View {
+        onGeometryChange(for: CGRect.self) { proxy in
+            proxy.frame(in: .named(coordinateSpaceName))
+        } action: { frame in
+            box.record(frame, for: id)
+        }
+        .onAppear { box.activate(id) }
+        .onDisappear { box.deactivate(id) }
+    }
+}
+
+private extension AIModel {
+    /// See the comment on `groupedModelsPanel`: the identity of an added row must differ from that of a catalog row with the same model.id.
+    var enabledRowIdentity: String { "enabled:" + id }
 }

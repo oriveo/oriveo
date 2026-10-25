@@ -23,6 +23,8 @@ enum RelayCatalogPresentationState: Equatable {
 struct ProviderModelLibrarySection: View {
     let provider: Provider
     let providersVersion: UInt
+    /// The catalog projection is driven by the detail page's `ProviderCatalogLibraryProjectionDriver` and written here (see its comment).
+    let projection: ProviderCatalogLibraryProjection
     @Binding var modelSearchText: String
     @Binding var expandedLibraryGroups: Set<String>
     let coordinateSpaceName: String
@@ -41,61 +43,37 @@ struct ProviderModelLibrarySection: View {
     /// Used only by the board group header's "Enable all": a bulk enable has no fly-in animation and does not need the detail page's coordinate space.
     @Environment(AppState.self) private var appState
 
-    @State private var librarySignature: ProviderCatalogExpansionSignature?
-    @State private var projectedGroups: [ProviderCatalogGroup] = []
-    @State private var projectedRequest: ProviderCatalogProjectionRequestIdentity?
-
     private var capabilityEvidenceRevision: UInt64 {
         CapabilityEvidenceObservationBridge.shared.contentRevision
     }
 
-    private var projectionSnapshot: ProviderCatalogSnapshotIdentity {
-        ProviderCatalogSnapshotIdentity(
-            providerID: provider.id,
-            providersVersion: providersVersion,
-            metadataContentRevision: capabilityEvidenceRevision,
-            metadataETag: MetadataClient.shared.syncMetadataETag()
-        )
-    }
-
     private var projectionRequest: ProviderCatalogProjectionRequestIdentity {
-        ProviderCatalogProjectionRequestIdentity(
-            snapshot: projectionSnapshot,
-            searchText: modelSearchText
+        ProviderCatalogLibraryProjection.request(
+            for: provider, providersVersion: providersVersion, searchText: modelSearchText
         )
     }
 
+    private var projectedGroups: [ProviderCatalogGroup] { projection.groups }
+    private var projectedRequest: ProviderCatalogProjectionRequestIdentity? { projection.request }
+
+    /// Hosts no container of its own: the blocks are produced as siblings and placed by the single outer `LazyVStack` (spacing 0) of the detail page,
+    /// and each block's spacing from above is given explicitly here.
     var body: some View {
-        Group {
-            if catalogBoard != nil {
-                boardBlocks
-            } else {
-                switch relayCatalogState {
-                case .loading:
-                    catalogLoadingState
-                case .failed:
-                    catalogFailureState
-                case .content:
-                    searchableModelsField
-                    libraryContent()
-                }
+        if catalogBoard != nil {
+            boardBlocks
+        } else {
+            switch relayCatalogState {
+            case .loading:
+                catalogLoadingState
+                    .padding(.top, OriveoTheme.Spacing.lg)
+            case .failed:
+                catalogFailureState
+                    .padding(.top, OriveoTheme.Spacing.lg)
+            case .content:
+                searchableModelsField
+                    .padding(.top, OriveoTheme.Spacing.lg)
+                libraryContent()
             }
-        }
-        .task(id: projectionRequest) {
-            let request = projectionRequest
-            if !modelSearchText.isEmpty {
-                try? await Task.sleep(for: .milliseconds(150))
-                guard !Task.isCancelled else { return }
-            }
-            let groups = await ProviderCatalogProjectionMemo.shared.groups(
-                for: provider,
-                searchText: modelSearchText,
-                snapshot: request.snapshot
-            )
-            guard !Task.isCancelled, request == projectionRequest else { return }
-            projectedGroups = groups
-            projectedRequest = request
-            configureLibraryExpansion(using: groups, projection: request)
         }
     }
 
@@ -139,14 +117,18 @@ struct ProviderModelLibrarySection: View {
                 catalogLoadingContent
                     .padding(OriveoTheme.Spacing.lg)
                     .relayCatalogCardSurface()
+                    .padding(.top, OriveoTheme.Spacing.lg)
             case .keyStatusBar:
                 if let items = RelayCatalogBoardModel.keyStatusBar(provider) {
                     RelayCatalogKeyStatusBar(items: items, onRetry: onRetryCatalogKey)
+                        .padding(.top, OriveoTheme.Spacing.lg)
                 }
             case .failureCard:
                 boardFailureCard
+                    .padding(.top, OriveoTheme.Spacing.lg)
             case .catalog:
                 searchableModelsField
+                    .padding(.top, OriveoTheme.Spacing.lg)
                 libraryContent()
                 if let enableHintKey = RelayCatalogBoardModel.enableHint(for: provider) {
                     Text(L10n.tr(enableHintKey, table: .providers))
@@ -154,6 +136,7 @@ struct ProviderModelLibrarySection: View {
                         .foregroundStyle(OriveoTheme.Palette.textTertiary)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, OriveoTheme.Spacing.lg)
                 }
             }
         }
@@ -277,6 +260,7 @@ struct ProviderModelLibrarySection: View {
         if projectedRequest != projectionRequest && !showsPreviousProjectionWhileRefreshing {
             ProgressView()
                 .frame(maxWidth: .infinity, minHeight: 72)
+                .padding(.top, OriveoTheme.Spacing.lg)
         } else if groups.isEmpty {
             OriveoCard {
                 Text(L10n.tr("No matching models found"))
@@ -284,6 +268,7 @@ struct ProviderModelLibrarySection: View {
                     .foregroundStyle(OriveoTheme.Palette.textSecondary)
                     .frame(maxWidth: .infinity, alignment: .center)
             }
+            .padding(.top, OriveoTheme.Spacing.lg)
         } else {
             ProviderCatalogGroupList(
                 provider: provider,
@@ -293,6 +278,7 @@ struct ProviderModelLibrarySection: View {
                 expandedGroupIDs: expandedLibraryGroups,
                 coordinateSpaceName: coordinateSpaceName,
                 catalogBoard: catalogBoard,
+                leadingSpacing: OriveoTheme.Spacing.lg,
                 onToggleGroup: toggleLibraryGroup,
                 onAddModel: onAddCatalogModel,
                 onOpenModel: onOpenCatalogModel,
@@ -311,20 +297,6 @@ struct ProviderModelLibrarySection: View {
         }
     }
 
-    private func configureLibraryExpansion(
-        using groups: [ProviderCatalogGroup],
-        projection: ProviderCatalogProjectionRequestIdentity
-    ) {
-        let update = ProviderCatalogExpansionPolicy.reconcile(
-            expandedGroupIDs: expandedLibraryGroups,
-            previousSignature: librarySignature,
-            projection: projection,
-            groups: groups
-        )
-        expandedLibraryGroups = update.expandedGroupIDs
-        librarySignature = update.signature
-    }
-
     private func toggleLibraryGroup(_ groupID: String) {
         guard !shouldAutoExpandProviderCatalogGroups(searchText: modelSearchText) else { return }
 
@@ -333,6 +305,83 @@ struct ProviderModelLibrarySection: View {
         } else {
             expandedLibraryGroups.insert(groupID)
         }
+    }
+}
+
+// MARK: - Library Projection
+
+/// The catalog projection state of the model library. Held by the detail page, written by `ProviderCatalogLibraryProjectionDriver`,
+/// and read by `ProviderModelLibrarySection`.
+///
+/// Why it does not live in the library block's own `@State` + `.task`: the block's rows share one lazy stack with the outer scroll axis,
+/// so the block is no longer a single view and a `.task` can only hang on some child view - when it scrolls out of the viewport and is recycled the task is cancelled and
+/// does not rerun when the request changes; hanging it on every child would start one task per row. The driver sits outside the lazy stack and is always in the tree.
+@MainActor
+@Observable
+final class ProviderCatalogLibraryProjection {
+    var groups: [ProviderCatalogGroup] = []
+    var request: ProviderCatalogProjectionRequestIdentity?
+    var signature: ProviderCatalogExpansionSignature?
+
+    static func request(
+        for provider: Provider,
+        providersVersion: UInt,
+        searchText: String
+    ) -> ProviderCatalogProjectionRequestIdentity {
+        ProviderCatalogProjectionRequestIdentity(
+            snapshot: ProviderCatalogSnapshotIdentity(
+                providerID: provider.id,
+                providersVersion: providersVersion,
+                metadataContentRevision: CapabilityEvidenceObservationBridge.shared.contentRevision,
+                metadataETag: MetadataClient.shared.syncMetadataETag()
+            ),
+            searchText: searchText
+        )
+    }
+}
+
+/// Drives the model library catalog projection: attached outside the detail page's outer lazy stack (`.background`), and in the tree only while the library block is shown.
+struct ProviderCatalogLibraryProjectionDriver: View {
+    let provider: Provider
+    let providersVersion: UInt
+    let searchText: String
+    let projection: ProviderCatalogLibraryProjection
+    @Binding var expandedLibraryGroups: Set<String>
+
+    private var projectionRequest: ProviderCatalogProjectionRequestIdentity {
+        ProviderCatalogLibraryProjection.request(
+            for: provider, providersVersion: providersVersion, searchText: searchText
+        )
+    }
+
+    var body: some View {
+        Color.clear
+            .accessibilityHidden(true)
+            .task(id: projectionRequest) {
+                let request = projectionRequest
+                // Search debounce: the TextField drives projectionRequest directly, so each character would trigger a full-catalog projection.
+                // The same tier as the main list (the searchText task in HomeModelPickerSheet).
+                if !searchText.isEmpty {
+                    try? await Task.sleep(for: .milliseconds(150))
+                    guard !Task.isCancelled else { return }
+                }
+                let groups = await ProviderCatalogProjectionMemo.shared.groups(
+                    for: provider,
+                    searchText: searchText,
+                    snapshot: request.snapshot
+                )
+                guard !Task.isCancelled, request == projectionRequest else { return }
+                projection.groups = groups
+                projection.request = request
+                let update = ProviderCatalogExpansionPolicy.reconcile(
+                    expandedGroupIDs: expandedLibraryGroups,
+                    previousSignature: projection.signature,
+                    projection: request,
+                    groups: groups
+                )
+                expandedLibraryGroups = update.expandedGroupIDs
+                projection.signature = update.signature
+            }
     }
 }
 
@@ -407,7 +456,29 @@ struct ProviderCatalogModelRow: View, Equatable {
             lhs.catalogBoard == rhs.catalogBoard
     }
 
+    #if DEBUG
+    private static let debugBodyEvaluationLock = NSLock()
+    nonisolated(unsafe) private static var debugBodyEvaluationStorage = 0
+
+    /// DEBUG only: how many times a catalog row body is actually evaluated; the scroll-hang regression tests use it to pin that an expanded group builds only its visible rows.
+    static var debugBodyEvaluationCount: Int {
+        get {
+            debugBodyEvaluationLock.lock()
+            defer { debugBodyEvaluationLock.unlock() }
+            return debugBodyEvaluationStorage
+        }
+        set {
+            debugBodyEvaluationLock.lock()
+            defer { debugBodyEvaluationLock.unlock() }
+            debugBodyEvaluationStorage = newValue
+        }
+    }
+    #endif
+
     var body: some View {
+        #if DEBUG
+        let _ = Self.debugBodyEvaluationCount += 1
+        #endif
         // A board row draws no capability badges, specifications or price tier, so it needs no projection.
         let specifications = catalogBoard == nil ? providerModelSpecifications(for: model) : []
         let visibleMetadataCapabilities = catalogBoard == nil ? model.visibleMetadataCapabilities(provider: provider) : []

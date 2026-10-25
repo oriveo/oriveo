@@ -10,45 +10,45 @@ struct RelayModelLibraryPage<Content: View>: View {
     let onRefresh: () -> Void
     @ViewBuilder let content: () -> Content
 
+    /// Hosts no container of its own: the header is produced as a sibling of `content` and placed by the single outer `LazyVStack` of the detail page;
+    /// each block inside `content` supplies its own spacing from above.
     var body: some View {
-        VStack(alignment: .leading, spacing: OriveoTheme.Spacing.lg) {
-            HStack(spacing: OriveoTheme.Spacing.sm) {
-                OriveoBackButton(action: onBack)
-                    .padding(.leading, -OriveoBackButton.edgeInset)
-                if RelayAvatarResolver.avatar(for: provider) != nil {
-                    ConnectionAvatarIcon(provider: provider, kind: .relay, size: 32)
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(L10n.tr("Model Library", table: .providers))
-                        .font(OriveoTheme.Typography.title2)
-                        .foregroundStyle(OriveoTheme.Palette.textPrimary)
-                        .accessibilityAddTraits(.isHeader)
-                    Text(verbatim: subtitle)
-                        .font(OriveoTheme.Typography.footnote)
-                        .foregroundStyle(OriveoTheme.Palette.textSecondary)
-                        // When the host is long it wraps to a second line and then truncates at the tail, so the model count / key count in the middle are never cut off.
-                        .lineLimit(2)
-                        .truncationMode(.tail)
-                }
-                Spacer(minLength: 0)
-                Button(action: onRefresh) {
-                    PhosphorIcon.arrowClockwise.image(.regular)
-                        .resizable()
-                        .renderingMode(.template)
-                        .scaledToFit()
-                        .frame(width: 18, height: 18)
-                        .foregroundStyle(isRefreshing ? OriveoTheme.Palette.textTertiary : OriveoTheme.Palette.primary)
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .disabled(isRefreshing)
-                .accessibilityLabel(L10n.tr("Refresh", table: .providers))
-                // The tap target grows from 36 to 44pt; give the extra 4pt back so the icon does not move.
-                .padding(.trailing, -4)
+        HStack(spacing: OriveoTheme.Spacing.sm) {
+            OriveoBackButton(action: onBack)
+                .padding(.leading, -OriveoBackButton.edgeInset)
+            if RelayAvatarResolver.avatar(for: provider) != nil {
+                ConnectionAvatarIcon(provider: provider, kind: .relay, size: 32)
             }
-            content()
+            VStack(alignment: .leading, spacing: 2) {
+                Text(L10n.tr("Model Library", table: .providers))
+                    .font(OriveoTheme.Typography.title2)
+                    .foregroundStyle(OriveoTheme.Palette.textPrimary)
+                    .accessibilityAddTraits(.isHeader)
+                Text(verbatim: subtitle)
+                    .font(OriveoTheme.Typography.footnote)
+                    .foregroundStyle(OriveoTheme.Palette.textSecondary)
+                    // When the host is long it wraps to a second line and then truncates at the tail, so the model count / key count in the middle are never cut off.
+                    .lineLimit(2)
+                    .truncationMode(.tail)
+            }
+            Spacer(minLength: 0)
+            Button(action: onRefresh) {
+                PhosphorIcon.arrowClockwise.image(.regular)
+                    .resizable()
+                    .renderingMode(.template)
+                    .scaledToFit()
+                    .frame(width: 18, height: 18)
+                    .foregroundStyle(isRefreshing ? OriveoTheme.Palette.textTertiary : OriveoTheme.Palette.primary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(isRefreshing)
+            .accessibilityLabel(L10n.tr("Refresh", table: .providers))
+            // The tap target grows from 36 to 44pt; give the extra 4pt back so the icon does not move.
+            .padding(.trailing, -4)
         }
+        content()
     }
 
     private var subtitle: String {

@@ -27,7 +27,10 @@ struct ProviderDetailView: View {
     @State private var expandedLibraryGroups = Set<String>()
     /// Protocol filter of the model library subpage.
     @State private var catalogFilter: RelayCatalogBoardModel.Filter = .all
+    /// The landing point of the fly-in animation. The reference box is read once, at the moment of the tap, and no view state is written while scrolling.
     @State private var enabledModelsFrameBox = ProviderDetailFrameBox()
+    /// The model library catalog projection; the driver is attached outside the outer lazy stack (see `ProviderCatalogLibraryProjection`).
+    @State private var libraryProjection = ProviderCatalogLibraryProjection()
     @State private var activeAddFeedbacks: [ProviderModelAddFeedbackState] = []
     @State private var highlightedEnabledModelID: String?
     @State private var pendingRemovalBanner: ProviderModelRemovalBannerState?
@@ -76,6 +79,13 @@ struct ProviderDetailView: View {
                 || provider.lastError == ProviderIssueMessage.catalogUnavailableKey)
     }
 
+    /// Whether this page shows the model library block: an official provider's detail page, or the model library subpage of a relay / local connection (`RelayDetailBoardModel.make`
+    /// produces the board only for the relay form). The projection driver and the render branch share this one criterion, so one is never in the tree while the other is not.
+    private var showsLibrarySection: Bool {
+        guard usesManagedLibrary, let provider else { return false }
+        return ProviderForm.of(provider) == .relay ? page == .modelLibrary : page == .detail
+    }
+
     private func subscriptionDisabledNotice(
         for provider: Provider
     ) -> SubscriptionDisabledPresentation? {
@@ -104,13 +114,15 @@ struct ProviderDetailView: View {
                     )
                     ZStack(alignment: .topLeading) {
                         ScrollView {
-                            // The outer stack must be lazy. The enabled models and the model library are each a
-                            // LazyVStack; inside a non-lazy VStack the outer stack asks both for their full height on
-                            // every layout. Adding models deep in the library inserts rows above the viewport, so every
-                            // tap re-measured all rows above it, and the cost grew with the enabled count and scroll
-                            // depth (150 enabled models: 470ms per tap on a simulator, past the 2s watchdog on an
-                            // iPhone 13). With a lazy outer stack it is about 150ms.
-                            LazyVStack(alignment: .leading, spacing: OriveoTheme.Spacing.lg) {
+                            // The outer stack must be lazy: the enabled models and the model library were each a LazyVStack, and
+                            // inside a non-lazy VStack the outer stack asks both for their full height on every layout. Adding models deep in the library
+                            // inserts rows above the viewport, so every tap re-measured all rows above it, and the cost grew with the enabled count and scroll
+                            // depth (150 enabled models: 470ms for the longest block over 14 rapid taps on a simulator, past the 2s watchdog on an
+                            // iPhone 13); with a lazy outer stack it is 117ms.
+                            // And there can be only this one lazy layer: the enabled section / model library / model library subpage all produce their rows as siblings here and no longer
+                            // bring their own LazyVStack - on iOS 26 lazy allocation of nested lazy stacks has a race, and closing the keyboard after a search expanded everything could freeze the app permanently.
+                            // spacing is 0: rows must sit flush, and the Spacing.lg between blocks is given explicitly by each block as top padding.
+                            LazyVStack(alignment: .leading, spacing: 0) {
                                 if board != nil, case let .modelAdvanced(modelID, readOnly) = page {
                                     // Read-only advanced (entered from a catalog row) looks up the catalog entry; the read-only form of its content belongs to the model library card.
                                     if let model = provider.models.first(where: { $0.id == modelID })
@@ -143,6 +155,7 @@ struct ProviderDetailView: View {
 
                                     if let setupNotice {
                                         ProviderDetailSetupNoticeBanner(kind: setupNotice)
+                                            .padding(.top, OriveoTheme.Spacing.lg)
                                     }
 
                                     if let disabled = subscriptionDisabledNotice(for: provider) {
@@ -150,6 +163,7 @@ struct ProviderDetailView: View {
                                             notice: disabled.notice,
                                             fallback: disabled.fallback
                                         )
+                                        .padding(.top, OriveoTheme.Spacing.lg)
                                     }
 
                                     if !dismissedHealthBanner, let recovery = RelayDetailBoardModel.recoveryCard(
@@ -176,6 +190,7 @@ struct ProviderDetailView: View {
                                                 }
                                             }
                                         )
+                                            .padding(.top, OriveoTheme.Spacing.lg)
                                             .transition(.opacity.combined(with: .move(edge: .top)))
                                     } else if isProviderUnhealthy(provider), !dismissedHealthBanner {
                                         ProviderConnectionIssueRecoveryCard(
@@ -203,6 +218,7 @@ struct ProviderDetailView: View {
                                                 }
                                             }
                                         )
+                                            .padding(.top, OriveoTheme.Spacing.lg)
                                             .transition(.opacity.combined(with: .move(edge: .top)))
                                     }
 
@@ -223,6 +239,7 @@ struct ProviderDetailView: View {
                                             onDetectAgain: { detectAgain(providerID: provider.id) },
                                             onDelete: { showDeleteAlert = true }
                                         )
+                                        .padding(.top, OriveoTheme.Spacing.lg)
                                     } else {
                                         ProviderDetailBrandHeroCard(
                                             provider: provider,
@@ -247,9 +264,11 @@ struct ProviderDetailView: View {
                                                 showRenameProvider = true
                                             }
                                         )
+                                        .padding(.top, OriveoTheme.Spacing.lg)
 
                                         if ProviderBalanceCard.isBalanceCapable(provider.kind) {
                                             ProviderBalanceCard(provider: provider)
+                                                .padding(.top, OriveoTheme.Spacing.lg)
                                         }
 
                                         modelsContent(for: provider, viewportSize: proxy.size)
@@ -267,15 +286,22 @@ struct ProviderDetailView: View {
                                                 showGenerationParameters: $showGenerationParameters
                                             )
                                         }
+                                        .padding(.top, OriveoTheme.Spacing.lg)
                                     }
                                 }
                             }
+                            // The flattened group cards / added panel get their look drawn once per whole-card bounds on this lazy container.
+                            .providerPanelGroupSurfaces()
+                            .background { libraryProjectionDriver(for: provider) }
                             .frame(width: contentWidth, alignment: .leading)
                             .padding(.horizontal, OriveoTheme.Spacing.xl)
                             .padding(.top, OriveoTheme.Spacing.lg)
                             .padding(.bottom, OriveoTheme.Spacing.xxl)
+                            .frame(maxWidth: .infinity)
                         }
                         .coordinateSpace(name: providerDetailCoordinateSpace)
+                        // The model library search field is a child of the outer lazy stack and is recycled and loses focus when it scrolls out of the buffer; like search in iOS Settings, scrolling dismisses the keyboard.
+                        .scrollDismissesKeyboard(.immediately)
 
                         addFeedbackOverlay
                     }
@@ -370,6 +396,16 @@ struct ProviderDetailView: View {
                         }
                     }
                     .onAppear {
+                        #if DEBUG
+                        // For screenshots only: the page's private state cannot be set up from outside.
+                        if let groups = RelayFamilyDebugShots.takeExpandedLibraryGroups(on: page) { expandedLibraryGroups = groups }
+                        if RelayFamilyDebugShots.takePresentsEditConnection(on: page) { showEditRelay = true }
+                        if let seed = RelayFamilyDebugShots.takeCapabilityTest(on: page) {
+                            capabilityTest = RelayCapabilityTestController(
+                                debugInput: seed.input, modelName: seed.modelName, runningSince: seed.runningSince
+                            )
+                        }
+                        #endif
                         guard page == .detail else { return }
                         if setupNotice == nil, let notice = appState.consumeProviderDetailNotice(for: provider.id) {
                             setupNotice = notice
@@ -409,8 +445,10 @@ struct ProviderDetailView: View {
             ) { filter in
                 catalogFilter = filter
             }
+            .padding(.top, OriveoTheme.Spacing.lg)
         }
 
+        // Produced as a sibling: it brings its own spacing from above (see its body).
         ProviderEnabledModelsSection(
             provider: provider,
             highlightedModelID: highlightedEnabledModelID,
@@ -430,12 +468,14 @@ struct ProviderDetailView: View {
             },
             catalogBoard: catalogBoard
         )
-        .equatable()
+        // No `.equatable()` wrapper: EquatableView is a single view and would gather the sibling rows into one non-lazy stack, building the whole section at once
+        // (150 rows on first screen with 150 added). An unchanged write-back is skipped by each row's own `.equatable()`.
 
-        if usesManagedLibrary {
+        if showsLibrarySection {
             ProviderModelLibrarySection(
                 provider: provider,
                 providersVersion: appState.providersVersion,
+                projection: libraryProjection,
                 modelSearchText: $modelSearchText,
                 expandedLibraryGroups: $expandedLibraryGroups,
                 coordinateSpaceName: providerDetailCoordinateSpace,
@@ -487,9 +527,25 @@ struct ProviderDetailView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .padding(.top, OriveoTheme.Spacing.lg)
 
         if catalogBoard != nil {
             RelayCatalogLegend()
+                .padding(.top, OriveoTheme.Spacing.lg)
+        }
+    }
+
+    /// The driver of the model library catalog projection: in the tree only while this page shows the model library block (an official provider's detail page / a relay model library subpage).
+    @ViewBuilder
+    private func libraryProjectionDriver(for provider: Provider) -> some View {
+        if showsLibrarySection {
+            ProviderCatalogLibraryProjectionDriver(
+                provider: provider,
+                providersVersion: appState.providersVersion,
+                searchText: modelSearchText,
+                projection: libraryProjection,
+                expandedLibraryGroups: $expandedLibraryGroups
+            )
         }
     }
 
@@ -599,6 +655,13 @@ struct ProviderDetailView: View {
         let endPoint = isTargetVisible
             ? destinationPoint
             : CGPoint(x: startPoint.x, y: max(startPoint.y - 60, 40))
+        #if DEBUG
+        ProviderDetailFrameBox.debugLastAddTarget = .init(
+            enabledModelsFrame: enabledModelsFrame,
+            usesEnabledTarget: isTargetVisible,
+            activeFragments: enabledModelsFrameBox.debugActiveFragments
+        )
+        #endif
         let feedback = ProviderModelAddFeedbackState(
             model: model,
             position: startPoint,
@@ -990,8 +1053,8 @@ private struct ProviderDetailSetupNoticeBanner: View {
             VStack(alignment: .leading, spacing: 4) {
                 switch kind {
                 case .addedModels(let count):
-                    Text(String(
-                        format: L10n.tr("Added %lld models. You can add more in the model library.", table: .providers),
+                    Text(L10n.format(
+                        L10n.tr("Added %lld models. You can add more in the model library.", table: .providers),
                         count
                     ))
                     .font(OriveoTheme.Typography.footnote)
