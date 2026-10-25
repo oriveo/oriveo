@@ -83,7 +83,7 @@ data: {"type":"response.completed","response":{"id":"r1","usage":{"input_tokens"
 /// Native file block rejected before any output (the 400 in the fallback set).
 private let fileRejection = #"{"error":{"message":"input_file is not supported for this model","type":"invalid_request_error"}}"#
 
-@Suite("Capability matrix - subscription (CAP-SUB)", .serialized)
+@Suite("Capability matrix - subscription (CAP-SUB)", .serialized, .sharedProcessState)
 struct CapabilityMatrixSubscriptionTests {
     private typealias Shape = ModelOptionCapabilityShape
 
@@ -453,7 +453,7 @@ struct CapabilityMatrixSubscriptionTests {
         for intent in verdict.intents {
             let mode = try #require(ReasoningMode.fromIntent(intent), "\(intent)")
             let body = try await Self.sendCodex(model: model, selection: .init(reasoningMode: mode, webSearchEnabled: false))
-            #expect(Self.effort(body) == mapping[intent], "\(intent)：\(body)")
+            #expect(Self.effort(body) == mapping[intent], "\(intent): \(body)")
         }
         #expect(mapping["balanced"] == "medium" && mapping["max"] == "xhigh")
     }

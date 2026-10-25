@@ -83,7 +83,7 @@ private final class RelayMatrixScriptedProtocol: URLProtocol, @unchecked Sendabl
     override func stopLoading() {}
 }
 
-@Suite("Capability matrix: relay (CAP-RELAY)", .serialized)
+@Suite("Capability matrix: relay (CAP-RELAY)", .serialized, .sharedProcessState)
 @MainActor
 struct CapabilityMatrixRelayTests {
 
@@ -461,7 +461,7 @@ struct CapabilityMatrixRelayTests {
                 provider: provider, model: model, identity: identity, keys: ["vision_input", "tool_call"]
             )
             let keys = ChatView.visibleCapabilityKeys(
-                provider: provider, model: model, projection: projection, negativeCache: cache
+                provider: provider, model: model, projection: projection
             )
             return ChatComposerBar.supportsImageAttachment(provider: provider, model: model, visibleCapabilityKeys: keys)
         }

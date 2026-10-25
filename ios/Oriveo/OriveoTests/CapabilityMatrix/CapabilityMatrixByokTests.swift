@@ -84,7 +84,7 @@ private func chatTextLeg(_ text: String) -> String {
 /// The 422 shape (`detail[].msg`) from the shared contract for unsupported tools.
 private let toolsRejected422 = #"{"detail":[{"type":"extra_forbidden","loc":["body","tools"],"msg":"Extra inputs are not permitted","input":[]}]}"#
 
-@Suite("Capability matrix · official BYOK (CAP-BYOK)", .serialized)
+@Suite("Capability matrix · official BYOK (CAP-BYOK)", .serialized, .sharedProcessState)
 struct CapabilityMatrixByokTests {
 
     // MARK: - Web search / thinking (official Anthropic Messages connection)
@@ -162,7 +162,7 @@ struct CapabilityMatrixByokTests {
         ) as? String)
     }
 
-    @Test("CAP-BYOK-WEB-01：the recipe ships web auto_available and the user turns web search on -> the request body contains the fields the recipe writes")
+    @Test("CAP-BYOK-WEB-01: the recipe ships web auto_available and the user turns web search on -> the request body contains the fields the recipe writes")
     func CAP_BYOK_WEB_01_recipe_web_reaches_body() async throws {
         try await Self.loadAnthropicMetadata(controls: [.init(capability: "web", recipeRef: Self.webRecipe)])
         let body = try await Self.anthropicBody(webSearchEnabled: true)
@@ -173,7 +173,7 @@ struct CapabilityMatrixByokTests {
         #expect(tools.contains { NSDictionary(dictionary: $0).isEqual(to: expected) }, "tools has no web search tool written by the recipe:\(tools)")
     }
 
-    @Test("CAP-BYOK-WEB-02：same model without a recipe (control missing / unknown) and the preference still on -> the request body has no web search field at all")
+    @Test("CAP-BYOK-WEB-02: same model without a recipe (control missing / unknown) and the preference still on -> the request body has no web search field at all")
     func CAP_BYOK_WEB_02_no_recipe_no_web_fields() async throws {
         let variants: [[CapabilityRuntimeFixtures.ControlSpec]] = [
             [try Self.reasoningControl()],
@@ -189,7 +189,7 @@ struct CapabilityMatrixByokTests {
         }
     }
 
-    @Test("CAP-BYOK-REASON-01：recipe availableIntents has several levels and one is picked -> the request body is that level's value written through the recipe")
+    @Test("CAP-BYOK-REASON-01: recipe availableIntents has several levels and one is picked -> the request body is that level's value written through the recipe")
     func CAP_BYOK_REASON_01_selected_intent_reaches_body() async throws {
         let control = try Self.reasoningControl()
         #expect((control.availableIntents?.count ?? 0) > 1, "Precondition: the recipe declares several levels")
@@ -203,7 +203,7 @@ struct CapabilityMatrixByokTests {
         #expect(NSDictionary(dictionary: thinking).isEqual(to: expectedThinking))
     }
 
-    @Test("CAP-BYOK-REASON-02：levels the upstream rejected fall to the nearest level on send (down first, then up); levels not rejected are unaffected; if all are rejected the item is omitted")
+    @Test("CAP-BYOK-REASON-02: levels the upstream rejected fall to the nearest level on send (down first, then up); levels not rejected are unaffected; if all are rejected the item is omitted")
     func CAP_BYOK_REASON_02_rejected_tier_falls_to_nearest() async throws {
         try await Self.loadAnthropicMetadata(controls: [try Self.reasoningControl()])
         UnsupportedParamCache.shared.resetForTesting()
@@ -270,7 +270,8 @@ struct CapabilityMatrixByokTests {
     // MARK: - Attachments
 
     /// Shared relay metadata fixture + a native-file allowlist added in memory for claude-sonnet-4.5; the fixture file is not modified.
-    private static func loadFixtureMetadata(nativeFileMimes: [String]?) async throws {
+    /// `withRuntime`: ship capabilityRuntime and the catalog route as production does, so the official builder can resolve the dispatch route.
+    private static func loadFixtureMetadata(nativeFileMimes: [String]?, withRuntime: Bool = false) async throws {
         var url = URL(fileURLWithPath: #filePath)
         for _ in 0..<5 { url.deleteLastPathComponent() }
         url.appendPathComponent("shared/test-fixtures/relay/metadata-fixture.json")
@@ -282,20 +283,23 @@ struct CapabilityMatrixByokTests {
             var sonnet = try #require(models["claude-sonnet-4.5"] as? [String: Any])
             sonnet["nativeFileMimes"] = nativeFileMimes
             sonnet["pdfNativeDefault"] = true
+            if withRuntime { sonnet["transport"] = "anthropic_messages" }
             models["claude-sonnet-4.5"] = sonnet
             anthropic["models"] = models
             providers["anthropic"] = anthropic
             root["providers"] = providers
         }
+        if withRuntime { root["capabilityRuntime"] = try CapabilityRuntimeFixtures.runtimeEnvelope() }
         await MetadataClient.shared.resetForTesting()
         try await MetadataClient.shared.loadForTesting(
-            json: String(decoding: try JSONSerialization.data(withJSONObject: root), as: UTF8.self)
+            json: String(decoding: try JSONSerialization.data(withJSONObject: root), as: UTF8.self),
+            metadataETag: withRuntime ? CapabilityRuntimeFixtures.defaultRevision : nil
         )
     }
 
-    @Test("CAP-BYOK-ATTACH-01：nativeFileMimes contains PDF and Anthropic Messages attaches a PDF -> native document block, no text fallback")
+    @Test("CAP-BYOK-ATTACH-01: nativeFileMimes contains PDF and Anthropic Messages attaches a PDF -> native document block, no text fallback")
     func CAP_BYOK_ATTACH_01_pdf_native_document_block() async throws {
-        try await Self.loadFixtureMetadata(nativeFileMimes: ["application/pdf"])
+        try await Self.loadFixtureMetadata(nativeFileMimes: ["application/pdf"], withRuntime: true)
         NativeFileFallback.resetMemoryForTesting()
         defer { NativeFileFallback.resetMemoryForTesting() }
         // The allowlist comes from the production catalog enrichment (models stored in the connection are refreshed from metadata), not attached by hand.
@@ -319,11 +323,17 @@ struct CapabilityMatrixByokTests {
             id: UUID(), role: .user, text: "summarize", providerKind: .anthropic, providerName: "Anthropic",
             modelID: local.id, modelName: local.name, state: .delivered, attachments: [pdf]
         )
+        let identity = CapabilityEvidenceRequestIdentity.make(
+            provider: provider, model: evidence, partitionID: "cap-byok-attach-01",
+            hasExplicitValue: true, metadataETag: CapabilityRuntimeFixtures.defaultRevision
+        )
         ByokScriptedProtocol.reset([(200, anthropicOKStream)])
         do {
-            for try await _ in AnthropicService(session: ByokScriptedProtocol.session()).sendMessageStream(
-                apiKey: "sk-ant-fixture", modelID: local.id, messages: [turn], requestOptions: options
-            ) {}
+            try await CapabilityEvidenceRequestContext.$current.withValue(identity) {
+                for try await _ in AnthropicService(session: ByokScriptedProtocol.session()).sendMessageStream(
+                    apiKey: "sk-ant-fixture", modelID: local.id, messages: [turn], requestOptions: options
+                ) {}
+            }
         } catch {}
         let bodies = ByokScriptedProtocol.recorded()
         #expect(bodies.count == 1, "A direct connection neither falls back nor resends")
@@ -335,7 +345,7 @@ struct CapabilityMatrixByokTests {
         #expect(!text.contains("EXTRACTED-PDF-BODY"), "With the native path there must be no text fallback:\(text)")
     }
 
-    @Test("CAP-BYOK-ATTACH-02：vision unknown (no positive image evidence in the catalog) -> the photo library / vision entry is hidden")
+    @Test("CAP-BYOK-ATTACH-02: vision unknown (no positive image evidence in the catalog) -> no badge, and the photo library entry stays enabled")
     func CAP_BYOK_ATTACH_02_unknown_vision_hides_photo_entry() async throws {
         try await Self.loadFixtureMetadata(nativeFileMimes: nil)
         var model = TestFactories.makeModel(id: "claude-private-preview", capabilities: [.text])
@@ -349,7 +359,9 @@ struct CapabilityMatrixByokTests {
             provider: provider, model: model, identity: identity, keys: ["vision_input"]
         )
         #expect(projection.resolution(for: "vision_input")?.support == .unknown, "Precondition: vision is unknown")
+        let input = try #require(projection.inputProjection(for: "vision_input"))
+        #expect(!input.visible && input.editable && input.hint == .firstAttachOnce)
         let visible = ChatView.visibleCapabilityKeys(provider: provider, model: model, projection: projection)
-        #expect(!ChatComposerBar.supportsImageAttachment(provider: provider, model: model, visibleCapabilityKeys: visible))
+        #expect(ChatComposerBar.supportsImageAttachment(provider: provider, model: model, visibleCapabilityKeys: visible))
     }
 }

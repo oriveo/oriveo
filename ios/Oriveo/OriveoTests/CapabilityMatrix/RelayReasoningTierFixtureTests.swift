@@ -68,7 +68,7 @@ private final class RelayTierScriptedProtocol: URLProtocol, @unchecked Sendable 
     override func stopLoading() {}
 }
 
-@Suite("Relay reasoning-tier fixture (RELAY-TIER)", .serialized)
+@Suite("Relay reasoning-tier fixture (RELAY-TIER)", .serialized, .sharedProcessState)
 @MainActor
 struct RelayReasoningTierFixtureTests {
 
