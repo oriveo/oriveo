@@ -23,9 +23,9 @@ extension RealtimeConversationSink {
     var hasConversation: Bool? { nil }
 }
 
-/// Shared os_log helpers for the realtime voice path (subsystem com.kenny.oriveo, category realtime-voice).
+/// Shared os_log helpers for the realtime voice path (subsystem com.oriveo, category realtime-voice).
 nonisolated enum RealtimeVoiceLog {
-    static let logger = Logger(subsystem: "com.kenny.oriveo", category: "realtime-voice")
+    static let logger = Logger(subsystem: "com.oriveo", category: "realtime-voice")
 
     /// Transcript text for logs: the text itself in Debug builds, only its length in Release.
     static func text(_ value: String) -> String {

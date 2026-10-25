@@ -293,7 +293,7 @@ nonisolated final class ConversationCaptureCore: @unchecked Sendable {
     private var sampleRate = 48_000.0
 
     /// io is injectable (tests suspend the queue to verify the main thread never waits on it).
-    init(directory: URL, io: DispatchQueue = DispatchQueue(label: "com.kenny.oriveo.voice-conversation.recording")) {
+    init(directory: URL, io: DispatchQueue = DispatchQueue(label: "com.oriveo.voice-conversation.recording")) {
         self.directory = directory
         self.io = io
     }
@@ -449,7 +449,7 @@ nonisolated final class ConversationCaptureCore: @unchecked Sendable {
 final class VPIOConversationAudioEngine: ConversationAudioEngine, SessionLeaseAwareAudio {
     weak var delegate: ConversationAudioEngineDelegate?
 
-    private static let logger = Logger(subsystem: "com.kenny.oriveo", category: "voice-conversation")
+    private static let logger = Logger(subsystem: "com.oriveo", category: "voice-conversation")
     private let session: AVAudioSession
     private let center: NotificationCenter
     private let speechRate: () -> Double

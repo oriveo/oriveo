@@ -40,7 +40,7 @@ nonisolated enum ImageOrphanSweeper {
     /// Avatars live in the images directory too but are not message attachments, so they are never swept.
     static let avatarKeyPrefix = "user-avatar-"
 
-    private static let logger = Logger(subsystem: "com.kenny.oriveo", category: "image-orphan-sweep")
+    private static let logger = Logger(subsystem: "com.oriveo", category: "image-orphan-sweep")
 
     /// Every reference key in the attachment table: localImageID plus id.uuidString.
     static func referenceKeys(in reader: any DatabaseReader) throws -> Set<String> {

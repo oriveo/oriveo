@@ -385,7 +385,7 @@ final class DictationController: ObservableObject {
 
     /// File operations of the slot store (sidecar reads, slot queries, discard / commit discard) all run on this serial queue, off the main thread;
     /// serial order keeps them consistent with the order submitted from the main thread (a query after a discard sees the slot after the discard).
-    private nonisolated static let storeQueue = DispatchQueue(label: "com.kenny.oriveo.dictation.recording-store")
+    private nonisolated static let storeQueue = DispatchQueue(label: "com.oriveo.dictation.recording-store")
 
     /// RecordingStore has no shared mutable state (only lets and file operations), and the file operations are serialized through storeQueue, so passing it across threads is safe.
     private nonisolated struct StoreRef: @unchecked Sendable {

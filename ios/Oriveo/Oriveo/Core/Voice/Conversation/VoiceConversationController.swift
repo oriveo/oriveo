@@ -840,7 +840,7 @@ private final class PendingRecording {
         Self.removalQueue.async { try? files.manager.removeItem(at: url) }
     }
 
-    private static let removalQueue = DispatchQueue(label: "com.kenny.oriveo.voice-conversation.segment-removal",
+    private static let removalQueue = DispatchQueue(label: "com.oriveo.voice-conversation.segment-removal",
                                                     qos: .utility)
 
     private struct UncheckedFiles: @unchecked Sendable {
