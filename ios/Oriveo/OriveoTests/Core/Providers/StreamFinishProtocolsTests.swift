@@ -339,8 +339,13 @@ struct StreamFinishProtocolsTests {
         var model = TestFactories.makeModel(id: "claude-test")
         model.promptPrice = 0.000003
         model.completionPrice = 0.000015
-        #expect(ChatDeliveryAccounting.deliveredCost(result: result, model: model, providerKind: .relay) == 0,
-                "without reported usage there is nothing to price")
+        // The parser yields an empty breakdown, but no usage was reported: delivery records unknown, not a zero cost.
+        let provider = TestFactories.makeProvider(kind: .relay, models: [model])
+        let record = ChatDeliveryAccounting.record(ChatDeliveryAccounting.generationCost(
+            result: result, model: model, provider: provider, at: Date()
+        ))
+        #expect(record.costSource == .unknown, "\(record)")
+        #expect(record.estimatedCost == 0)
     }
 
     // MARK: - Gemini generateContent
@@ -433,7 +438,8 @@ struct StreamFinishProtocolsTests {
                     }
                     if let finish = try await GeminiService.pumpInteractions(lines: source, parser: &parser, continuation: continuation) {
                         continuation.yield(.done(ProviderChatResult(
-                            text: parser.text, promptTokens: 0, completionTokens: 0, estimatedCost: 0, finish: finish
+                            text: parser.text, promptTokens: 0, completionTokens: 0, estimatedCost: 0, usageReported: false,
+                            finish: finish
                         )))
                     }
                     continuation.finish()

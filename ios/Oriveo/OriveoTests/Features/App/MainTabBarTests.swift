@@ -175,7 +175,7 @@ struct MainTabBarTests {
             UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first,
             "the test host has no window scene"
         )
-        let host = UIHostingController(rootView: AppRootView(appState: appState, appUpdateController: AppUpdateController()))
+        let host = UIHostingController(rootView: AppRootView(appState: appState))
         let window = UIWindow(windowScene: scene)
         window.frame = scene.screen.bounds
         window.windowLevel = .alert + 1

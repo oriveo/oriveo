@@ -357,17 +357,72 @@ struct ChatScreenProjectionTests {
         )
         let activeModel = (provider: fallbackProvider, model: fallbackProvider.models[0])
 
+        let missingID = UUID()
+
         let context = resolveChatScreenContext(
-            requestedProviderID: UUID(),
+            requestedProviderID: missingID,
             requestedModelID: "missing-model",
             providers: [fallbackProvider],
             activeModel: activeModel,
-            primaryProvider: fallbackProvider
+            primaryProvider: fallbackProvider,
+            providersLoaded: true,
+            requestedProviderKind: .openAI
         )
 
-        #expect(context?.provider.id == fallbackProvider.id)
-        #expect(context?.model?.id == "gpt-4o")
-        #expect(context?.needsConversationRepair == true)
+        #expect(context?.provider.id == missingID)
+        #expect(context?.model == nil)
+        #expect(context?.connectionState == .removed)
+    }
+
+    @Test("A conversation bound to a provider that is not loaded yet does not fall back and does not show the banner")
+    func byokConversationWhileProvidersLoadingDoesNotFallBack() {
+        let other = TestFactories.makeProvider(
+            kind: .anthropic,
+            models: [TestFactories.makeModel(id: "claude-haiku", name: "Claude Haiku", isDefault: true)]
+        )
+        let byokID = UUID()
+        var lookedUp: [(String, ProviderKind)] = []
+
+        let context = resolveChatScreenContext(
+            requestedProviderID: byokID,
+            requestedModelID: "gpt-5.5",
+            providers: [other],
+            activeModel: (provider: other, model: other.models[0]),
+            primaryProvider: other,
+            providersLoaded: false,
+            requestedProviderKind: .openAI,
+            modelDisplayName: { id, kind in
+                lookedUp.append((id, kind))
+                return id == "gpt-5.5" ? "GPT-5.5" : nil
+            }
+        )
+
+        #expect(context?.provider.id == byokID)
+        #expect(context?.model == nil)
+        #expect(context?.connectionState == .pending)
+        #expect(context?.pendingModelName == "GPT-5.5")
+        #expect(lookedUp.count == 1 && lookedUp.first?.1 == .openAI)
+        #expect(ChatModelRemovedBanner.resolve(context) == nil)
+        #expect(ChatModelRemovedBanner.isSendEnabled(
+            hasComposerContent: true,
+            controlsDisabled: false,
+            banner: ChatModelRemovedBanner.resolve(context)
+        ))
+
+        // Once the list has loaded, a connection that is still absent counts as removed: the banner shows and no model name is given.
+        let removed = resolveChatScreenContext(
+            requestedProviderID: byokID,
+            requestedModelID: "gpt-5.5",
+            providers: [other],
+            activeModel: nil,
+            primaryProvider: other,
+            providersLoaded: true,
+            requestedProviderKind: .openAI,
+            modelDisplayName: { _, _ in "GPT-5.5" }
+        )
+        #expect(removed?.connectionState == .removed)
+        #expect(removed?.pendingModelName == nil)
+        #expect(ChatModelRemovedBanner.resolve(removed)?.connectionRemoved == true)
     }
 
     @Test("New Conversation Uses Active Model Not Primary Provider Default")
@@ -389,12 +444,12 @@ struct ChatScreenProjectionTests {
             requestedModelID: nil,
             providers: [primaryProvider, clickedProvider],
             activeModel: (provider: clickedProvider, model: clickedProvider.models[1]),
-            primaryProvider: primaryProvider
+            primaryProvider: primaryProvider,
+            providersLoaded: true
         )
 
         #expect(context?.provider.id == clickedProvider.id)
         #expect(context?.model?.id == "claude-opus")
-        #expect(context?.needsConversationRepair == false)
     }
 
     private func makeSummary(
@@ -431,4 +486,30 @@ struct ChatScreenProjectionTests {
             messagesStale: false
         )
     }
+}
+
+// MARK: - retired: metadata payload with retired model tombstones
+
+extension ChatScreenProjectionTests {
+    static let retiredMetadataJSON = """
+    {
+      "version": 1,
+      "updatedAt": "2026-10-01T00:00:00Z",
+      "providers": {
+        "openAI": {
+          "displayName": "OpenAI",
+          "defaultModelId": "gpt-5.4",
+          "resolveMap": { "gpt-5.4": "gpt-5.4", "gpt-5.5": "gpt-5.5" },
+          "models": {
+            "gpt-5.4": { "canonicalModelId": "gpt-5.4", "displayName": "GPT-5.4", "capabilities": ["text"] },
+            "gpt-5.5": { "canonicalModelId": "gpt-5.5", "displayName": "GPT-5.5", "capabilities": ["text"] }
+          },
+          "retiredModels": [
+            { "id": "gpt-4-legacy", "displayName": "GPT-4 Legacy", "retiredAt": "2026-07-01T00:00:00Z", "routedTo": "gpt-5.4" },
+            { "id": "gpt-4-orphan", "displayName": "GPT-4 Orphan", "retiredAt": "2026-07-01T00:00:00Z", "routedTo": "gpt-5.5" }
+          ]
+        }
+      }
+    }
+    """
 }

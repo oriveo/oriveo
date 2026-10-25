@@ -477,4 +477,5 @@ extension ContextPipelineTests {
         )
         let inputs = try #require(ChatRequestBuilder.build(from: snapshot, assembly: assembly).compactionInputs)
         #expect(inputs.messages.map(\.id) == messages.prefix(2).map(\.id.uuidString))
+    }
 }

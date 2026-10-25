@@ -893,7 +893,7 @@ struct RealtimeVoiceSessionWiringTests {
         #expect(Self.messages(state, other).map(\.text) == ["Sent first"])
         #expect(try Self.persisted(state, other) == ["user: Sent first"])
         #expect(Self.presentedChat(state) == other)
-        #expect(try Self.tombstones(state, other) == Tombstones(journaled: false, pendingRemote: false))
+        #expect(try Self.tombstones(state, other) == Tombstones(journaled: false))
     }
 
     /// Memory is empty while the database has messages (synced back in): nothing is deleted or tombstoned inside the transaction, and the conversation is read back into memory from the database.
@@ -910,12 +910,11 @@ struct RealtimeVoiceSessionWiringTests {
         #expect(await endAwaitingEmptyDelete(session, state) == false)
         #expect(try Self.persisted(state, created) == ["user: Synced in"])
         #expect(Self.messages(state, created).map(\.text) == ["Synced in"])
-        #expect(try Self.tombstones(state, created) == Tombstones(journaled: false, pendingRemote: false))
+        #expect(try Self.tombstones(state, created) == Tombstones(journaled: false))
     }
 
     private struct Tombstones: Equatable {
         let journaled: Bool
-        let pendingRemote: Bool
     }
 
     private static func tombstones(_ state: AppState, _ id: UUID) throws -> Tombstones {
@@ -923,8 +922,7 @@ struct RealtimeVoiceSessionWiringTests {
         let bridge = state.conversationRuntimeBridge
         let uid = state.sessionPartitionUID
         return Tombstones(
-            journaled: try bridge.deletedConversationIDs(uid: uid).contains(id),
-            pendingRemote: try bridge.pendingDeletionIDs(uid: uid).contains(id)
+            journaled: try bridge.deletedConversationIDs(uid: uid).contains(id)
         )
     }
 
@@ -1024,7 +1022,7 @@ struct RealtimeVoiceSessionWiringTests {
         #expect(state.conversation(for: created) != nil)
         #expect(Self.presentedChat(state) == nil)
         #expect(session.conversationID == nil)
-        #expect(try Self.tombstones(state, created) == Tombstones(journaled: false, pendingRemote: false))
+        #expect(try Self.tombstones(state, created) == Tombstones(journaled: false))
     }
 
     /// By the time the deletion completes we have moved to another conversation page: the empty conversation is deleted but we stay on the current page and do not go back to home.

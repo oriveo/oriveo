@@ -548,7 +548,8 @@ struct ConversationPersistenceSafetyTests {
                 text: "late image result",
                 promptTokens: 10,
                 completionTokens: 20,
-                estimatedCost: 0.42
+                estimatedCost: 0.42,
+                usageReported: true
             )
         )
 

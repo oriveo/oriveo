@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import Oriveo
 
@@ -12,7 +13,7 @@ struct CostCalculatorTests {
             completionTokens: 500,
             upstreamCost: 0.0042
         )
-        let (cost, source) = CostCalculator.calcCost(breakdown: breakdown, pricing: nil)
+        let (cost, source) = CostCalculator.calcCost(breakdown: breakdown, pricing: nil, at: Date())
         #expect(cost == 0.0042)
         #expect(source == .upstream)
     }
@@ -42,7 +43,7 @@ struct CostCalculatorTests {
             cacheCreation1hTokens: 500,
             completionTokens: 0
         )
-        let (cost, source) = CostCalculator.calcCost(breakdown: breakdown, pricing: pricing)
+        let (cost, source) = CostCalculator.calcCost(breakdown: breakdown, pricing: pricing, at: Date())
         #expect(abs(cost - 0.00225) < 1e-9, "Got \(cost)")
         #expect(source == .localEstimate)
     }
@@ -57,7 +58,7 @@ struct CostCalculatorTests {
             cachedInputTokens: 1000,
             completionTokens: 0
         )
-        let (cost, _) = CostCalculator.calcCost(breakdown: breakdown, pricing: pricing)
+        let (cost, _) = CostCalculator.calcCost(breakdown: breakdown, pricing: pricing, at: Date())
         // 1000 × 0.000001 × 0.5 = 0.0005
         #expect(abs(cost - 0.0005) < 1e-9)
     }
@@ -74,7 +75,7 @@ struct CostCalculatorTests {
             cachedInputTokens: 1000,
             completionTokens: 0
         )
-        let (cost, _) = CostCalculator.calcCost(breakdown: breakdown, pricing: pricing)
+        let (cost, _) = CostCalculator.calcCost(breakdown: breakdown, pricing: pricing, at: Date())
         // 1000 × 0.0000001 = 0.0001
         #expect(abs(cost - 0.0001) < 1e-9)
     }
@@ -96,7 +97,7 @@ struct CostCalculatorTests {
             cacheCreation1hTokens: 100_000, // → 0.4
             completionTokens: 300_000  // → 2.4
         )
-        let (cost, _) = CostCalculator.calcCost(breakdown: breakdown, pricing: pricing)
+        let (cost, _) = CostCalculator.calcCost(breakdown: breakdown, pricing: pricing, at: Date())
         // 2.0 + 0.1 + 0.5 + 0.4 + 2.4 = 5.4
         #expect(abs(cost - 5.4) < 1e-6, "Got \(cost)")
     }
@@ -106,7 +107,7 @@ struct CostCalculatorTests {
     @Test("Nil Pricing Returns Unknown")
     func nilPricingReturnsUnknown() {
         let breakdown = UsageBreakdown(promptTokens: 100, completionTokens: 50)
-        let (cost, source) = CostCalculator.calcCost(breakdown: breakdown, pricing: nil)
+        let (cost, source) = CostCalculator.calcCost(breakdown: breakdown, pricing: nil, at: Date())
         #expect(cost == 0)
         #expect(source == .unknown)
     }

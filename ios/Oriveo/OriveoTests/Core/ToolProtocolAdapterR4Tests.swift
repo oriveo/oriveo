@@ -103,7 +103,7 @@ private func makeRelayProvider(transport: RelayTransport, toolCall: Bool? = true
 }
 
 /// A standalone GRDB database (runs the full migrator) that leaves the DatabaseManager's current user pool alone.
-private func makeMemoryStore() throws -> ToolCallMemoryStore {
+func makeR4MemoryStore() throws -> ToolCallMemoryStore {
     let uid = "toolcall-memory-adapter-\(UUID().uuidString)"
     try FileManager.default.createDirectory(at: AppSessionStore.userDir(for: uid), withIntermediateDirectories: true)
     let pool = try DatabasePool(
@@ -301,7 +301,7 @@ struct ToolAdapterAvailabilityTests {
         #expect(ToolCallCapabilityPolicy.localAdapterTransports.contains(TransportKind.anthropicMessages.rawValue))
 
         let (relay, model) = makeRelayProvider(transport: .anthropicMessages, toolCall: true)
-        let store = try makeMemoryStore()
+        let store = try makeR4MemoryStore()
         let current = ToolCallCapabilityPolicy.decide(provider: relay, model: model, memory: store)
         #expect(current.transport == TransportKind.anthropicMessages.rawValue)
         #expect(current.verdict == true && current.allowed && current.decided)
@@ -487,7 +487,7 @@ struct OpenAIResponsesToolAdapterTests {
         try await MetadataClient.shared.loadForTesting(json: officialResponsesSnapshot(), metadataETag: "adapter-official-responses")
         let model = AIModel(id: "gpt-adapter-fixture", name: "GPT Adapter", capabilities: [.text], reasoningModeAvailable: false, isAvailable: true, isDefault: true, priceTier: "standard")
         let provider = Provider(id: UUID(), kind: .openAI, status: .connected, models: [model], catalogModels: [], apiKey: "sk-official", apiKeyPreview: "…", baseURLText: nil)
-        let store = try makeMemoryStore()
+        let store = try makeR4MemoryStore()
         let decision = ToolCallCapabilityPolicy.decide(provider: provider, model: model, memory: store)
         #expect(decision.transport == TransportKind.openaiResponses.rawValue)
         #expect(decision.verdict == true && decision.source == .catalog && decision.allowed)

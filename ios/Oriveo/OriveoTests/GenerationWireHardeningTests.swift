@@ -264,7 +264,7 @@ struct GenerationWireHardeningTests {
 
         let rejection = try #require(InputRejectionFlow.record(
             .init(
-                form: .official, providerKind: .anthropic,
+                form: .official,
                 connectionId: provider.id.uuidString, modelId: identity.query.effectiveModelID,
                 outputStarted: false, carriedCapabilityKeys: [],
                 httpStatus: 400,
