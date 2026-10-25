@@ -6,7 +6,7 @@ import Testing
 /// Relay 2.0: per-model protocol selection (RL2-RESOLVE-03), official providers dispatching by the delivered apiProtocol (E2-DISPATCH-01),
 /// and the trusted host table read from delivered values (E2-TRUST-01 / 02). Requests are always built through the production entry point `ProviderServiceRouter`,
 /// and the URLProtocol seam of HTTP captures the url / headers / body actually sent.
-@Suite("Relay 2.0 · per-model dispatch and the trusted host table", .serialized)
+@Suite("Relay 2.0 · per-model dispatch and the trusted host table", .serialized, .sharedProcessState)
 struct RelayDispatchTrustTests {
 
     // MARK: - Outbound capture
