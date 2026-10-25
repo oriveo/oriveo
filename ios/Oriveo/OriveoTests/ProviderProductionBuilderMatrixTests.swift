@@ -137,7 +137,7 @@ private func providerMatrixSession() -> URLSession {
     return URLSession(configuration: config)
 }
 
-@Suite("Production request builder matrix", .serialized)
+@Suite("Production request builder matrix", .serialized, .sharedProcessState)
 struct ProviderProductionBuilderMatrixTests {
     @Test("second user attempt is a new single dispatch, never an automatic recovery loop")
     func secondExplicitAttemptRemainsSingleDispatch() async throws {
@@ -166,6 +166,39 @@ struct ProviderProductionBuilderMatrixTests {
             do { try await CapabilityExecutionRuntime.$current.withValue(tracker) { for try await _ in stream {} } } catch { }
             #expect(ProviderMatrixURLProtocol.captured.count == 1, "explicit attempt \(attempt) retried")
         }
+    }
+    @Test("DeepSeek vision auto: the production builder's user content carries an image_url part whose url is data:image/...;base64, with no placeholder")
+    func deepSeekVisionAutoSendsImageURLPart() async throws {
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(json: """
+        {"version":1,"providers":{"deepseek":{"resolveMap":{"deepseek-flash":"deepseek-flash"},"models":{
+          "deepseek-flash":{"canonicalModelId":"deepseek-flash","transport":"openai_chat","capabilities":["text","image"],
+            "capabilityControls":{"vision_input":{"state":"auto_available","wireFamily":"openai_chat.image_url"}}}}}}}
+        """)
+        defer { ProviderMatrixURLProtocol.responder = nil }
+        ProviderMatrixURLProtocol.captured = []
+        let imageBase64 = "SU1BR0UtQllURVMtTUFSS0VS"
+        var message = ChatMessage(id: UUID(), role: .user, text: "look", providerKind: .deepseek,
+                                  providerName: "DeepSeek", modelID: "deepseek-flash", modelName: "deepseek-flash", state: .delivered)
+        message.attachments = [Attachment(id: UUID(), kind: .image, fileName: "p.png", mimeType: "image/png", base64Data: imageBase64)]
+        var options = ChatRequestOptions()
+        options.capabilityEvidenceModel = MetadataClient.shared.syncCurrentCapabilityEvidenceModel(
+            TestFactories.makeModel(id: "deepseek-flash", capabilities: [.text, .image]), providerKind: .deepseek
+        )
+        let identity = Self.matrixIdentity(providerKind: .deepseek, modelID: "deepseek-flash", transport: "openai_chat")
+        let stream = CapabilityEvidenceRequestContext.$current.withValue(identity) {
+            Self.sendStream(provider: .deepseek, session: providerMatrixSession(), modelID: "deepseek-flash", messages: [message], options: options)
+        }
+        do { for try await _ in stream {} } catch { }
+        let data = try #require(ProviderMatrixURLProtocol.captured.first?.body)
+        let body = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let user = try #require((body["messages"] as? [[String: Any]])?.last { $0["role"] as? String == "user" })
+        let parts = try #require(user["content"] as? [[String: Any]], "content should be a parts array: \(String(decoding: data, as: UTF8.self))")
+        #expect(parts.first?["type"] as? String == "text" && parts.first?["text"] as? String == "look")
+        let url = (parts.first { $0["type"] as? String == "image_url" }?["image_url"] as? [String: Any])?["url"] as? String
+        #expect(url?.hasPrefix("data:image/") == true && url?.contains(";base64,\(imageBase64)") == true)
+        #expect(!String(decoding: data, as: UTF8.self).contains("[Image omitted"))
+        await MetadataClient.shared.resetForTesting()
     }
     @Test("authoritative custom fragment reaches one real wire then surfaces its explicit recovery boundary")
     func customFragment400DoesNotAutoRetry() async throws {
@@ -2454,7 +2487,7 @@ struct ProviderProductionBuilderMatrixTests {
 
     private static func loadJSONObject(named suffix: [String]) throws -> [String: Any] {
         var folder = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-        while folder.path != "/" {
+        while folder.path != folder.deletingLastPathComponent().path {
             let file = suffix.reduce(folder) { $0.appendingPathComponent($1) }
             if FileManager.default.fileExists(atPath: file.path) {
                 return try #require(JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any])
@@ -2790,7 +2823,7 @@ struct ProviderProductionBuilderMatrixTests {
 
     private static func loadJSON<T: Decodable>(named suffix: [String]) throws -> T {
         var folder = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-        while folder.path != "/" {
+        while folder.path != folder.deletingLastPathComponent().path {
             let file = suffix.reduce(folder) { $0.appendingPathComponent($1) }
             if FileManager.default.fileExists(atPath: file.path) {
                 return try JSONDecoder().decode(T.self, from: Data(contentsOf: file))

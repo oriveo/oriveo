@@ -11,7 +11,7 @@ import Testing
 ///
 /// This suite therefore asserts the empty state, and keeps the schema-bearing pairs only as a
 /// control, so the predicate cannot pass by being hard-coded to always-false.
-@Suite("Custom request fields coverage", .serialized)
+@Suite("Custom request fields coverage", .serialized, .sharedProcessState)
 struct ModelControlsCustomFieldsCoverageTests {
     /// The fifteen-provider BYOK matrix. Relay has its own branch and is tested separately.
     private static let byokKinds: [ProviderKind] = [

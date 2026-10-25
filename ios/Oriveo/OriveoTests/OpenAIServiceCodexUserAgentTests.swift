@@ -12,7 +12,7 @@ import Testing
 /// - user-supplied headers can override the Codex UA (escape hatch)
 /// - `/images/generations` 404 maps to copy that points at switching transport
 /// - Codex UA 403 bodies are recognized and mapped to friendly copy
-@Suite("OpenAIService Codex identity and inline image tool", .serialized)
+@Suite("OpenAIService Codex identity and inline image tool", .serialized, .sharedProcessState)
 struct OpenAIServiceCodexUserAgentTests {
 
     private func makeMessage(_ text: String) -> ChatMessage {
@@ -273,6 +273,46 @@ struct OpenAIServiceCodexUserAgentTests {
         // Hard constraints of the subscription path must not regress.
         #expect(json["store"] as? Bool == false)
         #expect(json["stream"] as? Bool == true)
+    }
+
+    /// Cold-start regression (Codex outbound side). The previous case pins how a first-hand declaration maps; this one
+    /// pins the window where no first-hand declaration exists: `upstreamReasoningLevels` is not persisted and is always
+    /// empty after an app restart, so no effort used to be sent at all. The decision and the outbound request now share
+    /// `CapabilityControlResolution.subscriptionDeclaredReasoningLevels` (first-hand > models.dev > empty).
+    @Test("Codex cold start: empty first-hand levels plus modelFacts levels still send reasoning.effort (gpt-5.6-sol reaches xhigh)")
+    func codexColdStartEffortComesFromModelFacts() async throws {
+        try await ModelFactsFixture.loadFacts()
+        CapturingProtocol.reset()
+        let service = OpenAIService(session: makeMockSession())
+
+        // App restart state: the subscription catalog has not been refetched, so the first-hand level table is empty.
+        var model = TestFactories.makeModel(id: "gpt-5.6-sol", capabilities: [.text, .reasoning])
+        model.reasoningModeAvailable = true
+        model.upstreamReasoningLevels = []
+        var options = ChatRequestOptions()
+        options.capabilityEvidenceModel = model
+        options.openAISubscription = OpenAISubscriptionRequestContext(
+            responsesURL: URL(string: "https://chatgpt.com/backend-api/codex/responses")!,
+            accountID: "acct-1",
+            requiredHeaders: [:]
+        )
+
+        await drain(service.sendMessageStream(
+            apiKey: "codex-token", modelID: "gpt-5.6-sol",
+            messages: [makeMessage("hi")], reasoningMode: .max,
+            webSearchEnabled: false, requestOptions: options
+        ))
+
+        guard let body = CapturingProtocol.snapshot().bodies.first,
+              let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else {
+            Issue.record("expected a captured Codex subscription request body")
+            await MetadataClient.shared.resetForTesting()
+            return
+        }
+        let reasoning = json["reasoning"] as? [String: Any] ?? [:]
+        // The production modelFacts declaration for openAI/gpt-5.6-sol includes xhigh: if the decision says it exists, the request must be able to send it.
+        #expect(reasoning["effort"] as? String == "xhigh", "effort must not vanish in the cold-start window, got \(reasoning)")
+        await MetadataClient.shared.resetForTesting()
     }
 
     @Test("Omits web_search when the model does not declare web capability, even if the toggle is on")

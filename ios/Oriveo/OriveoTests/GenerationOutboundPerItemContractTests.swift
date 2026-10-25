@@ -10,7 +10,7 @@ import Testing
 /// and the final body comes from the production `ProfileParamsResolver.applyGenerationParameters`
 /// (followed by `applyAnthropicThinkingGuard` where it applies). The test only turns the
 /// contract's profile into metadata and hands the overrides to the production decoder.
-@Suite("generation outbound per-item contract", .serialized)
+@Suite("generation outbound per-item contract", .serialized, .sharedProcessState)
 struct GenerationOutboundPerItemContractTests {
 
     @Test("every outbound case matches byte for byte through production metadata and the writer")

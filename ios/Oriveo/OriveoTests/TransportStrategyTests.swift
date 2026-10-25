@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Oriveo
 
-@Suite("Transport Registry Tests")
+@Suite("Transport Registry Tests", .sharedProcessState)
 struct TransportRegistryTests {
 
     @Test("All Kinds Registered")
@@ -62,7 +62,7 @@ struct TransportRegistryTests {
 
 // MARK: - OpenAIChatStrategy parseStreamLine
 
-@Suite("Open AIChat Strategy Tests")
+@Suite("Open AIChat Strategy Tests", .sharedProcessState)
 struct OpenAIChatStrategyTests {
 
     @Test("Basic Delta")
@@ -130,7 +130,7 @@ struct OpenAIChatStrategyTests {
 
 // MARK: - AnthropicMessagesStrategy parseStreamLine
 
-@Suite("Anthropic Messages Strategy Tests")
+@Suite("Anthropic Messages Strategy Tests", .sharedProcessState)
 struct AnthropicMessagesStrategyTests {
 
     @Test("Text Delta")
@@ -179,7 +179,7 @@ struct AnthropicMessagesStrategyTests {
 
 // MARK: - GeminiGenerateStrategy parseStreamLine
 
-@Suite("Gemini Generate Strategy Tests")
+@Suite("Gemini Generate Strategy Tests", .sharedProcessState)
 struct GeminiGenerateStrategyTests {
 
     @Test("Text Part")
@@ -231,7 +231,7 @@ struct GeminiGenerateStrategyTests {
 
 // MARK: - DashScopeNativeStrategy parseStreamLine
 
-@Suite("Dash Scope Native Strategy Tests")
+@Suite("Dash Scope Native Strategy Tests", .sharedProcessState)
 struct DashScopeNativeStrategyTests {
 
     @Test("Cumulative Text")
@@ -272,7 +272,7 @@ struct DashScopeNativeStrategyTests {
 
 // MARK: - OpenAIResponsesStrategy
 
-@Suite("Open AIResponses Strategy Tests")
+@Suite("Open AIResponses Strategy Tests", .sharedProcessState)
 struct OpenAIResponsesStrategyTests {
 
     @Test("Output Text Delta")
@@ -317,7 +317,7 @@ struct OpenAIResponsesStrategyTests {
 
 // MARK: - AnthropicMessagesStrategy snippet shape override
 
-@Suite("Anthropic Messages Strategy Snippet Shape Tests")
+@Suite("Anthropic Messages Strategy Snippet Shape Tests", .sharedProcessState)
 struct AnthropicMessagesStrategySnippetShapeTests {
 
     @Test("Inline Citation Snippet Shape")
@@ -358,7 +358,7 @@ struct AnthropicMessagesStrategySnippetShapeTests {
 
 // MARK: - GeminiGenerateStrategy groundingSupports
 
-@Suite("Gemini Grounding Supports Tests")
+@Suite("Gemini Grounding Supports Tests", .sharedProcessState)
 struct GeminiGroundingSupportsTests {
 
     @Test("Grounding Supports Backfills Range")
@@ -390,7 +390,7 @@ struct GeminiGroundingSupportsTests {
 }
 
 
-@Suite("Open Router Or Web Strategy Tests")
+@Suite("Open Router Or Web Strategy Tests", .sharedProcessState)
 struct OpenRouterOrWebStrategyTests {
 
     /// citationsArrayPath = "choices.0.message.annotations"
@@ -446,7 +446,7 @@ struct OpenRouterOrWebStrategyTests {
 }
 
 
-@Suite("Moonshot Kimi Web Search Strategy Tests")
+@Suite("Moonshot Kimi Web Search Strategy Tests", .sharedProcessState)
 struct MoonshotKimiWebSearchStrategyTests {
 
     @Test("Kimi No Stream Shape")
@@ -483,7 +483,7 @@ struct MoonshotKimiWebSearchStrategyTests {
 }
 
 
-@Suite("Relay Web Search Shape Resolution Tests")
+@Suite("Relay Web Search Shape Resolution Tests", .sharedProcessState)
 struct RelayWebSearchShapeResolutionTests {
 
     @Test("Ant Web Tool Handles Web Search Tool Result")

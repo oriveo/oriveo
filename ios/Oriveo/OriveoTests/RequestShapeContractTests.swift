@@ -27,7 +27,7 @@ final class RequestShapeContractURLProtocol: URLProtocol, @unchecked Sendable {
     override func stopLoading() {}
 }
 
-@Suite("request_shape_contract.v1 (iOS)", .serialized)
+@Suite("request_shape_contract.v1 (iOS)", .serialized, .sharedProcessState)
 struct RequestShapeContractTests {
     private static let evidenceRevision = "request-shape-fixture-v1"
 
@@ -105,7 +105,11 @@ struct RequestShapeContractTests {
             let visible: Bool
             switch uiCase.intent.capability {
             case "web":
-                visible = model.supportsWebSearchControl
+                visible = CapabilityControlResolution.resolve(
+                    provider: TestFactories.makeProvider(kind: kind, models: [model]),
+                    model: model,
+                    capability: "web"
+                ).isAvailable
             case "reasoning":
                 visible = model.capabilities.contains(.reasoning) && model.reasoningModeAvailable
             default:

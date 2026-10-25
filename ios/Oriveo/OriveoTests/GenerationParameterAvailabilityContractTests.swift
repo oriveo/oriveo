@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Oriveo
 
-@Suite("capability evidence generation availability contract", .serialized)
+@Suite("capability evidence generation availability contract", .serialized, .sharedProcessState)
 struct GenerationParameterAvailabilityContractTests {
     private static let modelID = "availability-model"
     private static let metadataRevision = "etag-availability"

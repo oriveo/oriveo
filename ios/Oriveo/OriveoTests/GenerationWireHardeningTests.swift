@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Oriveo
 
-@Suite("generation wire hardening (D33)", .serialized)
+@Suite("generation wire hardening (D33)", .serialized, .sharedProcessState)
 struct GenerationWireHardeningTests {
 
     @Test("Wire Hardening Cases")
@@ -144,6 +144,154 @@ struct GenerationWireHardeningTests {
         #expect(!ProfileParamsResolver.isValidGenerationValue(oversized, for: parameter))
     }
 
+    // MARK: - Official parameter gate
+
+    /// Production metadata -> `BaseAPIService.encodeChatBody`: builder default temperature 1.0, explicit user value 0.5.
+    /// Returns the temperature in the final request body (nil = not sent).
+    private static func encodeOfficialTemperature(
+        parameterSupport: String?,
+        negativeCacheState: String? = nil,
+        relay: Bool = false
+    ) async throws -> Double? {
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(
+            json: try Self.gatedMetadataJSON(parameterSupport: parameterSupport),
+            metadataETag: "param-gate-etag"
+        )
+        let resolved = try #require(await MetadataClient.shared.resolveCatalogModel(
+            modelID: "fixture-chat", providerKind: .openRouter
+        ))
+        var body: [String: Any] = [
+            "model": "fixture-chat",
+            "messages": [["role": "user", "content": "hello"]],
+            "temperature": 1.0,
+        ]
+        let options = ChatRequestOptions(
+            generationParameters: GenerationParameterOverrides(
+                values: ["temperature": GenerationParameterOverride(state: .value, value: .number(0.5))]
+            )
+        )
+        let provider = TestFactories.makeProvider(id: UUID(), kind: relay ? .relay : .openRouter)
+        var model = TestFactories.makeModel(id: "fixture-chat")
+        model.canonicalModelId = resolved.canonicalModelId
+        let identity = CapabilityEvidenceRequestIdentity.make(
+            provider: provider, model: model, partitionID: "param-gate-user",
+            hasExplicitValue: true, metadataETag: "param-gate-etag"
+        )
+        let cache = CapabilityNegativeCache.shared
+        defer { cache.clearConnection(provider.id.uuidString) }
+        if let negativeCacheState {
+            cache.record(
+                connectionId: provider.id.uuidString, modelId: identity.query.effectiveModelID,
+                wireFamily: "openai_chat", capabilityKey: "param:temperature",
+                signatureId: "fixture.temperature_rejected",
+                verdictRevision: CapabilityNegativeCache.verdictRevision(.init(state: negativeCacheState))
+            )
+        }
+        if relay {
+            // Relay only passes the builder-default gate: parameterSupport "unavailable" does not strip it either.
+            CapabilityEvidenceRequestContext.$current.withValue(identity) {
+                ProfileParamsResolver.applyTemperatureGate(to: &body, resolved: resolved)
+            }
+            return (body["temperature"] as? NSNumber)?.doubleValue
+        }
+        let finalRequest = URLRequest(url: try #require(URL(string: "https://openrouter.test/api/v1/chat/completions")))
+        let data = try CapabilityEvidenceRequestContext.$current.withValue(identity) {
+            try BaseAPIService().encodeChatBody(&body, options: options, resolved: resolved, finalRequest: finalRequest)
+        }
+        let encoded = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        return (encoded["temperature"] as? NSNumber)?.doubleValue
+    }
+
+    @Test("Official parameterSupport temperature unavailable: neither builder default nor explicit value is sent")
+    func officialTemperatureUnavailableIsNotSent() async throws {
+        let sent = try await Self.encodeOfficialTemperature(
+            parameterSupport: #"{"temperature": {"state": "unavailable", "reasonCode": "official_doc"}}"#
+        )
+        #expect(sent == nil)
+    }
+
+    @Test("Official parameterSupport temperature unknown, auto_available or missing: explicit value is sent")
+    func officialTemperatureUnknownOrAutoIsSent() async throws {
+        for support in [
+            #"{"temperature": {"state": "unknown", "reasonCode": "catalog_silent"}}"#,
+            #"{"temperature": {"state": "auto_available"}}"#,
+            nil,
+        ] {
+            let sent = try await Self.encodeOfficialTemperature(parameterSupport: support)
+            #expect(sent == 0.5, "parameterSupport=\(support ?? "nil")")
+        }
+    }
+
+    @Test("Official v2 param:temperature negative cache hit with a matching revision is not sent; a stale revision is sent")
+    func officialTemperatureNegativeCacheHitIsNotSent() async throws {
+        let support = #"{"temperature": {"state": "auto_available"}}"#
+        #expect(try await Self.encodeOfficialTemperature(parameterSupport: support, negativeCacheState: "auto_available") == nil)
+        #expect(try await Self.encodeOfficialTemperature(parameterSupport: support, negativeCacheState: "unknown") == 0.5)
+    }
+
+    @Test("Relay ignores the official parameter gate")
+    func relayIgnoresOfficialParameterGate() async throws {
+        let sent = try await Self.encodeOfficialTemperature(
+            parameterSupport: #"{"temperature": {"state": "unavailable"}}"#, relay: true
+        )
+        #expect(sent == 1.0)
+    }
+
+    @Test("Official Anthropic thinking rejected by signature records param:thinking; reasoning fields are then omitted entirely, Relay unaffected")
+    func officialThinkingRejectionOmitsReasoningFields() throws {
+        let provider = TestFactories.makeProvider(id: UUID(), kind: .anthropic)
+        let model = TestFactories.makeModel(id: "claude-param-gate-fixture")
+        let identity = CapabilityEvidenceRequestIdentity.make(
+            provider: provider, model: model, partitionID: "param-gate-user",
+            hasExplicitValue: false, effectiveTransport: TransportKind.anthropicMessages.rawValue
+        )
+        let cache = CapabilityNegativeCache.shared
+        defer { cache.clearConnection(provider.id.uuidString) }
+        func guarded(_ thinking: [String: Any], identity: CapabilityEvidenceRequestIdentity) -> [String: Any] {
+            var body: [String: Any] = [
+                "model": model.id, "max_tokens": 8192, "thinking": thinking, "output_config": ["effort": "high"],
+            ]
+            CapabilityEvidenceRequestContext.$current.withValue(identity) {
+                ProfileParamsResolver.applyAnthropicThinkingGuard(
+                    to: &body, application: GenerationParameterApplication(), builderDefaultMaxTokens: 8192
+                )
+            }
+            return body
+        }
+        // Not rejected yet: the thinking field is written as usual.
+        #expect(guarded(["type": "disabled"], identity: identity)["thinking"] != nil)
+
+        let rejection = try #require(InputRejectionFlow.record(
+            .init(
+                form: .official, providerKind: .anthropic,
+                connectionId: provider.id.uuidString, modelId: identity.query.effectiveModelID,
+                outputStarted: false, carriedCapabilityKeys: [],
+                httpStatus: 400,
+                rawBody: #"{"type":"error","error":{"type":"invalid_request_error","message":"\"thinking.type.disabled\" is not supported for this model"}}"#,
+                controls: nil, transport: TransportKind.anthropicMessages.rawValue
+            )
+        ))
+        #expect(rejection.capabilityKey == "param:thinking")
+        #expect(rejection.wireFamily == "anthropic")
+        #expect(rejection.signatureId == "anthropic.thinking_type_not_supported")
+
+        for thinking: [String: Any] in [["type": "disabled"], ["type": "enabled", "budget_tokens": 2048]] {
+            let body = guarded(thinking, identity: identity)
+            #expect(body["thinking"] == nil, "\(thinking)")
+            #expect(body["output_config"] == nil, "\(thinking)")
+        }
+
+        // Same model id on Relay: the official gate does not apply, the thinking field is untouched.
+        var relay = TestFactories.makeProvider(id: provider.id, kind: .relay)
+        relay.models = [model]
+        let relayIdentity = CapabilityEvidenceRequestIdentity.make(
+            provider: relay, model: model, partitionID: "param-gate-user",
+            hasExplicitValue: false, effectiveTransport: TransportKind.anthropicMessages.rawValue
+        )
+        #expect(guarded(["type": "disabled"], identity: relayIdentity)["thinking"] != nil)
+    }
+
     // MARK: - Fixtures
 
     private static func hostileMetadataJSON(wire: String) throws -> String {
@@ -196,6 +344,14 @@ struct GenerationWireHardeningTests {
           }
         }
         """
+    }
+
+    private static func gatedMetadataJSON(parameterSupport: String?) throws -> String {
+        let base = try hostileMetadataJSON(wire: "temperature")
+        guard let parameterSupport else { return base }
+        let marker = #""supportsTemperature": true,"#
+        precondition(base.contains(marker))
+        return base.replacingOccurrences(of: marker, with: marker + "\n\"parameterSupport\": " + parameterSupport + ",")
     }
 
     private static func value(in body: [String: Any], path: String) -> Any? {

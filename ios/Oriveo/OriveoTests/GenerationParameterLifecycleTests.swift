@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Oriveo
 
-@Suite("Generation parameter value lifecycle", .serialized)
+@Suite("Generation parameter value lifecycle", .serialized, .sharedProcessState)
 struct GenerationParameterLifecycleTests {
     private static let metadataRevision = "etag-lifecycle"
     private static let generationRevision = "generation-lifecycle"

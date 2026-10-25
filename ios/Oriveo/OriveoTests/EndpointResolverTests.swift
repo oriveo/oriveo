@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Oriveo
 
-@Suite("Endpoint Resolver Tests", .serialized)
+@Suite("Endpoint Resolver Tests", .serialized, .sharedProcessState)
 struct EndpointResolverTests {
 
     // MARK: - Helpers

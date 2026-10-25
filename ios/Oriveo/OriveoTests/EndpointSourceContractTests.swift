@@ -4,7 +4,7 @@ import Testing
 
 /// Cross-platform `endpointSource` contract (`shared/test-fixtures/provider-catalog/endpoint-source.v1.json`; its $comment is the rule).
 /// One test per fixture caseId; resolve cases assert the address the production `EndpointResolver.resolve(provider:)` actually produces.
-@Suite("endpointSource contract", .serialized)
+@Suite("endpointSource contract", .serialized, .sharedProcessState)
 @MainActor
 struct EndpointSourceContractTests {
 

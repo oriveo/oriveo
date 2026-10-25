@@ -109,7 +109,7 @@ private func productionSelfHealScope(
     )
 }
 
-@Suite("Unsupported-param self-heal • classifier", .serialized)
+@Suite("Unsupported-param self-heal • classifier", .serialized, .sharedProcessState)
 struct UnsupportedParamClassifierTests {
 
     @Test("Exact Runtime Identity Deduplicates Producer Side Effects")
@@ -596,7 +596,7 @@ struct UnsupportedParamClassifierTests {
 }
 
 
-@Suite("Unsupported-param self-heal • Grok production single-attempt", .serialized)
+@Suite("Unsupported-param self-heal • Grok production single-attempt", .serialized, .sharedProcessState)
 struct GrokSelfHealTests {
     private func makeSession() -> URLSession {
         let config = URLSessionConfiguration.ephemeral
@@ -659,7 +659,7 @@ struct GrokSelfHealTests {
     }
 }
 
-@Suite("Unsupported-param self-heal • official production single-attempt", .serialized)
+@Suite("Unsupported-param self-heal • official production single-attempt", .serialized, .sharedProcessState)
 struct OfficialAndRelaySelfHealCoverageTests {
     private func makeSession() -> URLSession {
         let config = URLSessionConfiguration.ephemeral
@@ -730,7 +730,7 @@ struct OfficialAndRelaySelfHealCoverageTests {
         ))
     }
 }
-@Suite("Unsupported-param self-heal • OpenAI-compatible reasoning gate", .serialized)
+@Suite("Unsupported-param self-heal • OpenAI-compatible reasoning gate", .serialized, .sharedProcessState)
 struct OpenAICompatibleReasoningGateTests {
     private let cases: [(ProviderKind, String)] = [
         (.groq, "groq-test-model"),

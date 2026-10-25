@@ -10,7 +10,7 @@ import Testing
 /// by production `LocalEngineGenerationProfiles`; the visible set and empty-state decision
 /// all run production `GenerationParameterPanelPresentation`. Tests do not hand-write a
 /// `GenerationProfileRef`.
-@Suite("Generation parameter empty state and unverified badge", .serialized)
+@Suite("Generation parameter empty state and unverified badge", .serialized, .sharedProcessState)
 struct GenerationParameterEmptyStateTests {
 
     // MARK: - Four empty states
