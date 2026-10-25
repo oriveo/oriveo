@@ -1,0 +1,4813 @@
+{
+  "$comment": "Capability truth contract: for each connection form (official, relay, subscription), the truth source -> projection table and the recorded production fixtures. A recorded response is never edited by hand; change the table first and let each end's contract test go red.",
+  "version": 1,
+  "keys": [
+    "vision_input",
+    "file_input",
+    "web_search",
+    "reasoning_tiers"
+  ],
+  "forms": {
+    "$comment": "Form derivation table: ProviderForm is derived once from the Provider, in a fixed order, first hit wins. Each end's contract test runs every case row.",
+    "order": [
+      "relay",
+      "subscription",
+      "official"
+    ],
+    "cases": [
+      {
+        "kind": "relay",
+        "authMode": "apiKey",
+        "form": "relay"
+      },
+      {
+        "kind": "relay",
+        "authMode": "subscription",
+        "form": "relay"
+      },
+      {
+        "kind": "openAI",
+        "authMode": "subscription",
+        "form": "subscription"
+      },
+      {
+        "kind": "grok",
+        "authMode": "subscription",
+        "form": "subscription"
+      },
+      {
+        "kind": "openAI",
+        "authMode": "apiKey",
+        "form": "official"
+      },
+      {
+        "kind": "anthropic",
+        "authMode": "apiKey",
+        "form": "official"
+      }
+    ],
+    "adapters": {
+      "subscription": "SubscriptionTruthAdapter",
+      "relay": "RelayTruthAdapter",
+      "official": "OfficialTruthAdapter"
+    },
+    "adapters_comment": "The adapter the registry hands each form to; each end's contract test checks it row by row.",
+    "identity": "The authMode produced by the production identity constructor must equal the connection's authMode raw value (apiKey | subscription). Each end's contract test asserts every row of cases. The query fixture of capability_evidence_contract.v1.json carries no authMode and defaults to apiKey."
+  },
+  "fixtures": {
+    "official_metadata": {
+      "recorded_at": "2026-10-15T07:06:35.365Z",
+      "source_url": "GET /api/metadata?view=lean",
+      "etag": "\"dfa63d60e2fa6d48\"",
+      "selection": [
+        {
+          "providerKind": "openAI",
+          "modelId": "o3"
+        },
+        {
+          "providerKind": "openAI",
+          "modelId": "chat-latest"
+        },
+        {
+          "providerKind": "anthropic",
+          "modelId": "claude-opus-5-5"
+        },
+        {
+          "providerKind": "gemini",
+          "modelId": "lyria-3-pro-preview"
+        }
+      ],
+      "trim": "Trimmed, never rewritten: providers keep only the models in selection and the resolveMap rows that point to them; profiles.reasoning / webSearch / imageGen and generationParameterTables keep only the entries those models reference; providerConfigs keep only those providers; runtimeConfig / relayRuntimeConfig / libraryRuntimeConfig / mcpRuntimeConfig are removed (every end decodes them as optional). capabilityRuntime is kept as recorded.",
+      "response": {
+        "code": 0,
+        "data": {
+          "capabilityContractVersion": 2,
+          "capabilityRuntime": {
+            "agentToolDialects": {
+              "anthropic_native": {
+                "id": "anthropic_native",
+                "edit": "str_replace",
+                "names": {
+                  "fs.edit": "Edit",
+                  "fs.read": "Read",
+                  "fs.write": "Write",
+                  "shell.exec": "Bash"
+                },
+                "parallelToolCalls": "allowed",
+                "strictSchemas": false,
+                "inputExamples": true,
+                "deferLoading": "native",
+                "forceToolChoice": "allowed",
+                "reasoningEcho": "none"
+              },
+              "generic": {
+                "id": "generic",
+                "edit": "str_replace",
+                "parallelToolCalls": "allowed",
+                "strictSchemas": false,
+                "inputExamples": false,
+                "deferLoading": "host",
+                "forceToolChoice": "allowed",
+                "reasoningEcho": "none"
+              },
+              "hashline": {
+                "id": "hashline",
+                "edit": "hashline",
+                "parallelToolCalls": "allowed",
+                "strictSchemas": false,
+                "inputExamples": false,
+                "deferLoading": "host",
+                "forceToolChoice": "allowed",
+                "reasoningEcho": "none"
+              },
+              "openai_codex": {
+                "id": "openai_codex",
+                "edit": "apply_patch_freeform",
+                "parallelToolCalls": "allowed",
+                "strictSchemas": true,
+                "inputExamples": false,
+                "deferLoading": "off",
+                "forceToolChoice": "allowed",
+                "reasoningEcho": "reasoning_items"
+              }
+            },
+            "cachePolicies": {
+              "anthropic.explicit": {
+                "protocol": "anthropic_messages",
+                "mode": "explicit_breakpoints",
+                "maxBreakpoints": 4,
+                "marker": "cache_control",
+                "ttlOptions": [
+                  "5m",
+                  "1h"
+                ],
+                "placement": [
+                  "tools",
+                  "system",
+                  "messages"
+                ],
+                "sourceRefs": [
+                  "https://platform.claude.com/docs/en/build-with-claude/prompt-caching"
+                ],
+                "reviewedAt": "2026-10-01"
+              },
+              "deepseek.automatic": {
+                "protocol": "openai_chat",
+                "mode": "automatic_prefix",
+                "sourceRefs": [
+                  "https://api-docs.deepseek.com/guides/kv_cache"
+                ],
+                "reviewedAt": "2026-10-01"
+              },
+              "gemini.implicit": {
+                "protocol": "gemini_generate",
+                "mode": "automatic_prefix",
+                "sourceRefs": [
+                  "https://ai.google.dev/gemini-api/docs/caching"
+                ],
+                "reviewedAt": "2026-10-01"
+              },
+              "moonshot.automatic": {
+                "protocol": "openai_chat",
+                "mode": "automatic_prefix",
+                "marker": "prompt_cache_options",
+                "ttlOptions": [
+                  "5m",
+                  "1h"
+                ],
+                "sourceRefs": [
+                  "https://platform.kimi.ai/docs/guide/use-context-caching-feature-of-kimi-api"
+                ],
+                "reviewedAt": "2026-10-01"
+              },
+              "openai.chat.automatic": {
+                "protocol": "openai_chat",
+                "mode": "automatic_prefix",
+                "cacheKeyField": "prompt_cache_key",
+                "sourceRefs": [
+                  "https://developers.openai.com/api/docs/guides/prompt-caching"
+                ],
+                "reviewedAt": "2026-10-01"
+              },
+              "openai.responses.automatic": {
+                "protocol": "openai_responses",
+                "mode": "automatic_prefix",
+                "cacheKeyField": "prompt_cache_key",
+                "continuation": {
+                  "kind": "previous_response_id",
+                  "requiresStore": true
+                },
+                "sourceRefs": [
+                  "https://developers.openai.com/api/docs/guides/prompt-caching",
+                  "https://developers.openai.com/api/docs/guides/conversation-state"
+                ],
+                "reviewedAt": "2026-10-01"
+              }
+            },
+            "controlDefinitions": {
+              "openai.generation.max_output_tokens": {
+                "id": "openai.generation.max_output_tokens",
+                "owner": "generation",
+                "kind": "integer_range",
+                "min": 1,
+                "max": 128000,
+                "labelKey": "control.generation.maxOutputTokens",
+                "descriptionKey": "control.generation.maxOutputTokens.desc",
+                "targetPointer": "/max_output_tokens",
+                "defaultBehavior": "provider_default",
+                "riskTier": "cost_impacting",
+                "sourceRefs": [
+                  "openai.reasoning"
+                ]
+              },
+              "openai.reasoning.effort": {
+                "id": "openai.reasoning.effort",
+                "owner": "reasoning",
+                "kind": "enum",
+                "values": [
+                  "low",
+                  "medium",
+                  "high"
+                ],
+                "labelKey": "control.reasoning.effort",
+                "descriptionKey": "control.reasoning.effort.desc",
+                "targetPointer": "/reasoning/effort",
+                "defaultBehavior": "provider_default",
+                "riskTier": "cost_impacting",
+                "sourceRefs": [
+                  "openai.reasoning"
+                ]
+              },
+              "qwen.web.enable_search": {
+                "id": "qwen.web.enable_search",
+                "owner": "web",
+                "kind": "boolean",
+                "labelKey": "control.web.enableSearch",
+                "descriptionKey": "control.web.enableSearch.desc",
+                "targetPointer": "/enable_search",
+                "defaultBehavior": "provider_default",
+                "riskTier": "privacy_impacting",
+                "sourceRefs": [
+                  "qwen.web_search"
+                ]
+              }
+            },
+            "errorRecoveryDefinitions": {
+              "anthropic.messages.generation": {
+                "capability": "generation",
+                "locatorRules": [],
+                "protocol": "anthropic_messages",
+                "responseParserKind": "anthropic_messages_generation_v1"
+              },
+              "anthropic.messages.reasoning": {
+                "capability": "reasoning",
+                "locatorRules": [],
+                "protocol": "anthropic_messages",
+                "responseParserKind": "anthropic_thinking_v1"
+              },
+              "anthropic.messages.web": {
+                "capability": "web",
+                "locatorRules": [],
+                "protocol": "anthropic_messages",
+                "responseParserKind": "anthropic_web_search_v1"
+              },
+              "deepseek.chat.reasoning": {
+                "capability": "reasoning",
+                "locatorRules": [],
+                "protocol": "openai_chat",
+                "responseParserKind": "deepseek_reasoning_v1"
+              },
+              "fireworks.chat.reasoning": {
+                "capability": "reasoning",
+                "locatorRules": [],
+                "protocol": "openai_chat",
+                "responseParserKind": "fireworks_reasoning_v1"
+              },
+              "gemini.generate.generation": {
+                "capability": "generation",
+                "locatorRules": [],
+                "protocol": "gemini_generate_content",
+                "responseParserKind": "gemini_generate_content_generation_v1"
+              },
+              "gemini.generate.reasoning": {
+                "capability": "reasoning",
+                "locatorRules": [],
+                "protocol": "gemini_generate_content",
+                "responseParserKind": "gemini_thinking_v1"
+              },
+              "gemini.generate.web": {
+                "capability": "web",
+                "locatorRules": [],
+                "protocol": "gemini_generate_content",
+                "responseParserKind": "gemini_google_search_v1"
+              },
+              "gemini.interactions.reasoning": {
+                "capability": "reasoning",
+                "locatorRules": [],
+                "protocol": "gemini_interactions",
+                "responseParserKind": "gemini_thinking_v1"
+              },
+              "gemini.interactions.web": {
+                "capability": "web",
+                "locatorRules": [],
+                "protocol": "gemini_interactions",
+                "responseParserKind": "gemini_google_search_v1"
+              },
+              "grok.chat.reasoning": {
+                "capability": "reasoning",
+                "locatorRules": [],
+                "protocol": "openai_chat",
+                "responseParserKind": "grok_reasoning_v1"
+              },
+              "grok.responses.reasoning": {
+                "capability": "reasoning",
+                "locatorRules": [],
+                "protocol": "openai_responses",
+                "responseParserKind": "grok_reasoning_v1"
+              },
+              "grok.responses.web": {
+                "capability": "web",
+                "locatorRules": [],
+                "protocol": "openai_responses",
+                "responseParserKind": "grok_web_search_v1"
+              },
+              "groq.chat.reasoning": {
+                "capability": "reasoning",
+                "locatorRules": [],
+                "protocol": "openai_chat",
+                "responseParserKind": "groq_reasoning_v1"
+              },
+              "minimax.messages.web": {
+                "capability": "web",
+                "locatorRules": [],
+                "protocol": "anthropic_messages",
+                "responseParserKind": "minimax_anthropic_web_v1"
+              },
+              "mistral.chat.reasoning": {
+                "capability": "reasoning",
+                "locatorRules": [],
+                "protocol": "openai_chat",
+                "responseParserKind": "mistral_reasoning_v1"
+              },
+              "moonshot.builtin.web": {
+                "capability": "web",
+                "locatorRules": [],
+                "protocol": "openai_chat",
+                "responseParserKind": "moonshot_builtin_web_v1"
+              },
+              "moonshot.chat.reasoning": {
+                "capability": "reasoning",
+                "locatorRules": [],
+                "protocol": "openai_chat",
+                "responseParserKind": "moonshot_reasoning_v1"
+              },
+              "moonshot.formula.web": {
+                "capability": "web",
+                "locatorRules": [],
+                "protocol": "openai_chat",
+                "responseParserKind": "moonshot_formula_web_v1"
+              },
+              "openai.chat.generation": {
+                "capability": "generation",
+                "locatorRules": [],
+                "protocol": "openai_chat",
+                "responseParserKind": "openai_chat_generation_v1"
+              },
+              "openai.chat.reasoning": {
+                "capability": "reasoning",
+                "locatorRules": [],
+                "protocol": "openai_chat",
+                "responseParserKind": "openai_chat_reasoning_v1"
+              },
+              "openai.chat.web": {
+                "capability": "web",
+                "locatorRules": [],
+                "protocol": "openai_chat",
+                "responseParserKind": "openai_chat_web_v1"
+              },
+              "openai.responses.generation": {
+                "capability": "generation",
+                "locatorRules": [],
+                "protocol": "openai_responses",
+                "responseParserKind": "openai_responses_generation_v1"
+              },
+              "openai.responses.reasoning": {
+                "capability": "reasoning",
+                "locatorRules": [],
+                "protocol": "openai_responses",
+                "responseParserKind": "openai_responses_reasoning_v1"
+              },
+              "openai.responses.web": {
+                "capability": "web",
+                "locatorRules": [],
+                "protocol": "openai_responses",
+                "responseParserKind": "openai_responses_web_v1"
+              },
+              "openrouter.chat.reasoning": {
+                "capability": "reasoning",
+                "locatorRules": [],
+                "protocol": "openai_chat",
+                "responseParserKind": "openrouter_reasoning_v1"
+              },
+              "openrouter.chat.web": {
+                "capability": "web",
+                "locatorRules": [],
+                "protocol": "openai_chat",
+                "responseParserKind": "openrouter_web_v1"
+              },
+              "qwen.chat.reasoning": {
+                "capability": "reasoning",
+                "locatorRules": [],
+                "protocol": "openai_chat",
+                "responseParserKind": "qwen_reasoning_v1"
+              },
+              "qwen.chat.web": {
+                "capability": "web",
+                "locatorRules": [],
+                "protocol": "openai_chat",
+                "responseParserKind": "qwen_chat_search_v1"
+              },
+              "siliconflow.chat.reasoning": {
+                "capability": "reasoning",
+                "locatorRules": [],
+                "protocol": "openai_chat",
+                "responseParserKind": "siliconflow_reasoning_v1"
+              },
+              "together.chat.reasoning": {
+                "capability": "reasoning",
+                "locatorRules": [],
+                "protocol": "openai_chat",
+                "responseParserKind": "together_reasoning_v1"
+              },
+              "zhipu.chat.reasoning": {
+                "capability": "reasoning",
+                "locatorRules": [],
+                "protocol": "openai_chat",
+                "responseParserKind": "zhipu_reasoning_v1"
+              },
+              "zhipu.chat.web": {
+                "capability": "web",
+                "locatorRules": [],
+                "protocol": "openai_chat",
+                "responseParserKind": "zhipu_web_search_v1"
+              }
+            },
+            "generatedAt": "2026-10-13T00:00:00Z",
+            "recipes": {
+              "anthropic.messages.generation.v1": {
+                "capability": "generation",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "anthropic.messages.generation",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "anthropic.messages.generation.v1",
+                "providerKind": "anthropic",
+                "requestOps": [
+                  {
+                    "op": "legacy_generation_template",
+                    "template": "anthropic_messages"
+                  }
+                ],
+                "responseEvidenceRef": "anthropic.messages.generation",
+                "responseParserKind": "anthropic_messages_generation_v1",
+                "reviewedAt": "2026-08-11",
+                "sourceRefs": [
+                  "anthropic.effort"
+                ],
+                "transport": {
+                  "endpointClass": "messages",
+                  "protocol": "anthropic_messages",
+                  "requiredHeaders": [
+                    "anthropic-version"
+                  ],
+                  "streaming": "optional"
+                }
+              },
+              "anthropic.messages.reasoning.v1": {
+                "capability": "reasoning",
+                "continuationKind": "replay_blocks",
+                "controlRefs": [],
+                "errorRecoveryRef": "anthropic.messages.reasoning",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "anthropic.messages.reasoning.v1",
+                "providerKind": "anthropic",
+                "requestOps": [
+                  {
+                    "intent": "low",
+                    "op": "set",
+                    "pointer": "/thinking",
+                    "value": {
+                      "budget_tokens": 2048,
+                      "type": "enabled"
+                    }
+                  },
+                  {
+                    "intent": "balanced",
+                    "op": "set",
+                    "pointer": "/thinking",
+                    "value": {
+                      "budget_tokens": 8192,
+                      "type": "enabled"
+                    }
+                  },
+                  {
+                    "intent": "deep",
+                    "op": "set",
+                    "pointer": "/thinking",
+                    "value": {
+                      "budget_tokens": 16384,
+                      "type": "enabled"
+                    }
+                  }
+                ],
+                "responseEvidenceRef": "anthropic.messages.reasoning",
+                "responseParserKind": "anthropic_thinking_v1",
+                "reviewedAt": "2026-08-11",
+                "sourceRefs": [
+                  "anthropic.effort"
+                ],
+                "transport": {
+                  "endpointClass": "messages",
+                  "protocol": "anthropic_messages",
+                  "requiredHeaders": [
+                    "anthropic-version"
+                  ],
+                  "streaming": "optional"
+                }
+              },
+              "anthropic.messages.reasoning.v2": {
+                "capability": "reasoning",
+                "continuationKind": "replay_blocks",
+                "controlRefs": [],
+                "errorRecoveryRef": "anthropic.messages.reasoning",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "anthropic.messages.reasoning.v2",
+                "providerKind": "anthropic",
+                "requestOps": [
+                  {
+                    "intent": "low",
+                    "op": "set",
+                    "pointer": "/thinking",
+                    "value": {
+                      "type": "adaptive"
+                    }
+                  },
+                  {
+                    "intent": "low",
+                    "op": "set",
+                    "pointer": "/output_config/effort",
+                    "value": "low"
+                  },
+                  {
+                    "intent": "balanced",
+                    "op": "set",
+                    "pointer": "/thinking",
+                    "value": {
+                      "type": "adaptive"
+                    }
+                  },
+                  {
+                    "intent": "balanced",
+                    "op": "set",
+                    "pointer": "/output_config/effort",
+                    "value": "medium"
+                  },
+                  {
+                    "intent": "deep",
+                    "op": "set",
+                    "pointer": "/thinking",
+                    "value": {
+                      "type": "adaptive"
+                    }
+                  },
+                  {
+                    "intent": "deep",
+                    "op": "set",
+                    "pointer": "/output_config/effort",
+                    "value": "high"
+                  },
+                  {
+                    "intent": "max",
+                    "op": "set",
+                    "pointer": "/thinking",
+                    "value": {
+                      "type": "adaptive"
+                    }
+                  },
+                  {
+                    "intent": "max",
+                    "op": "set",
+                    "pointer": "/output_config/effort",
+                    "value": "max"
+                  }
+                ],
+                "responseEvidenceRef": "anthropic.messages.reasoning",
+                "responseParserKind": "anthropic_thinking_v1",
+                "reviewedAt": "2026-09-24",
+                "sourceRefs": [
+                  "anthropic.effort"
+                ],
+                "transport": {
+                  "endpointClass": "messages",
+                  "protocol": "anthropic_messages",
+                  "requiredHeaders": [
+                    "anthropic-version"
+                  ],
+                  "streaming": "optional"
+                }
+              },
+              "anthropic.messages.web.v1": {
+                "capability": "web",
+                "continuationKind": "replay_blocks",
+                "controlRefs": [],
+                "errorRecoveryRef": "anthropic.messages.web",
+                "executionKind": "server_tool",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "anthropic.messages.web.v1",
+                "providerKind": "anthropic",
+                "requestOps": [
+                  {
+                    "op": "append",
+                    "pointer": "/tools/-",
+                    "value": {
+                      "max_uses": 5,
+                      "name": "web_search",
+                      "type": "web_search_20250305"
+                    }
+                  }
+                ],
+                "responseEvidenceRef": "anthropic.messages.web",
+                "responseParserKind": "anthropic_web_search_v1",
+                "reviewedAt": "2026-09-24",
+                "sourceRefs": [
+                  "anthropic.web_search"
+                ],
+                "transport": {
+                  "endpointClass": "messages",
+                  "protocol": "anthropic_messages",
+                  "requiredHeaders": [
+                    "anthropic-version"
+                  ],
+                  "streaming": "optional"
+                }
+              },
+              "deepseek.chat.generation.v1": {
+                "capability": "generation",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "openai.chat.generation",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "deepseek.chat.generation.v1",
+                "providerKind": "deepseek",
+                "requestOps": [
+                  {
+                    "op": "legacy_generation_template",
+                    "template": "openai_chat_completions"
+                  }
+                ],
+                "responseEvidenceRef": "openai.chat.generation",
+                "responseParserKind": "openai_chat_generation_v1",
+                "reviewedAt": "2026-08-11",
+                "sourceRefs": [
+                  "deepseek.thinking_mode"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "deepseek.chat.reasoning.v1": {
+                "capability": "reasoning",
+                "continuationKind": "replay_reasoning",
+                "controlRefs": [],
+                "errorRecoveryRef": "deepseek.chat.reasoning",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "deepseek.chat.reasoning.v1",
+                "providerKind": "deepseek",
+                "requestOps": [
+                  {
+                    "intent": "off",
+                    "op": "set",
+                    "pointer": "/thinking",
+                    "value": {
+                      "type": "disabled"
+                    }
+                  },
+                  {
+                    "intent": "low",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "low"
+                  },
+                  {
+                    "intent": "deep",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "high"
+                  },
+                  {
+                    "intent": "max",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "max"
+                  }
+                ],
+                "responseEvidenceRef": "deepseek.chat.reasoning",
+                "responseParserKind": "deepseek_reasoning_v1",
+                "reviewedAt": "2026-09-24",
+                "sourceRefs": [
+                  "deepseek.thinking_mode",
+                  "deepseek.chat_api"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "fireworksai.chat.generation.v1": {
+                "capability": "generation",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "openai.chat.generation",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "fireworksai.chat.generation.v1",
+                "providerKind": "fireworksAI",
+                "requestOps": [
+                  {
+                    "op": "legacy_generation_template",
+                    "template": "openai_chat_completions"
+                  }
+                ],
+                "responseEvidenceRef": "openai.chat.generation",
+                "responseParserKind": "openai_chat_generation_v1",
+                "reviewedAt": "2026-08-11",
+                "sourceRefs": [
+                  "fireworks.chat_completions"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "fireworksai.chat.reasoning.v1": {
+                "capability": "reasoning",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "fireworks.chat.reasoning",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "fireworksai.chat.reasoning.v1",
+                "providerKind": "fireworksAI",
+                "requestOps": [
+                  {
+                    "intent": "low",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "low"
+                  },
+                  {
+                    "intent": "balanced",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "medium"
+                  },
+                  {
+                    "intent": "deep",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "high"
+                  }
+                ],
+                "responseEvidenceRef": "fireworks.chat.reasoning",
+                "responseParserKind": "fireworks_reasoning_v1",
+                "reviewedAt": "2026-08-11",
+                "sourceRefs": [
+                  "fireworks.reasoning"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "gemini.generate_content.generation.v1": {
+                "capability": "generation",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "gemini.generate.generation",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "gemini.generate_content.generation.v1",
+                "providerKind": "gemini",
+                "requestOps": [
+                  {
+                    "op": "legacy_generation_template",
+                    "template": "gemini_generate_content"
+                  }
+                ],
+                "responseEvidenceRef": "gemini.generate.generation",
+                "responseParserKind": "gemini_generate_content_generation_v1",
+                "reviewedAt": "2026-08-11",
+                "sourceRefs": [
+                  "gemini.thinking"
+                ],
+                "transport": {
+                  "endpointClass": "generate_content",
+                  "protocol": "gemini_generate_content",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "gemini.generate_content.reasoning.v1": {
+                "capability": "reasoning",
+                "continuationKind": "replay_blocks",
+                "controlRefs": [],
+                "errorRecoveryRef": "gemini.generate.reasoning",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "gemini.generate_content.reasoning.v1",
+                "providerKind": "gemini",
+                "requestOps": [
+                  {
+                    "intent": "low",
+                    "op": "set",
+                    "pointer": "/generationConfig/thinkingConfig/thinkingBudget",
+                    "value": 1024
+                  },
+                  {
+                    "intent": "balanced",
+                    "op": "set",
+                    "pointer": "/generationConfig/thinkingConfig/thinkingBudget",
+                    "value": 4096
+                  },
+                  {
+                    "intent": "deep",
+                    "op": "set",
+                    "pointer": "/generationConfig/thinkingConfig/thinkingBudget",
+                    "value": 16384
+                  }
+                ],
+                "responseEvidenceRef": "gemini.generate.reasoning",
+                "responseParserKind": "gemini_thinking_v1",
+                "reviewedAt": "2026-08-11",
+                "sourceRefs": [
+                  "gemini.thinking"
+                ],
+                "transport": {
+                  "endpointClass": "generate_content",
+                  "protocol": "gemini_generate_content",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "gemini.generate_content.reasoning.v2": {
+                "capability": "reasoning",
+                "continuationKind": "replay_blocks",
+                "controlRefs": [],
+                "errorRecoveryRef": "gemini.generate.reasoning",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "gemini.generate_content.reasoning.v2",
+                "providerKind": "gemini",
+                "requestOps": [
+                  {
+                    "intent": "off",
+                    "op": "set",
+                    "pointer": "/generationConfig/thinkingConfig/thinkingLevel",
+                    "value": "minimal"
+                  },
+                  {
+                    "intent": "low",
+                    "op": "set",
+                    "pointer": "/generationConfig/thinkingConfig/thinkingLevel",
+                    "value": "low"
+                  },
+                  {
+                    "intent": "balanced",
+                    "op": "set",
+                    "pointer": "/generationConfig/thinkingConfig/thinkingLevel",
+                    "value": "medium"
+                  },
+                  {
+                    "intent": "deep",
+                    "op": "set",
+                    "pointer": "/generationConfig/thinkingConfig/thinkingLevel",
+                    "value": "high"
+                  }
+                ],
+                "responseEvidenceRef": "gemini.generate.reasoning",
+                "responseParserKind": "gemini_thinking_v1",
+                "reviewedAt": "2026-08-11",
+                "sourceRefs": [
+                  "gemini.thinking"
+                ],
+                "transport": {
+                  "endpointClass": "generate_content",
+                  "protocol": "gemini_generate_content",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "gemini.generate_content.web.v1": {
+                "capability": "web",
+                "continuationKind": "replay_blocks",
+                "controlRefs": [],
+                "errorRecoveryRef": "gemini.generate.web",
+                "executionKind": "server_tool",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "gemini.generate_content.web.v1",
+                "providerKind": "gemini",
+                "requestOps": [
+                  {
+                    "op": "append",
+                    "pointer": "/tools/-",
+                    "value": {
+                      "google_search": {}
+                    }
+                  }
+                ],
+                "responseEvidenceRef": "gemini.generate.web",
+                "responseParserKind": "gemini_google_search_v1",
+                "reviewedAt": "2026-08-11",
+                "sourceRefs": [
+                  "gemini.google_search"
+                ],
+                "transport": {
+                  "endpointClass": "generate_content",
+                  "protocol": "gemini_generate_content",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "gemini.generate_content.web.v2": {
+                "capability": "web",
+                "continuationKind": "replay_blocks",
+                "controlRefs": [],
+                "errorRecoveryRef": "gemini.generate.web",
+                "executionKind": "server_tool",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "gemini.generate_content.web.v2",
+                "providerKind": "gemini",
+                "requestOps": [
+                  {
+                    "op": "append",
+                    "pointer": "/tools/-",
+                    "value": {
+                      "google_search_retrieval": {
+                        "dynamic_retrieval_config": {
+                          "mode": "MODE_DYNAMIC"
+                        }
+                      }
+                    }
+                  }
+                ],
+                "responseEvidenceRef": "gemini.generate.web",
+                "responseParserKind": "gemini_google_search_v1",
+                "reviewedAt": "2026-08-11",
+                "sourceRefs": [
+                  "gemini.google_search"
+                ],
+                "transport": {
+                  "endpointClass": "generate_content",
+                  "protocol": "gemini_generate_content",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "gemini.interactions.reasoning.v1": {
+                "capability": "reasoning",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "gemini.interactions.reasoning",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "gemini.interactions.reasoning.v1",
+                "providerKind": "gemini",
+                "requestOps": [
+                  {
+                    "op": "set",
+                    "pointer": "/generation_config/thinking_summaries",
+                    "value": "auto"
+                  },
+                  {
+                    "intent": "off",
+                    "op": "set",
+                    "pointer": "/generation_config/thinking_level",
+                    "value": "minimal"
+                  },
+                  {
+                    "intent": "off",
+                    "op": "set",
+                    "pointer": "/generation_config/thinking_summaries",
+                    "value": "none"
+                  },
+                  {
+                    "intent": "low",
+                    "op": "set",
+                    "pointer": "/generation_config/thinking_level",
+                    "value": "low"
+                  },
+                  {
+                    "intent": "balanced",
+                    "op": "set",
+                    "pointer": "/generation_config/thinking_level",
+                    "value": "medium"
+                  },
+                  {
+                    "intent": "deep",
+                    "op": "set",
+                    "pointer": "/generation_config/thinking_level",
+                    "value": "high"
+                  }
+                ],
+                "responseEvidenceRef": "gemini.interactions.reasoning",
+                "responseParserKind": "gemini_thinking_v1",
+                "reviewedAt": "2026-10-13",
+                "sourceRefs": [
+                  "gemini.interactions"
+                ],
+                "transport": {
+                  "endpointClass": "interactions",
+                  "protocol": "gemini_interactions",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "gemini.interactions.web.v1": {
+                "capability": "web",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "gemini.interactions.web",
+                "executionKind": "endpoint_route",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "gemini.interactions.web.v1",
+                "providerKind": "gemini",
+                "requestOps": [
+                  {
+                    "op": "append",
+                    "pointer": "/tools/-",
+                    "value": {
+                      "type": "google_search"
+                    }
+                  }
+                ],
+                "responseEvidenceRef": "gemini.interactions.web",
+                "responseParserKind": "gemini_google_search_v1",
+                "reviewedAt": "2026-10-13",
+                "route": {
+                  "endpointClass": "interactions",
+                  "path": "/v1beta/interactions",
+                  "protocol": "gemini_interactions",
+                  "requestMapper": "gemini_interactions_v1"
+                },
+                "sourceRefs": [
+                  "gemini.interactions"
+                ],
+                "transport": {
+                  "endpointClass": "interactions",
+                  "protocol": "gemini_interactions",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "grok.chat.generation.v1": {
+                "capability": "generation",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "openai.chat.generation",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "grok.chat.generation.v1",
+                "providerKind": "grok",
+                "requestOps": [
+                  {
+                    "op": "legacy_generation_template",
+                    "template": "openai_chat_completions"
+                  }
+                ],
+                "responseEvidenceRef": "openai.chat.generation",
+                "responseParserKind": "openai_chat_generation_v1",
+                "reviewedAt": "2026-08-11",
+                "sourceRefs": [
+                  "grok.reasoning"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "grok.chat.reasoning.v1": {
+                "capability": "reasoning",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "grok.chat.reasoning",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "grok.chat.reasoning.v1",
+                "providerKind": "grok",
+                "requestOps": [
+                  {
+                    "intent": "low",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "low"
+                  },
+                  {
+                    "intent": "balanced",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "medium"
+                  },
+                  {
+                    "intent": "deep",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "high"
+                  },
+                  {
+                    "intent": "max",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "xhigh"
+                  }
+                ],
+                "responseEvidenceRef": "grok.chat.reasoning",
+                "responseParserKind": "grok_reasoning_v1",
+                "reviewedAt": "2026-08-15",
+                "sourceRefs": [
+                  "grok.reasoning",
+                  "grok.models"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "grok.responses.generation.v1": {
+                "capability": "generation",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "openai.responses.generation",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "grok.responses.generation.v1",
+                "providerKind": "grok",
+                "requestOps": [
+                  {
+                    "op": "legacy_generation_template",
+                    "template": "openai_responses"
+                  }
+                ],
+                "responseEvidenceRef": "openai.responses.generation",
+                "responseParserKind": "openai_responses_generation_v1",
+                "reviewedAt": "2026-08-11",
+                "sourceRefs": [
+                  "grok.reasoning"
+                ],
+                "transport": {
+                  "endpointClass": "responses",
+                  "protocol": "openai_responses",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "grok.responses.reasoning.v1": {
+                "capability": "reasoning",
+                "continuationKind": "previous_id",
+                "controlRefs": [],
+                "errorRecoveryRef": "grok.responses.reasoning",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "grok.responses.reasoning.v1",
+                "providerKind": "grok",
+                "requestOps": [
+                  {
+                    "intent": "low",
+                    "op": "set",
+                    "pointer": "/reasoning/effort",
+                    "value": "low"
+                  },
+                  {
+                    "intent": "balanced",
+                    "op": "set",
+                    "pointer": "/reasoning/effort",
+                    "value": "medium"
+                  },
+                  {
+                    "intent": "deep",
+                    "op": "set",
+                    "pointer": "/reasoning/effort",
+                    "value": "high"
+                  },
+                  {
+                    "intent": "max",
+                    "op": "set",
+                    "pointer": "/reasoning/effort",
+                    "value": "xhigh"
+                  }
+                ],
+                "responseEvidenceRef": "grok.responses.reasoning",
+                "responseParserKind": "grok_reasoning_v1",
+                "reviewedAt": "2026-09-24",
+                "sourceRefs": [
+                  "grok.reasoning",
+                  "grok.models"
+                ],
+                "transport": {
+                  "endpointClass": "responses",
+                  "protocol": "openai_responses",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "grok.responses.web.v1": {
+                "capability": "web",
+                "continuationKind": "previous_id",
+                "controlRefs": [],
+                "errorRecoveryRef": "grok.responses.web",
+                "executionKind": "server_tool",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "grok.responses.web.v1",
+                "providerKind": "grok",
+                "requestOps": [
+                  {
+                    "op": "append",
+                    "pointer": "/tools/-",
+                    "value": {
+                      "type": "web_search"
+                    }
+                  }
+                ],
+                "responseEvidenceRef": "grok.responses.web",
+                "responseParserKind": "grok_web_search_v1",
+                "reviewedAt": "2026-08-15",
+                "sourceRefs": [
+                  "grok.web_search"
+                ],
+                "transport": {
+                  "endpointClass": "responses",
+                  "protocol": "openai_responses",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "groq.chat.generation.v1": {
+                "capability": "generation",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "openai.chat.generation",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "groq.chat.generation.v1",
+                "providerKind": "groq",
+                "requestOps": [
+                  {
+                    "op": "legacy_generation_template",
+                    "template": "openai_chat_completions"
+                  }
+                ],
+                "responseEvidenceRef": "openai.chat.generation",
+                "responseParserKind": "openai_chat_generation_v1",
+                "reviewedAt": "2026-08-11",
+                "sourceRefs": [
+                  "groq.reasoning"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "groq.chat.reasoning.v1": {
+                "capability": "reasoning",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "groq.chat.reasoning",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "groq.chat.reasoning.v1",
+                "providerKind": "groq",
+                "requestOps": [
+                  {
+                    "intent": "low",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "low"
+                  },
+                  {
+                    "intent": "balanced",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "medium"
+                  },
+                  {
+                    "intent": "deep",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "high"
+                  }
+                ],
+                "responseEvidenceRef": "groq.chat.reasoning",
+                "responseParserKind": "groq_reasoning_v1",
+                "reviewedAt": "2026-09-24",
+                "sourceRefs": [
+                  "groq.reasoning"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "groq.chat.reasoning.v2": {
+                "capability": "reasoning",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "groq.chat.reasoning",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "groq.chat.reasoning.v2",
+                "providerKind": "groq",
+                "requestOps": [
+                  {
+                    "intent": "off",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "none"
+                  },
+                  {
+                    "intent": "low",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "low"
+                  },
+                  {
+                    "intent": "balanced",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "medium"
+                  },
+                  {
+                    "intent": "deep",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "high"
+                  }
+                ],
+                "responseEvidenceRef": "groq.chat.reasoning",
+                "responseParserKind": "groq_reasoning_v1",
+                "reviewedAt": "2026-09-24",
+                "sourceRefs": [
+                  "groq.reasoning"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "minimax.chat.generation.v1": {
+                "capability": "generation",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "openai.chat.generation",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "minimax.chat.generation.v1",
+                "providerKind": "miniMax",
+                "requestOps": [
+                  {
+                    "op": "legacy_generation_template",
+                    "template": "openai_chat_completions"
+                  }
+                ],
+                "responseEvidenceRef": "openai.chat.generation",
+                "responseParserKind": "openai_chat_generation_v1",
+                "reviewedAt": "2026-08-11",
+                "sourceRefs": [
+                  "minimax.text_api"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "minimax.messages.web.v1": {
+                "capability": "web",
+                "continuationKind": "replay_blocks",
+                "controlRefs": [],
+                "errorRecoveryRef": "minimax.messages.web",
+                "executionKind": "endpoint_route",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "minimax.messages.web.v1",
+                "providerKind": "miniMax",
+                "requestOps": [
+                  {
+                    "op": "append",
+                    "pointer": "/tools/-",
+                    "value": {
+                      "name": "web_search",
+                      "type": "web_search_20250305"
+                    }
+                  }
+                ],
+                "responseEvidenceRef": "minimax.messages.web",
+                "responseParserKind": "minimax_anthropic_web_v1",
+                "reviewedAt": "2026-08-23",
+                "route": {
+                  "authHeader": "x-api-key",
+                  "authMode": "x_api_key",
+                  "endpointClass": "messages",
+                  "headers": {
+                    "Content-Type": "application/json",
+                    "anthropic-version": "2023-06-01"
+                  },
+                  "method": "POST",
+                  "path": "/anthropic/v1/messages",
+                  "protocol": "anthropic_messages",
+                  "requestMapper": "minimax_anthropic_messages_v1",
+                  "sourceProtocol": "openai_chat"
+                },
+                "sourceRefs": [
+                  "minimax.server_tools"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "mistral.chat.generation.v1": {
+                "capability": "generation",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "openai.chat.generation",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "mistral.chat.generation.v1",
+                "providerKind": "mistral",
+                "requestOps": [
+                  {
+                    "op": "legacy_generation_template",
+                    "template": "openai_chat_completions"
+                  }
+                ],
+                "responseEvidenceRef": "openai.chat.generation",
+                "responseParserKind": "openai_chat_generation_v1",
+                "reviewedAt": "2026-08-11",
+                "sourceRefs": [
+                  "mistral.reasoning"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "mistral.chat.reasoning.v1": {
+                "capability": "reasoning",
+                "continuationKind": "replay_reasoning",
+                "controlRefs": [],
+                "errorRecoveryRef": "mistral.chat.reasoning",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "mistral.chat.reasoning.v1",
+                "providerKind": "mistral",
+                "requestOps": [
+                  {
+                    "intent": "off",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "none"
+                  },
+                  {
+                    "intent": "deep",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "high"
+                  }
+                ],
+                "responseEvidenceRef": "mistral.chat.reasoning",
+                "responseParserKind": "mistral_reasoning_v1",
+                "reviewedAt": "2026-08-23",
+                "sourceRefs": [
+                  "mistral.reasoning",
+                  "mistral.deprecations"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "moonshot.chat.generation.v1": {
+                "capability": "generation",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "openai.chat.generation",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "moonshot.chat.generation.v1",
+                "providerKind": "moonshot",
+                "requestOps": [
+                  {
+                    "op": "legacy_generation_template",
+                    "template": "openai_chat_completions"
+                  }
+                ],
+                "responseEvidenceRef": "openai.chat.generation",
+                "responseParserKind": "openai_chat_generation_v1",
+                "reviewedAt": "2026-08-11",
+                "sourceRefs": [
+                  "kimi.thinking_models"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "moonshot.chat.reasoning.v1": {
+                "capability": "reasoning",
+                "continuationKind": "replay_reasoning",
+                "controlRefs": [],
+                "errorRecoveryRef": "moonshot.chat.reasoning",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "moonshot.chat.reasoning.v1",
+                "providerKind": "moonshot",
+                "requestOps": [
+                  {
+                    "intent": "off",
+                    "op": "set",
+                    "pointer": "/thinking",
+                    "value": {
+                      "type": "disabled"
+                    }
+                  },
+                  {
+                    "intent": "balanced",
+                    "op": "set",
+                    "pointer": "/thinking",
+                    "value": {
+                      "type": "enabled"
+                    }
+                  },
+                  {
+                    "intent": "low",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "low"
+                  },
+                  {
+                    "intent": "deep",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "high"
+                  },
+                  {
+                    "intent": "max",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "max"
+                  }
+                ],
+                "responseEvidenceRef": "moonshot.chat.reasoning",
+                "responseParserKind": "moonshot_reasoning_v1",
+                "reviewedAt": "2026-08-15",
+                "sourceRefs": [
+                  "kimi.thinking_models",
+                  "kimi.reasoning_effort"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "moonshot.chat.web.v1": {
+                "capability": "web",
+                "continuationKind": "tool_loop",
+                "continuationVariant": "default",
+                "controlRefs": [],
+                "errorRecoveryRef": "moonshot.builtin.web",
+                "executionKind": "client_tool_loop",
+                "fallbackPolicy": "no_fallback",
+                "id": "moonshot.chat.web.v1",
+                "maxToolLoops": 4,
+                "providerKind": "moonshot",
+                "requestOps": [
+                  {
+                    "op": "append",
+                    "pointer": "/tools/-",
+                    "value": {
+                      "function": {
+                        "name": "$web_search"
+                      },
+                      "type": "builtin_function"
+                    }
+                  }
+                ],
+                "responseEvidenceRef": "moonshot.builtin.web",
+                "responseParserKind": "moonshot_builtin_web_v1",
+                "reviewedAt": "2026-08-15",
+                "sourceRefs": [
+                  "kimi.web_search"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "moonshot.formula.web.v1": {
+                "capability": "web",
+                "continuationKind": "tool_loop",
+                "continuationVariant": "fiber",
+                "controlRefs": [],
+                "errorRecoveryRef": "moonshot.formula.web",
+                "executionKind": "client_tool_loop",
+                "fallbackPolicy": "no_fallback",
+                "formula": {
+                  "argumentsMode": "verbatim",
+                  "fibersPath": "/v1/formulas/moonshot/web-search:latest/fibers",
+                  "resultPaths": [
+                    "context.output",
+                    "context.encrypted_output"
+                  ],
+                  "toolsPath": "/v1/formulas/moonshot/web-search:latest/tools",
+                  "uri": "moonshot/web-search:latest"
+                },
+                "id": "moonshot.formula.web.v1",
+                "maxToolLoops": 4,
+                "providerKind": "moonshot",
+                "requestOps": [],
+                "responseEvidenceRef": "moonshot.formula.web",
+                "responseParserKind": "moonshot_formula_web_v1",
+                "reviewedAt": "2026-08-15",
+                "sourceRefs": [
+                  "kimi.official_tools"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "openai.chat.generation.v1": {
+                "capability": "generation",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "openai.chat.generation",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "openai.chat.generation.v1",
+                "providerKind": "openAI",
+                "requestOps": [
+                  {
+                    "op": "legacy_generation_template",
+                    "template": "openai_chat_completions"
+                  }
+                ],
+                "responseEvidenceRef": "openai.chat.generation",
+                "responseParserKind": "openai_chat_generation_v1",
+                "reviewedAt": "2026-08-11",
+                "sourceRefs": [
+                  "openai.reasoning"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "openai.chat.reasoning.v1": {
+                "capability": "reasoning",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "openai.chat.reasoning",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "openai.chat.reasoning.v1",
+                "providerKind": "openAI",
+                "requestOps": [
+                  {
+                    "intent": "low",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "low"
+                  },
+                  {
+                    "intent": "balanced",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "medium"
+                  },
+                  {
+                    "intent": "deep",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "high"
+                  }
+                ],
+                "responseEvidenceRef": "openai.chat.reasoning",
+                "responseParserKind": "openai_chat_reasoning_v1",
+                "reviewedAt": "2026-08-11",
+                "sourceRefs": [
+                  "openai.reasoning"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "openai.chat.web_model.v1": {
+                "capability": "web",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "openai.chat.web",
+                "executionKind": "model_route",
+                "fallbackPolicy": "no_fallback",
+                "id": "openai.chat.web_model.v1",
+                "providerKind": "openAI",
+                "requestOps": [],
+                "responseEvidenceRef": "openai.chat.web",
+                "responseParserKind": "openai_chat_web_v1",
+                "reviewedAt": "2026-08-11",
+                "sourceRefs": [
+                  "openai.web_search"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "openai.responses.generation.v1": {
+                "capability": "generation",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "openai.responses.generation",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "openai.responses.generation.v1",
+                "providerKind": "openAI",
+                "requestOps": [
+                  {
+                    "op": "legacy_generation_template",
+                    "template": "openai_responses"
+                  }
+                ],
+                "responseEvidenceRef": "openai.responses.generation",
+                "responseParserKind": "openai_responses_generation_v1",
+                "reviewedAt": "2026-08-11",
+                "sourceRefs": [
+                  "openai.reasoning"
+                ],
+                "transport": {
+                  "endpointClass": "responses",
+                  "protocol": "openai_responses",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "openai.responses.reasoning.v1": {
+                "capability": "reasoning",
+                "continuationKind": "previous_id",
+                "controlRefs": [],
+                "errorRecoveryRef": "openai.responses.reasoning",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "openai.responses.reasoning.v1",
+                "providerKind": "openAI",
+                "requestOps": [
+                  {
+                    "intent": "low",
+                    "op": "set",
+                    "pointer": "/reasoning/effort",
+                    "value": "low"
+                  },
+                  {
+                    "intent": "balanced",
+                    "op": "set",
+                    "pointer": "/reasoning/effort",
+                    "value": "medium"
+                  },
+                  {
+                    "intent": "deep",
+                    "op": "set",
+                    "pointer": "/reasoning/effort",
+                    "value": "high"
+                  },
+                  {
+                    "intent": "max",
+                    "op": "set",
+                    "pointer": "/reasoning/effort",
+                    "value": "xhigh"
+                  }
+                ],
+                "responseEvidenceRef": "openai.responses.reasoning",
+                "responseParserKind": "openai_responses_reasoning_v1",
+                "reviewedAt": "2026-08-11",
+                "sourceRefs": [
+                  "openai.reasoning"
+                ],
+                "transport": {
+                  "endpointClass": "responses",
+                  "protocol": "openai_responses",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "openai.responses.web.v1": {
+                "capability": "web",
+                "continuationKind": "previous_id",
+                "controlRefs": [],
+                "errorRecoveryRef": "openai.responses.web",
+                "executionKind": "server_tool",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "openai.responses.web.v1",
+                "providerKind": "openAI",
+                "requestOps": [
+                  {
+                    "op": "append",
+                    "pointer": "/tools/-",
+                    "value": {
+                      "type": "web_search"
+                    }
+                  },
+                  {
+                    "op": "set",
+                    "pointer": "/tool_choice",
+                    "value": "auto"
+                  },
+                  {
+                    "intent": "force",
+                    "op": "append",
+                    "pointer": "/tools/-",
+                    "value": {
+                      "type": "web_search"
+                    }
+                  },
+                  {
+                    "intent": "force",
+                    "op": "set",
+                    "pointer": "/tool_choice",
+                    "value": "required"
+                  }
+                ],
+                "responseEvidenceRef": "openai.responses.web",
+                "responseParserKind": "openai_responses_web_v1",
+                "reviewedAt": "2026-08-11",
+                "sourceRefs": [
+                  "openai.web_search"
+                ],
+                "transport": {
+                  "endpointClass": "responses",
+                  "protocol": "openai_responses",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "openrouter.chat.generation.v1": {
+                "capability": "generation",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "openai.chat.generation",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "openrouter.chat.generation.v1",
+                "providerKind": "openRouter",
+                "requestOps": [
+                  {
+                    "op": "legacy_generation_template",
+                    "template": "openai_chat_completions"
+                  }
+                ],
+                "responseEvidenceRef": "openai.chat.generation",
+                "responseParserKind": "openai_chat_generation_v1",
+                "reviewedAt": "2026-08-11",
+                "sourceRefs": [
+                  "openrouter.reasoning_tokens"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "openrouter.chat.reasoning.v1": {
+                "capability": "reasoning",
+                "continuationKind": "replay_reasoning",
+                "controlRefs": [],
+                "errorRecoveryRef": "openrouter.chat.reasoning",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "openrouter.chat.reasoning.v1",
+                "providerKind": "openRouter",
+                "requestOps": [
+                  {
+                    "intent": "off",
+                    "op": "set",
+                    "pointer": "/reasoning/effort",
+                    "value": "none"
+                  },
+                  {
+                    "intent": "low",
+                    "op": "set",
+                    "pointer": "/reasoning/effort",
+                    "value": "low"
+                  },
+                  {
+                    "intent": "balanced",
+                    "op": "set",
+                    "pointer": "/reasoning/effort",
+                    "value": "medium"
+                  },
+                  {
+                    "intent": "deep",
+                    "op": "set",
+                    "pointer": "/reasoning/effort",
+                    "value": "high"
+                  },
+                  {
+                    "intent": "max",
+                    "op": "set",
+                    "pointer": "/reasoning/effort",
+                    "value": "max"
+                  }
+                ],
+                "responseEvidenceRef": "openrouter.chat.reasoning",
+                "responseParserKind": "openrouter_reasoning_v1",
+                "reviewedAt": "2026-08-23",
+                "sourceRefs": [
+                  "openrouter.reasoning_tokens"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "openrouter.chat.reasoning.v2": {
+                "capability": "reasoning",
+                "continuationKind": "replay_reasoning",
+                "controlRefs": [],
+                "errorRecoveryRef": "openrouter.chat.reasoning",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "openrouter.chat.reasoning.v2",
+                "providerKind": "openRouter",
+                "requestOps": [
+                  {
+                    "intent": "off",
+                    "op": "set",
+                    "pointer": "/reasoning/effort",
+                    "value": "none"
+                  },
+                  {
+                    "intent": "low",
+                    "op": "set",
+                    "pointer": "/reasoning/effort",
+                    "value": "minimal"
+                  },
+                  {
+                    "intent": "balanced",
+                    "op": "set",
+                    "pointer": "/reasoning/effort",
+                    "value": "medium"
+                  },
+                  {
+                    "intent": "deep",
+                    "op": "set",
+                    "pointer": "/reasoning/effort",
+                    "value": "high"
+                  },
+                  {
+                    "intent": "max",
+                    "op": "set",
+                    "pointer": "/reasoning/effort",
+                    "value": "max"
+                  }
+                ],
+                "responseEvidenceRef": "openrouter.chat.reasoning",
+                "responseParserKind": "openrouter_reasoning_v1",
+                "reviewedAt": "2026-08-23",
+                "sourceRefs": [
+                  "openrouter.reasoning_tokens"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "openrouter.chat.reasoning.v3": {
+                "capability": "reasoning",
+                "continuationKind": "replay_reasoning",
+                "controlRefs": [],
+                "errorRecoveryRef": "openrouter.chat.reasoning",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "openrouter.chat.reasoning.v3",
+                "providerKind": "openRouter",
+                "requestOps": [
+                  {
+                    "intent": "off",
+                    "op": "set",
+                    "pointer": "/reasoning/effort",
+                    "value": "none"
+                  },
+                  {
+                    "intent": "low",
+                    "op": "set",
+                    "pointer": "/reasoning/effort",
+                    "value": "low"
+                  },
+                  {
+                    "intent": "balanced",
+                    "op": "set",
+                    "pointer": "/reasoning/effort",
+                    "value": "medium"
+                  },
+                  {
+                    "intent": "deep",
+                    "op": "set",
+                    "pointer": "/reasoning/effort",
+                    "value": "high"
+                  },
+                  {
+                    "intent": "max",
+                    "op": "set",
+                    "pointer": "/reasoning/effort",
+                    "value": "xhigh"
+                  }
+                ],
+                "responseEvidenceRef": "openrouter.chat.reasoning",
+                "responseParserKind": "openrouter_reasoning_v1",
+                "reviewedAt": "2026-08-23",
+                "sourceRefs": [
+                  "openrouter.reasoning_tokens"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "openrouter.chat.reasoning.v4": {
+                "capability": "reasoning",
+                "continuationKind": "replay_reasoning",
+                "controlRefs": [],
+                "errorRecoveryRef": "openrouter.chat.reasoning",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "openrouter.chat.reasoning.v4",
+                "providerKind": "openRouter",
+                "requestOps": [
+                  {
+                    "intent": "off",
+                    "op": "set",
+                    "pointer": "/reasoning/effort",
+                    "value": "none"
+                  },
+                  {
+                    "intent": "low",
+                    "op": "set",
+                    "pointer": "/reasoning/effort",
+                    "value": "minimal"
+                  },
+                  {
+                    "intent": "balanced",
+                    "op": "set",
+                    "pointer": "/reasoning/effort",
+                    "value": "medium"
+                  },
+                  {
+                    "intent": "deep",
+                    "op": "set",
+                    "pointer": "/reasoning/effort",
+                    "value": "high"
+                  },
+                  {
+                    "intent": "max",
+                    "op": "set",
+                    "pointer": "/reasoning/effort",
+                    "value": "xhigh"
+                  }
+                ],
+                "responseEvidenceRef": "openrouter.chat.reasoning",
+                "responseParserKind": "openrouter_reasoning_v1",
+                "reviewedAt": "2026-08-23",
+                "sourceRefs": [
+                  "openrouter.reasoning_tokens"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "openrouter.chat.web.v1": {
+                "capability": "web",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "openrouter.chat.web",
+                "executionKind": "server_tool",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "openrouter.chat.web.v1",
+                "providerKind": "openRouter",
+                "requestOps": [
+                  {
+                    "op": "append",
+                    "pointer": "/tools/-",
+                    "value": {
+                      "type": "openrouter:web_search"
+                    }
+                  }
+                ],
+                "responseEvidenceRef": "openrouter.chat.web",
+                "responseParserKind": "openrouter_web_v1",
+                "reviewedAt": "2026-08-11",
+                "sourceRefs": [
+                  "openrouter.server_tools"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "qwen.chat.generation.v1": {
+                "capability": "generation",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "openai.chat.generation",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "qwen.chat.generation.v1",
+                "providerKind": "qwen",
+                "requestOps": [
+                  {
+                    "op": "legacy_generation_template",
+                    "template": "openai_chat_completions"
+                  }
+                ],
+                "responseEvidenceRef": "openai.chat.generation",
+                "responseParserKind": "openai_chat_generation_v1",
+                "reviewedAt": "2026-08-11",
+                "sourceRefs": [
+                  "qwen.deep_thinking"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "qwen.chat.reasoning.v1": {
+                "capability": "reasoning",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "qwen.chat.reasoning",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "qwen.chat.reasoning.v1",
+                "providerKind": "qwen",
+                "requestOps": [
+                  {
+                    "intent": "off",
+                    "op": "set",
+                    "pointer": "/enable_thinking",
+                    "value": false
+                  },
+                  {
+                    "intent": "balanced",
+                    "op": "set",
+                    "pointer": "/enable_thinking",
+                    "value": true
+                  }
+                ],
+                "responseEvidenceRef": "qwen.chat.reasoning",
+                "responseParserKind": "qwen_reasoning_v1",
+                "reviewedAt": "2026-08-23",
+                "sourceRefs": [
+                  "qwen.deep_thinking"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "qwen.chat.reasoning.v2": {
+                "capability": "reasoning",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "qwen.chat.reasoning",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "qwen.chat.reasoning.v2",
+                "providerKind": "qwen",
+                "requestOps": [
+                  {
+                    "intent": "off",
+                    "op": "set",
+                    "pointer": "/enable_thinking",
+                    "value": false
+                  },
+                  {
+                    "intent": "low",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "low"
+                  },
+                  {
+                    "intent": "deep",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "high"
+                  },
+                  {
+                    "intent": "max",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "max"
+                  }
+                ],
+                "responseEvidenceRef": "qwen.chat.reasoning",
+                "responseParserKind": "qwen_reasoning_v1",
+                "reviewedAt": "2026-09-24",
+                "sourceRefs": [
+                  "qwen.deepseek_api",
+                  "qwen.glm",
+                  "qwen.deep_thinking"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "qwen.chat.web.v1": {
+                "capability": "web",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "qwen.chat.web",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "qwen.chat.web.v1",
+                "providerKind": "qwen",
+                "requestOps": [
+                  {
+                    "op": "set",
+                    "pointer": "/enable_search",
+                    "value": true
+                  }
+                ],
+                "responseEvidenceRef": "qwen.chat.web",
+                "responseParserKind": "qwen_chat_search_v1",
+                "reviewedAt": "2026-08-11",
+                "sourceRefs": [
+                  "qwen.web_search"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "qwen.chat.web.v2": {
+                "capability": "web",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "qwen.chat.web",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "qwen.chat.web.v2",
+                "providerKind": "qwen",
+                "requestOps": [
+                  {
+                    "op": "set",
+                    "pointer": "/enable_search",
+                    "value": true
+                  },
+                  {
+                    "op": "set",
+                    "pointer": "/search_options/search_strategy",
+                    "value": "agent"
+                  }
+                ],
+                "responseEvidenceRef": "qwen.chat.web",
+                "responseParserKind": "qwen_chat_search_v1",
+                "reviewedAt": "2026-09-24",
+                "sourceRefs": [
+                  "qwen.web_search"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "siliconflow.chat.generation.v1": {
+                "capability": "generation",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "openai.chat.generation",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "siliconflow.chat.generation.v1",
+                "providerKind": "siliconFlow",
+                "requestOps": [
+                  {
+                    "op": "legacy_generation_template",
+                    "template": "openai_chat_completions"
+                  }
+                ],
+                "responseEvidenceRef": "openai.chat.generation",
+                "responseParserKind": "openai_chat_generation_v1",
+                "reviewedAt": "2026-08-11",
+                "sourceRefs": [
+                  "siliconflow.chat_completions"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "siliconflow.chat.reasoning.v1": {
+                "capability": "reasoning",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "siliconflow.chat.reasoning",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "siliconflow.chat.reasoning.v1",
+                "providerKind": "siliconFlow",
+                "requestOps": [
+                  {
+                    "intent": "low",
+                    "op": "set",
+                    "pointer": "/enable_thinking",
+                    "value": true
+                  },
+                  {
+                    "intent": "low",
+                    "op": "set",
+                    "pointer": "/thinking_budget",
+                    "value": 1024
+                  },
+                  {
+                    "intent": "balanced",
+                    "op": "set",
+                    "pointer": "/enable_thinking",
+                    "value": true
+                  },
+                  {
+                    "intent": "balanced",
+                    "op": "set",
+                    "pointer": "/thinking_budget",
+                    "value": 4096
+                  },
+                  {
+                    "intent": "deep",
+                    "op": "set",
+                    "pointer": "/enable_thinking",
+                    "value": true
+                  },
+                  {
+                    "intent": "deep",
+                    "op": "set",
+                    "pointer": "/thinking_budget",
+                    "value": 16384
+                  }
+                ],
+                "responseEvidenceRef": "siliconflow.chat.reasoning",
+                "responseParserKind": "siliconflow_reasoning_v1",
+                "reviewedAt": "2026-08-11",
+                "sourceRefs": [
+                  "siliconflow.chat_completions"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "togetherai.chat.generation.v1": {
+                "capability": "generation",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "openai.chat.generation",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "togetherai.chat.generation.v1",
+                "providerKind": "togetherAI",
+                "requestOps": [
+                  {
+                    "op": "legacy_generation_template",
+                    "template": "openai_chat_completions"
+                  }
+                ],
+                "responseEvidenceRef": "openai.chat.generation",
+                "responseParserKind": "openai_chat_generation_v1",
+                "reviewedAt": "2026-08-11",
+                "sourceRefs": [
+                  "together.chat_completions"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "togetherai.chat.reasoning.v1": {
+                "capability": "reasoning",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "together.chat.reasoning",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "togetherai.chat.reasoning.v1",
+                "providerKind": "togetherAI",
+                "requestOps": [
+                  {
+                    "intent": "low",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "low"
+                  },
+                  {
+                    "intent": "balanced",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "medium"
+                  },
+                  {
+                    "intent": "deep",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "high"
+                  }
+                ],
+                "responseEvidenceRef": "together.chat.reasoning",
+                "responseParserKind": "together_reasoning_v1",
+                "reviewedAt": "2026-08-11",
+                "sourceRefs": [
+                  "together.reasoning"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "togetherai.chat.reasoning.v2": {
+                "capability": "reasoning",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "together.chat.reasoning",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "togetherai.chat.reasoning.v2",
+                "providerKind": "togetherAI",
+                "requestOps": [
+                  {
+                    "intent": "off",
+                    "op": "set",
+                    "pointer": "/reasoning/enabled",
+                    "value": false
+                  },
+                  {
+                    "intent": "balanced",
+                    "op": "set",
+                    "pointer": "/reasoning/enabled",
+                    "value": true
+                  }
+                ],
+                "responseEvidenceRef": "together.chat.reasoning",
+                "responseParserKind": "together_reasoning_v1",
+                "reviewedAt": "2026-09-24",
+                "sourceRefs": [
+                  "together.reasoning"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "zhipu.chat.generation.v1": {
+                "capability": "generation",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "openai.chat.generation",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "zhipu.chat.generation.v1",
+                "providerKind": "zhipu",
+                "requestOps": [
+                  {
+                    "op": "legacy_generation_template",
+                    "template": "openai_chat_completions"
+                  }
+                ],
+                "responseEvidenceRef": "openai.chat.generation",
+                "responseParserKind": "openai_chat_generation_v1",
+                "reviewedAt": "2026-08-11",
+                "sourceRefs": [
+                  "zhipu.migration"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "zhipu.chat.reasoning.v1": {
+                "capability": "reasoning",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "zhipu.chat.reasoning",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "zhipu.chat.reasoning.v1",
+                "providerKind": "zhipu",
+                "requestOps": [
+                  {
+                    "intent": "off",
+                    "op": "set",
+                    "pointer": "/thinking",
+                    "value": {
+                      "type": "disabled"
+                    }
+                  },
+                  {
+                    "intent": "balanced",
+                    "op": "set",
+                    "pointer": "/thinking",
+                    "value": {
+                      "type": "enabled"
+                    }
+                  }
+                ],
+                "responseEvidenceRef": "zhipu.chat.reasoning",
+                "responseParserKind": "zhipu_reasoning_v1",
+                "reviewedAt": "2026-08-15",
+                "sourceRefs": [
+                  "zhipu.thinking",
+                  "zhipu.thinking_mode"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "zhipu.chat.reasoning.v2": {
+                "capability": "reasoning",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "zhipu.chat.reasoning",
+                "executionKind": "request_overlay",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "zhipu.chat.reasoning.v2",
+                "providerKind": "zhipu",
+                "requestOps": [
+                  {
+                    "intent": "low",
+                    "op": "set",
+                    "pointer": "/thinking",
+                    "value": {
+                      "type": "enabled"
+                    }
+                  },
+                  {
+                    "intent": "low",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "low"
+                  },
+                  {
+                    "intent": "deep",
+                    "op": "set",
+                    "pointer": "/thinking",
+                    "value": {
+                      "type": "enabled"
+                    }
+                  },
+                  {
+                    "intent": "deep",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "high"
+                  },
+                  {
+                    "intent": "max",
+                    "op": "set",
+                    "pointer": "/thinking",
+                    "value": {
+                      "type": "enabled"
+                    }
+                  },
+                  {
+                    "intent": "max",
+                    "op": "set",
+                    "pointer": "/reasoning_effort",
+                    "value": "max"
+                  }
+                ],
+                "responseEvidenceRef": "zhipu.chat.reasoning",
+                "responseParserKind": "zhipu_reasoning_v1",
+                "reviewedAt": "2026-09-24",
+                "sourceRefs": [
+                  "zhipu.thinking",
+                  "zhipu.thinking_mode"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              },
+              "zhipu.chat.web.v1": {
+                "capability": "web",
+                "continuationKind": "none",
+                "controlRefs": [],
+                "errorRecoveryRef": "zhipu.chat.web",
+                "executionKind": "server_tool",
+                "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+                "id": "zhipu.chat.web.v1",
+                "providerKind": "zhipu",
+                "requestOps": [
+                  {
+                    "op": "append",
+                    "pointer": "/tools/-",
+                    "value": {
+                      "type": "web_search",
+                      "web_search": {
+                        "enable": true,
+                        "search_engine": "search_pro",
+                        "search_result": true
+                      }
+                    }
+                  }
+                ],
+                "responseEvidenceRef": "zhipu.chat.web",
+                "responseParserKind": "zhipu_web_search_v1",
+                "reviewedAt": "2026-08-15",
+                "sourceRefs": [
+                  "zhipu.web_search"
+                ],
+                "transport": {
+                  "endpointClass": "chat_completions",
+                  "protocol": "openai_chat",
+                  "requiredHeaders": [],
+                  "streaming": "optional"
+                }
+              }
+            },
+            "responseEvidenceDefinitions": {
+              "anthropic.messages.generation": {
+                "capability": "generation",
+                "protocol": "anthropic_messages",
+                "responseParserKind": "anthropic_messages_generation_v1",
+                "signals": []
+              },
+              "anthropic.messages.reasoning": {
+                "capability": "reasoning",
+                "protocol": "anthropic_messages",
+                "responseParserKind": "anthropic_thinking_v1",
+                "signals": [
+                  {
+                    "kind": "thinking_block",
+                    "producerEvent": "reasoning",
+                    "pointer": "/content",
+                    "nonEmpty": true
+                  }
+                ]
+              },
+              "anthropic.messages.web": {
+                "capability": "web",
+                "protocol": "anthropic_messages",
+                "responseParserKind": "anthropic_web_search_v1",
+                "signals": [
+                  {
+                    "kind": "citation",
+                    "producerEvent": "citations",
+                    "pointer": "/citations",
+                    "nonEmpty": true
+                  },
+                  {
+                    "kind": "provider_tool_result",
+                    "producerEvent": "tool_result",
+                    "pointer": "/summary",
+                    "nonEmpty": true
+                  }
+                ]
+              },
+              "deepseek.chat.reasoning": {
+                "capability": "reasoning",
+                "protocol": "openai_chat",
+                "responseParserKind": "deepseek_reasoning_v1",
+                "signals": [
+                  {
+                    "kind": "thinking_block",
+                    "producerEvent": "reasoning",
+                    "pointer": "/content",
+                    "nonEmpty": true
+                  }
+                ]
+              },
+              "fireworks.chat.reasoning": {
+                "capability": "reasoning",
+                "protocol": "openai_chat",
+                "responseParserKind": "fireworks_reasoning_v1",
+                "signals": [
+                  {
+                    "kind": "thinking_block",
+                    "producerEvent": "reasoning",
+                    "pointer": "/content",
+                    "nonEmpty": true
+                  }
+                ]
+              },
+              "gemini.generate.generation": {
+                "capability": "generation",
+                "protocol": "gemini_generate_content",
+                "responseParserKind": "gemini_generate_content_generation_v1",
+                "signals": []
+              },
+              "gemini.generate.reasoning": {
+                "capability": "reasoning",
+                "protocol": "gemini_generate_content",
+                "responseParserKind": "gemini_thinking_v1",
+                "signals": [
+                  {
+                    "kind": "thinking_block",
+                    "producerEvent": "reasoning",
+                    "pointer": "/content",
+                    "nonEmpty": true
+                  }
+                ]
+              },
+              "gemini.generate.web": {
+                "capability": "web",
+                "protocol": "gemini_generate_content",
+                "responseParserKind": "gemini_google_search_v1",
+                "signals": [
+                  {
+                    "kind": "grounding",
+                    "producerEvent": "citations",
+                    "pointer": "/citations",
+                    "nonEmpty": true
+                  }
+                ]
+              },
+              "gemini.interactions.reasoning": {
+                "capability": "reasoning",
+                "protocol": "gemini_interactions",
+                "responseParserKind": "gemini_thinking_v1",
+                "signals": [
+                  {
+                    "kind": "thinking_block",
+                    "producerEvent": "reasoning",
+                    "pointer": "/content",
+                    "nonEmpty": true
+                  }
+                ]
+              },
+              "gemini.interactions.web": {
+                "capability": "web",
+                "protocol": "gemini_interactions",
+                "responseParserKind": "gemini_google_search_v1",
+                "signals": [
+                  {
+                    "kind": "citation",
+                    "producerEvent": "citations",
+                    "pointer": "/citations",
+                    "nonEmpty": true
+                  },
+                  {
+                    "kind": "provider_tool_result",
+                    "producerEvent": "tool_result",
+                    "pointer": "/summary",
+                    "nonEmpty": true
+                  }
+                ]
+              },
+              "grok.chat.reasoning": {
+                "capability": "reasoning",
+                "protocol": "openai_chat",
+                "responseParserKind": "grok_reasoning_v1",
+                "signals": [
+                  {
+                    "kind": "thinking_block",
+                    "producerEvent": "reasoning",
+                    "pointer": "/content",
+                    "nonEmpty": true
+                  }
+                ]
+              },
+              "grok.responses.reasoning": {
+                "capability": "reasoning",
+                "protocol": "openai_responses",
+                "responseParserKind": "grok_reasoning_v1",
+                "signals": [
+                  {
+                    "kind": "thinking_block",
+                    "producerEvent": "reasoning",
+                    "pointer": "/content",
+                    "nonEmpty": true
+                  }
+                ]
+              },
+              "grok.responses.web": {
+                "capability": "web",
+                "protocol": "openai_responses",
+                "responseParserKind": "grok_web_search_v1",
+                "signals": [
+                  {
+                    "kind": "citation",
+                    "producerEvent": "citations",
+                    "pointer": "/citations",
+                    "nonEmpty": true
+                  }
+                ]
+              },
+              "groq.chat.reasoning": {
+                "capability": "reasoning",
+                "protocol": "openai_chat",
+                "responseParserKind": "groq_reasoning_v1",
+                "signals": [
+                  {
+                    "kind": "thinking_block",
+                    "producerEvent": "reasoning",
+                    "pointer": "/content",
+                    "nonEmpty": true
+                  }
+                ]
+              },
+              "minimax.messages.web": {
+                "capability": "web",
+                "protocol": "anthropic_messages",
+                "responseParserKind": "minimax_anthropic_web_v1",
+                "signals": [
+                  {
+                    "kind": "citation",
+                    "producerEvent": "citations",
+                    "pointer": "/citations",
+                    "nonEmpty": true
+                  },
+                  {
+                    "kind": "provider_tool_result",
+                    "producerEvent": "tool_result",
+                    "pointer": "/summary",
+                    "nonEmpty": true
+                  }
+                ]
+              },
+              "mistral.chat.reasoning": {
+                "capability": "reasoning",
+                "protocol": "openai_chat",
+                "responseParserKind": "mistral_reasoning_v1",
+                "signals": [
+                  {
+                    "kind": "thinking_block",
+                    "producerEvent": "reasoning",
+                    "pointer": "/content",
+                    "nonEmpty": true
+                  }
+                ]
+              },
+              "moonshot.builtin.web": {
+                "capability": "web",
+                "protocol": "openai_chat",
+                "responseParserKind": "moonshot_builtin_web_v1",
+                "signals": [
+                  {
+                    "kind": "provider_tool_result",
+                    "producerEvent": "tool_result",
+                    "pointer": "/summary",
+                    "nonEmpty": true
+                  }
+                ]
+              },
+              "moonshot.chat.reasoning": {
+                "capability": "reasoning",
+                "protocol": "openai_chat",
+                "responseParserKind": "moonshot_reasoning_v1",
+                "signals": [
+                  {
+                    "kind": "thinking_block",
+                    "producerEvent": "reasoning",
+                    "pointer": "/content",
+                    "nonEmpty": true
+                  }
+                ]
+              },
+              "moonshot.formula.web": {
+                "capability": "web",
+                "protocol": "openai_chat",
+                "responseParserKind": "moonshot_formula_web_v1",
+                "signals": [
+                  {
+                    "kind": "provider_tool_result",
+                    "producerEvent": "tool_result",
+                    "pointer": "/summary",
+                    "nonEmpty": true
+                  }
+                ]
+              },
+              "openai.chat.generation": {
+                "capability": "generation",
+                "protocol": "openai_chat",
+                "responseParserKind": "openai_chat_generation_v1",
+                "signals": []
+              },
+              "openai.chat.reasoning": {
+                "capability": "reasoning",
+                "protocol": "openai_chat",
+                "responseParserKind": "openai_chat_reasoning_v1",
+                "signals": [
+                  {
+                    "kind": "thinking_block",
+                    "producerEvent": "reasoning",
+                    "pointer": "/content",
+                    "nonEmpty": true
+                  }
+                ]
+              },
+              "openai.chat.web": {
+                "capability": "web",
+                "protocol": "openai_chat",
+                "responseParserKind": "openai_chat_web_v1",
+                "signals": [
+                  {
+                    "kind": "citation",
+                    "producerEvent": "citations",
+                    "pointer": "/citations",
+                    "nonEmpty": true
+                  }
+                ]
+              },
+              "openai.responses.generation": {
+                "capability": "generation",
+                "protocol": "openai_responses",
+                "responseParserKind": "openai_responses_generation_v1",
+                "signals": []
+              },
+              "openai.responses.reasoning": {
+                "capability": "reasoning",
+                "protocol": "openai_responses",
+                "responseParserKind": "openai_responses_reasoning_v1",
+                "signals": [
+                  {
+                    "kind": "thinking_block",
+                    "producerEvent": "reasoning",
+                    "pointer": "/content",
+                    "nonEmpty": true
+                  }
+                ]
+              },
+              "openai.responses.web": {
+                "capability": "web",
+                "protocol": "openai_responses",
+                "responseParserKind": "openai_responses_web_v1",
+                "signals": [
+                  {
+                    "kind": "citation",
+                    "producerEvent": "citations",
+                    "pointer": "/citations",
+                    "nonEmpty": true
+                  }
+                ]
+              },
+              "openrouter.chat.reasoning": {
+                "capability": "reasoning",
+                "protocol": "openai_chat",
+                "responseParserKind": "openrouter_reasoning_v1",
+                "signals": [
+                  {
+                    "kind": "thinking_block",
+                    "producerEvent": "reasoning",
+                    "pointer": "/content",
+                    "nonEmpty": true
+                  }
+                ]
+              },
+              "openrouter.chat.web": {
+                "capability": "web",
+                "protocol": "openai_chat",
+                "responseParserKind": "openrouter_web_v1",
+                "signals": [
+                  {
+                    "kind": "citation",
+                    "producerEvent": "citations",
+                    "pointer": "/citations",
+                    "nonEmpty": true
+                  }
+                ]
+              },
+              "qwen.chat.reasoning": {
+                "capability": "reasoning",
+                "protocol": "openai_chat",
+                "responseParserKind": "qwen_reasoning_v1",
+                "signals": [
+                  {
+                    "kind": "thinking_block",
+                    "producerEvent": "reasoning",
+                    "pointer": "/content",
+                    "nonEmpty": true
+                  }
+                ]
+              },
+              "qwen.chat.web": {
+                "capability": "web",
+                "protocol": "openai_chat",
+                "responseParserKind": "qwen_chat_search_v1",
+                "signals": []
+              },
+              "siliconflow.chat.reasoning": {
+                "capability": "reasoning",
+                "protocol": "openai_chat",
+                "responseParserKind": "siliconflow_reasoning_v1",
+                "signals": [
+                  {
+                    "kind": "thinking_block",
+                    "producerEvent": "reasoning",
+                    "pointer": "/content",
+                    "nonEmpty": true
+                  }
+                ]
+              },
+              "together.chat.reasoning": {
+                "capability": "reasoning",
+                "protocol": "openai_chat",
+                "responseParserKind": "together_reasoning_v1",
+                "signals": [
+                  {
+                    "kind": "thinking_block",
+                    "producerEvent": "reasoning",
+                    "pointer": "/content",
+                    "nonEmpty": true
+                  }
+                ]
+              },
+              "zhipu.chat.reasoning": {
+                "capability": "reasoning",
+                "protocol": "openai_chat",
+                "responseParserKind": "zhipu_reasoning_v1",
+                "signals": [
+                  {
+                    "kind": "thinking_block",
+                    "producerEvent": "reasoning",
+                    "pointer": "/content",
+                    "nonEmpty": true
+                  }
+                ]
+              },
+              "zhipu.chat.web": {
+                "capability": "web",
+                "protocol": "openai_chat",
+                "responseParserKind": "zhipu_web_search_v1",
+                "signals": [
+                  {
+                    "kind": "provider_tool_result",
+                    "producerEvent": "tool_result",
+                    "pointer": "/summary",
+                    "nonEmpty": true
+                  },
+                  {
+                    "kind": "citation",
+                    "producerEvent": "citations",
+                    "pointer": "/citations",
+                    "nonEmpty": true
+                  }
+                ]
+              }
+            },
+            "revision": "sha256:edd16e4d15f2ccd7c57e5d868af784380d78954b78e0125959b7c52ef5384c56",
+            "schemaVersion": 2,
+            "sourceIndex": {
+              "anthropic.effort": {
+                "kind": "official_doc",
+                "url": "https://platform.claude.com/docs/en/build-with-claude/effort",
+                "reviewedAt": "2026-09-24",
+                "officialUpdatedAt": null
+              },
+              "anthropic.web_search": {
+                "kind": "official_doc",
+                "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool",
+                "reviewedAt": "2026-08-11",
+                "officialUpdatedAt": null
+              },
+              "deepseek.chat_api": {
+                "kind": "official_doc",
+                "url": "https://api-docs.deepseek.com/api/create-chat-completion",
+                "reviewedAt": "2026-08-15",
+                "officialUpdatedAt": null
+              },
+              "deepseek.pricing": {
+                "kind": "official_doc",
+                "url": "https://api-docs.deepseek.com/quick_start/pricing",
+                "reviewedAt": "2026-09-24",
+                "officialUpdatedAt": null
+              },
+              "deepseek.thinking_mode": {
+                "kind": "official_doc",
+                "url": "https://api-docs.deepseek.com/guides/thinking_mode",
+                "reviewedAt": "2026-08-15",
+                "officialUpdatedAt": "2026-08-13"
+              },
+              "fireworks.chat_completions": {
+                "kind": "official_doc",
+                "url": "https://docs.fireworks.ai/api-reference/post-chatcompletions",
+                "reviewedAt": "2026-08-11",
+                "officialUpdatedAt": null
+              },
+              "fireworks.reasoning": {
+                "kind": "official_doc",
+                "url": "https://docs.fireworks.ai/guides/reasoning",
+                "reviewedAt": "2026-08-11",
+                "officialUpdatedAt": null
+              },
+              "gemini.google_search": {
+                "kind": "official_doc",
+                "url": "https://ai.google.dev/gemini-api/docs/google-search",
+                "reviewedAt": "2026-08-11",
+                "officialUpdatedAt": "2026-08-04"
+              },
+              "gemini.interactions": {
+                "kind": "official_doc",
+                "url": "https://ai.google.dev/api/interactions-api-v1",
+                "reviewedAt": "2026-08-11",
+                "officialUpdatedAt": "2026-07-27"
+              },
+              "gemini.thinking": {
+                "kind": "official_doc",
+                "url": "https://ai.google.dev/gemini-api/docs/generate-content/thinking",
+                "reviewedAt": "2026-08-11",
+                "officialUpdatedAt": null
+              },
+              "grok.models": {
+                "kind": "official_doc",
+                "url": "https://docs.x.ai/developers/models",
+                "reviewedAt": "2026-08-15",
+                "officialUpdatedAt": null
+              },
+              "grok.reasoning": {
+                "kind": "official_doc",
+                "url": "https://docs.x.ai/developers/model-capabilities/text/reasoning",
+                "reviewedAt": "2026-09-24",
+                "officialUpdatedAt": "2026-09-21"
+              },
+              "grok.retirement": {
+                "kind": "official_doc",
+                "url": "https://docs.x.ai/developers/migration/may-15-retirement",
+                "reviewedAt": "2026-08-15",
+                "officialUpdatedAt": null
+              },
+              "grok.web_search": {
+                "kind": "official_doc",
+                "url": "https://docs.x.ai/developers/tools/web-search",
+                "reviewedAt": "2026-08-15",
+                "officialUpdatedAt": null
+              },
+              "groq.browser_search": {
+                "kind": "official_doc",
+                "url": "https://console.groq.com/docs/tool-use/built-in-tools/browser-search",
+                "reviewedAt": "2026-09-24",
+                "officialUpdatedAt": null
+              },
+              "groq.built_in_tools": {
+                "kind": "official_doc",
+                "url": "https://console.groq.com/docs/tool-use/built-in-tools/web-search",
+                "reviewedAt": "2026-08-11",
+                "officialUpdatedAt": null
+              },
+              "groq.deprecations": {
+                "kind": "official_doc",
+                "url": "https://console.groq.com/docs/deprecations",
+                "reviewedAt": "2026-09-24",
+                "officialUpdatedAt": null
+              },
+              "groq.reasoning": {
+                "kind": "official_doc",
+                "url": "https://console.groq.com/docs/reasoning",
+                "reviewedAt": "2026-09-24",
+                "officialUpdatedAt": null
+              },
+              "kimi.official_tools": {
+                "kind": "official_doc",
+                "url": "https://platform.kimi.ai/docs/guide/use-official-tools",
+                "reviewedAt": "2026-08-15",
+                "officialUpdatedAt": null
+              },
+              "kimi.reasoning_effort": {
+                "kind": "official_doc",
+                "url": "https://platform.kimi.ai/docs/guide/use-reasoning-effort",
+                "reviewedAt": "2026-08-15",
+                "officialUpdatedAt": null
+              },
+              "kimi.thinking_models": {
+                "kind": "official_doc",
+                "url": "https://platform.kimi.ai/docs/guide/use-thinking-models",
+                "reviewedAt": "2026-08-15",
+                "officialUpdatedAt": null
+              },
+              "kimi.web_search": {
+                "kind": "official_doc",
+                "url": "https://platform.kimi.ai/docs/guide/use-web-search",
+                "reviewedAt": "2026-08-15",
+                "officialUpdatedAt": null
+              },
+              "minimax.server_tools": {
+                "kind": "official_doc",
+                "url": "https://platform.minimax.io/docs/guides/server-tools",
+                "reviewedAt": "2026-08-23",
+                "officialUpdatedAt": null
+              },
+              "minimax.text_api": {
+                "kind": "official_doc",
+                "url": "https://platform.minimax.io/docs/api-reference/text-post",
+                "reviewedAt": "2026-08-11",
+                "officialUpdatedAt": null
+              },
+              "minimax.web_search_mcp": {
+                "kind": "official_doc",
+                "url": "https://platform.minimax.io/docs/token-plan/mcp-guide",
+                "reviewedAt": "2026-08-11",
+                "officialUpdatedAt": null
+              },
+              "mistral.agent_tools": {
+                "kind": "official_doc",
+                "url": "https://docs.mistral.ai/studio/agents/agent-tools",
+                "reviewedAt": "2026-08-15",
+                "officialUpdatedAt": null
+              },
+              "mistral.deprecations": {
+                "kind": "official_doc",
+                "url": "https://docs.mistral.ai/models",
+                "reviewedAt": "2026-08-15",
+                "officialUpdatedAt": null
+              },
+              "mistral.reasoning": {
+                "kind": "official_doc",
+                "url": "https://docs.mistral.ai/studio/conversations/reasoning",
+                "reviewedAt": "2026-08-15",
+                "officialUpdatedAt": null
+              },
+              "mistral.web_search": {
+                "kind": "official_doc",
+                "url": "https://docs.mistral.ai/studio/agents/agent-tools/websearch",
+                "reviewedAt": "2026-08-15",
+                "officialUpdatedAt": null
+              },
+              "openai.reasoning": {
+                "kind": "official_doc",
+                "url": "https://developers.openai.com/api/docs/guides/latest-model",
+                "reviewedAt": "2026-08-11",
+                "officialUpdatedAt": null
+              },
+              "openai.web_search": {
+                "kind": "official_doc",
+                "url": "https://developers.openai.com/api/docs/guides/tools-web-search",
+                "reviewedAt": "2026-08-11",
+                "officialUpdatedAt": null
+              },
+              "openrouter.reasoning_tokens": {
+                "kind": "official_doc",
+                "url": "https://openrouter.ai/docs/guides/best-practices/reasoning-tokens",
+                "reviewedAt": "2026-08-11",
+                "officialUpdatedAt": null
+              },
+              "openrouter.server_tools": {
+                "kind": "official_doc",
+                "url": "https://openrouter.ai/docs/guides/features/server-tools/web-search",
+                "reviewedAt": "2026-08-11",
+                "officialUpdatedAt": null
+              },
+              "qwen.deep_thinking": {
+                "kind": "official_doc",
+                "url": "https://www.alibabacloud.com/help/en/model-studio/deep-thinking",
+                "reviewedAt": "2026-08-11",
+                "officialUpdatedAt": null
+              },
+              "qwen.deepseek_api": {
+                "kind": "official_doc",
+                "url": "https://www.alibabacloud.com/help/en/model-studio/deepseek-api",
+                "reviewedAt": "2026-09-24",
+                "officialUpdatedAt": null
+              },
+              "qwen.glm": {
+                "kind": "official_doc",
+                "url": "https://www.alibabacloud.com/help/en/model-studio/glm",
+                "reviewedAt": "2026-09-24",
+                "officialUpdatedAt": null
+              },
+              "qwen.responses_api": {
+                "kind": "official_doc",
+                "url": "https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-openai-responses",
+                "reviewedAt": "2026-08-11",
+                "officialUpdatedAt": null
+              },
+              "qwen.web_search": {
+                "kind": "official_doc",
+                "url": "https://www.alibabacloud.com/help/en/model-studio/web-search",
+                "reviewedAt": "2026-08-11",
+                "officialUpdatedAt": null
+              },
+              "siliconflow.chat_completions": {
+                "kind": "official_doc",
+                "url": "https://docs.siliconflow.cn/en/api-reference/chat-completions/chat-completions",
+                "reviewedAt": "2026-08-11",
+                "officialUpdatedAt": null
+              },
+              "together.chat_completions": {
+                "kind": "official_doc",
+                "url": "https://docs.together.ai/reference/chat-completions",
+                "reviewedAt": "2026-08-11",
+                "officialUpdatedAt": null
+              },
+              "together.reasoning": {
+                "kind": "official_doc",
+                "url": "https://docs.together.ai/docs/inference/chat/reasoning",
+                "reviewedAt": "2026-09-24",
+                "officialUpdatedAt": null
+              },
+              "zhipu.migration": {
+                "kind": "official_doc",
+                "url": "https://docs.bigmodel.cn/cn/guide/start/migrate-to-glm-new",
+                "reviewedAt": "2026-08-11",
+                "officialUpdatedAt": null
+              },
+              "zhipu.thinking": {
+                "kind": "official_doc",
+                "url": "https://docs.bigmodel.cn/cn/guide/capabilities/thinking",
+                "reviewedAt": "2026-09-24",
+                "officialUpdatedAt": null
+              },
+              "zhipu.thinking_mode": {
+                "kind": "official_doc",
+                "url": "https://docs.bigmodel.cn/cn/guide/capabilities/thinking-mode",
+                "reviewedAt": "2026-08-15",
+                "officialUpdatedAt": null
+              },
+              "zhipu.web_search": {
+                "kind": "official_doc",
+                "url": "https://docs.bigmodel.cn/cn/guide/tools/web-search",
+                "reviewedAt": "2026-08-15",
+                "officialUpdatedAt": null
+              }
+            }
+          },
+          "contractVersion": 1,
+          "generationParameterTables": {
+            "sha256:55b4780128dab75a09b8a420297ca5aeb35404aec1298d21f4dc66f754646dff": [
+              {
+                "id": "max_output_tokens",
+                "support": "supported",
+                "source": "authoritative_metadata"
+              }
+            ],
+            "sha256:59150937443755c26649c8f9a0bacb7e809ee49e6b933d05d5a10add65ff1ea4": [
+              {
+                "id": "max_output_tokens",
+                "support": "supported",
+                "source": "authoritative_metadata"
+              },
+              {
+                "id": "temperature",
+                "support": "supported",
+                "source": "provider_metadata"
+              }
+            ],
+            "sha256:f4de8acef3d100d1ab99c3a55494acd8dc8994843562587565e5763be30810cc": [
+              {
+                "id": "max_output_tokens",
+                "support": "supported",
+                "source": "authoritative_metadata"
+              },
+              {
+                "id": "reasoning_effort",
+                "support": "supported",
+                "source": "authoritative_metadata",
+                "enumValues": [
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              }
+            ]
+          },
+          "profiles": {
+            "generation": {
+              "parameters": {
+                "dry_allowed_length": {
+                  "group": "engine_runtime",
+                  "portability": "engine_scoped",
+                  "range": {
+                    "min": 0
+                  },
+                  "risk": "experimental",
+                  "valueSchema": "integer"
+                },
+                "dry_base": {
+                  "group": "engine_runtime",
+                  "portability": "engine_scoped",
+                  "range": {
+                    "minExclusive": 0
+                  },
+                  "risk": "experimental",
+                  "valueSchema": "number"
+                },
+                "dry_multiplier": {
+                  "group": "engine_runtime",
+                  "portability": "engine_scoped",
+                  "range": {
+                    "min": 0
+                  },
+                  "risk": "experimental",
+                  "valueSchema": "number"
+                },
+                "dry_penalty_last_n": {
+                  "group": "engine_runtime",
+                  "portability": "engine_scoped",
+                  "range": {
+                    "min": -1
+                  },
+                  "risk": "experimental",
+                  "valueSchema": "integer"
+                },
+                "dry_sequence_breakers": {
+                  "group": "engine_runtime",
+                  "portability": "engine_scoped",
+                  "risk": "experimental",
+                  "valueSchema": "string-list"
+                },
+                "dynatemp_exponent": {
+                  "group": "engine_runtime",
+                  "portability": "engine_scoped",
+                  "range": {
+                    "minExclusive": 0
+                  },
+                  "risk": "experimental",
+                  "valueSchema": "number"
+                },
+                "dynatemp_range": {
+                  "group": "engine_runtime",
+                  "portability": "engine_scoped",
+                  "range": {
+                    "min": 0
+                  },
+                  "risk": "experimental",
+                  "valueSchema": "number"
+                },
+                "frequency_penalty": {
+                  "group": "repetition",
+                  "portability": "transport_scoped",
+                  "range": {
+                    "max": 2,
+                    "min": -2,
+                    "step": 0.01
+                  },
+                  "risk": "normal",
+                  "valueSchema": "number"
+                },
+                "ignore_eos": {
+                  "group": "engine_runtime",
+                  "portability": "engine_scoped",
+                  "risk": "experimental",
+                  "valueSchema": "boolean"
+                },
+                "json_schema": {
+                  "conflictsWith": [
+                    "tools",
+                    "response_format"
+                  ],
+                  "constraints": [
+                    {
+                      "tools": false
+                    }
+                  ],
+                  "group": "output_contract",
+                  "portability": "transport_scoped",
+                  "risk": "output_contract",
+                  "valueSchema": "json-schema"
+                },
+                "llamacpp_native": {
+                  "group": "engine_runtime",
+                  "portability": "engine_scoped",
+                  "risk": "experimental",
+                  "valueSchema": "boolean"
+                },
+                "logprobs": {
+                  "group": "output_contract",
+                  "portability": "transport_scoped",
+                  "risk": "experimental",
+                  "valueSchema": "boolean"
+                },
+                "max_output_tokens": {
+                  "defaultDescription": "provider_default",
+                  "group": "budget",
+                  "portability": "transport_scoped",
+                  "range": {
+                    "min": 1,
+                    "step": 1
+                  },
+                  "risk": "cost",
+                  "valueSchema": "integer"
+                },
+                "min_keep": {
+                  "group": "engine_runtime",
+                  "portability": "engine_scoped",
+                  "range": {
+                    "min": 0
+                  },
+                  "risk": "experimental",
+                  "valueSchema": "integer"
+                },
+                "min_p": {
+                  "group": "sampling",
+                  "portability": "engine_scoped",
+                  "range": {
+                    "max": 1,
+                    "min": 0
+                  },
+                  "risk": "experimental",
+                  "valueSchema": "number"
+                },
+                "mirostat": {
+                  "conflictsWith": [
+                    "temperature",
+                    "top_p",
+                    "top_k",
+                    "min_p"
+                  ],
+                  "enumValues": [
+                    0,
+                    1,
+                    2
+                  ],
+                  "group": "engine_runtime",
+                  "portability": "engine_scoped",
+                  "risk": "resource",
+                  "valueSchema": "integer"
+                },
+                "mirostat_eta": {
+                  "group": "engine_runtime",
+                  "portability": "engine_scoped",
+                  "range": {
+                    "minExclusive": 0
+                  },
+                  "risk": "resource",
+                  "valueSchema": "number"
+                },
+                "mirostat_tau": {
+                  "group": "engine_runtime",
+                  "portability": "engine_scoped",
+                  "range": {
+                    "min": 0
+                  },
+                  "risk": "resource",
+                  "valueSchema": "number"
+                },
+                "n_indent": {
+                  "group": "engine_runtime",
+                  "portability": "engine_scoped",
+                  "range": {
+                    "min": 0
+                  },
+                  "risk": "experimental",
+                  "valueSchema": "integer"
+                },
+                "n_keep": {
+                  "group": "engine_runtime",
+                  "portability": "engine_scoped",
+                  "range": {
+                    "min": -1
+                  },
+                  "risk": "experimental",
+                  "valueSchema": "integer"
+                },
+                "n_probs": {
+                  "group": "engine_runtime",
+                  "portability": "engine_scoped",
+                  "range": {
+                    "min": 0
+                  },
+                  "risk": "experimental",
+                  "valueSchema": "integer"
+                },
+                "post_sampling_probs": {
+                  "group": "engine_runtime",
+                  "portability": "engine_scoped",
+                  "risk": "experimental",
+                  "valueSchema": "boolean"
+                },
+                "presence_penalty": {
+                  "group": "repetition",
+                  "portability": "transport_scoped",
+                  "range": {
+                    "max": 2,
+                    "min": -2,
+                    "step": 0.01
+                  },
+                  "risk": "normal",
+                  "valueSchema": "number"
+                },
+                "reasoning_budget": {
+                  "defaultDescription": "provider_default",
+                  "group": "reasoning",
+                  "portability": "transport_scoped",
+                  "range": {
+                    "min": 1,
+                    "step": 1
+                  },
+                  "risk": "cost",
+                  "valueSchema": "integer"
+                },
+                "reasoning_effort": {
+                  "constraints": [
+                    {
+                      "mode": "reasoning"
+                    }
+                  ],
+                  "defaultDescription": "provider_default",
+                  "enumValues": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh"
+                  ],
+                  "group": "reasoning",
+                  "portability": "transport_scoped",
+                  "risk": "cost",
+                  "valueSchema": "enum"
+                },
+                "reasoning_mode": {
+                  "defaultDescription": "provider_default",
+                  "enumValues": [
+                    "enabled",
+                    "disabled"
+                  ],
+                  "group": "reasoning",
+                  "portability": "transport_scoped",
+                  "risk": "cost",
+                  "valueSchema": "enum"
+                },
+                "repeat_last_n": {
+                  "group": "engine_runtime",
+                  "portability": "engine_scoped",
+                  "range": {
+                    "min": -1
+                  },
+                  "risk": "experimental",
+                  "valueSchema": "integer"
+                },
+                "repeat_penalty": {
+                  "conflictsWith": [
+                    "frequency_penalty",
+                    "presence_penalty"
+                  ],
+                  "group": "repetition",
+                  "portability": "engine_scoped",
+                  "range": {
+                    "min": 0,
+                    "step": 0.01
+                  },
+                  "risk": "normal",
+                  "valueSchema": "number"
+                },
+                "response_format": {
+                  "enumValues": [
+                    "text",
+                    "json"
+                  ],
+                  "group": "output_contract",
+                  "portability": "transport_scoped",
+                  "risk": "output_contract",
+                  "valueSchema": "enum"
+                },
+                "route_require_parameters": {
+                  "defaultDescription": "provider_default",
+                  "group": "routing",
+                  "portability": "transport_scoped",
+                  "risk": "normal",
+                  "valueSchema": "boolean"
+                },
+                "samplers": {
+                  "group": "engine_runtime",
+                  "portability": "engine_scoped",
+                  "risk": "experimental",
+                  "valueSchema": "string-list"
+                },
+                "seed": {
+                  "group": "reproducibility",
+                  "portability": "transport_scoped",
+                  "risk": "normal",
+                  "valueSchema": "integer"
+                },
+                "stop": {
+                  "defaultDescription": "provider_default",
+                  "group": "budget",
+                  "portability": "transport_scoped",
+                  "risk": "normal",
+                  "valueSchema": "string-list"
+                },
+                "t_max_predict_ms": {
+                  "group": "engine_runtime",
+                  "portability": "engine_scoped",
+                  "range": {
+                    "min": 0
+                  },
+                  "risk": "resource",
+                  "valueSchema": "integer"
+                },
+                "temperature": {
+                  "defaultDescription": "provider_default",
+                  "group": "sampling",
+                  "interactionGroup": "sampling_strategy",
+                  "portability": "portable",
+                  "range": {
+                    "max": 2,
+                    "min": 0,
+                    "step": 0.01
+                  },
+                  "risk": "normal",
+                  "valueSchema": "number"
+                },
+                "top_k": {
+                  "group": "sampling",
+                  "portability": "engine_scoped",
+                  "range": {
+                    "min": 0
+                  },
+                  "risk": "experimental",
+                  "valueSchema": "integer"
+                },
+                "top_logprobs": {
+                  "group": "output_contract",
+                  "portability": "transport_scoped",
+                  "range": {
+                    "max": 20,
+                    "min": 0,
+                    "step": 1
+                  },
+                  "requires": [
+                    {
+                      "key": "logprobs",
+                      "value": true
+                    }
+                  ],
+                  "risk": "experimental",
+                  "valueSchema": "integer"
+                },
+                "top_n_sigma": {
+                  "group": "engine_runtime",
+                  "portability": "engine_scoped",
+                  "range": {
+                    "min": -1
+                  },
+                  "risk": "experimental",
+                  "valueSchema": "number"
+                },
+                "top_p": {
+                  "defaultDescription": "provider_default",
+                  "group": "sampling",
+                  "interactionGroup": "sampling_strategy",
+                  "portability": "portable",
+                  "range": {
+                    "max": 1,
+                    "minExclusive": 0,
+                    "step": 0.01
+                  },
+                  "risk": "normal",
+                  "valueSchema": "number"
+                },
+                "typical_p": {
+                  "group": "engine_runtime",
+                  "portability": "engine_scoped",
+                  "range": {
+                    "max": 1,
+                    "min": 0
+                  },
+                  "risk": "experimental",
+                  "valueSchema": "number"
+                },
+                "verbosity": {
+                  "enumValues": [
+                    "low",
+                    "medium",
+                    "high"
+                  ],
+                  "group": "output_contract",
+                  "portability": "transport_scoped",
+                  "risk": "normal",
+                  "valueSchema": "enum"
+                },
+                "xtc_probability": {
+                  "group": "engine_runtime",
+                  "portability": "engine_scoped",
+                  "range": {
+                    "max": 1,
+                    "min": 0
+                  },
+                  "risk": "experimental",
+                  "valueSchema": "number"
+                },
+                "xtc_threshold": {
+                  "group": "engine_runtime",
+                  "portability": "engine_scoped",
+                  "range": {
+                    "max": 1,
+                    "min": 0
+                  },
+                  "risk": "experimental",
+                  "valueSchema": "number"
+                }
+              },
+              "templates": {
+                "anthropic_messages": {
+                  "transport": "anthropic_messages",
+                  "wire": {
+                    "json_schema": "output_config.format",
+                    "max_output_tokens": "max_tokens",
+                    "stop": "stop_sequences",
+                    "temperature": "temperature",
+                    "top_k": "top_k",
+                    "top_p": "top_p"
+                  }
+                },
+                "gemini_generate_content": {
+                  "transport": "gemini_generate_content",
+                  "wire": {
+                    "frequency_penalty": "generationConfig.frequencyPenalty",
+                    "json_schema": "generationConfig.responseJsonSchema",
+                    "logprobs": "generationConfig.responseLogprobs",
+                    "max_output_tokens": "generationConfig.maxOutputTokens",
+                    "presence_penalty": "generationConfig.presencePenalty",
+                    "response_format": "generationConfig.responseMimeType",
+                    "seed": "generationConfig.seed",
+                    "stop": "generationConfig.stopSequences",
+                    "temperature": "generationConfig.temperature",
+                    "top_k": "generationConfig.topK",
+                    "top_logprobs": "generationConfig.logprobs",
+                    "top_p": "generationConfig.topP"
+                  }
+                },
+                "llamacpp_native": {
+                  "transport": "llamacpp_native",
+                  "wire": {
+                    "dry_allowed_length": "dry_allowed_length",
+                    "dry_base": "dry_base",
+                    "dry_multiplier": "dry_multiplier",
+                    "dry_penalty_last_n": "dry_penalty_last_n",
+                    "dry_sequence_breakers": "dry_sequence_breakers",
+                    "dynatemp_exponent": "dynatemp_exponent",
+                    "dynatemp_range": "dynatemp_range",
+                    "ignore_eos": "ignore_eos",
+                    "json_schema": "json_schema",
+                    "logprobs": "n_probs",
+                    "max_output_tokens": "n_predict",
+                    "min_keep": "min_keep",
+                    "min_p": "min_p",
+                    "mirostat": "mirostat",
+                    "mirostat_eta": "mirostat_eta",
+                    "mirostat_tau": "mirostat_tau",
+                    "n_indent": "n_indent",
+                    "n_keep": "n_keep",
+                    "n_probs": "n_probs",
+                    "post_sampling_probs": "post_sampling_probs",
+                    "repeat_last_n": "repeat_last_n",
+                    "repeat_penalty": "repeat_penalty",
+                    "response_format": "json_schema",
+                    "samplers": "samplers",
+                    "seed": "seed",
+                    "stop": "stop",
+                    "t_max_predict_ms": "t_max_predict_ms",
+                    "temperature": "temperature",
+                    "top_k": "top_k",
+                    "top_logprobs": "n_probs",
+                    "top_n_sigma": "top_n_sigma",
+                    "top_p": "top_p",
+                    "typical_p": "typical_p",
+                    "xtc_probability": "xtc_probability",
+                    "xtc_threshold": "xtc_threshold"
+                  }
+                },
+                "openai_chat_completions": {
+                  "transport": "openai_chat_completions",
+                  "wire": {
+                    "frequency_penalty": "frequency_penalty",
+                    "json_schema": "response_format",
+                    "logprobs": "logprobs",
+                    "max_output_tokens": "max_tokens",
+                    "min_p": "min_p",
+                    "presence_penalty": "presence_penalty",
+                    "reasoning_budget": "reasoning_budget",
+                    "reasoning_effort": "reasoning_effort",
+                    "reasoning_mode": "reasoning_mode",
+                    "repeat_penalty": "repeat_penalty",
+                    "response_format": "response_format",
+                    "route_require_parameters": "provider.require_parameters",
+                    "seed": "seed",
+                    "stop": "stop",
+                    "temperature": "temperature",
+                    "top_k": "top_k",
+                    "top_logprobs": "top_logprobs",
+                    "top_p": "top_p",
+                    "verbosity": "verbosity"
+                  }
+                },
+                "openai_responses": {
+                  "transport": "openai_responses",
+                  "wire": {
+                    "json_schema": "text.format",
+                    "max_output_tokens": "max_output_tokens",
+                    "reasoning_effort": "reasoning.effort",
+                    "response_format": "text.format",
+                    "route_require_parameters": "provider.require_parameters",
+                    "temperature": "temperature",
+                    "top_p": "top_p",
+                    "verbosity": "text.verbosity"
+                  }
+                },
+                "vllm_extra_body": {
+                  "transport": "openai_chat_completions",
+                  "wire": {
+                    "frequency_penalty": "frequency_penalty",
+                    "logprobs": "logprobs",
+                    "max_output_tokens": "max_tokens",
+                    "min_p": "min_p",
+                    "presence_penalty": "presence_penalty",
+                    "repeat_penalty": "repetition_penalty",
+                    "seed": "seed",
+                    "stop": "stop",
+                    "temperature": "temperature",
+                    "top_k": "top_k",
+                    "top_p": "top_p"
+                  }
+                }
+              },
+              "version": 1
+            },
+            "imageGen": {},
+            "reasoning": {
+              "ant_adaptive_max": {
+                "levels": [
+                  "fast",
+                  "balanced",
+                  "deep",
+                  "max"
+                ],
+                "params": {
+                  "balanced": {
+                    "output_config": {
+                      "effort": "medium"
+                    },
+                    "thinking": {
+                      "type": "adaptive"
+                    }
+                  },
+                  "deep": {
+                    "output_config": {
+                      "effort": "high"
+                    },
+                    "thinking": {
+                      "type": "adaptive"
+                    }
+                  },
+                  "fast": {
+                    "output_config": {
+                      "effort": "low"
+                    },
+                    "thinking": {
+                      "type": "adaptive"
+                    }
+                  },
+                  "max": {
+                    "output_config": {
+                      "effort": "max"
+                    },
+                    "thinking": {
+                      "type": "adaptive"
+                    }
+                  }
+                },
+                "transport": "anthropic_messages"
+              },
+              "oai_chat": {
+                "levels": [
+                  "fast",
+                  "balanced",
+                  "deep"
+                ],
+                "params": {
+                  "balanced": {
+                    "reasoning_effort": "medium"
+                  },
+                  "deep": {
+                    "reasoning_effort": "high"
+                  },
+                  "fast": {
+                    "reasoning_effort": "low"
+                  }
+                },
+                "transport": "chat_completions"
+              },
+              "oai_responses": {
+                "fallbackProfile": "oai_chat",
+                "levels": [
+                  "fast",
+                  "balanced",
+                  "deep"
+                ],
+                "params": {
+                  "balanced": {
+                    "reasoning": {
+                      "effort": "medium"
+                    }
+                  },
+                  "deep": {
+                    "reasoning": {
+                      "effort": "high"
+                    }
+                  },
+                  "fast": {
+                    "reasoning": {
+                      "effort": "low"
+                    }
+                  }
+                },
+                "transport": "responses_api"
+              }
+            },
+            "webSearch": {
+              "ant_web_tool": {
+                "mergeParams": {
+                  "tools": [
+                    {
+                      "max_uses": 5,
+                      "name": "web_search",
+                      "type": "web_search_20250305"
+                    }
+                  ]
+                },
+                "streamShape": {
+                  "citationSnippetField": "cited_text",
+                  "citationsBlockType": "web_search_tool_result"
+                }
+              },
+              "oai_responses_web": {
+                "mergeParams": {
+                  "tool_choice": "auto",
+                  "tools": [
+                    {
+                      "type": "web_search"
+                    }
+                  ]
+                },
+                "streamShape": {
+                  "citationsArrayPath": "output.annotations",
+                  "citationsBlockType": "url_citation"
+                }
+              }
+            }
+          },
+          "providerConfigs": [
+            {
+              "kind": "openAI",
+              "displayName": "OpenAI",
+              "autoFillNote": "The service endpoint is auto-filled for you",
+              "defaultBaseURL": "https://api.openai.com/v1",
+              "apiKeyPlaceholder": "sk-...",
+              "apiKeyHelpURL": "https://platform.openai.com/api-keys",
+              "apiProtocol": "openai",
+              "protocolFeatures": {
+                "authMethod": "bearer",
+                "subscriptionAuth": {
+                  "chatPath": "/responses",
+                  "clientId": "app_EMoamEEZ73f0CkXaXp7hrann",
+                  "deviceAuthorizationEndpoint": "https://auth.openai.com/api/accounts/deviceauth/usercode",
+                  "deviceTokenEndpoint": "https://auth.openai.com/api/accounts/deviceauth/token",
+                  "disabledNotice": null,
+                  "enabled": true,
+                  "flow": "codex_device_code",
+                  "minAppVersion": {
+                    "desktop": "0.0.0",
+                    "ios": "1.2.6"
+                  },
+                  "modelsPath": "/models",
+                  "pollIntervalSeconds": 5,
+                  "pollTimeoutSeconds": 900,
+                  "redirectURI": "https://auth.openai.com/deviceauth/callback",
+                  "requiredHeaders": {
+                    "OpenAI-Beta": "responses=experimental",
+                    "originator": "oriveo",
+                    "version": "0.162.1"
+                  },
+                  "resourceBaseURL": "https://chatgpt.com/backend-api/codex",
+                  "tokenEndpoint": "https://auth.openai.com/oauth/token",
+                  "trustedAuthHosts": [
+                    "auth.openai.com"
+                  ],
+                  "trustedVerificationHosts": [
+                    "auth.openai.com"
+                  ],
+                  "verificationURL": "https://auth.openai.com/codex/device"
+                }
+              },
+              "category": "direct",
+              "supportsAutoSync": true,
+              "attachmentSupport": {
+                "image": true,
+                "video": false,
+                "nativeFile": true,
+                "textFileInline": true
+              },
+              "modelFilter": {
+                "excludePrefixes": [
+                  "whisper",
+                  "tts",
+                  "text-embedding",
+                  "text-search",
+                  "text-similarity",
+                  "code-search",
+                  "babbage",
+                  "davinci",
+                  "curie",
+                  "ada",
+                  "text-davinci",
+                  "text-curie",
+                  "text-babbage",
+                  "text-ada",
+                  "moderation",
+                  "canary"
+                ]
+              },
+              "regionOptions": null,
+              "trustedHosts": [
+                "openai.com"
+              ],
+              "sortOrder": 1
+            },
+            {
+              "kind": "anthropic",
+              "displayName": "Anthropic",
+              "shortName": "Claude",
+              "autoFillNote": "The service endpoint is auto-filled for you",
+              "defaultBaseURL": "https://api.anthropic.com/v1",
+              "apiKeyPlaceholder": "sk-ant-...",
+              "apiKeyHelpURL": "https://platform.claude.com/settings/keys",
+              "apiProtocol": "anthropic",
+              "protocolFeatures": {
+                "authMethod": "x-api-key"
+              },
+              "category": "direct",
+              "supportsAutoSync": true,
+              "attachmentSupport": {
+                "image": true,
+                "video": false,
+                "nativeFile": true,
+                "textFileInline": true
+              },
+              "modelFilter": null,
+              "regionOptions": null,
+              "trustedHosts": [
+                "anthropic.com"
+              ],
+              "sortOrder": 2
+            },
+            {
+              "kind": "gemini",
+              "displayName": "Google Gemini",
+              "autoFillNote": "The service endpoint is auto-filled for you",
+              "defaultBaseURL": "https://generativelanguage.googleapis.com/v1beta",
+              "apiKeyPlaceholder": "AIza...",
+              "apiKeyHelpURL": "https://aistudio.google.com/apikey",
+              "apiProtocol": "gemini",
+              "protocolFeatures": {
+                "authMethod": "query_param"
+              },
+              "category": "direct",
+              "supportsAutoSync": true,
+              "attachmentSupport": {
+                "image": true,
+                "nativeFile": true,
+                "textFileInline": true
+              },
+              "modelFilter": {
+                "excludePrefixes": [
+                  "deep-research",
+                  "antigravity"
+                ]
+              },
+              "regionOptions": null,
+              "trustedHosts": [
+                "googleapis.com"
+              ],
+              "sortOrder": 3
+            }
+          ],
+          "providers": {
+            "openAI": {
+              "attachmentSupport": {
+                "image": true,
+                "nativeFile": true,
+                "textFileInline": true
+              },
+              "defaultModelId": "gpt-6.1-sol",
+              "displayName": "OpenAI",
+              "models": {
+                "o3": {
+                  "aliases": [
+                    "o3-2025-04-16"
+                  ],
+                  "billingSku": "o3/payg",
+                  "canonicalModelId": "o3",
+                  "capabilities": [
+                    "text",
+                    "image",
+                    "file",
+                    "reasoning",
+                    "web"
+                  ],
+                  "capabilityControls": {
+                    "generation": {
+                      "state": "auto_available",
+                      "recipeRef": "openai.responses.generation.v1",
+                      "customControlRefs": [
+                        "openai.generation.max_output_tokens"
+                      ]
+                    },
+                    "reasoning": {
+                      "state": "auto_available",
+                      "recipeRef": "openai.responses.reasoning.v1",
+                      "availableIntents": [
+                        "low",
+                        "balanced",
+                        "deep"
+                      ],
+                      "customControlRefs": [
+                        "openai.reasoning.effort"
+                      ]
+                    },
+                    "web": {
+                      "state": "auto_available",
+                      "recipeRef": "openai.responses.web.v1",
+                      "availableIntents": [
+                        "force"
+                      ]
+                    }
+                  },
+                  "capabilityEvidenceView": {
+                    "candidates": [
+                      {
+                        "expiresAt": 1792630811738,
+                        "grade": "declared",
+                        "key": "tool_call",
+                        "observedAt": 1792026011738,
+                        "source": "server_typed",
+                        "support": "supported"
+                      }
+                    ]
+                  },
+                  "contextLength": 200000,
+                  "currencyCode": "USD",
+                  "displayName": "o3",
+                  "libraryAgentic": true,
+                  "maxOutputTokens": 100000,
+                  "nativeFileMimes": [
+                    "application/pdf",
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                    "application/rtf",
+                    "text/rtf",
+                    "application/vnd.oasis.opendocument.text",
+                    "application/vnd.oasis.opendocument.spreadsheet",
+                    "application/vnd.oasis.opendocument.presentation"
+                  ],
+                  "pricing": {
+                    "promptPerMToken": 2,
+                    "completionPerMToken": 8,
+                    "cachedInputPerMToken": 0.5,
+                    "cacheReadInputPerMToken": 0.5
+                  },
+                  "pricingStatus": "priced",
+                  "pricingUnit": "per_token",
+                  "profiles": {
+                    "generation": {
+                      "parametersRef": "sha256:f4de8acef3d100d1ab99c3a55494acd8dc8994843562587565e5763be30810cc",
+                      "revision": "sha256:93b605c58aa4dae2528478a827831ac857b23e2d1dfbd160a58c5fba403a09ec",
+                      "template": "openai_responses"
+                    },
+                    "imageGen": null,
+                    "reasoning": "oai_responses",
+                    "webSearch": "oai_responses_web"
+                  },
+                  "promptCache": {
+                    "policyRef": "openai.responses.automatic"
+                  },
+                  "regionScope": "global",
+                  "supportsPdfInput": true,
+                  "supportsServiceTier": true,
+                  "supportsTemperature": false,
+                  "toolCall": true,
+                  "transport": "openai_responses",
+                  "uiHints": {
+                    "groupKey": "o-series",
+                    "groupName": "o Series",
+                    "rank": 30543,
+                    "recommended": false,
+                    "badgeOrder": [
+                      "reasoning",
+                      "image",
+                      "file",
+                      "web"
+                    ]
+                  }
+                },
+                "chat-latest": {
+                  "billingSku": "chat-latest/payg",
+                  "canonicalModelId": "chat-latest",
+                  "capabilities": [
+                    "text"
+                  ],
+                  "capabilityControls": {
+                    "generation": {
+                      "state": "auto_available",
+                      "recipeRef": "openai.chat.generation.v1"
+                    },
+                    "reasoning": {
+                      "state": "unavailable",
+                      "reasonCode": "model_capability_absent",
+                      "sourceRefs": [
+                        "openai.web_search"
+                      ]
+                    },
+                    "web": {
+                      "state": "unavailable",
+                      "reasonCode": "transport_not_supported",
+                      "sourceRefs": [
+                        "openai.web_search"
+                      ]
+                    }
+                  },
+                  "contextLength": 400000,
+                  "currencyCode": "USD",
+                  "displayName": "chat-latest",
+                  "libraryAgentic": null,
+                  "maxOutputTokens": 128000,
+                  "pricing": {
+                    "promptPerMToken": 5,
+                    "completionPerMToken": 30,
+                    "cachedInputPerMToken": 0.5,
+                    "cacheReadInputPerMToken": 0.5
+                  },
+                  "pricingStatus": "priced",
+                  "pricingUnit": "per_token",
+                  "profiles": {
+                    "generation": {
+                      "parametersRef": "sha256:55b4780128dab75a09b8a420297ca5aeb35404aec1298d21f4dc66f754646dff",
+                      "revision": "sha256:4276cfdfd3924671ea27865271c0ee87f9b48e9de5899d7e2f0d99f1bb7ecc2b",
+                      "template": "openai_chat_completions"
+                    },
+                    "imageGen": null,
+                    "reasoning": null,
+                    "webSearch": null
+                  },
+                  "promptCache": {
+                    "policyRef": "openai.chat.automatic"
+                  },
+                  "regionScope": "global",
+                  "supportsServiceTier": true,
+                  "toolCall": null,
+                  "transport": "openai_chat",
+                  "uiHints": {
+                    "groupKey": "legacy-utility",
+                    "groupName": "Legacy & Utility",
+                    "rank": 101,
+                    "recommended": false
+                  }
+                }
+              },
+              "resolveMap": {
+                "chat-latest": "chat-latest",
+                "o3": "o3",
+                "o3-2025-04-16": "o3"
+              },
+              "transport": {
+                "baseUrl": "https://api.openai.com",
+                "endpoints": {
+                  "chat": "/v1/chat/completions",
+                  "responses": "/v1/responses",
+                  "images": "/v1/images/generations",
+                  "files": "/v1/files"
+                }
+              },
+              "validation": {
+                "probe": "list_models",
+                "probePath": "/models",
+                "authMode": "bearer",
+                "headerProfile": "none",
+                "invalidKeySignals": [
+                  {
+                    "status": 401
+                  }
+                ]
+              }
+            },
+            "anthropic": {
+              "attachmentSupport": {
+                "image": true,
+                "nativeFile": true,
+                "textFileInline": true
+              },
+              "defaultModelId": "claude-haiku-5-5",
+              "displayName": "Anthropic",
+              "models": {
+                "claude-opus-5-5": {
+                  "billingSku": "claude-opus-5-5/payg",
+                  "canonicalModelId": "claude-opus-5-5",
+                  "capabilities": [
+                    "text",
+                    "image",
+                    "file",
+                    "reasoning",
+                    "web"
+                  ],
+                  "capabilityControls": {
+                    "generation": {
+                      "state": "auto_available",
+                      "recipeRef": "anthropic.messages.generation.v1"
+                    },
+                    "reasoning": {
+                      "state": "auto_available",
+                      "recipeRef": "anthropic.messages.reasoning.v2",
+                      "availableIntents": [
+                        "low",
+                        "balanced",
+                        "deep",
+                        "max"
+                      ]
+                    },
+                    "web": {
+                      "state": "auto_available",
+                      "recipeRef": "anthropic.messages.web.v1"
+                    }
+                  },
+                  "capabilityEvidenceView": {
+                    "candidates": [
+                      {
+                        "expiresAt": 1792630811738,
+                        "grade": "declared",
+                        "key": "tool_call",
+                        "observedAt": 1792026011738,
+                        "source": "server_typed",
+                        "support": "supported"
+                      }
+                    ]
+                  },
+                  "contextLength": 1000000,
+                  "currencyCode": "USD",
+                  "displayName": "Claude Opus 5.5",
+                  "libraryAgentic": true,
+                  "maxOutputTokens": 128000,
+                  "nativeFileMimes": [
+                    "application/pdf"
+                  ],
+                  "pricing": {
+                    "promptPerMToken": 4,
+                    "completionPerMToken": 20,
+                    "cachedInputPerMToken": 0.2,
+                    "cacheReadInputPerMToken": 0.2,
+                    "cacheCreationInputPerMToken": 5,
+                    "cacheWrite5mPerMToken": 5
+                  },
+                  "pricingStatus": "priced",
+                  "pricingUnit": "per_token",
+                  "profiles": {
+                    "generation": {
+                      "parametersRef": "sha256:55b4780128dab75a09b8a420297ca5aeb35404aec1298d21f4dc66f754646dff",
+                      "revision": "sha256:4c15f669ef0cd92584732aa542f245e36d56050f3b062bb37c605e7f0c3cfebc",
+                      "template": "anthropic_messages"
+                    },
+                    "imageGen": null,
+                    "reasoning": "ant_adaptive_max",
+                    "webSearch": "ant_web_tool"
+                  },
+                  "promptCache": {
+                    "policyRef": "anthropic.explicit"
+                  },
+                  "regionScope": "global",
+                  "supportsPdfInput": true,
+                  "supportsTemperature": false,
+                  "toolCall": true,
+                  "transport": "anthropic_messages",
+                  "uiHints": {
+                    "groupKey": "claude-opus",
+                    "groupName": "Claude Opus",
+                    "rank": 32229,
+                    "recommended": true,
+                    "badgeOrder": [
+                      "reasoning",
+                      "image",
+                      "file",
+                      "web"
+                    ]
+                  }
+                }
+              },
+              "resolveMap": {
+                "claude-opus-5-5": "claude-opus-5-5"
+              },
+              "transport": {
+                "baseUrl": "https://api.anthropic.com",
+                "endpoints": {
+                  "chat": "/v1/messages",
+                  "files": "/v1/files"
+                }
+              },
+              "validation": {
+                "probe": "list_models",
+                "probePath": "/v1/models",
+                "authMode": "x_api_key",
+                "headerProfile": "anthropic_v2023_06_01",
+                "invalidKeySignals": [
+                  {
+                    "status": 401
+                  }
+                ]
+              }
+            },
+            "gemini": {
+              "attachmentSupport": {
+                "image": true,
+                "nativeFile": true,
+                "textFileInline": true
+              },
+              "defaultModelId": "gemini-4-argon",
+              "displayName": "Google Gemini",
+              "models": {
+                "lyria-3-pro-preview": {
+                  "billingSku": "lyria-3-pro-preview/payg",
+                  "canonicalModelId": "lyria-3-pro-preview",
+                  "capabilities": [
+                    "text",
+                    "image",
+                    "file"
+                  ],
+                  "capabilityControls": {
+                    "generation": {
+                      "state": "auto_available",
+                      "recipeRef": "gemini.generate_content.generation.v1"
+                    },
+                    "reasoning": {
+                      "state": "unavailable",
+                      "reasonCode": "model_capability_absent",
+                      "sourceRefs": [
+                        "gemini.interactions"
+                      ]
+                    },
+                    "web": {
+                      "state": "unavailable",
+                      "reasonCode": "model_capability_absent",
+                      "sourceRefs": [
+                        "gemini.interactions"
+                      ]
+                    }
+                  },
+                  "capabilityEvidenceView": {
+                    "candidates": [
+                      {
+                        "expiresAt": 1792630811738,
+                        "grade": "declared",
+                        "key": "tool_call",
+                        "observedAt": 1792026011738,
+                        "source": "server_typed",
+                        "support": "unsupported"
+                      }
+                    ]
+                  },
+                  "contextLength": 1048576,
+                  "currencyCode": "USD",
+                  "displayName": "Lyria 3 Pro Preview",
+                  "libraryAgentic": false,
+                  "maxOutputTokens": 65536,
+                  "nativeFileMimes": [
+                    "application/pdf"
+                  ],
+                  "pdfNativeDefault": true,
+                  "pricing": null,
+                  "pricingStatus": "unknown",
+                  "pricingUnit": "per_token",
+                  "profiles": {
+                    "generation": {
+                      "parametersRef": "sha256:59150937443755c26649c8f9a0bacb7e809ee49e6b933d05d5a10add65ff1ea4",
+                      "revision": "sha256:81c66cbdc96d7a53724bee328905740bbb94561233ffbb1de888c5d18e9da45a",
+                      "template": "gemini_generate_content"
+                    },
+                    "imageGen": null,
+                    "reasoning": null,
+                    "webSearch": null
+                  },
+                  "promptCache": {
+                    "policyRef": "gemini.implicit"
+                  },
+                  "regionScope": "global",
+                  "supportsPdfInput": true,
+                  "supportsTemperature": true,
+                  "toolCall": false,
+                  "transport": "gemini_generate",
+                  "uiHints": {
+                    "groupKey": "aliases-legacy",
+                    "groupName": "Aliases & Legacy",
+                    "rank": 31626,
+                    "recommended": false,
+                    "badgeOrder": [
+                      "image",
+                      "file"
+                    ]
+                  }
+                }
+              },
+              "resolveMap": {
+                "lyria-3-pro-preview": "lyria-3-pro-preview"
+              },
+              "transport": {
+                "baseUrl": "https://generativelanguage.googleapis.com",
+                "endpoints": {
+                  "chat": "/v1beta/models",
+                  "images": "/v1beta/models",
+                  "files": "/v1beta/files"
+                }
+              },
+              "validation": {
+                "probe": "list_models",
+                "probePath": "/v1beta/models",
+                "authMode": "query_key",
+                "chatAuthMode": "x_goog_api_key",
+                "headerProfile": "none",
+                "invalidKeySignals": [
+                  {
+                    "status": 400,
+                    "bodyIncludes": [
+                      "API key not valid",
+                      "INVALID_ARGUMENT"
+                    ]
+                  },
+                  {
+                    "status": 403
+                  }
+                ]
+              }
+            }
+          },
+          "updatedAt": "2026-10-15T01:00:12Z",
+          "version": 139,
+          "view": "lean"
+        },
+        "message": "ok"
+      }
+    }
+  },
+  "expected": {
+    "official": {
+      "openAI/o3": {
+        "vision_input": "supported",
+        "file_input": "supported",
+        "web_search": "supported",
+        "reasoning_tiers": [
+          "low",
+          "balanced",
+          "deep"
+        ],
+        "tool_call": "supported"
+      },
+      "openAI/chat-latest": {
+        "vision_input": "unknown",
+        "file_input": "unsupported",
+        "web_search": "unsupported",
+        "reasoning_tiers": [],
+        "tool_call": "unknown"
+      },
+      "anthropic/claude-opus-5-5": {
+        "vision_input": "supported",
+        "file_input": "supported",
+        "web_search": "supported",
+        "reasoning_tiers": [
+          "low",
+          "balanced",
+          "deep",
+          "max"
+        ],
+        "tool_call": "supported"
+      },
+      "gemini/lyria-3-pro-preview": {
+        "vision_input": "supported",
+        "file_input": "supported",
+        "web_search": "unsupported",
+        "reasoning_tiers": [],
+        "tool_call": "unsupported"
+      }
+    },
+    "official_sources": {
+      "web_search": {
+        "source": "server_profile",
+        "grade": "declared"
+      },
+      "tool_call": {
+        "source": "server_typed",
+        "grade": "declared"
+      },
+      "vision_input": {
+        "source": "legacy_metadata",
+        "grade": "legacy_unverified"
+      },
+      "$comment": "For every cell whose support is not unknown, the verdict's source / grade must be the ones written here; reasoning_level/* is not covered (the ends do not yet agree on its source)."
+    },
+    "official_wire": [
+      {
+        "model": "openAI/chat-latest",
+        "web": "force",
+        "body_must_not_contain": [
+          "web_search"
+        ],
+        "why": "A model whose web is unavailable gets no web tool in the request even when the user forces web."
+      },
+      {
+        "model": "openAI/o3",
+        "web": "force",
+        "body_must_contain": [
+          "web_search"
+        ],
+        "why": "A model with web available and a recipe that carries force gets the Responses web_search tool when web is forced."
+      },
+      {
+        "model": "anthropic/claude-opus-5-5",
+        "web": "automatic",
+        "body_must_contain": [
+          "web_search_20250305"
+        ],
+        "why": "A model with web available gets the web tool the recipe provides in the request body."
+      }
+    ]
+  }
+}

@@ -1272,5 +1272,356 @@
         "outbound": true
       }
     }
-  ]
+  ],
+  "inputCapabilityCases": {
+    "$comment": "Projection cases for input capability keys. Each end's facade must produce expect from (verdict, endImplements, override, negativeCacheHit, connection). verdict null = key missing from the payload. transport_not_supported and transport_not_implemented both map to disabled.wire_not_implemented. Server validates every non-null verdict with capabilityrecipe.ValidateVerdict shape rules.",
+    "cases": [
+      {
+        "id": "vision_auto_end_implements",
+        "key": "vision_input",
+        "verdict": {
+          "state": "auto_available",
+          "wireFamily": "openai_chat.image_url",
+          "sourceRefs": [
+            "deepseek.pricing"
+          ]
+        },
+        "endImplements": true,
+        "override": null,
+        "negativeCacheHit": false,
+        "connection": "official",
+        "expect": {
+          "visible": true,
+          "editable": true,
+          "outbound": "native_part",
+          "hint": null,
+          "disabledReason": null
+        }
+      },
+      {
+        "id": "vision_auto_end_not_implemented",
+        "key": "vision_input",
+        "verdict": {
+          "state": "auto_available",
+          "wireFamily": "openai_chat.image_url",
+          "sourceRefs": [
+            "deepseek.pricing"
+          ]
+        },
+        "endImplements": false,
+        "override": null,
+        "negativeCacheHit": false,
+        "connection": "official",
+        "expect": {
+          "visible": false,
+          "editable": false,
+          "outbound": "placeholder",
+          "hint": null,
+          "disabledReason": "disabled.wire_not_implemented"
+        }
+      },
+      {
+        "id": "vision_unknown_catalog_silent",
+        "key": "vision_input",
+        "verdict": {
+          "state": "unknown",
+          "reasonCode": "catalog_silent",
+          "wireFamily": "openai_chat.image_url"
+        },
+        "endImplements": true,
+        "override": null,
+        "negativeCacheHit": false,
+        "connection": "official",
+        "expect": {
+          "visible": false,
+          "editable": true,
+          "outbound": "native_part",
+          "hint": "first_attach_once",
+          "disabledReason": null
+        }
+      },
+      {
+        "id": "vision_unknown_official_source_insufficient",
+        "key": "vision_input",
+        "verdict": {
+          "state": "unknown",
+          "reasonCode": "official_source_insufficient",
+          "wireFamily": "openai_chat.image_url"
+        },
+        "endImplements": true,
+        "override": null,
+        "negativeCacheHit": false,
+        "connection": "official",
+        "expect": {
+          "visible": false,
+          "editable": true,
+          "outbound": "native_part",
+          "hint": "first_attach_once",
+          "disabledReason": null
+        }
+      },
+      {
+        "id": "vision_missing_key_projects_unknown",
+        "key": "vision_input",
+        "verdict": null,
+        "endImplements": true,
+        "override": null,
+        "negativeCacheHit": false,
+        "connection": "official",
+        "expect": {
+          "visible": false,
+          "editable": true,
+          "outbound": "native_part",
+          "hint": "first_attach_once",
+          "disabledReason": null
+        }
+      },
+      {
+        "id": "vision_unavailable_model_absent",
+        "key": "vision_input",
+        "verdict": {
+          "state": "unavailable",
+          "reasonCode": "model_capability_absent",
+          "wireFamily": "openai_chat.image_url",
+          "sourceRefs": [
+            "deepseek.pricing"
+          ]
+        },
+        "endImplements": true,
+        "override": null,
+        "negativeCacheHit": false,
+        "connection": "official",
+        "expect": {
+          "visible": false,
+          "editable": false,
+          "outbound": "placeholder",
+          "hint": null,
+          "disabledReason": "disabled.model_absent"
+        }
+      },
+      {
+        "id": "file_unavailable_transport_not_supported",
+        "key": "file_input",
+        "verdict": {
+          "state": "unavailable",
+          "reasonCode": "transport_not_supported",
+          "wireFamily": "openai_chat.file",
+          "sourceRefs": [
+            "deepseek.chat_api"
+          ]
+        },
+        "endImplements": true,
+        "override": null,
+        "negativeCacheHit": false,
+        "connection": "official",
+        "expect": {
+          "visible": false,
+          "editable": false,
+          "outbound": "placeholder",
+          "hint": null,
+          "disabledReason": "disabled.wire_not_implemented"
+        }
+      },
+      {
+        "id": "video_unavailable_transport_not_implemented",
+        "key": "video_input",
+        "verdict": {
+          "state": "unavailable",
+          "reasonCode": "transport_not_implemented"
+        },
+        "endImplements": true,
+        "override": null,
+        "negativeCacheHit": false,
+        "connection": "official",
+        "expect": {
+          "visible": false,
+          "editable": false,
+          "outbound": "placeholder",
+          "hint": null,
+          "disabledReason": "disabled.wire_not_implemented"
+        }
+      },
+      {
+        "id": "vision_kill_switch_beats_relay_add",
+        "key": "vision_input",
+        "verdict": {
+          "state": "unavailable",
+          "reasonCode": "provider_kill_switch",
+          "wireFamily": "openai_chat.image_url"
+        },
+        "endImplements": true,
+        "override": {
+          "op": "add"
+        },
+        "negativeCacheHit": false,
+        "connection": "relay",
+        "expect": {
+          "visible": false,
+          "editable": false,
+          "outbound": "placeholder",
+          "hint": null,
+          "disabledReason": "disabled.kill_switch"
+        }
+      },
+      {
+        "id": "vision_auto_negative_cache_hit",
+        "key": "vision_input",
+        "verdict": {
+          "state": "auto_available",
+          "wireFamily": "openai_chat.image_url",
+          "sourceRefs": [
+            "deepseek.pricing"
+          ]
+        },
+        "endImplements": true,
+        "override": null,
+        "negativeCacheHit": true,
+        "connection": "official",
+        "expect": {
+          "visible": false,
+          "editable": false,
+          "outbound": "placeholder",
+          "hint": null,
+          "disabledReason": "disabled.rejected_recently"
+        }
+      },
+      {
+        "id": "vision_relay_add_on_unknown",
+        "key": "vision_input",
+        "verdict": {
+          "state": "unknown",
+          "reasonCode": "catalog_silent",
+          "wireFamily": "openai_chat.image_url"
+        },
+        "endImplements": true,
+        "override": {
+          "op": "add"
+        },
+        "negativeCacheHit": false,
+        "connection": "relay",
+        "expect": {
+          "visible": true,
+          "editable": true,
+          "outbound": "native_part",
+          "hint": null,
+          "disabledReason": null
+        }
+      },
+      {
+        "id": "vision_relay_add_beats_negative_cache",
+        "key": "vision_input",
+        "verdict": {
+          "state": "unknown",
+          "reasonCode": "catalog_silent",
+          "wireFamily": "openai_chat.image_url"
+        },
+        "endImplements": true,
+        "override": {
+          "op": "add"
+        },
+        "negativeCacheHit": true,
+        "connection": "relay",
+        "expect": {
+          "visible": true,
+          "editable": true,
+          "outbound": "native_part",
+          "hint": null,
+          "disabledReason": null
+        }
+      },
+      {
+        "id": "vision_official_ignores_override",
+        "key": "vision_input",
+        "verdict": {
+          "state": "unknown",
+          "reasonCode": "catalog_silent",
+          "wireFamily": "openai_chat.image_url"
+        },
+        "endImplements": true,
+        "override": {
+          "op": "add"
+        },
+        "negativeCacheHit": false,
+        "connection": "official",
+        "expect": {
+          "visible": false,
+          "editable": true,
+          "outbound": "native_part",
+          "hint": "first_attach_once",
+          "disabledReason": null
+        }
+      },
+      {
+        "id": "vision_relay_add_cannot_beat_end_not_implemented",
+        "key": "vision_input",
+        "verdict": {
+          "state": "unknown",
+          "reasonCode": "catalog_silent",
+          "wireFamily": "openai_chat.image_url"
+        },
+        "endImplements": false,
+        "override": {
+          "op": "add"
+        },
+        "negativeCacheHit": false,
+        "connection": "relay",
+        "expect": {
+          "visible": false,
+          "editable": false,
+          "outbound": "placeholder",
+          "hint": null,
+          "disabledReason": "disabled.wire_not_implemented"
+        }
+      },
+      {
+        "id": "relay_add_cannot_beat_transport_not_supported",
+        "key": "file_input",
+        "verdict": {
+          "state": "unavailable",
+          "reasonCode": "transport_not_supported",
+          "wireFamily": "openai_chat.file",
+          "sourceRefs": [
+            "deepseek.chat_api"
+          ]
+        },
+        "endImplements": true,
+        "override": {
+          "op": "add"
+        },
+        "negativeCacheHit": false,
+        "connection": "relay",
+        "expect": {
+          "visible": false,
+          "editable": false,
+          "outbound": "placeholder",
+          "hint": null,
+          "disabledReason": "disabled.wire_not_implemented"
+        }
+      },
+      {
+        "id": "vision_relay_remove_beats_auto",
+        "key": "vision_input",
+        "verdict": {
+          "state": "auto_available",
+          "wireFamily": "openai_chat.image_url",
+          "sourceRefs": [
+            "deepseek.pricing"
+          ]
+        },
+        "endImplements": true,
+        "override": {
+          "op": "remove"
+        },
+        "negativeCacheHit": false,
+        "connection": "relay",
+        "expect": {
+          "visible": false,
+          "editable": false,
+          "outbound": "placeholder",
+          "hint": null,
+          "disabledReason": "disabled.user_removed"
+        }
+      }
+    ]
+  }
 }

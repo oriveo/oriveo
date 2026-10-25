@@ -1,0 +1,75 @@
+{
+  "$comment": "Relay / custom-endpoint input capability overrides as deltas. Each end normalizes (connection, legacy relayCapabilityOverrides, stored capabilityOverrides, serverVerdict, now) into expect.capabilityOverrides and expect.effective. Only vision_input / file_input / video_input may be overridden; op is add or remove; keys the user never touched follow the server (effective null). Legacy {value, source:user} for image / file migrates once (setAt = now, baseVerdict = server state for that key, unknown when absent); source:tested is a probe result, not a user choice, and is not migrated. Legacy keys other than image / file stay in the legacy field untouched. Official connections never carry overrides. Bad entries are dropped one by one. Projection of the effective op (who wins against hard blocks / negative cache) lives in capability_evidence_contract.v1.json inputCapabilityCases.",
+  "contractId": "capability-overrides",
+  "version": 1,
+  "reviewedAt": "2026-10-19",
+  "cases": [
+    {
+      "id": "legacy_user_image_true_migrates_add",
+      "connection": "relay", "now": "2026-10-19T08:00:00Z",
+      "legacy": { "image": { "value": true, "source": "user" } }, "stored": null,
+      "serverVerdict": { "vision_input": "unknown" },
+      "expect": { "capabilityOverrides": { "vision_input": { "op": "add", "setAt": "2026-10-19T08:00:00Z", "baseVerdict": "unknown" } }, "legacyKept": [], "effective": { "vision_input": "add", "file_input": null, "video_input": null } }
+    },
+    {
+      "id": "legacy_user_image_false_migrates_remove",
+      "connection": "relay", "now": "2026-10-19T08:00:00Z",
+      "legacy": { "image": { "value": false, "source": "user" } }, "stored": null,
+      "serverVerdict": { "vision_input": "auto_available" },
+      "expect": { "capabilityOverrides": { "vision_input": { "op": "remove", "setAt": "2026-10-19T08:00:00Z", "baseVerdict": "auto_available" } }, "legacyKept": [], "effective": { "vision_input": "remove", "file_input": null, "video_input": null } }
+    },
+    {
+      "id": "legacy_user_file_migrates_file_input",
+      "connection": "relay", "now": "2026-10-19T08:00:00Z",
+      "legacy": { "file": { "value": true, "source": "user" } }, "stored": null,
+      "serverVerdict": {},
+      "expect": { "capabilityOverrides": { "file_input": { "op": "add", "setAt": "2026-10-19T08:00:00Z", "baseVerdict": "unknown" } }, "legacyKept": [], "effective": { "vision_input": null, "file_input": "add", "video_input": null } }
+    },
+    {
+      "id": "legacy_tested_is_not_a_user_override",
+      "connection": "relay", "now": "2026-10-19T08:00:00Z",
+      "legacy": { "image": { "value": false, "source": "tested" } }, "stored": null,
+      "serverVerdict": { "vision_input": "unknown" },
+      "expect": { "capabilityOverrides": {}, "legacyKept": ["image"], "effective": { "vision_input": null, "file_input": null, "video_input": null } }
+    },
+    {
+      "id": "legacy_non_input_keys_untouched",
+      "connection": "relay", "now": "2026-10-19T08:00:00Z",
+      "legacy": { "toolCall": { "value": true, "source": "user" }, "web": { "value": false, "source": "user" } }, "stored": null,
+      "serverVerdict": {},
+      "expect": { "capabilityOverrides": {}, "legacyKept": ["toolCall", "web"], "effective": { "vision_input": null, "file_input": null, "video_input": null } }
+    },
+    {
+      "id": "stored_wins_over_legacy",
+      "connection": "relay", "now": "2026-10-19T08:00:00Z",
+      "legacy": { "image": { "value": true, "source": "user" } },
+      "stored": { "vision_input": { "op": "remove", "setAt": "2026-10-18T08:00:00Z", "baseVerdict": "unknown" } },
+      "serverVerdict": { "vision_input": "unknown" },
+      "expect": { "capabilityOverrides": { "vision_input": { "op": "remove", "setAt": "2026-10-18T08:00:00Z", "baseVerdict": "unknown" } }, "legacyKept": [], "effective": { "vision_input": "remove", "file_input": null, "video_input": null } }
+    },
+    {
+      "id": "add_kept_after_server_turns_auto",
+      "connection": "relay", "now": "2026-10-19T08:00:00Z",
+      "legacy": null,
+      "stored": { "vision_input": { "op": "add", "setAt": "2026-10-01T08:00:00Z", "baseVerdict": "unknown" } },
+      "serverVerdict": { "vision_input": "auto_available" },
+      "expect": { "capabilityOverrides": { "vision_input": { "op": "add", "setAt": "2026-10-01T08:00:00Z", "baseVerdict": "unknown" } }, "legacyKept": [], "effective": { "vision_input": "add", "file_input": null, "video_input": null } }
+    },
+    {
+      "id": "bad_entries_dropped_one_by_one",
+      "connection": "relay", "now": "2026-10-19T08:00:00Z",
+      "legacy": null,
+      "stored": { "web": { "op": "add", "setAt": "2026-10-01T08:00:00Z", "baseVerdict": "unknown" }, "file_input": { "op": "toggle", "setAt": "2026-10-01T08:00:00Z", "baseVerdict": "unknown" }, "video_input": { "op": "add", "setAt": "2026-10-01T08:00:00Z", "baseVerdict": "unknown" } },
+      "serverVerdict": {},
+      "expect": { "capabilityOverrides": { "video_input": { "op": "add", "setAt": "2026-10-01T08:00:00Z", "baseVerdict": "unknown" } }, "legacyKept": [], "effective": { "vision_input": null, "file_input": null, "video_input": "add" } }
+    },
+    {
+      "id": "official_connection_strips_overrides",
+      "connection": "official", "now": "2026-10-19T08:00:00Z",
+      "legacy": { "image": { "value": true, "source": "user" } },
+      "stored": { "vision_input": { "op": "add", "setAt": "2026-10-01T08:00:00Z", "baseVerdict": "unknown" } },
+      "serverVerdict": { "vision_input": "unknown" },
+      "expect": { "capabilityOverrides": {}, "legacyKept": [], "effective": { "vision_input": null, "file_input": null, "video_input": null } }
+    }
+  ]
+}

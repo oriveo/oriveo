@@ -1,0 +1,24 @@
+{
+  "$comment": "Subscription forms (Codex / Grok subscription) go through the same truth -> projection path as every other form. inputCases: the subscription truth adapter yields the input verdict from the upstream proxy's own per-model declaration first (firstHand: list of declared input media, null = proxy declares nothing for this model), then modelFacts (models.dev input modalities, used only when firstHand is null), else unknown/catalog_silent. A firstHand list without the medium is unavailable/model_capability_absent; modelFacts without the medium is unknown (third-party fact is not hard evidence). The verdict then goes through the input projection table unchanged (endImplements false => disabled, wire not implemented). No end may answer a subscription input from providerKind attachment support or legacy model capability bits, and no end may return 'no projection' for subscription. reasoningLevelCases: levels = firstHand efforts when the proxy declares them, else modelFacts.reasoningEfforts, else []. Each end names its tests SUBSCRIPTION_FACTS_<id> (Web: it('SUBSCRIPTION-FACTS-<id> ...')). modelFactsLookupCases: the subscription adapter looks up modelFacts by model.id first, then by the metadata canonical model id (resolveMap); one lookup function feeds input, thinking, reasoning levels and tool_call on every end.",
+  "v": 1,
+  "inputCases": [
+    { "id": "first_hand_image_auto", "key": "vision_input", "firstHand": ["image"], "modelFacts": ["text"], "endImplements": true, "expect": { "state": "auto_available", "visible": true, "editable": true, "outbound": "native_part" } },
+    { "id": "first_hand_without_video_unavailable", "key": "video_input", "firstHand": ["image"], "modelFacts": ["text", "video"], "endImplements": true, "expect": { "state": "unavailable", "reasonCode": "model_capability_absent", "visible": false, "editable": false, "outbound": "placeholder" } },
+    { "id": "model_facts_image_auto", "key": "vision_input", "firstHand": null, "modelFacts": ["text", "image"], "endImplements": true, "expect": { "state": "auto_available", "visible": true, "editable": true, "outbound": "native_part" } },
+    { "id": "model_facts_without_file_unknown", "key": "file_input", "firstHand": null, "modelFacts": ["text", "image"], "endImplements": true, "expect": { "state": "unknown", "visible": false, "editable": true, "outbound": "native_part" } },
+    { "id": "model_facts_pdf_is_file", "key": "file_input", "firstHand": null, "modelFacts": ["text", "pdf"], "endImplements": true, "expect": { "state": "auto_available", "visible": true, "editable": true, "outbound": "native_part" } },
+    { "id": "no_source_unknown", "key": "file_input", "firstHand": null, "modelFacts": null, "endImplements": true, "expect": { "state": "unknown", "reasonCode": "catalog_silent", "visible": false, "editable": true, "outbound": "native_part" } },
+    { "id": "end_not_implemented_disabled", "key": "video_input", "firstHand": ["video"], "modelFacts": null, "endImplements": false, "expect": { "state": "auto_available", "visible": false, "editable": false, "outbound": "placeholder", "disabledReason": "disabled.wire_not_implemented" } }
+  ],
+  "reasoningLevelCases": [
+    { "id": "first_hand_wins", "firstHandEfforts": ["low", "high"], "modelFactsEfforts": ["low", "medium", "high"], "expect": ["low", "high"] },
+    { "id": "model_facts_when_first_hand_absent", "firstHandEfforts": null, "modelFactsEfforts": ["low", "medium", "high"], "expect": ["low", "medium", "high"] },
+    { "id": "none_empty", "firstHandEfforts": null, "modelFactsEfforts": null, "expect": [] }
+  ],
+  "modelFactsLookupCases": [
+    { "id": "lookup_by_model_id", "modelId": "gpt-5.5-codex", "canonicalModelId": "gpt-5.5", "modelFactsKeys": ["gpt-5.5-codex", "gpt-5.5"], "expect": { "usedKey": "gpt-5.5-codex" } },
+    { "id": "lookup_falls_back_to_canonical", "modelId": "gpt-5.5-codex", "canonicalModelId": "gpt-5.5", "modelFactsKeys": ["gpt-5.5"], "expect": { "usedKey": "gpt-5.5" } },
+    { "id": "lookup_none_when_both_missing", "modelId": "gpt-5.5-codex", "canonicalModelId": "gpt-5.5", "modelFactsKeys": [], "expect": { "usedKey": null } },
+    { "id": "lookup_no_canonical_only_model_id", "modelId": "grok-4-fast", "canonicalModelId": null, "modelFactsKeys": ["grok-4"], "expect": { "usedKey": null } }
+  ]
+}

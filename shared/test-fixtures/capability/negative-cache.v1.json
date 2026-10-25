@@ -1,0 +1,11 @@
+{
+  "$comment": "Local negative cache invalidation key. verdictRevision = FNV-1a 32-bit over the UTF-8 bytes of the canonical JSON of the verdict entry, lowercase hex zero-padded to 8 chars. Canonical JSON: only the fields state, reasonCode, wireFamily, sourceRefs; keys in lexicographic order; absent or null fields omitted; sourceRefs sorted ascending; no whitespace. A missing verdict (null) is hashed as {\"state\":\"unknown\"}. Each end runs one test per case and asserts both canonical and revision.",
+  "contractId": "capability-negative-cache",
+  "version": 1,
+  "reviewedAt": "2026-10-19",
+  "verdictRevisionCases": [
+    { "id": "null_verdict_is_unknown", "verdict": null, "canonical": "{\"state\":\"unknown\"}", "revision": "857ae8b4" },
+    { "id": "bare_unknown", "verdict": { "state": "unknown" }, "canonical": "{\"state\":\"unknown\"}", "revision": "857ae8b4" },
+    { "id": "four_fields_sorted_refs", "verdict": { "state": "unavailable", "reasonCode": "r", "wireFamily": "openai_chat", "sourceRefs": ["b", "a"] }, "canonical": "{\"reasonCode\":\"r\",\"sourceRefs\":[\"a\",\"b\"],\"state\":\"unavailable\",\"wireFamily\":\"openai_chat\"}", "revision": "5426e249" }
+  ]
+}

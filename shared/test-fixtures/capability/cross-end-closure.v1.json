@@ -1,0 +1,1058 @@
+{
+  "$comment": "Cross-end closure cases. One file, four sections; each section lists the ends it applies to in appliesTo, and every end must consume every section that names it. dateTimeCases: the metadata payload schema `format: date-time` check every end runs before decode, copied from ajv-formats 3.0.1 getDateTime(true) (time zone required; 'T', 't' or one whitespace separator; hour <= 23, minute <= 59, offset hour <= 23 and minute <= 59; second 60 only when the instant converted to UTC is 23:59; offset may be written +hh:mm or +hhmm; calendar date must exist). bundledInputCases: while the catalog in use is the bundled snapshot (metadataRevision 0, no online response yet) input keys are projected from the snapshot verdict exactly as an online verdict would be; there is no bundled downgrade of unavailable or kill switch to unknown. newChatDefaultCases: new chat model: lastUsedModelId if available and in userModels; else metadata defaultModelId if available and in userModels; else first available id of userModels; every tier is checked for availability first (model-retired.v1.json conversation rules); an enabled model whose own id is missing from the catalog is available only through its canonical id (userModelCanonicalIds), and only when that canonical is itself available — in models[] and not deprecated past shutdownAt, not a tombstone; hint = last_used_retired exactly when lastUsedModelId was non-null and not used. There is no connection default (isDefault) tier: connectionDefaultModelId is carried only to prove that no end reads it — an available connection default never beats lastUsedModelId or the metadata defaultModelId. relayVideoEnvelopeCases: relay transport envelopes have no video bit, so video_input is never judged by the envelope; a missing envelope (or a missing bit) is not a rejection for any key; the relay verdict is the facade-synthesized one (first-send-readpoints.v1.json: vision by connection evidence, file / video unknown/catalog_silent, wireFamily by first-send protocol; video has a family only on chat = openai_chat.video_url, other protocols have none and project as wire not implemented). Test names: CLOSURE-<id> (iOS / Android function names contain CLOSURE_<id>).",
+  "v": 1,
+  "dateTimeCases": {
+    "appliesTo": [
+      "web",
+      "android",
+      "ios",
+      "desktop"
+    ],
+    "cases": [
+      {
+        "id": "dt_utc_z",
+        "value": "2026-10-18T12:00:00Z",
+        "valid": true
+      },
+      {
+        "id": "dt_fraction_offset",
+        "value": "2026-10-18T12:00:00.123+08:00",
+        "valid": true
+      },
+      {
+        "id": "dt_lowercase_t_z",
+        "value": "2026-10-18t12:00:00z",
+        "valid": true
+      },
+      {
+        "id": "dt_space_separator",
+        "value": "2026-10-18 12:00:00Z",
+        "valid": true
+      },
+      {
+        "id": "dt_offset_without_colon",
+        "value": "2026-10-18T12:00:00+0800",
+        "valid": true
+      },
+      {
+        "id": "dt_no_time_zone",
+        "value": "2026-10-18T12:00:00",
+        "valid": false
+      },
+      {
+        "id": "dt_hour_29",
+        "value": "2026-10-18T29:00:00Z",
+        "valid": false
+      },
+      {
+        "id": "dt_minute_60",
+        "value": "2026-10-18T12:60:00Z",
+        "valid": false
+      },
+      {
+        "id": "dt_offset_hour_24",
+        "value": "2026-10-18T12:00:00+24:00",
+        "valid": false
+      },
+      {
+        "id": "dt_offset_minute_60",
+        "value": "2026-10-18T12:00:00+08:60",
+        "valid": false
+      },
+      {
+        "id": "dt_feb_29_non_leap_year",
+        "value": "2026-02-29T00:00:00Z",
+        "valid": false
+      },
+      {
+        "id": "dt_feb_29_leap_year",
+        "value": "2024-02-29T00:00:00Z",
+        "valid": true
+      },
+      {
+        "id": "dt_month_13",
+        "value": "2026-13-01T00:00:00Z",
+        "valid": false
+      },
+      {
+        "id": "dt_leap_second_utc_2359",
+        "value": "2016-12-31T23:59:60Z",
+        "valid": true
+      },
+      {
+        "id": "dt_leap_second_negative_offset_is_utc_2359",
+        "value": "2016-12-31T15:59:60-08:00",
+        "valid": true
+      },
+      {
+        "id": "dt_leap_second_positive_offset_not_utc_2359",
+        "value": "2024-02-29T23:59:60.123+08:00",
+        "valid": false
+      },
+      {
+        "id": "dt_leap_second_midday",
+        "value": "2026-10-18T12:00:60Z",
+        "valid": false
+      },
+      {
+        "id": "dt_date_only",
+        "value": "2026-10-18",
+        "valid": false
+      }
+    ]
+  },
+  "bundledInputCases": {
+    "appliesTo": [
+      "web",
+      "android",
+      "ios",
+      "desktop"
+    ],
+    "cases": [
+      {
+        "id": "bundled_unavailable_model_absent_stays_disabled",
+        "catalogSource": "bundled",
+        "key": "vision_input",
+        "verdict": {
+          "state": "unavailable",
+          "reasonCode": "model_capability_absent",
+          "wireFamily": "openai_chat.image_url",
+          "sourceRefs": [
+            "deepseek.pricing"
+          ]
+        },
+        "endImplements": true,
+        "connection": "official",
+        "expect": {
+          "visible": false,
+          "editable": false,
+          "outbound": "placeholder",
+          "hint": null,
+          "disabledReason": "disabled.model_absent"
+        }
+      },
+      {
+        "id": "bundled_kill_switch_stays_disabled",
+        "catalogSource": "bundled",
+        "key": "vision_input",
+        "verdict": {
+          "state": "unavailable",
+          "reasonCode": "provider_kill_switch",
+          "wireFamily": "openai_chat.image_url"
+        },
+        "endImplements": true,
+        "connection": "official",
+        "expect": {
+          "visible": false,
+          "editable": false,
+          "outbound": "placeholder",
+          "hint": null,
+          "disabledReason": "disabled.kill_switch"
+        }
+      },
+      {
+        "id": "bundled_auto_available_visible",
+        "catalogSource": "bundled",
+        "key": "vision_input",
+        "verdict": {
+          "state": "auto_available",
+          "wireFamily": "openai_chat.image_url",
+          "sourceRefs": [
+            "openai.vision"
+          ]
+        },
+        "endImplements": true,
+        "connection": "official",
+        "expect": {
+          "visible": true,
+          "editable": true,
+          "outbound": "native_part",
+          "hint": null,
+          "disabledReason": null
+        }
+      },
+      {
+        "id": "bundled_unknown_hints_once",
+        "catalogSource": "bundled",
+        "key": "file_input",
+        "verdict": {
+          "state": "unknown",
+          "reasonCode": "catalog_silent",
+          "wireFamily": "openai_chat.file"
+        },
+        "endImplements": true,
+        "connection": "official",
+        "expect": {
+          "visible": false,
+          "editable": true,
+          "outbound": "native_part",
+          "hint": "first_attach_once",
+          "disabledReason": null
+        }
+      }
+    ]
+  },
+  "newChatDefaultCases": {
+    "appliesTo": [
+      "web",
+      "android",
+      "ios"
+    ],
+    "cases": [
+      {
+        "id": "last_used_available_beats_connection_default",
+        "catalog": {
+          "models": [
+            {
+              "id": "deepseek-flash",
+              "displayName": "DeepSeek Flash"
+            },
+            {
+              "id": "deepseek-v4-pro",
+              "displayName": "DeepSeek V4 Pro"
+            }
+          ],
+          "retiredModels": [],
+          "resolveMap": {},
+          "defaultModelId": "deepseek-flash"
+        },
+        "userModels": [
+          "deepseek-flash",
+          "deepseek-v4-pro"
+        ],
+        "lastUsedModelId": "deepseek-flash",
+        "connectionDefaultModelId": "deepseek-v4-pro",
+        "expect": {
+          "modelId": "deepseek-flash",
+          "hint": null
+        }
+      },
+      {
+        "id": "connection_default_retired_falls_to_catalog_default",
+        "catalog": {
+          "models": [
+            {
+              "id": "deepseek-flash",
+              "displayName": "DeepSeek Flash"
+            },
+            {
+              "id": "deepseek-v4-pro",
+              "displayName": "DeepSeek V4 Pro"
+            }
+          ],
+          "retiredModels": [
+            {
+              "id": "deepseek-chat",
+              "displayName": "DeepSeek Chat",
+              "retiredAt": "2026-07-24T00:00:00Z",
+              "routedTo": "deepseek-flash"
+            }
+          ],
+          "resolveMap": {
+            "deepseek-chat": "deepseek-flash"
+          },
+          "defaultModelId": "deepseek-flash"
+        },
+        "userModels": [
+          "deepseek-chat",
+          "deepseek-v4-pro",
+          "deepseek-flash"
+        ],
+        "lastUsedModelId": null,
+        "connectionDefaultModelId": "deepseek-chat",
+        "expect": {
+          "modelId": "deepseek-flash",
+          "hint": null
+        }
+      },
+      {
+        "id": "connection_default_not_enabled_skipped",
+        "catalog": {
+          "models": [
+            {
+              "id": "gpt-next",
+              "displayName": "GPT Next"
+            },
+            {
+              "id": "gpt-mini",
+              "displayName": "GPT Mini"
+            }
+          ],
+          "retiredModels": [],
+          "resolveMap": {},
+          "defaultModelId": "gpt-mini"
+        },
+        "userModels": [
+          "gpt-next",
+          "gpt-mini"
+        ],
+        "lastUsedModelId": null,
+        "connectionDefaultModelId": "gpt-pro",
+        "expect": {
+          "modelId": "gpt-mini",
+          "hint": null
+        }
+      },
+      {
+        "id": "all_enabled_retired_returns_none",
+        "catalog": {
+          "models": [
+            {
+              "id": "deepseek-flash",
+              "displayName": "DeepSeek Flash"
+            }
+          ],
+          "retiredModels": [
+            {
+              "id": "deepseek-chat",
+              "displayName": "DeepSeek Chat",
+              "retiredAt": "2026-07-24T00:00:00Z",
+              "routedTo": "deepseek-flash"
+            },
+            {
+              "id": "deepseek-reasoner",
+              "displayName": "DeepSeek Reasoner",
+              "retiredAt": "2026-07-24T00:00:00Z",
+              "routedTo": "deepseek-flash"
+            }
+          ],
+          "resolveMap": {
+            "deepseek-chat": "deepseek-flash",
+            "deepseek-reasoner": "deepseek-flash"
+          },
+          "defaultModelId": "deepseek-flash"
+        },
+        "userModels": [
+          "deepseek-chat",
+          "deepseek-reasoner"
+        ],
+        "lastUsedModelId": null,
+        "connectionDefaultModelId": "deepseek-chat",
+        "expect": {
+          "modelId": null,
+          "hint": null
+        }
+      },
+      {
+        "id": "last_used_retired_skips_connection_default",
+        "catalog": {
+          "models": [
+            {
+              "id": "deepseek-flash",
+              "displayName": "DeepSeek Flash"
+            },
+            {
+              "id": "deepseek-v4-pro",
+              "displayName": "DeepSeek V4 Pro"
+            }
+          ],
+          "retiredModels": [
+            {
+              "id": "deepseek-chat",
+              "displayName": "DeepSeek Chat",
+              "retiredAt": "2026-07-24T00:00:00Z",
+              "routedTo": "deepseek-flash"
+            }
+          ],
+          "resolveMap": {
+            "deepseek-chat": "deepseek-flash"
+          },
+          "defaultModelId": "deepseek-flash"
+        },
+        "userModels": [
+          "deepseek-chat",
+          "deepseek-flash",
+          "deepseek-v4-pro"
+        ],
+        "lastUsedModelId": "deepseek-chat",
+        "connectionDefaultModelId": "deepseek-v4-pro",
+        "expect": {
+          "modelId": "deepseek-flash",
+          "hint": "last_used_retired"
+        }
+      },
+      {
+        "id": "no_last_used_ignores_connection_default",
+        "catalog": {
+          "models": [
+            {
+              "id": "deepseek-flash",
+              "displayName": "DeepSeek Flash"
+            },
+            {
+              "id": "deepseek-v4-pro",
+              "displayName": "DeepSeek V4 Pro"
+            }
+          ],
+          "retiredModels": [],
+          "resolveMap": {},
+          "defaultModelId": "deepseek-flash"
+        },
+        "userModels": [
+          "deepseek-flash",
+          "deepseek-v4-pro"
+        ],
+        "lastUsedModelId": null,
+        "connectionDefaultModelId": "deepseek-v4-pro",
+        "expect": {
+          "modelId": "deepseek-flash",
+          "hint": null
+        }
+      },
+      {
+        "id": "enabled_model_missing_from_catalog_skipped",
+        "catalog": {
+          "models": [
+            {
+              "id": "gpt-next",
+              "displayName": "GPT Next"
+            },
+            {
+              "id": "gpt-mini",
+              "displayName": "GPT Mini"
+            }
+          ],
+          "retiredModels": [],
+          "resolveMap": {},
+          "defaultModelId": "gpt-mini"
+        },
+        "userModels": [
+          "gpt-ghost",
+          "gpt-next"
+        ],
+        "lastUsedModelId": "gpt-ghost",
+        "connectionDefaultModelId": "gpt-ghost",
+        "expect": {
+          "modelId": "gpt-next",
+          "hint": "last_used_retired"
+        }
+      },
+      {
+        "id": "last_used_retired_and_all_enabled_retired_returns_none",
+        "catalog": {
+          "models": [
+            {
+              "id": "deepseek-flash",
+              "displayName": "DeepSeek Flash"
+            }
+          ],
+          "retiredModels": [
+            {
+              "id": "deepseek-chat",
+              "displayName": "DeepSeek Chat",
+              "retiredAt": "2026-07-24T00:00:00Z",
+              "routedTo": "deepseek-flash"
+            }
+          ],
+          "resolveMap": {
+            "deepseek-chat": "deepseek-flash"
+          },
+          "defaultModelId": "deepseek-flash"
+        },
+        "userModels": [
+          "deepseek-chat"
+        ],
+        "lastUsedModelId": "deepseek-chat",
+        "connectionDefaultModelId": "deepseek-chat",
+        "expect": {
+          "modelId": null,
+          "hint": "last_used_retired"
+        }
+      },
+      {
+        "id": "last_used_disabled_by_user_no_hint",
+        "catalog": {
+          "models": [
+            {
+              "id": "gpt-next",
+              "displayName": "GPT Next"
+            },
+            {
+              "id": "gpt-mini",
+              "displayName": "GPT Mini"
+            }
+          ],
+          "retiredModels": [],
+          "resolveMap": {},
+          "defaultModelId": "gpt-mini"
+        },
+        "userModels": [
+          "gpt-mini"
+        ],
+        "lastUsedModelId": "gpt-next",
+        "connectionDefaultModelId": "gpt-mini",
+        "expect": {
+          "modelId": "gpt-mini",
+          "hint": null
+        }
+      },
+      {
+        "id": "last_used_disabled_and_retired_hints",
+        "catalog": {
+          "models": [
+            {
+              "id": "deepseek-flash",
+              "displayName": "DeepSeek Flash"
+            }
+          ],
+          "retiredModels": [
+            {
+              "id": "deepseek-chat",
+              "displayName": "DeepSeek Chat",
+              "retiredAt": "2026-07-24T00:00:00Z",
+              "routedTo": "deepseek-flash"
+            }
+          ],
+          "resolveMap": {
+            "deepseek-chat": "deepseek-flash"
+          },
+          "defaultModelId": "deepseek-flash"
+        },
+        "userModels": [
+          "deepseek-flash"
+        ],
+        "lastUsedModelId": "deepseek-chat",
+        "connectionDefaultModelId": "deepseek-flash",
+        "expect": {
+          "modelId": "deepseek-flash",
+          "hint": "last_used_retired"
+        }
+      },
+      {
+        "id": "last_used_missing_with_shut_down_canonical_skipped",
+        "catalog": {
+          "models": [
+            {
+              "id": "gpt-x",
+              "displayName": "GPT X",
+              "lifecycle": {
+                "state": "deprecated",
+                "shutdownAt": "2026-01-01T00:00:00Z",
+                "routedTo": null
+              }
+            },
+            {
+              "id": "gpt-y",
+              "displayName": "GPT Y"
+            }
+          ],
+          "retiredModels": [],
+          "resolveMap": {},
+          "defaultModelId": "gpt-y"
+        },
+        "userModels": [
+          "gpt-x-preview",
+          "gpt-y"
+        ],
+        "userModelCanonicalIds": {
+          "gpt-x-preview": "gpt-x"
+        },
+        "lastUsedModelId": "gpt-x-preview",
+        "connectionDefaultModelId": null,
+        "expect": {
+          "modelId": "gpt-y",
+          "hint": "last_used_retired"
+        }
+      }
+    ]
+  },
+  "newChatAcrossConnectionsCases": {
+    "appliesTo": [
+      "web",
+      "android",
+      "ios"
+    ],
+    "note": "New chat without a connection scope across connections. connections are in the end's connection order (first = primary). Same chain per connection: lastUsedRef (any connection, if available and enabled) > the connection of lastUsedRef (or the primary connection when there is no lastUsedRef): its metadata defaultModelId > its first available > the following connections in order (skipping the one already tried) with an available model (its metadata default, else first available) ... > none (expect null: do not open a chat with an empty model; show the add / choose model path). Available = listed in the catalog and not retired (missing from the catalog is not available; the bundled snapshot exception stays). A connection-scoped start (detail page) never moves to another connection. Connection order: connections that cannot be used (no key, signed out) are skipped; the rest keep the user's connection list order, with the connection of lastUsedRef (or the primary connection) tried first. The hint is given only when lastUsedRef was not adopted because it is retired or missing from the catalog — not when the user disabled it, and never for connections without a catalog (subscription). The hint de-duplication key is lastUsedRef.connectionId + the raw lastUsedRef.modelId. An unscoped new chat never rewrites lastUsedRef with the fallback; it changes only when the user sends with or picks a model. When the chain returns none: with at least one connection open the model picker; with no connection go to the add-connection path. connections[].missingCredential=true = no key / signed out (skipped before every tier, the lastUsedRef tier included; no hint for a model on a skipped connection); connections[].issue=true = an errored connection (not skipped, keeps its list position). The hint predicate: lastUsedRef is on a usable connection and its model is retired or missing from the catalog (whether or not the user still has it enabled). A subscription connection while signed out is missingCredential. When the chain is empty, 'has a connection' counts only the user's own connections (official / relay / subscription). Opening a chat from a skill never rewrites lastUsedRef. expect.hint is asserted at the resolver level (the hint value the chain returns), even when modelId is null; whether the UI shows it with an empty model is the UI's concern. A connection-scoped start (detail page) on a connection with missingCredential resolves to none and its start button is hidden. lastUsedRef is written only when the user actually sends with a model or picks one (not by app start or skills).",
+    "cases": [
+      {
+        "id": "first_connection_all_retired_moves_to_next",
+        "connections": [
+          {
+            "id": "deepseek",
+            "catalog": {
+              "models": [
+                {
+                  "id": "deepseek-flash",
+                  "displayName": "DeepSeek Flash"
+                }
+              ],
+              "retiredModels": [
+                {
+                  "id": "deepseek-chat",
+                  "displayName": "DeepSeek Chat",
+                  "retiredAt": "2026-07-24T00:00:00Z",
+                  "routedTo": "deepseek-flash"
+                }
+              ],
+              "resolveMap": {
+                "deepseek-chat": "deepseek-flash"
+              },
+              "defaultModelId": "deepseek-flash"
+            },
+            "userModels": [
+              "deepseek-chat"
+            ]
+          },
+          {
+            "id": "openai",
+            "catalog": {
+              "models": [
+                {
+                  "id": "gpt-next",
+                  "displayName": "GPT Next"
+                },
+                {
+                  "id": "gpt-mini",
+                  "displayName": "GPT Mini"
+                }
+              ],
+              "retiredModels": [],
+              "resolveMap": {},
+              "defaultModelId": "gpt-mini"
+            },
+            "userModels": [
+              "gpt-next",
+              "gpt-mini"
+            ]
+          }
+        ],
+        "lastUsedRef": null,
+        "expect": {
+          "connectionId": "openai",
+          "modelId": "gpt-mini",
+          "hint": null
+        }
+      },
+      {
+        "id": "last_used_on_second_connection_wins",
+        "connections": [
+          {
+            "id": "deepseek",
+            "catalog": {
+              "models": [
+                {
+                  "id": "deepseek-flash",
+                  "displayName": "DeepSeek Flash"
+                }
+              ],
+              "retiredModels": [
+                {
+                  "id": "deepseek-chat",
+                  "displayName": "DeepSeek Chat",
+                  "retiredAt": "2026-07-24T00:00:00Z",
+                  "routedTo": "deepseek-flash"
+                }
+              ],
+              "resolveMap": {
+                "deepseek-chat": "deepseek-flash"
+              },
+              "defaultModelId": "deepseek-flash"
+            },
+            "userModels": [
+              "deepseek-flash"
+            ]
+          },
+          {
+            "id": "openai",
+            "catalog": {
+              "models": [
+                {
+                  "id": "gpt-next",
+                  "displayName": "GPT Next"
+                },
+                {
+                  "id": "gpt-mini",
+                  "displayName": "GPT Mini"
+                }
+              ],
+              "retiredModels": [],
+              "resolveMap": {},
+              "defaultModelId": "gpt-mini"
+            },
+            "userModels": [
+              "gpt-next",
+              "gpt-mini"
+            ]
+          }
+        ],
+        "lastUsedRef": {
+          "connectionId": "openai",
+          "modelId": "gpt-next"
+        },
+        "expect": {
+          "connectionId": "openai",
+          "modelId": "gpt-next",
+          "hint": null
+        }
+      },
+      {
+        "id": "last_used_retired_on_dead_connection_moves_on",
+        "connections": [
+          {
+            "id": "deepseek",
+            "catalog": {
+              "models": [
+                {
+                  "id": "deepseek-flash",
+                  "displayName": "DeepSeek Flash"
+                }
+              ],
+              "retiredModels": [
+                {
+                  "id": "deepseek-chat",
+                  "displayName": "DeepSeek Chat",
+                  "retiredAt": "2026-07-24T00:00:00Z",
+                  "routedTo": "deepseek-flash"
+                }
+              ],
+              "resolveMap": {
+                "deepseek-chat": "deepseek-flash"
+              },
+              "defaultModelId": "deepseek-flash"
+            },
+            "userModels": [
+              "deepseek-chat"
+            ]
+          },
+          {
+            "id": "openai",
+            "catalog": {
+              "models": [
+                {
+                  "id": "gpt-next",
+                  "displayName": "GPT Next"
+                },
+                {
+                  "id": "gpt-mini",
+                  "displayName": "GPT Mini"
+                }
+              ],
+              "retiredModels": [],
+              "resolveMap": {},
+              "defaultModelId": "gpt-mini"
+            },
+            "userModels": [
+              "gpt-next",
+              "gpt-mini"
+            ]
+          }
+        ],
+        "lastUsedRef": {
+          "connectionId": "deepseek",
+          "modelId": "deepseek-chat"
+        },
+        "expect": {
+          "connectionId": "openai",
+          "modelId": "gpt-mini",
+          "hint": "last_used_retired"
+        }
+      },
+      {
+        "id": "no_connection_usable_returns_none",
+        "connections": [
+          {
+            "id": "deepseek",
+            "catalog": {
+              "models": [
+                {
+                  "id": "deepseek-flash",
+                  "displayName": "DeepSeek Flash"
+                }
+              ],
+              "retiredModels": [
+                {
+                  "id": "deepseek-chat",
+                  "displayName": "DeepSeek Chat",
+                  "retiredAt": "2026-07-24T00:00:00Z",
+                  "routedTo": "deepseek-flash"
+                }
+              ],
+              "resolveMap": {
+                "deepseek-chat": "deepseek-flash"
+              },
+              "defaultModelId": "deepseek-flash"
+            },
+            "userModels": [
+              "deepseek-chat"
+            ]
+          }
+        ],
+        "lastUsedRef": null,
+        "expect": {
+          "connectionId": null,
+          "modelId": null,
+          "hint": null
+        }
+      },
+      {
+        "id": "last_used_retired_falls_back_within_its_connection_first",
+        "connections": [
+          {
+            "id": "deepseek",
+            "catalog": {
+              "models": [
+                {
+                  "id": "deepseek-flash",
+                  "displayName": "DeepSeek Flash"
+                }
+              ],
+              "retiredModels": [
+                {
+                  "id": "deepseek-chat",
+                  "displayName": "DeepSeek Chat",
+                  "retiredAt": "2026-07-24T00:00:00Z",
+                  "routedTo": "deepseek-flash"
+                }
+              ],
+              "resolveMap": {
+                "deepseek-chat": "deepseek-flash"
+              },
+              "defaultModelId": "deepseek-flash"
+            },
+            "userModels": [
+              "deepseek-flash"
+            ]
+          },
+          {
+            "id": "openai",
+            "catalog": {
+              "models": [
+                {
+                  "id": "gpt-next",
+                  "displayName": "GPT Next"
+                },
+                {
+                  "id": "gpt-mini",
+                  "displayName": "GPT Mini"
+                }
+              ],
+              "retiredModels": [
+                {
+                  "id": "gpt-old",
+                  "displayName": "GPT Old",
+                  "retiredAt": "2026-07-24T00:00:00Z",
+                  "routedTo": "gpt-mini"
+                }
+              ],
+              "resolveMap": {},
+              "defaultModelId": "gpt-mini"
+            },
+            "userModels": [
+              "gpt-old",
+              "gpt-next",
+              "gpt-mini"
+            ]
+          }
+        ],
+        "lastUsedRef": {
+          "connectionId": "openai",
+          "modelId": "gpt-old"
+        },
+        "expect": {
+          "connectionId": "openai",
+          "modelId": "gpt-mini",
+          "hint": "last_used_retired"
+        }
+      },
+      {
+        "id": "last_used_on_connection_missing_credential_skipped_no_hint",
+        "connections": [
+          {
+            "id": "deepseek",
+            "catalog": {
+              "models": [
+                {
+                  "id": "deepseek-flash",
+                  "displayName": "DeepSeek Flash"
+                }
+              ],
+              "retiredModels": [
+                {
+                  "id": "deepseek-chat",
+                  "displayName": "DeepSeek Chat",
+                  "retiredAt": "2026-07-24T00:00:00Z",
+                  "routedTo": "deepseek-flash"
+                }
+              ],
+              "resolveMap": {
+                "deepseek-chat": "deepseek-flash"
+              },
+              "defaultModelId": "deepseek-flash"
+            },
+            "userModels": [
+              "deepseek-chat",
+              "deepseek-flash"
+            ],
+            "missingCredential": true
+          },
+          {
+            "id": "openai",
+            "catalog": {
+              "models": [
+                {
+                  "id": "gpt-next",
+                  "displayName": "GPT Next"
+                },
+                {
+                  "id": "gpt-mini",
+                  "displayName": "GPT Mini"
+                }
+              ],
+              "retiredModels": [],
+              "resolveMap": {},
+              "defaultModelId": "gpt-mini"
+            },
+            "userModels": [
+              "gpt-next",
+              "gpt-mini"
+            ]
+          }
+        ],
+        "lastUsedRef": {
+          "connectionId": "deepseek",
+          "modelId": "deepseek-chat"
+        },
+        "expect": {
+          "connectionId": "openai",
+          "modelId": "gpt-mini",
+          "hint": null
+        }
+      },
+      {
+        "id": "errored_first_connection_keeps_list_order",
+        "connections": [
+          {
+            "id": "deepseek",
+            "catalog": {
+              "models": [
+                {
+                  "id": "deepseek-flash",
+                  "displayName": "DeepSeek Flash"
+                }
+              ],
+              "retiredModels": [
+                {
+                  "id": "deepseek-chat",
+                  "displayName": "DeepSeek Chat",
+                  "retiredAt": "2026-07-24T00:00:00Z",
+                  "routedTo": "deepseek-flash"
+                }
+              ],
+              "resolveMap": {
+                "deepseek-chat": "deepseek-flash"
+              },
+              "defaultModelId": "deepseek-flash"
+            },
+            "userModels": [
+              "deepseek-flash"
+            ],
+            "issue": true
+          },
+          {
+            "id": "openai",
+            "catalog": {
+              "models": [
+                {
+                  "id": "gpt-next",
+                  "displayName": "GPT Next"
+                },
+                {
+                  "id": "gpt-mini",
+                  "displayName": "GPT Mini"
+                }
+              ],
+              "retiredModels": [],
+              "resolveMap": {},
+              "defaultModelId": "gpt-mini"
+            },
+            "userModels": [
+              "gpt-next",
+              "gpt-mini"
+            ]
+          }
+        ],
+        "lastUsedRef": null,
+        "expect": {
+          "connectionId": "deepseek",
+          "modelId": "deepseek-flash",
+          "hint": null
+        }
+      }
+    ]
+  },
+  "relayVideoEnvelopeCases": {
+    "appliesTo": [
+      "web",
+      "android",
+      "ios"
+    ],
+    "cases": [
+      {
+        "id": "relay_video_chat_envelope_has_no_video_bit",
+        "connection": "relay",
+        "firstSend": "chat",
+        "envelope": {
+          "image": true,
+          "nativeFile": true
+        },
+        "connectionEvidence": null,
+        "key": "video_input",
+        "expect": {
+          "visible": false,
+          "editable": true,
+          "outbound": "native_part",
+          "hint": "first_attach_once",
+          "disabledReason": null
+        }
+      },
+      {
+        "id": "relay_video_messages_not_implemented",
+        "connection": "relay",
+        "firstSend": "messages",
+        "envelope": {
+          "image": true,
+          "nativeFile": true
+        },
+        "connectionEvidence": null,
+        "key": "video_input",
+        "expect": {
+          "visible": false,
+          "editable": false,
+          "outbound": "placeholder",
+          "hint": null,
+          "disabledReason": "disabled.wire_not_implemented"
+        }
+      },
+      {
+        "id": "relay_video_envelope_missing_not_rejection",
+        "connection": "relay",
+        "firstSend": "chat",
+        "envelope": null,
+        "connectionEvidence": null,
+        "key": "video_input",
+        "expect": {
+          "visible": false,
+          "editable": true,
+          "outbound": "native_part",
+          "hint": "first_attach_once",
+          "disabledReason": null
+        }
+      },
+      {
+        "id": "relay_vision_envelope_missing_not_rejection",
+        "connection": "relay",
+        "firstSend": "chat",
+        "envelope": null,
+        "connectionEvidence": null,
+        "key": "vision_input",
+        "expect": {
+          "visible": false,
+          "editable": true,
+          "outbound": "native_part",
+          "hint": "first_attach_once",
+          "disabledReason": null
+        }
+      }
+    ]
+  }
+}

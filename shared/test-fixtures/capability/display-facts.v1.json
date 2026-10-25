@@ -1,0 +1,15 @@
+{
+  "$comment": "Display facts the facade must answer on every end. thinkingCases: 'shows thinking' is a facade fact (key reasoning, fact thinking) separate from reasoning_level tiers; adapters produce it from the form's own source and nothing else reads the legacy reasoning bit: official catalog entry capabilities contains 'reasoning' (catalog miss: modelFacts.reasoning, else false); subscription first-hand reasoning efforts present or modelFacts.reasoning; relay declared capabilities contains 'reasoning'. Missing source => false (no thinking row, not a guess). thinkingRow: 'switchable' when reasoning tiers or a toggle exist, 'fixed' when the model thinks but nothing can be chosen, 'none' otherwise. showsThinking=false / thinkingRow 'none' only means no thinking row: it is never a 'this model does not think' claim, and must not drop the model from a thinking filter into 'unsupported'. Official catalog capabilities lacking 'reasoning' may be catalog silence; the negative claim and the 'unsupported' filter group come only from capabilityControls.reasoning state unavailable, every other control state shows the thinking fact as unknown. managedWebBadgeCases: the web badge and the web picker filter show only when the web control state is auto_available; managed_only, custom_only, unknown, unavailable never show it. Each end names its tests DISPLAY_FACTS_<id> (Web: it('DISPLAY-FACTS-<id> ...')).",
+  "v": 1,
+  "thinkingCases": [
+    { "id": "official_catalog_reasoning_switchable", "form": "official", "modelId": "deepseek-flash", "source": { "catalogCapabilities": ["reasoning", "tool_call"] }, "tiers": ["off", "on"], "expect": { "showsThinking": true, "thinkingRow": "switchable" } },
+    { "id": "official_catalog_no_reasoning", "form": "official", "modelId": "plain-chat", "source": { "catalogCapabilities": ["tool_call"] }, "tiers": [], "expect": { "showsThinking": false, "thinkingRow": "none" } },
+    { "id": "official_catalog_miss_model_facts", "form": "official", "modelId": "hand-entered-thinker", "source": { "catalogEntry": null, "modelFacts": { "reasoning": true } }, "tiers": [], "expect": { "showsThinking": true, "thinkingRow": "fixed" } },
+    { "id": "subscription_first_hand_efforts", "form": "subscription", "modelId": "grok-4.6", "source": { "firstHandEfforts": ["low", "high"], "modelFacts": null }, "tiers": ["low", "high"], "expect": { "showsThinking": true, "thinkingRow": "switchable" } },
+    { "id": "relay_declared_reasoning", "form": "relay", "modelId": "relay-thinker", "source": { "declaredCapabilities": ["reasoning"] }, "tiers": [], "expect": { "showsThinking": true, "thinkingRow": "fixed" } }
+  ],
+  "managedWebBadgeCases": [
+    { "id": "official_auto_badge", "form": "official", "webControlState": "auto_available", "expect": { "badge": true, "pickerFilterMatches": true } },
+    { "id": "official_custom_only_no_badge", "form": "official", "webControlState": "custom_only", "expect": { "badge": false, "pickerFilterMatches": false } }
+  ]
+}

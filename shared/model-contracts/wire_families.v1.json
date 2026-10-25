@@ -1,0 +1,105 @@
+{
+  "$comment": "Wire families for media input. The Server verdict only says whether a model accepts a medium and through which wireFamily; each client compiles its own ProtocolImplementations table keyed by these ids and reconciles against this file. An unknown wireFamily string means not implemented on that end. families[].implementedBy lists the ends whose compiled table implements the family; each end's reconciliation test asserts its table equals the set of families listing that end. transport_not_implemented is reserved for families whose implementedBy is empty. Part shapes verified against official docs on 2026-10-19 (see sourceRef).",
+  "contractId": "wire_families.v1",
+  "version": 1,
+  "reviewedAt": "2026-10-19",
+  "protocols": {
+    "openai_chat": { "requiresMaxTokens": false, "defaultMaxOutputTokens": null },
+    "openai_responses": { "requiresMaxTokens": false, "defaultMaxOutputTokens": null },
+    "anthropic": { "requiresMaxTokens": true, "defaultMaxOutputTokens": 8192 },
+    "gemini": { "requiresMaxTokens": false, "defaultMaxOutputTokens": null }
+  },
+  "families": [
+    {
+      "id": "openai_chat.image_url",
+      "protocol": "openai_chat",
+      "capabilityKey": "vision_input",
+      "part": { "type": "image_url", "image_url": { "url": "<https URL or data:image/*;base64>" } },
+      "sourceRef": [
+        "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create",
+        "https://openrouter.ai/docs/guides/overview/multimodal/image-understanding",
+        "https://api-docs.deepseek.com/guides/vision",
+        "https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-openai-chat-completions"
+      ],
+      "implementedBy": ["web", "android", "ios", "desktop"]
+    },
+    {
+      "id": "openai_chat.file",
+      "protocol": "openai_chat",
+      "capabilityKey": "file_input",
+      "part": { "type": "file", "file": { "filename": "<name>", "file_data": "<data:application/pdf;base64>" } },
+      "note": "OpenAI Chat accepts PDF only; OpenRouter also accepts a public URL in file_data. DeepSeek documents a flat {type:file,file_data,filename} for images only, which is not this family.",
+      "sourceRef": [
+        "https://developers.openai.com/api/docs/guides/file-inputs",
+        "https://openrouter.ai/docs/guides/overview/multimodal/pdfs"
+      ],
+      "implementedBy": ["web", "android", "ios", "desktop"]
+    },
+    {
+      "id": "openai_chat.video_url",
+      "protocol": "openai_chat",
+      "capabilityKey": "video_input",
+      "part": { "type": "video_url", "video_url": { "url": "<https URL or data:video/mp4;base64>" } },
+      "note": "Not part of OpenAI's own Chat Completions reference (not found 2026-10-19); documented by OpenRouter and DashScope OpenAI-compatible mode.",
+      "sourceRef": [
+        "https://openrouter.ai/docs/guides/overview/multimodal/videos",
+        "https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-openai-chat-completions"
+      ],
+      "implementedBy": ["web", "android", "ios"]
+    },
+    {
+      "id": "openai_responses.input_image",
+      "protocol": "openai_responses",
+      "capabilityKey": "vision_input",
+      "part": { "type": "input_image", "image_url": "<https URL or data URL>" },
+      "sourceRef": ["https://developers.openai.com/api/docs/guides/images-vision"],
+      "implementedBy": ["web", "android", "ios", "desktop"]
+    },
+    {
+      "id": "openai_responses.input_file",
+      "protocol": "openai_responses",
+      "capabilityKey": "file_input",
+      "part": { "type": "input_file", "filename": "<name>", "file_data": "<data:application/pdf;base64>" },
+      "sourceRef": ["https://developers.openai.com/api/docs/guides/pdf-files"],
+      "implementedBy": ["web", "android", "ios", "desktop"]
+    },
+    {
+      "id": "anthropic.image",
+      "protocol": "anthropic",
+      "capabilityKey": "vision_input",
+      "part": { "type": "image", "source": { "type": "base64", "media_type": "image/jpeg", "data": "<base64>" } },
+      "sourceRef": ["https://platform.claude.com/docs/en/build-with-claude/vision"],
+      "implementedBy": ["web", "android", "ios", "desktop"]
+    },
+    {
+      "id": "anthropic.document",
+      "protocol": "anthropic",
+      "capabilityKey": "file_input",
+      "part": { "type": "document", "source": { "type": "base64", "media_type": "application/pdf", "data": "<base64>" } },
+      "sourceRef": ["https://platform.claude.com/docs/en/build-with-claude/pdf-support"],
+      "implementedBy": ["web", "android", "ios", "desktop"]
+    },
+    {
+      "id": "gemini.inline_data",
+      "protocol": "gemini",
+      "capabilityKeys": ["vision_input", "file_input", "video_input"],
+      "part": { "inlineData": { "mimeType": "<mime>", "data": "<base64>" } },
+      "sourceRef": ["https://ai.google.dev/api/generate-content"],
+      "implementedBy": ["web", "android", "ios", "desktop"]
+    },
+    {
+      "id": "gemini.file_data",
+      "protocol": "gemini",
+      "capabilityKeys": ["file_input", "video_input"],
+      "part": { "fileData": { "mimeType": "<mime>", "fileUri": "<Files API uri>" } },
+      "note": "Requires a prior Files API upload and waiting for state ACTIVE.",
+      "sourceRef": ["https://ai.google.dev/api/generate-content"],
+      "implementedBy": []
+    }
+  ],
+  "notFound": [
+    { "protocol": "openai_chat (OpenAI official)", "capabilityKey": "video_input", "checkedAt": "2026-10-19" },
+    { "protocol": "openai_responses", "capabilityKey": "video_input", "checkedAt": "2026-10-19" },
+    { "protocol": "anthropic", "capabilityKey": "video_input", "checkedAt": "2026-10-19" }
+  ]
+}

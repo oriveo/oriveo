@@ -1,0 +1,17 @@
+{
+  "$comment": "What the user can do after an official upstream refuses an input. The one-tap action comes from the failed message's own recorded rejection (signature match in rejection-signatures.v1.json, official connection, before any output, the medium was actually sent), never from the projection or the negative cache of a later state; one action per refused capabilityKey, generic over image / file / video; a param_rejected match offers resending without that parameter; no match shows the upstream error as is and offers no media action. Every match also records the negative cache entry. The kill-switch reason is per medium: three copy ids disabled.kill_switch.image / .file / .video, never one image-only string for all media. Card layout when a one-tap action is offered: exactly two buttons, the action first and switch_model second (expect.secondaryAction), switch_model always shown, no edit-message button. Cases without an action do not constrain the generic error card. Each end names its tests REJECTION_RECOVERY_<id> (Web: it('REJECTION-RECOVERY-<id> ...')).",
+  "v": 1,
+  "actionCases": [
+    { "id": "vision_rejected_resend_without_images", "connection": "official", "match": { "kind": "input_rejected", "capabilityKey": "vision_input" }, "expect": { "action": "resend_without_images", "secondaryAction": "switch_model", "negativeCache": true } },
+    { "id": "file_rejected_resend_without_files", "connection": "official", "match": { "kind": "input_rejected", "capabilityKey": "file_input" }, "expect": { "action": "resend_without_files", "secondaryAction": "switch_model", "negativeCache": true } },
+    { "id": "video_rejected_resend_without_videos", "connection": "official", "match": { "kind": "input_rejected", "capabilityKey": "video_input" }, "expect": { "action": "resend_without_videos", "secondaryAction": "switch_model", "negativeCache": true } },
+    { "id": "param_rejected_resend_without_param", "connection": "official", "match": { "kind": "param_rejected", "parameter": "temperature" }, "expect": { "action": "resend_without_parameter", "secondaryAction": "switch_model", "negativeCache": true } },
+    { "id": "no_match_no_media_action", "connection": "official", "match": null, "expect": { "action": null, "negativeCache": false } },
+    { "id": "cached_state_alone_offers_nothing", "connection": "official", "match": null, "negativeCacheAlreadyHit": true, "expect": { "action": null, "negativeCache": false } }
+  ],
+  "killSwitchCopyCases": [
+    { "id": "kill_switch_image", "key": "vision_input", "expect": { "copyId": "disabled.kill_switch.image" } },
+    { "id": "kill_switch_file", "key": "file_input", "expect": { "copyId": "disabled.kill_switch.file" } },
+    { "id": "kill_switch_video", "key": "video_input", "expect": { "copyId": "disabled.kill_switch.video" } }
+  ]
+}
