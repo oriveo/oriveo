@@ -1,0 +1,248 @@
+{
+  "schema": "oriveo.voice.p3-copy",
+  "version": 1,
+  "locales": [
+    "ar",
+    "de",
+    "en",
+    "es",
+    "fr",
+    "hi",
+    "id",
+    "ja",
+    "ko",
+    "pt-BR",
+    "ru",
+    "th",
+    "tr",
+    "vi",
+    "zh-Hans",
+    "zh-Hant"
+  ],
+  "keys": {
+    "voice_realtime_group_header": {
+      "intent": "Header of the third group in Settings › Voice (after Dictation and Read Aloud): settings for hands-free voice conversations. Reuses the existing 'Voice conversation' term (Android voice_conversation_channel_name).",
+      "maxChars": null,
+      "values": {
+        "ar": "المحادثة الصوتية",
+        "de": "Sprachgespräch",
+        "en": "Voice Conversation",
+        "es": "Conversación por voz",
+        "fr": "Conversation vocale",
+        "hi": "बोलकर बातचीत",
+        "id": "Percakapan suara",
+        "ja": "音声会話",
+        "ko": "음성 대화",
+        "pt-BR": "Conversa por voz",
+        "ru": "Голосовой диалог",
+        "th": "สนทนาด้วยเสียง",
+        "tr": "Sesli sohbet",
+        "vi": "Trò chuyện bằng giọng nói",
+        "zh-Hans": "语音对话",
+        "zh-Hant": "語音對話"
+      }
+    },
+    "voice_realtime_engine_title": {
+      "intent": "Row title in the Voice Conversation group, and title of the sheet that lists engines: what produces the replies in a voice conversation. Parallel to the existing 'Dictation Engine' row.",
+      "maxChars": 28,
+      "values": {
+        "ar": "محرك المحادثة",
+        "de": "Gesprächs-Engine",
+        "en": "Conversation Engine",
+        "es": "Motor de conversación",
+        "fr": "Moteur de conversation",
+        "hi": "बातचीत का इंजन",
+        "id": "Mesin percakapan",
+        "ja": "会話エンジン",
+        "ko": "대화 엔진",
+        "pt-BR": "Mecanismo de conversa",
+        "ru": "Движок диалога",
+        "th": "เครื่องมือสนทนา",
+        "tr": "Sohbet motoru",
+        "vi": "Công cụ trò chuyện",
+        "zh-Hans": "对话引擎",
+        "zh-Hant": "對話引擎"
+      }
+    },
+    "voice_realtime_follow_model": {
+      "intent": "Default option in the engine sheet: voice conversations keep using the model chosen in the current chat (no realtime model). Short option label.",
+      "maxChars": 28,
+      "values": {
+        "ar": "حسب النموذج الحالي",
+        "de": "Aktuelles Modell nutzen",
+        "en": "Follow Current Model",
+        "es": "Seguir el modelo actual",
+        "fr": "Suivre le modèle actuel",
+        "hi": "मौजूदा मॉडल के अनुसार",
+        "id": "Ikuti model saat ini",
+        "ja": "現在のモデルに従う",
+        "ko": "현재 모델 따르기",
+        "pt-BR": "Seguir o modelo atual",
+        "ru": "Текущая модель",
+        "th": "ตามโมเดลปัจจุบัน",
+        "tr": "Mevcut modeli kullan",
+        "vi": "Theo mô hình hiện tại",
+        "zh-Hans": "跟随当前模型",
+        "zh-Hant": "跟隨目前模型"
+      }
+    },
+    "voice_realtime_follow_model_subtitle": {
+      "intent": "Subtitle under the default option, showing the pipeline it uses: your speech is dictated to text, the current chat's model replies, then the reply is read aloud. Use the same words as the Dictation and Read Aloud groups; arrows follow reading direction.",
+      "maxChars": null,
+      "values": {
+        "ar": "الإملاء ← النموذج الحالي ← القراءة بصوت عالٍ",
+        "de": "Diktieren → aktuelles Modell → Vorlesen",
+        "en": "Dictation → current model → read aloud",
+        "es": "Dictado → modelo actual → lectura en voz alta",
+        "fr": "Dictée → modèle actuel → lecture à voix haute",
+        "hi": "बोलकर लिखना → मौजूदा मॉडल → पढ़कर सुनाना",
+        "id": "Dikte → model saat ini → Bacakan",
+        "ja": "音声入力 → 現在のモデル → 読み上げ",
+        "ko": "받아쓰기 → 현재 모델 → 소리 내어 읽기",
+        "pt-BR": "Ditado → modelo atual → leitura em voz alta",
+        "ru": "Диктовка → текущая модель → чтение вслух",
+        "th": "พิมพ์ด้วยเสียง → โมเดลปัจจุบัน → อ่านออกเสียง",
+        "tr": "Dikte → mevcut model → sesli okuma",
+        "vi": "Đọc chính tả → mô hình hiện tại → đọc to",
+        "zh-Hans": "听写 → 当前模型 → 朗读",
+        "zh-Hant": "聽寫 → 目前模型 → 朗讀"
+      }
+    },
+    "voice_realtime_group_footer": {
+      "intent": "Footer of the Voice Conversation group explaining the trade-off of a realtime model: it listens and replies by itself, so it is faster, but the model selected in the chat is not used. Neutral, factual settings tone.",
+      "maxChars": null,
+      "values": {
+        "ar": "يستمع إليك النموذج الفوري ويرد مباشرة، فتصل الردود أسرع، لكن لا يُستخدم نموذج هذه المحادثة.",
+        "de": "Ein Echtzeitmodell hört dir zu und antwortet direkt. Antworten kommen so schneller, aber das Modell dieses Chats wird nicht verwendet.",
+        "en": "A realtime model hears you and answers directly, so replies come faster, but this chat's model isn't used.",
+        "es": "Un modelo en tiempo real te escucha y responde directamente, así que las respuestas llegan antes, pero no se usa el modelo de este chat.",
+        "fr": "Un modèle en temps réel vous écoute et répond directement : les réponses arrivent plus vite, mais le modèle de cette conversation n’est pas utilisé.",
+        "hi": "रियलटाइम मॉडल आपकी बात सुनकर सीधे जवाब देता है, इसलिए जवाब जल्दी आते हैं, लेकिन इस चैट का मॉडल इस्तेमाल नहीं होता।",
+        "id": "Model real-time mendengarkan Anda dan langsung menjawab, jadi balasan datang lebih cepat, tetapi model percakapan ini tidak dipakai.",
+        "ja": "リアルタイムモデルは声を聞いて直接答えるため返答が速くなりますが、この会話のモデルは使われません。",
+        "ko": "실시간 모델이 직접 듣고 답하므로 답변이 더 빠르지만, 이 대화의 모델은 사용되지 않습니다.",
+        "pt-BR": "Um modelo em tempo real ouve você e responde direto, então as respostas chegam mais rápido, mas o modelo desta conversa não é usado.",
+        "ru": "Модель реального времени слышит вас и отвечает сама, поэтому ответы приходят быстрее, но модель этого чата не используется.",
+        "th": "โมเดลเรียลไทม์จะฟังคุณและตอบโดยตรง จึงตอบได้เร็วขึ้น แต่จะไม่ใช้โมเดลของแชทนี้",
+        "tr": "Gerçek zamanlı model sizi dinler ve doğrudan yanıt verir; yanıtlar daha hızlı gelir ama bu sohbetin modeli kullanılmaz.",
+        "vi": "Mô hình thời gian thực nghe bạn và trả lời trực tiếp nên phản hồi nhanh hơn, nhưng sẽ không dùng mô hình của cuộc trò chuyện này.",
+        "zh-Hans": "实时模型直接听你说话并回答，回复更快，但不会用这个对话的模型。",
+        "zh-Hant": "即時模型直接聽你說話並回答，回覆更快，但不會用這個對話的模型。"
+      }
+    },
+    "voice_realtime_disclosure_title": {
+      "intent": "Title of the one-time confirmation shown the first time the user picks a realtime model. %1$@ = provider name (e.g. OpenAI). Same pattern as 'Use %@ for Dictation?' / 'Use %@ for Read Aloud?'.",
+      "maxChars": null,
+      "values": {
+        "ar": "استخدام %1$@ للمحادثة الصوتية؟",
+        "de": "%1$@ für Sprachgespräche verwenden?",
+        "en": "Use %1$@ for Voice Conversations?",
+        "es": "¿Usar %1$@ para las conversaciones por voz?",
+        "fr": "Utiliser %1$@ pour les conversations vocales ?",
+        "hi": "बोलकर बातचीत के लिए %1$@ इस्तेमाल करें?",
+        "id": "Pakai %1$@ untuk percakapan suara?",
+        "ja": "音声会話に %1$@ を使いますか？",
+        "ko": "음성 대화에 %1$@을(를) 사용할까요?",
+        "pt-BR": "Usar %1$@ nas conversas por voz?",
+        "ru": "Использовать %1$@ для голосового диалога?",
+        "th": "ใช้ %1$@ สำหรับการสนทนาด้วยเสียงไหม",
+        "tr": "Sesli sohbet için %1$@ kullanılsın mı?",
+        "vi": "Dùng %1$@ để trò chuyện bằng giọng nói?",
+        "zh-Hans": "用 %1$@ 进行语音对话？",
+        "zh-Hant": "用 %1$@ 進行語音對話？"
+      }
+    },
+    "voice_realtime_disclosure_body": {
+      "intent": "Body of that one-time confirmation. Must state three facts plainly: (1) the provider's realtime model replies in voice conversations instead of the chat's model; (2) the user's voice and this chat's history go to that provider; (3) usage is billed to the user's own connection and the provider's privacy policy applies. %1$@ = provider name, may appear several times.",
+      "maxChars": null,
+      "values": {
+        "ar": "في المحادثة الصوتية، يرد %1$@ بدلًا من نموذج هذه المحادثة. يُرسَل صوتك وسجل هذه المحادثة إلى %1$@، ويُحتسب الاستخدام على اتصالك، وتنطبق سياسة الخصوصية لدى %1$@.",
+        "de": "In Sprachgesprächen antwortet %1$@ statt des Modells dieses Chats. Deine Stimme und der Verlauf dieses Chats werden an %1$@ gesendet, die Nutzung wird über deine Verbindung abgerechnet, und es gilt die Datenschutzerklärung von %1$@.",
+        "en": "In voice conversations, %1$@ answers instead of this chat's model. Your voice and this chat's history are sent to %1$@, usage is billed to your connection, and %1$@'s privacy policy applies.",
+        "es": "En las conversaciones por voz, responde %1$@ en lugar del modelo de este chat. Tu voz y el historial de este chat se envían a %1$@, el uso se cobra a tu conexión y se aplica la política de privacidad de %1$@.",
+        "fr": "Dans les conversations vocales, c’est %1$@ qui répond à la place du modèle de cette conversation. Votre voix et l’historique de cette conversation sont envoyés à %1$@, l’utilisation est facturée via votre connexion, et la politique de confidentialité de %1$@ s’applique.",
+        "hi": "बोलकर बातचीत में इस चैट के मॉडल की जगह %1$@ जवाब देगा। आपकी आवाज़ और इस चैट की हिस्ट्री %1$@ को भेजी जाएगी, इस्तेमाल का बिल आपके कनेक्शन से आएगा, और %1$@ की प्राइवेसी पॉलिसी लागू होगी।",
+        "id": "Dalam percakapan suara, %1$@ yang menjawab, bukan model percakapan ini. Suara Anda dan riwayat percakapan ini dikirim ke %1$@, pemakaian ditagih ke koneksi Anda, dan kebijakan privasi %1$@ berlaku.",
+        "ja": "音声会話では、この会話のモデルの代わりに %1$@ が答えます。あなたの声とこの会話の履歴は %1$@ に送信され、利用分はお使いの接続で課金され、%1$@ のプライバシーポリシーが適用されます。",
+        "ko": "음성 대화에서는 이 대화의 모델 대신 %1$@이(가) 답합니다. 음성과 이 대화의 기록이 %1$@(으)로 전송되고, 사용 요금은 내 연결로 청구되며, %1$@의 개인정보 처리방침이 적용됩니다.",
+        "pt-BR": "Nas conversas por voz, quem responde é %1$@, e não o modelo desta conversa. Sua voz e o histórico desta conversa são enviados para %1$@, o uso é cobrado na sua conexão e vale a política de privacidade de %1$@.",
+        "ru": "В голосовом диалоге вместо модели этого чата отвечает %1$@. Ваш голос и история этого чата отправляются в %1$@, использование оплачивается через ваше подключение, действует политика конфиденциальности %1$@.",
+        "th": "ในการสนทนาด้วยเสียง %1$@ จะเป็นผู้ตอบแทนโมเดลของแชทนี้ เสียงของคุณและประวัติของแชทนี้จะถูกส่งไปยัง %1$@ ค่าใช้งานจะคิดผ่านการเชื่อมต่อของคุณ และนโยบายความเป็นส่วนตัวของ %1$@ จะมีผลบังคับใช้",
+        "tr": "Sesli sohbette bu sohbetin modeli yerine %1$@ yanıt verir. Sesiniz ve bu sohbetin geçmişi %1$@ hizmetine gönderilir, kullanım bağlantınız üzerinden ücretlendirilir ve %1$@ gizlilik politikası geçerlidir.",
+        "vi": "Khi trò chuyện bằng giọng nói, %1$@ sẽ trả lời thay cho mô hình của cuộc trò chuyện này. Giọng nói của bạn và lịch sử cuộc trò chuyện này được gửi đến %1$@, mức sử dụng được tính phí vào kết nối của bạn, và chính sách quyền riêng tư của %1$@ sẽ được áp dụng.",
+        "zh-Hans": "语音对话时，由 %1$@ 代替这个对话的模型来回答。你的语音和这个对话的记录会发送给 %1$@，用量计入你的连接，适用 %1$@ 的隐私政策。",
+        "zh-Hant": "語音對話時，由 %1$@ 代替這個對話的模型來回答。你的語音和這個對話的紀錄會傳送給 %1$@，用量以你的連線計費，適用 %1$@ 的隱私權政策。"
+      }
+    },
+    "voice_realtime_engine_fallback_toast": {
+      "intent": "Toast shown once when the user starts a voice conversation but their chosen realtime conversation engine is no longer available (connection deleted, key cleared, or the model was removed from the catalog), so this conversation falls back to Follow Current Model (dictation → current model → read aloud). The setting has already been reset.",
+      "maxChars": null,
+      "values": {
+        "ar": "محرك المحادثة الذي اخترته لم يعد متاحًا، لذا تستخدم هذه المحادثة النموذج الحالي.",
+        "de": "Deine Gesprächs-Engine ist nicht mehr verfügbar. Diese Unterhaltung nutzt daher das aktuelle Modell.",
+        "en": "Your conversation engine isn't available anymore, so this conversation uses the current model.",
+        "es": "Tu motor de conversación ya no está disponible, así que esta conversación usa el modelo actual.",
+        "fr": "Votre moteur de conversation n’est plus disponible : cette conversation utilise donc le modèle actuel.",
+        "hi": "आपका चुना हुआ बातचीत का इंजन अब उपलब्ध नहीं है, इसलिए यह बातचीत मौजूदा मॉडल से हो रही है।",
+        "id": "Mesin percakapan Anda sudah tidak tersedia, jadi percakapan ini memakai model saat ini.",
+        "ja": "選択した会話エンジンは利用できなくなったため、この会話では現在のモデルを使います。",
+        "ko": "선택한 대화 엔진을 더 이상 사용할 수 없어 이번 대화는 현재 모델로 진행합니다.",
+        "pt-BR": "Seu mecanismo de conversa não está mais disponível, então esta conversa usa o modelo atual.",
+        "ru": "Выбранный движок диалога больше недоступен, поэтому в этом диалоге используется текущая модель.",
+        "th": "เครื่องมือสนทนาที่เลือกไว้ใช้ไม่ได้แล้ว การสนทนานี้จึงใช้โมเดลปัจจุบัน",
+        "tr": "Seçtiğiniz sohbet motoru artık kullanılamadığı için bu sohbette mevcut model kullanılıyor.",
+        "vi": "Công cụ trò chuyện bạn chọn không còn dùng được, nên cuộc trò chuyện này dùng mô hình hiện tại.",
+        "zh-Hans": "所选对话引擎已不可用，这次对话改用当前模型",
+        "zh-Hant": "所選對話引擎已無法使用，這次對話改用目前模型"
+      }
+    },
+    "voice_realtime_engine_fallback_settings": {
+      "intent": "One-time notice under the Conversation Engine row in Settings › Voice after the chosen realtime engine became unavailable (connection deleted, key cleared, model removed) and the setting was reset to the default option 'Follow Current Model'. Mirrors the existing dictation/read-aloud notice 'Switched back to System.'",
+      "maxChars": null,
+      "values": {
+        "ar": "تمت العودة إلى «حسب النموذج الحالي».",
+        "de": "Zurück zu „Aktuelles Modell nutzen“ gewechselt.",
+        "en": "Switched back to Follow Current Model.",
+        "es": "Se ha cambiado a «Seguir el modelo actual».",
+        "fr": "Retour à « Suivre le modèle actuel ».",
+        "hi": "वापस “मौजूदा मॉडल के अनुसार” पर कर दिया गया है।",
+        "id": "Dikembalikan ke “Ikuti model saat ini”.",
+        "ja": "「現在のモデルに従う」に戻しました。",
+        "ko": "‘현재 모델 따르기’로 되돌렸습니다.",
+        "pt-BR": "Voltamos para “Seguir o modelo atual”.",
+        "ru": "Снова используется «Текущая модель».",
+        "th": "เปลี่ยนกลับเป็น “ตามโมเดลปัจจุบัน” แล้ว",
+        "tr": "“Mevcut modeli kullan” seçeneğine geri dönüldü.",
+        "vi": "Đã chuyển về “Theo mô hình hiện tại”.",
+        "zh-Hans": "已改回“跟随当前模型”",
+        "zh-Hant": "已改回「跟隨目前模型」"
+      }
+    }
+  },
+  "settingsKeyMap": {
+    "ios": {
+      "voice_realtime_group_header": "Voice Conversation",
+      "voice_realtime_engine_title": "Conversation Engine",
+      "voice_realtime_follow_model": "Follow Current Model",
+      "voice_realtime_follow_model_subtitle": "Dictation → current model → read aloud",
+      "voice_realtime_group_footer": "A realtime model hears you and answers directly, so replies come faster, but this chat's model isn't used.",
+      "voice_realtime_disclosure_title": "Use %1$@ for Voice Conversations?",
+      "voice_realtime_disclosure_body": "In voice conversations, %1$@ answers instead of this chat's model. Your voice and this chat's history are sent to %1$@, usage is billed to your connection, and %1$@'s privacy policy applies.",
+      "voice_realtime_engine_fallback_toast": "Your conversation engine isn't available anymore, so this conversation uses the current model.",
+      "voice_realtime_engine_fallback_settings": "Switched back to Follow Current Model.",
+      "_note": "Voice.xcstrings keys are the English source text; the two disclosure keys keep %1$@ in xcstrings (one provider argument, repeated via the positional specifier)."
+    },
+    "android": {
+      "voice_realtime_group_header": "voice_realtime_group_header",
+      "voice_realtime_engine_title": "voice_realtime_engine_title",
+      "voice_realtime_follow_model": "voice_realtime_follow_model",
+      "voice_realtime_follow_model_subtitle": "voice_realtime_follow_model_subtitle",
+      "voice_realtime_group_footer": "voice_realtime_group_footer",
+      "voice_realtime_disclosure_title": "voice_realtime_disclosure_title",
+      "voice_realtime_disclosure_body": "voice_realtime_disclosure_body",
+      "voice_realtime_engine_fallback_toast": "voice_realtime_engine_fallback_toast",
+      "voice_realtime_engine_fallback_settings": "voice_realtime_engine_fallback_settings",
+      "_note": "strings_voice.xml in values/ plus 15 values-<qualifier>/ dirs (id = values-in, zh-Hans = zh-rCN, zh-Hant = zh-rTW); convert %1$@ to %1$s and escape apostrophes as \\' when writing back."
+    }
+  }
+}
