@@ -6,7 +6,7 @@ import Testing
 // manual (present locally but absent from the catalog), which stay enabled, and what an alias of a
 // catalog model resolves to.
 
-@Suite("Manual Retained Truth Table Tests", .serialized)
+@Suite("Manual Retained Truth Table Tests", .serialized, .sharedProcessState)
 struct ManualRetainedTruthTableTests {
 
     private let metadataJSON = """

@@ -13,6 +13,11 @@ struct HindiButtonLabelLocalizationTests {
         "सालाना": "yearly (adjective)",
         "नमूना": "sample (noun)",
         "संरचना": "composition (noun)",
+        "सूचना": "notification (noun)",
+        "संभावना": "probability (noun, as in the generation parameter name XTC संभावना)",
+        "अपना": "own (reflexive pronoun / adjective)",
+        "पुराना": "old (adjective)",
+        "घटना": "event / incident (noun)",
     ]
 
     @Test("hi short labels are not bare infinitives")

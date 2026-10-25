@@ -233,7 +233,7 @@ struct StopReasonPersistenceTests {
         defer { StopReasonURLProtocol.reset() }
         // DeepSeek raw SSE: only the role frame, no body, no finish_reason, no [DONE], then the stream is cut.
         let (state, uid, conversationID) = try await sendOpenRouter(
-            prefix: "deepseek-eof", kind: .deepseek, modelID: "deepseek-chat"
+            prefix: "deepseek-eof", kind: .deepseek, modelID: "deepseek-flash"
         ) { _ in
             .body(status: 200, text: "data: {\"choices\":[{\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\n")
         }
@@ -248,7 +248,7 @@ struct StopReasonPersistenceTests {
         defer { StopReasonURLProtocol.reset() }
         // First: DeepSeek cuts after only the role frame -> delivers an eof-kind finish, records incomplete.
         let (state, uid, conversationID) = try await sendOpenRouter(
-            prefix: "retry-stale", kind: .deepseek, modelID: "deepseek-chat"
+            prefix: "retry-stale", kind: .deepseek, modelID: "deepseek-flash"
         ) { _ in
             .body(status: 200, text: "data: {\"choices\":[{\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\n")
         }
