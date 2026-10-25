@@ -4,35 +4,105 @@ import PhotosUI
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// The availability of a conversation's connection: when the connection id stored on the conversation is not in the list, it does not fall back to another connection.
+enum ChatConversationConnectionState: Equatable {
+    /// The connection is in the list; sending proceeds as usual.
+    case available
+    /// The connection list has not finished loading: no banner is shown, the top bar shows the model name stored on the conversation,
+    /// the composer stays writable, and a tap on send is refused by ChatManager with the reason.
+    case pending
+    /// The list has finished loading and the connection is really gone: a "connection removed" banner + Choose model is shown and sending is disabled.
+    case removed
+}
+
 struct ChatScreenContext {
+    /// When `connectionState != .available` this is a placeholder connection built from the conversation id (no model), not another connection.
     let provider: Provider
     let model: AIModel?
-    let needsConversationRepair: Bool
+    var connectionState: ChatConversationConnectionState = .available
     /// Set when the relay conversation's model has been removed: the connection's display name, and the composer shows a banner and sending is disabled.
     var removedModelConnectionName: String? = nil
+    /// Set when the official conversation model has been retired or is missing: the composer shows a retired banner and sending is disabled.
+    var retiredModel: ChatRetiredConversationModel? = nil
+    /// The model name the top bar shows when `connectionState == .pending`: the catalog display name, or the stored id when it cannot be found.
+    var pendingModelName: String? = nil
+}
+
+/// A retired / missing conversation model: the name comes from the catalog or the tombstone; the successor is given only if it is among the connection's enabled models right now.
+struct ChatRetiredConversationModel: Equatable {
+    let displayName: String
+    var successorModelID: String? = nil
+    var successorModelName: String? = nil
 }
 
 /// The banner for a removed conversation model: one sentence plus a "Choose model" button, no title.
+/// A retired / missing official model uses the same banner: "X has been retired." + "Switch to Y" (when there is a successor) or "Choose model".
 /// Control state is derived only here; structure tests assert on this, not on screenshots.
 struct ChatModelRemovedBanner: Equatable {
     static let messageKey = "This chat’s model is no longer in %@."
+    static let retiredMessageKey = "%@ has been retired."
+    static let switchToKey = "Switch to %@"
     static let actionKey = "Choose model"
+    static let connectionRemovedMessageKey = "The provider for this conversation has been removed."
 
     let connectionName: String
+    /// Non-nil = the retired state of an official model: the banner names the model rather than the connection.
+    var retiredModelName: String? = nil
+    var successorModelID: String? = nil
+    var successorModelName: String? = nil
+    var providerID: UUID? = nil
+    /// true = the conversation's connection was deleted: the banner says the connection is gone, and the button is "Choose model".
+    var connectionRemoved: Bool = false
 
     var message: String {
-        String(format: L10n.tr(Self.messageKey, table: .chat), connectionName)
+        if connectionRemoved {
+            return L10n.tr(Self.connectionRemovedMessageKey)
+        }
+        if let retiredModelName {
+            return String(format: L10n.tr(Self.retiredMessageKey, table: .chat), retiredModelName)
+        }
+        return String(format: L10n.tr(Self.messageKey, table: .chat), connectionName)
     }
 
     var actionTitle: String {
-        L10n.tr(Self.actionKey, table: .chat)
+        if successorModelID != nil, let successorModelName {
+            return String(format: L10n.tr(Self.switchToKey, table: .chat), successorModelName)
+        }
+        return L10n.tr(Self.actionKey, table: .chat)
     }
 
     static func resolve(_ context: ChatScreenContext?) -> ChatModelRemovedBanner? {
-        context?.removedModelConnectionName.map(ChatModelRemovedBanner.init(connectionName:))
+        guard let context else { return nil }
+        if context.connectionState == .removed {
+            return ChatModelRemovedBanner(connectionName: "", connectionRemoved: true)
+        }
+        if let connectionName = context.removedModelConnectionName {
+            return ChatModelRemovedBanner(connectionName: connectionName)
+        }
+        if let retired = context.retiredModel {
+            return ChatModelRemovedBanner(
+                connectionName: context.provider.displayName,
+                retiredModelName: retired.displayName,
+                successorModelID: retired.successorModelID,
+                successorModelName: retired.successorModelName,
+                providerID: context.provider.id
+            )
+        }
+        return nil
     }
 
-    /// Whether the send button is tappable: never while the banner is showing.
+    /// Where the banner's "Choose model" goes.
+    enum ActionTarget: Equatable {
+        case modelPicker
+        /// The conversation's connection was deleted and none is left: the picker would have nothing to choose, so this goes to adding a connection.
+        case connectionSetup
+    }
+
+    static func actionTarget(_ context: ChatScreenContext?, providers: [Provider]) -> ActionTarget {
+        context?.connectionState == .removed && providers.isEmpty ? .connectionSetup : .modelPicker
+    }
+
+    /// Whether the send button is tappable: never while a banner is showing (including a deleted connection).
     static func isSendEnabled(
         hasComposerContent: Bool,
         controlsDisabled: Bool,
@@ -48,8 +118,28 @@ func resolveChatScreenContext(
     providers: [Provider],
     activeModel: (provider: Provider, model: AIModel)?,
     primaryProvider: Provider?,
-    lastUsedModelRef: LastUsedModelRef? = nil
+    lastUsedModelRef: LastUsedModelRef? = nil,
+    providersLoaded: Bool,
+    requestedProviderKind: ProviderKind? = nil,
+    modelDisplayName: (_ modelID: String, _ kind: ProviderKind) -> String? = { _, _ in nil }
 ) -> ChatScreenContext? {
+    if let requestedProviderID,
+       providers.first(where: { $0.id == requestedProviderID }) == nil {
+        // The conversation's connection is not in the list: no fallback to activeModel / primaryProvider and no rewriting of the conversation; only a user choice writes to it.
+        let placeholder = missingConnectionPlaceholder(id: requestedProviderID, kind: requestedProviderKind)
+        // The connection can be judged deleted once the local load has finished; until then it stays pending.
+        let connectionState: ChatConversationConnectionState = providersLoaded ? .removed : .pending
+        let storedModelID = requestedModelID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return ChatScreenContext(
+            provider: placeholder,
+            model: nil,
+            connectionState: connectionState,
+            pendingModelName: connectionState == .pending && !storedModelID.isEmpty
+                // Display name: official metadata, then the original id.
+                ? modelDisplayName(storedModelID, placeholder.kind) ?? storedModelID
+                : nil
+        )
+    }
     if let requestedProviderID,
        let provider = providers.first(where: { $0.id == requestedProviderID }) {
         if provider.kind == .relay {
@@ -61,55 +151,121 @@ func resolveChatScreenContext(
                 return ChatScreenContext(
                     provider: provider,
                     model: nil,
-                    needsConversationRepair: false,
                     removedModelConnectionName: connectionName
                 )
             }
             if requestedModelID?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true {
                 return ChatScreenContext(
                     provider: provider,
-                    model: ProviderSelectionSnapshot.relayFallbackModel(in: provider, lastUsedModelRef: lastUsedModelRef),
-                    needsConversationRepair: false
+                    model: ProviderSelectionSnapshot.relayFallbackModel(in: provider, lastUsedModelRef: lastUsedModelRef)
                 )
             }
-        }
-        let model = ProviderSelectionSnapshot.currentModel(
-            storedModelID: requestedModelID,
-            in: provider
-        )
-        let repairedModelID = requestedModelID.map {
-            AppState.persistedConversationModelID(
-                requestedModelID: $0,
-                in: provider
+        } else if let retired = retiredConversationModel(storedModelID: requestedModelID, in: provider) {
+            // An official model that was retired or is missing: no silent replacement and no repair of the conversation model; wait for the user to switch to the successor or choose again.
+            return ChatScreenContext(
+                provider: provider,
+                model: nil,
+                retiredModel: retired
             )
         }
+        // An empty conversation model follows the new-chat chain restricted to this connection (including the last-used tier that points at it), the same source as sending.
+        let model = (requestedModelID?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+            ? ProviderSelectionSnapshot.newChatModel(in: provider, lastUsedModelRef: lastUsedModelRef)
+            : ProviderSelectionSnapshot.currentModel(storedModelID: requestedModelID, in: provider)
 
-        return ChatScreenContext(
-            provider: provider,
-            model: model,
-            needsConversationRepair: repairedModelID != nil && repairedModelID != requestedModelID
-        )
+        return ChatScreenContext(provider: provider, model: model)
     }
 
+    // Only a new conversation (no stored providerID) gets here: the default model rules apply.
     if let activeModel {
-        return ChatScreenContext(
-            provider: activeModel.provider,
-            model: activeModel.model,
-            needsConversationRepair: requestedProviderID != nil
-        )
+        return ChatScreenContext(provider: activeModel.provider, model: activeModel.model)
     }
 
-    if let primaryProvider {
-        return ChatScreenContext(
-            provider: primaryProvider,
-            model: primaryProvider.kind == .relay
-                ? ProviderSelectionSnapshot.relayFallbackModel(in: primaryProvider, lastUsedModelRef: lastUsedModelRef)
-                : ProviderSelectionSnapshot.defaultModel(in: primaryProvider),
-            needsConversationRepair: requestedProviderID != nil
-        )
-    }
-
+    // An empty new-chat chain no longer falls back to the primary connection; the caller opens the model picker.
     return nil
+}
+
+extension ChatLoadState {
+    /// Only the states where the body is not in place disable writing; an unavailable connection (pending) stays writable, and a tap on send is refused by ChatManager with the reason while the draft is kept.
+    var blocksComposer: Bool {
+        switch self {
+        case .stalled, .bootstrapping, .localFailure:
+            return true
+        case .content, .empty, .deleted:
+            return false
+        }
+    }
+}
+
+/// Placeholder for a conversation connection that is not in the list: it keeps the conversation's own id and kind, has no model, and does not pose as any existing connection.
+private func missingConnectionPlaceholder(id: UUID, kind: ProviderKind?) -> Provider {
+    Provider(
+        id: id,
+        kind: kind ?? .relay,
+        status: .issue(""),
+        models: [],
+        catalogModels: [],
+        lastCheckedAt: nil,
+        apiKey: "",
+        apiKeyPreview: "",
+        lastError: nil,
+        baseURLText: nil,
+        customName: nil
+    )
+}
+
+/// Projection of the retired state of a conversation model: relay and a pending catalog count as resolved, and this returns nil.
+private func retiredConversationModel(storedModelID: String?, in provider: Provider) -> ChatRetiredConversationModel? {
+    switch ProviderSelectionSnapshot.conversationModelState(storedModelID: storedModelID, in: provider) {
+    case .retired(let displayName, let successorId):
+        let successor = successorId.flatMap {
+            ModelResolver.resolveStoredModel(
+                $0,
+                in: ProviderSelectionSnapshot.enabledModels(in: provider),
+                providerKind: provider.kind
+            )
+        }
+        return ChatRetiredConversationModel(
+            displayName: displayName,
+            successorModelID: successor?.id,
+            successorModelName: successor?.name
+        )
+    case .missing(let displayName):
+        return ChatRetiredConversationModel(displayName: displayName)
+    case .resolved, .removed:
+        return nil
+    }
+}
+
+/// The one-time hint after the preferred model of a new chat was retired and the chat fell back: the key is the connection holding the retired model x the retired model, and the name is the model it fell back to (possibly on another connection).
+struct NewChatRetiredFallbackHint: Equatable {
+    let providerID: UUID
+    let retiredModelID: String
+    let fallbackModelName: String
+
+    static func resolve(
+        requestedProviderID: UUID?,
+        providers: [Provider],
+        lastUsedModelRef: LastUsedModelRef?
+    ) -> NewChatRetiredFallbackHint? {
+        guard requestedProviderID == nil,
+              let ref = lastUsedModelRef,
+              let fallback = ProviderSelectionSnapshot.newChatRetiredFallback(
+                in: providers,
+                lastUsedModelRef: lastUsedModelRef
+              ) else { return nil }
+        return NewChatRetiredFallbackHint(
+            providerID: ref.providerID,
+            retiredModelID: fallback.retiredModelID,
+            fallbackModelName: fallback.model.name
+        )
+    }
+
+    /// The first call returns the text to show and records it in the history; afterwards the same connection x model always gives nil.
+    func consumeMessage(history: ModelRetiredHintHistory = .shared) -> String? {
+        guard history.consumeFirstHint(providerID: providerID, modelID: retiredModelID) else { return nil }
+        return ModelRetiredHintHistory.lastUsedRetiredMessage(fallbackModelName: fallbackModelName)
+    }
 }
 
 /// The first send needs a user-owned key, a relay, or a local endpoint.
@@ -146,6 +302,58 @@ func attachmentSizeLimitAlertMessage(byteLimit: Int) -> String {
         ),
         attachmentByteLimitDisplayText(byteLimit)
     )
+}
+
+@MainActor
+func resolveChatScreenContext(
+    projection: ChatScreenProjection,
+    appState: AppState,
+    modelDisplayName: (_ modelID: String, _ kind: ProviderKind) -> String? = { _, _ in nil }
+) -> ChatScreenContext? {
+    let requestedModelID = projection.modelID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    let requestedProviderID = projection.providerID
+        ?? (requestedModelID.isEmpty ? appState.pendingNewChatProviderID : nil)
+    return resolveChatScreenContext(
+        requestedProviderID: requestedProviderID,
+        requestedModelID: projection.modelID,
+        providers: appState.providers,
+        activeModel: appState.activeModel,
+        primaryProvider: appState.primaryProvider ?? makeHistoricalProviderFallback(projection: projection),
+        lastUsedModelRef: appState.lastUsedModelRef,
+        providersLoaded: appState.providersLoaded,
+        requestedProviderKind: projection.summary?.providerKind,
+        modelDisplayName: modelDisplayName
+    )
+}
+
+/// Looking up the catalog every time is too expensive; one entry is kept per (conversation, model, kind) and cleared when the metadata snapshot turns over.
+/// A reference type held in @State: reads and writes do not refresh the view, so it is safe to use inside body.
+@MainActor
+final class ChatPendingModelNameCache {
+    private struct Key: Hashable {
+        let conversationID: UUID?
+        let modelID: String
+        let kind: ProviderKind
+    }
+
+    private var entries: [Key: String?] = [:]
+
+    func displayName(
+        conversationID: UUID?,
+        modelID: String,
+        kind: ProviderKind,
+        resolve: (_ modelID: String, _ kind: ProviderKind) -> String?
+    ) -> String? {
+        let key = Key(conversationID: conversationID, modelID: modelID, kind: kind)
+        if let cached = entries[key] { return cached }
+        let resolved = resolve(modelID, kind)
+        entries[key] = .some(resolved)
+        return resolved
+    }
+
+    func removeAll() {
+        entries.removeAll()
+    }
 }
 
 private func makeHistoricalProviderFallback(
@@ -191,6 +399,8 @@ struct ChatView: View {
     @State private var composerTextPush = ChatComposerTextPush()
     @State private var composerSendGate = ComposerSendGate()
     @State private var modelPickerPresentation: ModelPickerPresentationSnapshot?
+    /// Model display names of a pending connection are cached per conversation (see ChatPendingModelNameCache).
+    @State private var pendingModelNameCache = ChatPendingModelNameCache()
     @State private var compactionDetailPresentation: ContextCompactionDetailPresentation?
     /// Usage summary for the ring; tagged with the conversation it was computed for.
     @State private var contextUsage: (conversationID: UUID, summary: ContextUsageSummary)?
@@ -237,6 +447,8 @@ struct ChatView: View {
     @State private var disclosureProvider: ProviderKind?
     @State private var pendingSendPayload: PendingSendPayload?
     @State private var showsMissingProviderKeyPrompt = false
+    /// The voice conversation entry held back by the disclosure gate: continues after the user accepts.
+    @State private var pendingVoiceConversationStart: ChatCapabilitySelection?
     @State private var bootstrapWatchdogExpired = false
     @State private var historyRetryGeneration = 0
     @State private var generationParameterDraftSessionID = UUID()
@@ -332,12 +544,7 @@ struct ChatView: View {
     }
 
     private var isComposerReadOnly: Bool {
-        switch projection.loadState {
-        case .stalled, .bootstrapping, .localFailure:
-            return true
-        case .content, .empty, .deleted:
-            return false
-        }
+        projection.loadState.blocksComposer
     }
 
     /// The relay protocol the current model actually uses: when the connection default or the model's own protocol changes, capability preferences and pending attachments must be recomputed.
@@ -348,12 +555,19 @@ struct ChatView: View {
     }
 
     private var resolvedChatContext: ChatScreenContext? {
-        resolveChatScreenContext(
+        let projection = projection
+        let cache = pendingModelNameCache
+        return resolveChatScreenContext(projection: projection, appState: appState) { modelID, kind in
+            cache.displayName(conversationID: projection.activeConversationID, modelID: modelID, kind: kind) { modelID, kind in
+                MetadataClient.shared.syncResolveCatalogModel(modelID: modelID, providerKind: kind)?.displayName
+            }
+        }
+    }
+
+    private var newChatRetiredFallbackHint: NewChatRetiredFallbackHint? {
+        NewChatRetiredFallbackHint.resolve(
             requestedProviderID: projection.providerID,
-            requestedModelID: projection.modelID,
             providers: appState.providers,
-            activeModel: appState.activeModel,
-            primaryProvider: appState.primaryProvider ?? makeHistoricalProviderFallback(projection: projection),
             lastUsedModelRef: appState.lastUsedModelRef
         )
     }
@@ -367,11 +581,20 @@ struct ChatView: View {
     }
 
     private var currentAttachmentImportContext: ChatAttachmentPicker.ImportContext {
-        ChatAttachmentPicker.ImportContext(provider: resolvedChatContext?.provider, model: resolvedChatContext?.model)
+        ChatAttachmentPicker.ImportContext(
+            provider: resolvedChatContext?.provider,
+            model: resolvedChatContext?.model,
+            partitionID: appState.sessionPartitionUID
+        )
     }
 
-    private var currentAttachmentSupport: RelayRuntimeSupport.AttachmentSupport {
-        currentAttachmentImportContext.attachmentSupport
+    /// The composer's attachment entries: enabled / disabled reason / first-attach hint, read only from the facade entry (the same identity as ImportContext).
+    private var currentAttachmentEntries: ComposerAttachmentEntries {
+        ComposerAttachmentEntries.resolve(
+            provider: resolvedChatContext?.provider,
+            model: resolvedChatContext?.model,
+            partitionID: appState.sessionPartitionUID
+        )
     }
 
     private var currentFileExtractionLimits: FileExtractionLimits {
@@ -431,7 +654,7 @@ struct ChatView: View {
             provider: provider,
             model: model,
             identity: capabilityEvidenceIdentity(provider: provider, model: model, partitionID: partitionID),
-            keys: Set(["tool_call", "web_search", "vision_input"])
+            keys: Set(["tool_call", "web_search", CapabilityEvidenceFacade.visionInputKey])
                 .union(Set(ReasoningMode.allCases.filter { $0 != .automatic }
                     .map { "reasoning_level/\($0.rawValue)" })),
             explicitKeys: explicitKeys
@@ -486,43 +709,31 @@ struct ChatView: View {
     static func visibleCapabilityKeys(
         provider: Provider,
         model: AIModel,
-        projection: CapabilityEvidenceProjection,
-        negativeCache: RelayNegativeCache = .shared
+        projection: CapabilityEvidenceProjection
     ) -> Set<String> {
         var keys = Set(projection.resolutions.compactMap { key, resolution in
-            key != "vision_input" && capabilityControlVisible(resolution) ? key : nil
+            key != CapabilityEvidenceFacade.visionInputKey && capabilityControlVisible(resolution) ? key : nil
         })
-        // The vision key does not depend on whether the projection has an entry for it: the projection of a relay auto connection may be empty.
-        if visionControlVisible(provider: provider, model: model, projection: projection, negativeCache: negativeCache) {
-            keys.insert("vision_input")
+        // The vision key does not depend on whether the resolution has an entry for it: a relay reads the input projection, which exists even when the UI identity is incomplete.
+        if visionControlVisible(provider: provider, model: model, projection: projection) {
+            keys.insert(CapabilityEvidenceFacade.visionInputKey)
         }
         return keys
     }
 
-    /// Vision entry: for a relay form, unknown vision (including no candidates) is shown as usual; it is hidden only on negative evidence
-    /// (the protocol envelope does not accept images / the override is false / the local engine declares false) or an unexpired `image` negative cache entry;
-    /// an override of true beats the negative cache; other forms still use the general criterion. The protocol is always the one actually sent first (`RelayFirstSendTransport`, otherwise effectiveTransport),
-    /// the same key as the negative-cache write side; an auto connection does not count as an incomplete identity.
+    /// Vision entry = the editable flag of the vision_input input projection (unknown still opens the entry;
+    /// hard block / user removal / negative cache v2 / an entry that does not accept it close it). A relay with no projection has no connection identity, so the entry is closed;
+    /// the other forms with no projection (incomplete identity) still use the general criterion.
     static func visionControlVisible(
         provider: Provider,
         model: AIModel,
-        projection: CapabilityEvidenceProjection,
-        negativeCache: RelayNegativeCache = .shared
+        projection: CapabilityEvidenceProjection
     ) -> Bool {
-        guard ProviderForm.of(provider) == .relay else {
-            return capabilityControlVisible(projection.resolution(for: "vision_input"))
+        if let input = projection.inputProjection(for: CapabilityEvidenceFacade.visionInputKey) {
+            return input.editable
         }
-        let transport = RelayFirstSendTransport.current(provider: provider, model: model)
-        let envelope = RelayRuntimeSupport.envelopeCapabilities(
-            transport: transport, runtimeConfig: MetadataClient.shared.syncRelayRuntimeConfig()
-        )
-        guard envelope.contains(.image) else { return false }
-        if let overridden = model.relayCapabilityOverrides?.image { return overridden }
-        if provider.relayRequested?.engineProfile != nil, model.engineDeclaration?.image == false { return false }
-        return !negativeCache.isRejected(
-            connectionID: provider.id.uuidString, modelID: model.id,
-            transport: transport.rawValue, kind: .image
-        )
+        guard ProviderForm.of(provider) != .relay else { return false }
+        return capabilityControlVisible(projection.resolution(for: CapabilityEvidenceFacade.visionInputKey))
     }
 
     private func visibleCapabilityKeys(
@@ -545,15 +756,16 @@ struct ChatView: View {
             model: model,
             projection: capabilityProjection(provider: provider, model: model, partitionID: partitionID)
         )
-            && ChatAttachmentPicker.ImportContext(provider: provider, model: model).attachmentSupport.image
+            && ChatAttachmentPicker.ImportContext(provider: provider, model: model, partitionID: partitionID).entry.image
     }
 
     private var currentSupportsVideoAttachment: Bool {
-        resolvedChatContext?.model?.capabilities.contains(.video) == true && currentAttachmentSupport.video
+        currentAttachmentEntries.video.isEnabled
     }
 
+    /// The same entry result as ChatComposerBar, so a button is never tappable while the picked file would be pruned away.
     private var currentSupportsFileAttachment: Bool {
-        currentAttachmentSupport.nativeFile || currentAttachmentSupport.textFileInline
+        currentAttachmentEntries.file.isEnabled
     }
 
     private func performSend(
@@ -575,14 +787,6 @@ struct ChatView: View {
         }
         autoScrollEnabled = true
         composerFocused = false
-        if let resolvedChatContext {
-            appState.prepareConversationSelectionForSend(
-                conversationID: projection.activeConversationID,
-                providerID: resolvedChatContext.provider.id,
-                modelID: resolvedChatContext.model?.id,
-                needsRepair: resolvedChatContext.needsConversationRepair
-            )
-        }
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
@@ -640,6 +844,7 @@ struct ChatView: View {
         attachments: [Attachment],
         capabilitySelection: ChatCapabilitySelection
     ) {
+        pendingVoiceConversationStart = nil
         let payload = PendingSendPayload(
             text: text,
             attachments: attachments,
@@ -671,6 +876,46 @@ struct ChatView: View {
             quoteContext: payload.quoteContext,
             capabilitySelection: payload.capabilitySelection
         )
+    }
+
+    // MARK: - Voice conversation entry
+
+    /// Empty-draft ≋: the provider's first-use disclosure on the send path comes first;
+    /// then the session prepares the microphone and recognition and starts listening.
+    private func handleVoiceConversationStart(capabilitySelection: ChatCapabilitySelection) {
+        pendingSendPayload = nil
+        pendingVoiceConversationStart = nil
+        switch ChatVoiceConversationGate.evaluate(
+            providerKind: currentProviderKind,
+            providerDisclosureAccepted: { ProviderDisclosureStore.hasAccepted($0) }
+        ) {
+        case .providerDisclosure(let kind):
+            pendingVoiceConversationStart = capabilitySelection
+            disclosureProvider = kind
+        case .open:
+            startVoiceConversation(capabilitySelection: capabilitySelection)
+        }
+    }
+
+    private func startVoiceConversation(capabilitySelection: ChatCapabilitySelection) {
+        pendingVoiceConversationStart = nil
+        composerFocused = false
+        let draftSessionID = generationParameterDraftSessionID
+        Task {
+            await VoiceConversationSession.shared.start(
+                origin: .chat,
+                conversationID: projection.activeConversationID,
+                host: appState
+            ) { [appState] text, conversationID in
+                return await appState.sendMessageOutcome(
+                    text,
+                    in: conversationID,
+                    generationParameterDraftSessionID: draftSessionID,
+                    capabilitySelection: capabilitySelection,
+                    delivery: .voice
+                )
+            }
+        }
     }
 
     private var preferredAnimation: Animation {
@@ -757,6 +1002,10 @@ struct ChatView: View {
 
     private func presentModelPicker() {
         guard modelPickerPresentation == nil else { return }
+        if ChatModelRemovedBanner.actionTarget(resolvedChatContext, providers: appState.providers) == .connectionSetup {
+            appState.openProviderSetup(from: .providers)
+            return
+        }
         let pickerConversationID = projection.activeConversationID ?? conversationID
         let pickerConversation = pickerConversationID.flatMap { appState.conversation(for: $0) }
         let active = appState.activeModel
@@ -847,12 +1096,22 @@ struct ChatView: View {
 
     #if DEBUG
     nonisolated(unsafe) static var bodyEvaluationCount = 0
-    static func resetBodyEvaluationCount() { bodyEvaluationCount = 0 }
+    /// When non-nil, only this conversation's body evaluations are counted: the counter is a process-wide static, so instances mounted by other tests
+    /// (indirectly through AppRootView and the like, or late renders) must not be counted.
+    nonisolated(unsafe) static var bodyCountConversationID: UUID?
+    static func resetBodyEvaluationCount(countingOnly conversationID: UUID? = nil) {
+        bodyEvaluationCount = 0
+        bodyCountConversationID = conversationID
+    }
     #endif
 
     var body: some View {
         #if DEBUG
-        let _ = { Self.bodyEvaluationCount += 1 }()
+        let _ = {
+            if Self.bodyCountConversationID == nil || Self.bodyCountConversationID == conversationID {
+                Self.bodyEvaluationCount += 1
+            }
+        }()
         #endif
         Group {
             if projection.loadState == .localFailure {
@@ -889,6 +1148,9 @@ struct ChatView: View {
                 .oriveoScreenBackground()
             }
         }
+        // Page anchor for smoke / UI tests: the container only carries the identifier, and children stay readable.
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("chat_screen")
         .sheet(item: $modelPickerPresentation, onDismiss: commitPendingModelSelection) { presentation in
             let pickerConversationID = projection.activeConversationID ?? conversationID
             ModelPickerSheet(
@@ -902,7 +1164,6 @@ struct ChatView: View {
         }
         .sheet(item: $compactionDetailPresentation) { presentation in
             ContextCompactionDetailSheet(detail: presentation.detail, conversationID: presentation.conversationID)
-                .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
                 .environment(appState)
         }
@@ -957,6 +1218,9 @@ struct ChatView: View {
                 provider: kind,
                 onAccept: {
                     ProviderDisclosureStore.markAccepted(kind)
+                    if let voiceSelection = pendingVoiceConversationStart, pendingSendPayload == nil {
+                        startVoiceConversation(capabilitySelection: voiceSelection)
+                    }
                     if let payload = pendingSendPayload {
                         performSend(
                             text: payload.text,
@@ -1082,6 +1346,11 @@ struct ChatView: View {
             guard !Task.isCancelled else { return }
             guard projection.loadState == .bootstrapping else { return }
             bootstrapWatchdogExpired = true
+        }
+        .task(id: newChatRetiredFallbackHint) {
+            if let message = newChatRetiredFallbackHint?.consumeMessage() {
+                ToastManager.shared.show(message)
+            }
         }
     }
 
@@ -1276,6 +1545,7 @@ struct ChatView: View {
                 projection: projection,
                 provider: provider,
                 currentModel: currentModel,
+                pendingModelName: resolvedChatContext?.pendingModelName,
                 isSendingMessage: isSendingMessage,
                 transparentChrome: projection.messages.isEmpty,
                 showModelSwitcher: Binding(
@@ -1302,6 +1572,7 @@ struct ChatView: View {
                 conversationID: projection.activeConversationID,
                 isSendingMessage: isSendingMessage,
                 capabilitySelection: capabilitySelection,
+                currentVisionInput: evidenceProjection?.inputProjection(for: CapabilityEvidenceFacade.visionInputKey),
                 bottomOverlayInset: 0,
                 scrollButtonBottomInset: OriveoTheme.Spacing.md
             )
@@ -1354,6 +1625,11 @@ struct ChatView: View {
             pruneUnsupportedPendingAttachments()
         }
         let lifecycleContent = modelObservedContent
+        .onReceive(
+            NotificationCenter.default.publisher(for: .metadataSnapshotDidPublish).receive(on: RunLoop.main)
+        ) { _ in
+            pendingModelNameCache.removeAll()
+        }
         .onChange(of: resolvedChatContext?.provider.id) { _, _ in
             restoreCapabilityPreferences(provider: provider, model: currentModel, conversationID: projection.activeConversationID)
             pruneUnsupportedPendingAttachments()
@@ -1390,6 +1666,12 @@ struct ChatView: View {
         }
         // ⌘K: opens only when this window's request token changes; other windows' requests do not affect this page
         .onChange(of: navigation.modelPickerRequest) { _, _ in
+            presentModelPicker()
+        }
+        // A new chat whose chain is empty (no usable model) opens the picker; the flag is consumed once the new-chat page appears.
+        .onChange(of: appState.pendingNewChatModelPicker, initial: true) { _, pending in
+            guard pending, conversationID == nil else { return }
+            appState.pendingNewChatModelPicker = false
             presentModelPicker()
         }
 
@@ -1500,6 +1782,7 @@ struct ChatView: View {
                 modelRemovedBanner: ChatModelRemovedBanner.resolve(resolvedChatContext),
                 visibleCapabilityKeys: visibleCapabilityKeys,
                 capabilityEvidenceIdentity: capabilityEvidenceIdentity,
+                attachmentEntries: currentAttachmentEntries,
                 generationProjection: currentModel.map {
                     generationProjection(provider: provider, model: $0)
                 },
@@ -1549,7 +1832,10 @@ struct ChatView: View {
                 onShowFileImporter: { showFileImporter = true },
                 modelControlsReopenToken: composerModelControlsReopenToken,
                 contextUsage: activeContextUsage,
-                onOpenContextUsage: { openContextUsage(capabilitySelection: capabilitySelection) }
+                onOpenContextUsage: { openContextUsage(capabilitySelection: capabilitySelection) },
+                onStartVoiceConversation: {
+                    handleVoiceConversationStart(capabilitySelection: capabilitySelection)
+                }
             )
             .overlay {
                 if isDropTargeted {
@@ -1567,6 +1853,7 @@ struct ChatView: View {
         conversationID: UUID?,
         isSendingMessage: Bool,
         capabilitySelection: ChatCapabilitySelection,
+        currentVisionInput: CapabilityEvidenceFacade.InputCapabilityProjection?,
         bottomOverlayInset: CGFloat,
         scrollButtonBottomInset: CGFloat
     ) -> some View {
@@ -1575,6 +1862,7 @@ struct ChatView: View {
             conversationID: conversationID,
             isSendingMessage: isSendingMessage,
             capabilitySelection: capabilitySelection,
+            currentVisionInput: currentVisionInput,
             bottomOverlayInset: bottomOverlayInset,
             scrollButtonBottomInset: scrollButtonBottomInset,
             windowLoader: windowLoader,
@@ -1642,7 +1930,7 @@ struct ChatView: View {
                     isProcessingAttachment = false
                     showAttachmentSizeLimitAlert = true
                 }
-            case .unsupported, .extractionFailed:
+            case .unsupported, .mediumUnavailable, .extractionFailed:
                 await MainActor.run { isProcessingAttachment = false }
             }
         }
@@ -1663,6 +1951,7 @@ struct ChatView: View {
         afterImport: (@Sendable () -> Void)? = nil
     ) {
         let importContext = currentAttachmentImportContext
+        let refusalReasons = currentAttachmentEntries.fileImportRefusalReasons
         let extractionLimits = currentFileExtractionLimits
         isProcessingAttachment = true
         let byteLimit = currentAttachmentByteLimit
@@ -1674,18 +1963,24 @@ struct ChatView: View {
         )
 
         Task(priority: .userInitiated) {
-            let (attachments, rejectedCount, oversizedCount, overLimitCount) = await ChatDropImport.processFileURLs(
+            let (attachments, rejectedCount, oversizedCount, overLimitCount, refusals) = await ChatDropImport.processFileURLs(
                 urls,
                 availableSlots: availableSlots,
                 importContext: importContext,
                 byteLimit: byteLimit,
-                extractionLimits: extractionLimits
+                extractionLimits: extractionLimits,
+                refusalReasons: refusalReasons
             )
             afterImport?()
             applyImportedAttachments(attachments, source: "file", skippedOverLimit: overLimitCount)
             if oversizedCount > 0 {
                 await MainActor.run {
                     showAttachmentSizeLimitAlert = true
+                }
+            }
+            if !refusals.isEmpty {
+                await MainActor.run {
+                    ToastManager.shared.show(refusals.joined(separator: "\n"))
                 }
             }
             if rejectedCount + unreadableCount > 0 {
@@ -1725,21 +2020,27 @@ struct ChatView: View {
         let imageProviders = plan.imageIndices.map { providers[$0] }
         let fileProviders = plan.fileIndices.map { providers[$0] }
         let unsupportedImageCount = plan.unsupportedCount
+        // When the image entry is disabled with a reason: dropped images are not added to the pending list, and the toast gives the same reason.
+        let imageRefusal = currentAttachmentEntries.image.disabledReason
         Task { @MainActor in
             for provider in imageProviders {
                 if let image = await ChatDropLoader.loadImage(from: provider) {
                     handleCapturedImage(image)
                 }
             }
+            if unsupportedImageCount > 0, let imageRefusal {
+                ToastManager.shared.show(imageRefusal)
+            }
+            let unsupportedWithoutReason = imageRefusal == nil ? unsupportedImageCount : 0
             guard !fileProviders.isEmpty else {
-                if unsupportedImageCount > 0 {
+                if unsupportedWithoutReason > 0 {
                     ToastManager.shared.show(L10n.tr("Unsupported file format"))
                 }
                 return
             }
             let directory = ChatDropLoader.makeTemporaryDirectory()
             var urls: [URL] = []
-            var unreadable = unsupportedImageCount
+            var unreadable = unsupportedWithoutReason
             for provider in fileProviders {
                 if let url = await ChatDropLoader.copyFile(from: provider, into: directory) {
                     urls.append(url)
@@ -1783,9 +2084,10 @@ struct ChatView: View {
                 results.append(attachment)
             case .oversized:
                 oversized += 1
-            case .unsupported:
+            case .unsupported, .mediumUnavailable:
                 break
             case .extractionFailed:
+                // Photos from the camera do not take the local text extraction path, so this case does not actually fire.
                 break
             }
         }
@@ -1794,17 +2096,36 @@ struct ChatView: View {
 
     private func pruneUnsupportedPendingAttachments() {
         guard !pendingAttachments.isEmpty else { return }
-        let supportsImage = currentSupportsImageAttachment
-        let supportsVideo = currentSupportsVideoAttachment
-        let supportsFile = currentSupportsFileAttachment
-        pendingAttachments.removeAll { attachment in
+        let pruned = Self.prunedPendingAttachments(
+            pendingAttachments,
+            context: resolvedChatContext,
+            supportsImage: currentSupportsImageAttachment,
+            supportsVideo: currentSupportsVideoAttachment,
+            supportsFile: currentSupportsFileAttachment
+        )
+        if pruned.count != pendingAttachments.count {
+            pendingAttachments = pruned
+        }
+    }
+
+    /// Drops pending attachments the current entries do not support. While the connection is not in place (pending / removed) the model is nil and every entry is closed;
+    /// that does not mean "the model does not accept them", so nothing is pruned, lest the draft's attachments be cleared.
+    static func prunedPendingAttachments(
+        _ attachments: [Attachment],
+        context: ChatScreenContext?,
+        supportsImage: Bool,
+        supportsVideo: Bool,
+        supportsFile: Bool
+    ) -> [Attachment] {
+        if let context, context.connectionState != .available { return attachments }
+        return attachments.filter { attachment in
             switch attachment.kind {
             case .image:
-                return !supportsImage
+                return supportsImage
             case .video:
-                return !supportsVideo
+                return supportsVideo
             case .file:
-                return !supportsFile
+                return supportsFile
             }
         }
     }
@@ -1816,10 +2137,13 @@ struct ChatView: View {
         skippedOverLimit: Int = 0,
         announcesTruncation: Bool = true
     ) {
+        // Media the entry does not accept is not added to the pending list; the toast gives the same disabled reason as the entry.
+        let entries = currentAttachmentEntries
+        let admission = ComposerAttachmentAdmission.partition(attachments, entries: entries)
         // Text budget gate: a file that would push this message's text over the limit is not added (same limit as at send time).
         let budgeted = AttachmentDelivery.admitWithinTextBudget(
             existing: pendingAttachments,
-            incoming: attachments,
+            incoming: admission.accepted,
             provider: resolvedChatContext?.provider.kind,
             model: resolvedChatContext?.model
         )
@@ -1829,13 +2153,21 @@ struct ChatView: View {
             maxAttachments: currentFileExtractionLimits.maxFiles
         )
         // Notices for one batch are merged into a single multi-line toast: files not added first, then truncated ones.
-        var notices = budgeted.rejected.map {
+        var notices = admission.refusalReasons
+        notices += budgeted.rejected.map {
             String(format: L10n.tr("file_extraction_text_budget_exceeded", table: .chat), $0.fileName)
         }
 
         if !limited.accepted.isEmpty {
             pendingAttachments += limited.accepted
             pruneUnsupportedPendingAttachments()
+            if let context = resolvedChatContext, let model = context.model,
+               let hint = ComposerAttachmentAdmission.firstAttachHint(
+                   added: limited.accepted, entries: entries,
+                   providerID: context.provider.id, modelID: model.id
+               ) {
+                notices.append(hint)
+            }
             // Attachments restored by an edit were already announced as truncated when first added.
             if announcesTruncation,
                let notice = ChatAttachmentPicker.truncationNotice(for: limited.accepted) {

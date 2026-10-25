@@ -276,6 +276,8 @@ struct ChatComposerBar: View {
     var modelRemovedBanner: ChatModelRemovedBanner? = nil
     let visibleCapabilityKeys: Set<String>
     let capabilityEvidenceIdentity: CapabilityEvidenceRequestIdentity?
+    /// Availability, disabled reasons and first-attach hints of the attachment entries (image / video / file); ChatView computes them from the facade entry and passes them in.
+    var attachmentEntries: ComposerAttachmentEntries = .closed
     let generationProjection: GenerationParameterEvidenceProjection?
     let capabilityDecision: ChatCapabilityOutboundDecision
     let isSendingMessage: Bool
@@ -296,6 +298,8 @@ struct ChatComposerBar: View {
 
     @State private var composerText = ""
     @State private var draftSession = ChatComposerDraftSession()
+    /// Selection probe of the input field: dictation inserts the transcript at the selection through it.
+    @State private var dictationProbe = ComposerSelectionProbe()
     @Binding var pendingAttachments: [Attachment]
     @Binding var pendingQuoteContext: QuoteContext?
     @Binding var reasoningMode: ReasoningMode
@@ -321,6 +325,8 @@ struct ChatComposerBar: View {
     var contextUsage: ContextUsageSummary? = nil
     /// Tapping the usage ring opens the context panel.
     var onOpenContextUsage: () -> Void = {}
+    /// Tapping ≋ on an empty draft: the host runs the gate, then starts the voice conversation.
+    var onStartVoiceConversation: () -> Void = {}
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
@@ -345,6 +351,8 @@ struct ChatComposerBar: View {
     /// sheet is dismissed (the verdict stays on that row with the test button beside it; no test is started automatically).
     @State private var opensTestCapabilitiesAfterControls = false
     @State private var webPreferenceSelection: CapabilityWebPreference = .off
+    @State private var voiceTapGuard = VoiceEntryTapGuard()
+    @Namespace private var voiceOrbNamespace
 
     private var visibleRelatedNotes: [NoteRecallEngine.Suggestion] {
         guard !isSendingMessage else { return [] }
@@ -383,48 +391,21 @@ struct ChatComposerBar: View {
         reduceMotion ? .easeOut(duration: 0.18) : .spring(response: 0.34, dampingFraction: 0.84)
     }
 
-    private var attachmentSupport: (image: Bool, video: Bool, nativeFile: Bool, textFileInline: Bool) {
-        Self.attachmentSupport(provider: provider, model: currentModel)
-    }
+    private var supportsImageAttachment: Bool { attachmentEntries.image.isEnabled }
 
-    static func attachmentSupport(
-        provider: Provider,
-        model: AIModel?
-    ) -> (image: Bool, video: Bool, nativeFile: Bool, textFileInline: Bool) {
-        if provider.kind == .relay,
-           let runtime = RelayRuntimeSupport.attachmentSupport(
-               for: provider,
-               model: model,
-               runtimeConfig: MetadataClient.shared.syncRelayRuntimeConfig()
-           ) {
-            return runtime
-        }
-        return provider.kind.attachmentSupport
-    }
-
-    private var supportsImageAttachment: Bool {
-        Self.supportsImageAttachment(
-            provider: provider, model: currentModel, visibleCapabilityKeys: visibleCapabilityKeys
-        )
-    }
-
-    /// The single criterion for the photo / image entry; internal so contract tests can call the production criterion directly.
+    /// The photo / image entry criterion (called directly by contract tests): the vision_input projection being editable means `visibleCapabilityKeys` contains the vision key,
+    /// the same source as the facade entry `attachmentImportEntry.image`.
     static func supportsImageAttachment(
         provider: Provider,
         model: AIModel?,
         visibleCapabilityKeys: Set<String>
     ) -> Bool {
-        visibleCapabilityKeys.contains("vision_input")
-            && attachmentSupport(provider: provider, model: model).image
+        visibleCapabilityKeys.contains(CapabilityEvidenceFacade.visionInputKey)
     }
 
-    private var supportsVideoAttachment: Bool {
-        currentModel?.capabilities.contains(.video) == true && attachmentSupport.video
-    }
+    private var supportsVideoAttachment: Bool { attachmentEntries.video.isEnabled }
 
-    private var supportsFileAttachment: Bool {
-        attachmentSupport.textFileInline || attachmentSupport.nativeFile
-    }
+    private var supportsFileAttachment: Bool { attachmentEntries.file.isEnabled }
 
     private var hasModelControlSelection: Bool {
         capabilityDecision.hasActiveCapabilitySelection || hasModelBehaviorOverride
@@ -481,8 +462,15 @@ struct ChatComposerBar: View {
         currentModel.flatMap { CapabilityPreferenceRuntimeIdentity.make(provider: provider, model: $0)?.wireValue }
     }
 
+    /// The attachment button appears when any entry is visible (enabled, or disabled with a reason).
     private var supportsAttachmentEntry: Bool {
-        supportsImageAttachment || supportsVideoAttachment || supportsFileAttachment
+        attachmentEntries.image.isVisible || attachmentEntries.video.isVisible || attachmentEntries.file.isVisible
+    }
+
+    /// An entry is visible but disabled: the button must use the menu so the reason can be written on the menu item.
+    private var hasDisabledAttachmentEntry: Bool {
+        [attachmentEntries.image, attachmentEntries.video, attachmentEntries.file]
+            .contains { $0.isVisible && !$0.isEnabled }
     }
 
     private var showsModeControls: Bool {
@@ -507,7 +495,7 @@ struct ChatComposerBar: View {
 
     private var attachmentButtonSystemImage: String {
         let supportedKinds = [supportsImageAttachment, supportsVideoAttachment, supportsFileAttachment].filter { $0 }.count
-        guard supportedKinds == 1 else { return "plus" }
+        guard supportedKinds == 1, !hasDisabledAttachmentEntry else { return "plus" }
 
         if supportsImageAttachment { return "photo" }
         if supportsVideoAttachment { return "video" }
@@ -651,18 +639,36 @@ struct ChatComposerBar: View {
 
             noteContextSection
 
-            if showsModeControls {
-                capabilityStrip
-                    .padding(.bottom, -4)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            if let dictationController = DictationHub.shared.controller {
+                DictationPromptSlot(
+                    controller: dictationController,
+                    onCheckConnection: openDictationCheckConnection
+                )
             }
 
-            if !pendingAttachments.isEmpty {
-                attachmentPreviewRow
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
+            if let voiceSurface = voiceConversationController {
+                // The voice conversation replaces the chip row and the input row; the mic and the field are hidden.
+                VoiceConversationBar(surface: voiceSurface, orbNamespace: voiceOrbNamespace) {
+                    VoiceConversationSession.shared.end(.user)
+                }
+                .transition(.opacity)
+            } else if VoiceConversationDemo.status != nil {
+                VoiceConversationDemo.bar
+            } else {
+                if showsModeControls {
+                    capabilityStrip
+                        .padding(.bottom, -4)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
 
-            composerInputRow
+                if !pendingAttachments.isEmpty {
+                    attachmentPreviewRow
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+
+                composerInputRow
+                    .transition(.opacity)
+            }
         }
         .padding(.horizontal, OriveoTheme.Spacing.lg)
         .padding(.top, 12)
@@ -682,6 +688,10 @@ struct ChatComposerBar: View {
             }
         }
         .animation(preferredAnimation, value: showsModeControls)
+        .animation(
+            VoiceConversationBar.transitionAnimation(reduceMotion: reduceMotion),
+            value: voiceConversationController != nil
+        )
         .animation(preferredAnimation, value: compactionHintConversationID)
         .animation(preferredAnimation, value: compactingConversationID)
         .animation(preferredAnimation, value: pendingAttachments.isEmpty)
@@ -700,8 +710,10 @@ struct ChatComposerBar: View {
             configureHighlightPulse()
             syncStoredCapabilitySelection()
             registerCarrierHandoff()
+            VoiceConversationSession.shared.hostAppeared(conversationID)
         }
         .onDisappear {
+            VoiceConversationSession.shared.hostDisappeared(conversationID)
             commitDraft()
             if let carrierHandoffToken {
                 navigation.chatHandoff.unregister(carrierHandoffToken)
@@ -723,7 +735,19 @@ struct ChatComposerBar: View {
         }
         .onChange(of: reduceMotion) { _, _ in configureHighlightPulse() }
         .onChange(of: currentModel?.id) { _, _ in syncStoredCapabilitySelection() }
-        .onChange(of: conversationID) { _, _ in syncStoredCapabilitySelection() }
+        .onChange(of: conversationID) { old, new in
+            syncStoredCapabilitySelection()
+            VoiceConversationSession.shared.hostSwitched(from: old, to: new)
+        }
+        .onChange(of: isSendingMessage) { wasSending, isSending in
+            if wasSending, !isSending { voiceTapGuard.generationEnded(atMs: VoiceEntryTapGuard.nowMs()) }
+        }
+        // ✕ hands the half-spoken transcript back as the draft.
+        .onChange(of: VoiceConversationSession.shared.lastEnd) { _, end in
+            guard let end, let draft = VoiceConversationSession.shared.consumeEndDraft(end, host: conversationID)
+            else { return }
+            composerText = composerText.isEmpty ? draft : composerText + " " + draft
+        }
         // A conversation switch, an external push, focus loss and a store echo can land in the same
         // update; separate onChange handlers run in no guaranteed order.
         .onChange(of: draftInputs) { old, new in
@@ -734,6 +758,10 @@ struct ChatComposerBar: View {
             syncStoredCapabilitySelection()
         }
         #if DEBUG
+        // Short-screen acceptance on the cover display (`-AUTO_FOCUS_COMPOSER`): focus the composer to bring up the keyboard so the layout probe can measure the reading area.
+        .onReceive(NotificationCenter.default.publisher(for: .oriveoDebugFocusComposer)) { _ in
+            composerFocused.wrappedValue = true
+        }
         // Screenshot-only: open the model options panel once the input bar of a relay family sample page is mounted
         // (wait for the push animation to finish before presenting the sheet).
         .onAppear {
@@ -757,6 +785,59 @@ struct ChatComposerBar: View {
         .task(id: noteRecallTaskID) {
             await refreshRelatedNotes()
         }
+        .modifier(ChatComposerDictationHost(
+            controller: DictationHub.shared.controller,
+            slotKey: Self.dictationSlotKey(conversationID: conversationID),
+            canSend: { dictationCanSend },
+            onInsert: { transcript in
+                let updated = dictationProbe.insert(transcript: transcript, currentText: composerText)
+                composerText = updated
+                return updated
+            },
+            onSend: { text in submitComposer(text: text) }
+        ))
+    }
+
+    // MARK: - Dictation
+
+    /// This bar's recording slot: a conversation uses its own slot, and the compose state uses the home draft slot.
+    static func dictationSlotKey(conversationID: UUID?) -> String {
+        guard let conversationID else { return RecordingStore.homeDraftKey }
+        return RecordingStore.slotKey(conversationID: conversationID)
+    }
+
+    /// Where Check Connection on the dictation card goes: with a connection id it opens that connection's details, otherwise provider setup.
+    enum DictationCheckConnectionRoute: Equatable {
+        case providerDetail(UUID)
+        case providerSetup
+    }
+
+    static func dictationCheckConnectionRoute(providerID: UUID?) -> DictationCheckConnectionRoute {
+        guard let providerID else { return .providerSetup }
+        return .providerDetail(providerID)
+    }
+
+    private func openDictationCheckConnection(_ providerID: UUID?) {
+        switch Self.dictationCheckConnectionRoute(providerID: providerID) {
+        case .providerDetail(let id):
+            navigation.openProviderDetail(providerID: id)
+        case .providerSetup:
+            appState.openProviderSetup(from: .providers)
+        }
+    }
+
+    /// Shared by the send button and dictation's "transcribe and send": carries the pending attachments.
+    private func submitComposer(text: String) {
+        onSend(text, pendingAttachments)
+    }
+
+    /// The same source as the send button; the transcript is inserted before sending, so this is judged as "has content".
+    private var dictationCanSend: Bool {
+        ChatModelRemovedBanner.isSendEnabled(
+            hasComposerContent: true,
+            controlsDisabled: controlsDisabled,
+            banner: modelRemovedBanner
+        )
     }
 
     private struct DraftInputs: Equatable {
@@ -982,7 +1063,7 @@ struct ChatComposerBar: View {
         )
         let thinking = capabilityDecision.reasoningIntent.map(ModelControlIntentLabel.text)
             ?? L10n.tr("Automatic")
-        return "\(L10n.tr("Web Search", table: .chat)): \(web) • \(L10n.tr("Thinking Mode", table: .chat)): \(thinking)"
+        return "\(L10n.tr("Web Search", table: .chat)): \(web) · \(L10n.tr("Thinking Mode", table: .chat)): \(thinking)"
     }
 
     // MARK: - Attachment Preview
@@ -1029,7 +1110,18 @@ struct ChatComposerBar: View {
 
     // MARK: - Composer Input Row
 
+    @ViewBuilder
     private var composerInputRow: some View {
+        if let controller = DictationHub.shared.controller {
+            DictationInputSwitcher(controller: controller, canSend: dictationCanSend) {
+                composerIdleInputRow
+            }
+        } else {
+            composerIdleInputRow
+        }
+    }
+
+    private var composerIdleInputRow: some View {
         HStack(alignment: .bottom, spacing: 7) {
             VStack(spacing: 6) {
                 pendingQuoteChip
@@ -1081,15 +1173,19 @@ struct ChatComposerBar: View {
                 isEnabled: !controlsDisabled,
                 maxLength: ChatInputLimit.maxUTF16,
                 onLengthLimitExceeded: ChatInputLimit.showLimitReachedToast,
-                // Return on a hardware keyboard sends: the same condition and the same onSend as the send button
-                onHardwareReturnSend: {
-                    onSend(composerText, pendingAttachments)
-                },
+                selectionProbe: dictationProbe,
+                // Return on a hardware keyboard sends: the same condition and the same submitComposer as the send button
+                onHardwareReturnSend: { submitComposer(text: composerText) },
                 canSendOnHardwareReturn: !isSendingMessage && hasDraftHighlight
             )
             .padding(.vertical, 8)
             .frame(minHeight: 44, alignment: .center)
             .frame(maxWidth: .infinity, alignment: .leading)
+
+            if let controller = DictationHub.shared.controller {
+                DictationMicButton(controller: controller)
+                    .disabled(controlsDisabled)
+            }
         }
         .padding(.leading, supportsAttachmentEntry ? 6 : 14)
         .padding(.trailing, 14)
@@ -1184,7 +1280,7 @@ struct ChatComposerBar: View {
         let nonImageOptionCount = (supportsVideoAttachment ? 1 : 0) + (supportsFileAttachment ? 1 : 0)
         let totalOptionCount = imageOptionCount + nonImageOptionCount
 
-        if totalOptionCount >= 2 {
+        if totalOptionCount >= 2 || hasDisabledAttachmentEntry {
             Menu {
                 if supportsImageAttachment {
                     if cameraAvailable {
@@ -1195,16 +1291,24 @@ struct ChatComposerBar: View {
                     Button { onShowPhotoPicker() } label: {
                         Label(L10n.tr("Choose from Library"), systemImage: "photo.on.rectangle")
                     }
+                } else if let reason = attachmentEntries.image.disabledReason {
+                    disabledAttachmentMenuItem(
+                        title: L10n.tr("Choose from Library"), systemImage: "photo.on.rectangle", reason: reason
+                    )
                 }
                 if supportsVideoAttachment {
                     Button { onShowFileImporter() } label: {
                         Label(L10n.tr("Video"), systemImage: "video")
                     }
+                } else if let reason = attachmentEntries.video.disabledReason {
+                    disabledAttachmentMenuItem(title: L10n.tr("Video"), systemImage: "video", reason: reason)
                 }
                 if supportsFileAttachment {
                     Button { onShowFileImporter() } label: {
                         Label(L10n.tr("File"), systemImage: "paperclip")
                     }
+                } else if let reason = attachmentEntries.file.disabledReason {
+                    disabledAttachmentMenuItem(title: L10n.tr("File"), systemImage: "paperclip", reason: reason)
                 }
             } label: { label }
                 .menuIndicator(.hidden)
@@ -1231,6 +1335,20 @@ struct ChatComposerBar: View {
                 .accessibilityLabel(Text(attachmentAccessibilityLabel))
                 .accessibilityValue(Text(attachmentAccessibilityValue))
         }
+    }
+
+    /// A visible but disabled menu item: the disabled reason (InputCapabilityCopy) is written on the line below the title.
+    private func disabledAttachmentMenuItem(title: String, systemImage: String, reason: String) -> some View {
+        Button {} label: {
+            Label {
+                Text(title)
+                Text(reason)
+            } icon: {
+                Image(systemName: systemImage)
+            }
+        }
+        .disabled(true)
+        .accessibilityHint(Text(reason))
     }
 
     /// Hint shown on the third compaction while ChatManager flags this conversation.
@@ -1342,10 +1460,20 @@ struct ChatComposerBar: View {
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
-            Button(banner.actionTitle, action: onChooseModel)
+            if let successorModelID = banner.successorModelID {
+                // An official model was retired and its successor is enabled: one tap switches to the successor, through the same selection path as the model picker.
+                Button(banner.actionTitle) {
+                    appState.selectModel(modelID: successorModelID, providerID: banner.providerID, for: conversationID)
+                }
                 .font(OriveoTheme.Typography.footnote.weight(.semibold))
                 .foregroundStyle(OriveoTheme.Palette.primary)
                 .buttonStyle(.plain)
+            } else {
+                Button(banner.actionTitle, action: onChooseModel)
+                    .font(OriveoTheme.Typography.footnote.weight(.semibold))
+                    .foregroundStyle(OriveoTheme.Palette.primary)
+                    .buttonStyle(.plain)
+            }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
@@ -1487,8 +1615,16 @@ struct ChatComposerBar: View {
             banner: modelRemovedBanner
         )
 
+        let action = VoiceConversationEntry.primaryAction(
+            isSending: isSendingMessage,
+            hasContent: hasComposerContent,
+            sendEnabled: isPrimed,
+            voiceAvailable: voiceConversationAvailable,
+            modelProducesText: VoiceConversationEntry.modelProducesText(currentModel)
+        )
+
         return Group {
-            if isSendingMessage {
+            if action != .voice && isSendingMessage {
                 OriveoCircleIconButton(
                     systemImage: "stop.fill",
                     fill: AnyShapeStyle(OriveoTheme.Palette.danger),
@@ -1501,27 +1637,56 @@ struct ChatComposerBar: View {
                 }
                 .accessibilityLabel(L10n.tr("Stop Generating"))
             } else {
+                // ≋ and ↑ are the same solid purple primary key: empty draft ≋, text ↑, and the switch only morphs the icon while the key itself stays put.
+                let isVoice = action == .voice
+                let isLit = isVoice || isPrimed
                 OriveoCircleIconButton(
-                    systemImage: "arrow.up",
-                    fill: isPrimed
+                    systemImage: isVoice ? "waveform" : "arrow.up",
+                    // Unavailable (empty draft and no ≋): the same flat lavender circle as the attachment / top buttons (no white fill or grey edge);
+                    // available: lit up as a purple gradient CTA, keeping the primary / secondary hierarchy.
+                    fill: isLit
                         ? AnyShapeStyle(OriveoTheme.Palette.primaryGradient)
                         : AnyShapeStyle(Color.dynamic(light: 0x8C5FF8, dark: 0xFFFFFF, lightAlpha: 0.12, darkAlpha: 0.10)),
-                    foreground: isPrimed ? .white : OriveoTheme.Palette.textTertiary,
-                    border: isPrimed ? OriveoTheme.Palette.hairline : .clear,
-                    shadowColor: isPrimed ? OriveoTheme.Palette.primaryGlow : .clear,
+                    foreground: isLit ? .white : OriveoTheme.Palette.textTertiary,
+                    border: isLit ? OriveoTheme.Palette.hairline : .clear,
+                    shadowColor: isLit ? OriveoTheme.Palette.primaryGlow : .clear,
                     size: 40,
                     iconSize: 16,
                     bounceValue: isPrimed
                 ) {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    onSend(composerText, pendingAttachments)
+                    if isVoice {
+                        guard voiceTapGuard.acceptsTap(atMs: VoiceEntryTapGuard.nowMs()) else { return }
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        onStartVoiceConversation()
+                    } else {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        submitComposer(text: composerText)
+                    }
                 }
-                .scaleEffect(isPrimed ? 1 : 0.96)
-                .disabled(!isPrimed)
+                .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
+                .voiceOrbMatched(voiceOrbNamespace, reduceMotion: reduceMotion)
+                .scaleEffect(isLit ? 1 : 0.96)
+                .disabled(!isLit)
+                // ≋ and ↑ are both icon-only: each gets a screen reader name (↑ shares "Send" with the home page key)
+                .accessibilityLabel(isVoice ? Text(VoiceConversationCopy.startA11y) : Text(L10n.tr("Send", table: .notices)))
             }
         }
         .animation(preferredAnimation, value: isSendingMessage)
         .animation(.easeInOut(duration: 0.18), value: hasComposerContent)
+    }
+
+    // MARK: - Voice Conversation
+
+    /// The voice bar shows here when this page hosts the running conversation.
+    private var voiceConversationController: (any VoiceConversationSurface)? {
+        let session = VoiceConversationSession.shared
+        guard session.isPresented(in: conversationID) else { return nil }
+        return session.surface
+    }
+
+    /// ≋ needs an editable page, a usable model and the dictation pipeline.
+    private var voiceConversationAvailable: Bool {
+        !controlsDisabled && modelRemovedBanner == nil && DictationHub.shared.controller != nil
     }
 
     // MARK: - Shared Surface Helper
@@ -1706,7 +1871,7 @@ struct ComposerToolsChipState: Equatable {
         return enabledServerCount > 0 ? String(enabledServerCount) : L10n.tr("Disabled")
     }
 
-    /// Whether the capability strip draws the "Tools" capsule: the master switch is on and at least one server has been added (even if all are off), the same rule as the library capsule.
+    /// Whether the capability strip draws the "Tools" capsule: the master switch is on and at least one server has been added (even if all are off).
     /// Hidden when none has been added (the discovery entry is in Settings > MCP); also not drawn while the panel state has not been read yet (`.empty`).
     static func resolve(featureEnabled: Bool, panelState: McpToolPanelState) -> ComposerToolsChipState? {
         guard featureEnabled, panelState.hasServers else { return nil }
@@ -1714,5 +1879,175 @@ struct ComposerToolsChipState: Equatable {
             enabledServerCount: panelState.enabledServerCount,
             isAvailable: panelState.availability.isAvailable
         )
+    }
+}
+
+/// Dictation host mount: not mounted when the controller cannot be created (nil).
+private struct ChatComposerDictationHost: ViewModifier {
+    let controller: DictationController?
+    let slotKey: String
+    let canSend: () -> Bool
+    /// Inserts the transcript and returns the full text after insertion.
+    let onInsert: (String) -> String
+    /// Sends the given text.
+    let onSend: (String) -> Void
+
+    /// Remembers the text after the latest insertion: "transcribe and send" sends right after inserting, without waiting for the bound @State to refresh.
+    private final class InsertedText {
+        var value: String?
+    }
+
+    @State private var inserted = InsertedText()
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if let controller {
+            let inserted = inserted
+            let onInsert = onInsert
+            let onSend = onSend
+            content.dictationHost(
+                controller: controller,
+                slotKey: slotKey,
+                canSend: canSend,
+                onInsert: { transcript in inserted.value = onInsert(transcript) },
+                onSend: {
+                    guard let text = inserted.value else { return }
+                    inserted.value = nil
+                    onSend(text)
+                }
+            )
+        } else {
+            content
+        }
+    }
+}
+
+// MARK: - Attachment entries
+
+/// The three attachment entries of the input: enabled / visible but disabled with a reason / hidden, plus the first-attach hint flag.
+/// The criteria read only the facade entry `CapabilityEvidenceFacade.attachmentImportEntry` and the same three-key projection.
+struct ComposerAttachmentEntries: Equatable, Sendable {
+    struct Entry: Equatable, Sendable {
+        let isEnabled: Bool
+        /// The localized disabled reason; non-nil only when the entry is visible but disabled.
+        let disabledReason: String?
+        /// The projection is unknown: when an attachment is actually added to the pending list, a light hint is shown once per model.
+        let hintsFirstAttach: Bool
+        let medium: InputCapabilityCopy.Medium
+
+        var isVisible: Bool { isEnabled || disabledReason != nil }
+
+        static func hidden(_ medium: InputCapabilityCopy.Medium) -> Entry {
+            Entry(isEnabled: false, disabledReason: nil, hintsFirstAttach: false, medium: medium)
+        }
+    }
+
+    let image: Entry
+    let video: Entry
+    let file: Entry
+    /// The reason when the file entry is available (text injection) but native files are not accepted: used to hint when a binary file is picked.
+    var nativeFileRefusal: String? = nil
+
+    static let closed = ComposerAttachmentEntries(image: .hidden(.image), video: .hidden(.video), file: .hidden(.file))
+
+    /// When the file picker / drops go through file import, the hint reasons for media the entry does not accept (passed to `ChatDropImport.processFileURLs`).
+    var fileImportRefusalReasons: [AttachmentKind: String] {
+        var reasons: [AttachmentKind: String] = [:]
+        if let reason = video.disabledReason { reasons[.video] = reason }
+        if let reason = file.disabledReason ?? nativeFileRefusal { reasons[.file] = reason }
+        return reasons
+    }
+
+    func entry(for kind: AttachmentKind) -> Entry {
+        switch kind {
+        case .image: image
+        case .video: video
+        case .file: file
+        }
+    }
+
+    /// The same identity as `ChatAttachmentPicker.ImportContext` (built from the partition).
+    static func resolve(provider: Provider?, model: AIModel?, partitionID: String?) -> ComposerAttachmentEntries {
+        guard let provider, let model else { return .closed }
+        let identity = partitionID.flatMap {
+            ChatView.capabilityEvidenceIdentity(provider: provider, model: model, partitionID: $0)
+        }
+        let projection = CapabilityEvidenceProductionAdapter.capabilityProjection(
+            provider: provider,
+            model: model,
+            identity: identity,
+            keys: Set(CapabilityEvidenceFacade.inputCapabilityKeys)
+        )
+        let importEntry = CapabilityEvidenceFacade.attachmentImportEntry(
+            provider: provider, model: model, projection: projection,
+            relayInputEnvelope: {
+                RelayRuntimeSupport.inputEnvelope(
+                    transport: $0, runtimeConfig: MetadataClient.shared.syncRelayRuntimeConfig()
+                )
+            }
+        )
+
+        func make(_ key: String, _ medium: InputCapabilityCopy.Medium, enabled: Bool) -> Entry {
+            let input = projection.inputProjection(for: key)
+            if enabled {
+                return Entry(
+                    isEnabled: true, disabledReason: nil,
+                    hintsFirstAttach: input?.hint == .firstAttachOnce, medium: medium
+                )
+            }
+            // With no projection no reason can be given: stay hidden rather than invent one.
+            guard let reason = input?.disabledReason else { return .hidden(medium) }
+            return Entry(
+                isEnabled: false, disabledReason: InputCapabilityCopy.disabled(reason, medium),
+                hintsFirstAttach: false, medium: medium
+            )
+        }
+
+        // All three entries follow the same rule: only the three-key projection counts, with no fallback to the model's old capability fields.
+        let image = make(CapabilityEvidenceFacade.visionInputKey, .image, enabled: importEntry.image)
+        let video = make(CapabilityEvidenceFacade.videoInputKey, .video, enabled: importEntry.video)
+        let file = make(
+            CapabilityEvidenceFacade.fileInputKey, .file,
+            enabled: importEntry.textFileInline || importEntry.nativeFile
+        )
+        let nativeFileRefusal = importEntry.nativeFile
+            ? nil
+            : projection.inputProjection(for: CapabilityEvidenceFacade.fileInputKey)?.disabledReason
+                .map { InputCapabilityCopy.disabled($0, .file) }
+        return ComposerAttachmentEntries(image: image, video: video, file: file, nativeFileRefusal: nativeFileRefusal)
+    }
+}
+
+/// The entry gate and first hint before attachments join the pending list (pure functions, shared by ChatView and tests).
+enum ComposerAttachmentAdmission {
+    /// Media the entry does not accept is dropped; those with a disabled reason are deduplicated by reason and written into the hint, and those without a reason are left to prune silently as before.
+    static func partition(
+        _ attachments: [Attachment],
+        entries: ComposerAttachmentEntries
+    ) -> (accepted: [Attachment], refusalReasons: [String]) {
+        var accepted: [Attachment] = []
+        var reasons: [String] = []
+        for attachment in attachments {
+            let entry = entries.entry(for: attachment.kind)
+            if entry.isEnabled {
+                accepted.append(attachment)
+            } else if let reason = entry.disabledReason, !reasons.contains(reason) {
+                reasons.append(reason)
+            }
+        }
+        return (accepted, reasons)
+    }
+
+    /// When the attachments actually added contain unknown media, a light one-line hint is shown the first time per connection x model (regardless of medium).
+    static func firstAttachHint(
+        added: [Attachment],
+        entries: ComposerAttachmentEntries,
+        providerID: UUID,
+        modelID: String,
+        history: InputCapabilityHintHistory = .shared
+    ) -> String? {
+        guard let entry = added.lazy.map({ entries.entry(for: $0.kind) }).first(where: \.hintsFirstAttach),
+              history.consumeFirstHint(providerID: providerID, modelID: modelID) else { return nil }
+        return InputCapabilityCopy.hintFirstAttach(entry.medium)
     }
 }
