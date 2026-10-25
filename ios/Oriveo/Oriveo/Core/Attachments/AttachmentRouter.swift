@@ -51,9 +51,11 @@ nonisolated enum AttachmentRouter {
         attachment: Attachment,
         provider: ProviderKind,
         model: AIModel,
-        mode: NativeFileMode = .always
+        mode: NativeFileMode = .always,
+        fileInput: CapabilityEvidenceFacade.InputCapabilityProjection? = nil
     ) -> AttachmentRoute {
         guard mode != .off else { return .clientExtract }
+        if let fileInput, fileInput.outbound != .nativePart { return .clientExtract }
         guard attachment.kind == .file else { return .clientExtract }
 
         let mime = attachment.mimeType.lowercased()

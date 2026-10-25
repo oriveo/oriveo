@@ -167,17 +167,38 @@ nonisolated enum NativeFileFallback {
     }
 
     /// Only a refusal that "Test capabilities" classifies as rejected is written to the Relay negative cache; the fallback resend itself is unaffected.
-    private static func rememberTextOnly(_ scope: Scope, rejectedStatusCode: Int?) {
+    static func rememberTextOnly(
+        _ scope: Scope,
+        rejectedStatusCode: Int?,
+        negativeCache: RelayNegativeCache = .shared,
+        capabilityNegativeCache: CapabilityNegativeCache = .shared
+    ) {
         if scope.providerKind == .relay {
             guard let connectionID = scope.connectionID, let modelID = scope.modelID,
                   let rejectedStatusCode,
                   RelayRejectionRecording.isRejected(RelayPreOutputRejection(
                       status: rejectedStatusCode, contentType: "application/json", body: Data()
                   )) else { return }
-            RelayNegativeCache.shared.record(
+            negativeCache.record(
                 connectionID: connectionID.uuidString, modelID: modelID,
                 transport: scope.protocolName, kind: .file
             )
+            // The v2 negative cache is written alongside: the read side (the facade's file_input projection) only looks at this one.
+            if let transport = RelayTransport(rawValue: scope.protocolName),
+               let family = CapabilityEvidenceProductionAdapter.relayWireFamily(
+                   transport: transport, key: CapabilityEvidenceFacade.fileInputKey
+               ) {
+                capabilityNegativeCache.record(
+                    connectionId: connectionID.uuidString, modelId: modelID, wireFamily: family,
+                    capabilityKey: CapabilityEvidenceFacade.fileInputKey,
+                    signatureId: "relay.classified_rejected",
+                    verdictRevision: CapabilityNegativeCache.verdictRevision(
+                        CapabilityEvidenceProductionAdapter.relayInputVerdict(
+                            key: CapabilityEvidenceFacade.fileInputKey, visionEvidence: nil, wireFamily: family
+                        )
+                    )
+                )
+            }
             return
         }
         rememberTextOnly(scope)

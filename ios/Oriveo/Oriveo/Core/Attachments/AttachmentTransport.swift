@@ -25,8 +25,24 @@ struct AttachmentTransportProfile: Equatable {
     let supportsNativeFiles: Bool
     /// Native file mode for this turn. Only meaningful when `supportsNativeFiles` is true.
     let nativeFiles: NativeFileMode
-    /// When the route cannot carry images, this placeholder stands in for each image in the text; nil means the builder handles images itself.
+    /// Whether this route's message builder can assemble images into image parts in the request format.
+    /// A route that is false (plain text only) always writes `imagePlaceholderText` for every image; whether a true route sends the image depends only on the vision projection's outbound.
+    let supportsImageParts: Bool
+    /// When an image does not go into the request, this placeholder is written into the body for each image: a text-only route always writes it; a route that can carry image parts
+    /// only writes it when the vision projection's outbound=placeholder and the builder hands the image over. nil means the route writes no placeholder and the builder handles images itself.
     let imagePlaceholderText: String?
+    /// Whether this route's message builder can assemble videos into video parts in the request format (Gemini inlineData, Moonshot video_url).
+    let supportsVideoParts: Bool
+
+    /// When a video does not go into the request, this placeholder is written into the body for each video, without the file name: a route with an image placeholder derives it by
+    /// swapping Image for Video; a route that sends images natively but takes no video (such as Anthropic Messages) writes the generic text.
+    /// nil only appears when the route can send video parts.
+    var videoPlaceholderText: String? {
+        if let imagePlaceholderText {
+            return imagePlaceholderText.replacingOccurrences(of: "Image", with: "Video")
+        }
+        return supportsVideoParts ? nil : textOnlyRouteVideoPlaceholder
+    }
 
     /// The mode actually in effect. A route whose builder never assembles native blocks must be `.off`,
     /// otherwise a file routed away would reach neither the text nor the request.
@@ -40,13 +56,17 @@ struct AttachmentTransportProfile: Equatable {
         wrapper: AttachmentWrapperVersion,
         supportsNativeFiles: Bool = false,
         nativeFiles: NativeFileMode = .off,
-        imagePlaceholderText: String? = nil
+        supportsImageParts: Bool = true,
+        imagePlaceholderText: String? = nil,
+        supportsVideoParts: Bool = false
     ) {
         self.provider = provider
         self.wrapper = wrapper
         self.supportsNativeFiles = supportsNativeFiles
         self.nativeFiles = nativeFiles
+        self.supportsImageParts = supportsImageParts
         self.imagePlaceholderText = imagePlaceholderText
+        self.supportsVideoParts = supportsVideoParts
     }
 
     #if DEBUG
@@ -56,14 +76,18 @@ struct AttachmentTransportProfile: Equatable {
         wrapper: AttachmentWrapperVersion,
         supportsNativeFiles: Bool = false,
         nativeFiles: NativeFileMode = .off,
-        imagePlaceholderText: String? = nil
+        supportsImageParts: Bool = true,
+        imagePlaceholderText: String? = nil,
+        supportsVideoParts: Bool = false
     ) -> AttachmentTransportProfile {
         AttachmentTransportProfile(
             provider: provider,
             wrapper: wrapper,
             supportsNativeFiles: supportsNativeFiles,
             nativeFiles: nativeFiles,
-            imagePlaceholderText: imagePlaceholderText
+            supportsImageParts: supportsImageParts,
+            imagePlaceholderText: imagePlaceholderText,
+            supportsVideoParts: supportsVideoParts
         )
     }
     #endif
@@ -101,6 +125,9 @@ enum NativeFileUploadSwitch {
 /// Placeholder a text-only route writes into the body for each image, so the model knows the user attached
 /// an image that was not delivered instead of assuming there was none.
 let textOnlyRouteImagePlaceholder = "[Image omitted: this route sends text only]"
+
+/// Generic video placeholder written when a video does not go into the request and the route has no image placeholder of its own.
+let textOnlyRouteVideoPlaceholder = "[Video omitted: this route sends text only]"
 
 /// Every outbound route. Adding a route means adding a case; the `profile` switch does not compile until it is declared.
 enum AttachmentTransport: Hashable {
@@ -157,7 +184,7 @@ enum AttachmentTransport: Hashable {
         case .relayOpenAIResponses:
             return .init(provider: .openAI, wrapper: .xmlV1, supportsNativeFiles: true, nativeFiles: NativeFileUploadSwitch.relayOpenAIResponses)
         case .relayLlamaCppNative:
-            return .init(provider: .openAI, wrapper: .xmlV1, imagePlaceholderText: textOnlyRouteImagePlaceholder)
+            return .init(provider: .openAI, wrapper: .xmlV1, supportsImageParts: false, imagePlaceholderText: textOnlyRouteImagePlaceholder)
 
         case .anthropicMessages:
             return .init(provider: .anthropic, wrapper: .xmlV1, supportsNativeFiles: true, nativeFiles: NativeFileUploadSwitch.anthropicMessages)
@@ -165,12 +192,12 @@ enum AttachmentTransport: Hashable {
             return .init(provider: .anthropic, wrapper: .xmlV1, supportsNativeFiles: true, nativeFiles: NativeFileUploadSwitch.relayAnthropicMessages)
 
         case .geminiGenerateContent:
-            return .init(provider: .gemini, wrapper: .xmlV1, supportsNativeFiles: true, nativeFiles: NativeFileUploadSwitch.geminiGenerateContent)
+            return .init(provider: .gemini, wrapper: .xmlV1, supportsNativeFiles: true, nativeFiles: NativeFileUploadSwitch.geminiGenerateContent, supportsVideoParts: true)
         case .relayGeminiGenerateContent:
-            return .init(provider: .gemini, wrapper: .xmlV1, supportsNativeFiles: true, nativeFiles: NativeFileUploadSwitch.relayGeminiGenerateContent)
+            return .init(provider: .gemini, wrapper: .xmlV1, supportsNativeFiles: true, nativeFiles: NativeFileUploadSwitch.relayGeminiGenerateContent, supportsVideoParts: true)
         case .geminiInteractions:
             // The image part shape for this route is not established (the recipe and replay fixtures only cover text parts), so no image is sent and a placeholder stands in.
-            return .init(provider: .gemini, wrapper: .xmlV1, imagePlaceholderText: textOnlyRouteImagePlaceholder)
+            return .init(provider: .gemini, wrapper: .xmlV1, supportsImageParts: false, imagePlaceholderText: textOnlyRouteImagePlaceholder)
 
         case .openRouterChat:
             return .init(provider: .openRouter, wrapper: .xmlV1, supportsNativeFiles: true, nativeFiles: NativeFileUploadSwitch.openRouterChat)
@@ -193,7 +220,7 @@ enum AttachmentTransport: Hashable {
         case .qwenChat:
             return .init(provider: .qwen, wrapper: .markdownV1)
         case .moonshotChat:
-            return .init(provider: .moonshot, wrapper: .markdownV1)
+            return .init(provider: .moonshot, wrapper: .markdownV1, supportsVideoParts: true)
         case .zhipuChat:
             return .init(provider: .zhipu, wrapper: .markdownV1)
         case .siliconFlowChat:
@@ -218,6 +245,7 @@ enum AttachmentTransport: Hashable {
             }
             return .init(
                 provider: provider, wrapper: AttachmentWrapperVersion.resolve(provider: provider),
+                supportsImageParts: chatRoute == nil,
                 imagePlaceholderText: chatRoute?.profile.imagePlaceholderText
             )
         }

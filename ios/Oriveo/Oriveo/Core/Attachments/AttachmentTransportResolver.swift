@@ -115,7 +115,7 @@ enum AttachmentTransportResolver {
 /// delivery and the model options panel all read this one copy through `evidenceModel`, so the three places
 /// see the same allowlist.
 /// - On: adds `application/pdf` and sets `pdfNativeDefault = true` (the original allowlist is kept as a union);
-///   when the route envelope says it does not accept native files (`nativeFile == false`) the file stays text,
+///   when the facade entry result says native files are closed (the envelope does not accept native files) the file stays text,
 ///   because the protocol cannot carry a file block.
 /// - Off: the allowlist is treated as empty and every file is injected as text.
 /// - No override: unchanged.
@@ -125,17 +125,23 @@ enum AttachmentTransportResolver {
 enum RelayFileOverride {
     static let pdfMime = "application/pdf"
 
-    static func applied(
-        to model: AIModel,
-        provider: Provider,
-        runtimeConfig: @autoclosure () -> MetadataClient.RelayRuntimeConfig = MetadataClient.shared.syncRelayRuntimeConfig()
-    ) -> AIModel {
+    static func applied(to model: AIModel, provider: Provider) -> AIModel {
         guard let value = model.relayCapabilityOverrides?.file else { return model }
         var out = model
-        let envelopeClosed = RelayRuntimeSupport.attachmentSupport(
-            for: provider, model: model, runtimeConfig: runtimeConfig()
-        )?.nativeFile == false
-        if value, !envelopeClosed {
+        // Whether native files are open only reads the facade entry result (the file_input projection: closed when the envelope does not accept it).
+        let projection = CapabilityEvidenceProductionAdapter.capabilityProjection(
+            provider: provider, model: model, identity: nil,
+            keys: [CapabilityEvidenceFacade.fileInputKey]
+        )
+        let nativeFileOpen = CapabilityEvidenceFacade.attachmentImportEntry(
+            provider: provider, model: model, projection: projection,
+            relayInputEnvelope: {
+                RelayRuntimeSupport.inputEnvelope(
+                    transport: $0, runtimeConfig: MetadataClient.shared.syncRelayRuntimeConfig()
+                )
+            }
+        ).nativeFile
+        if value, nativeFileOpen {
             if !out.nativeFileMimes.contains(pdfMime) { out.nativeFileMimes.append(pdfMime) }
             out.pdfNativeDefault = true
         } else {

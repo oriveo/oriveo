@@ -13,7 +13,7 @@ struct AttachmentDeliveryPlan {
     let textPayload: [Attachment]
     /// Files over the text limit that did not make it into `injectedText`.
     let skipped: [(attachment: Attachment, reason: AttachmentInjector.SkipReason)]
-    /// The user's text, image placeholders, and each file's text block.
+    /// The user's text, each file's text block, and the image / video placeholders (plus [D]).
     let injectedText: String
 }
 
@@ -22,18 +22,21 @@ enum AttachmentDelivery {
     /// - Parameters:
     ///   - transport: The outbound route's declaration: native file blocks or not, wrapper format, native threshold owner, image placeholder.
     ///   - model: Used to resolve the text limits (`FileExtractionLimits.resolve`) and the native allow-list; with nil the default limits apply and everything goes as text.
+    ///   - fileInput: The file_input projection of an official connection; when its outbound is not native_part, every file goes through text injection.
     static func plan(
         userText: String,
         attachments: [Attachment],
         transport: AttachmentTransportProfile,
         model: AIModel?,
+        fileInput: CapabilityEvidenceFacade.InputCapabilityProjection? = nil,
         dynamicText: String? = nil
     ) -> AttachmentDeliveryPlan {
         let (native, textPayload) = partition(
             attachments,
             provider: transport.provider,
             mode: NativeFileFallback.effectiveMode(of: transport),
-            model: model
+            model: model,
+            fileInput: fileInput
         )
         let (injectedText, skipped) = inject(
             userText: userText,
@@ -41,6 +44,7 @@ enum AttachmentDelivery {
             wrapper: transport.wrapper,
             model: model,
             imagePlaceholderText: transport.imagePlaceholderText,
+            videoPlaceholderText: transport.videoPlaceholderText,
             dynamicText: dynamicText
         )
         return AttachmentDeliveryPlan(
@@ -167,13 +171,14 @@ enum AttachmentDelivery {
         _ attachments: [Attachment],
         provider: ProviderKind,
         mode: NativeFileMode,
-        model: AIModel?
+        model: AIModel?,
+        fileInput: CapabilityEvidenceFacade.InputCapabilityProjection?
     ) -> (native: [Attachment], text: [Attachment]) {
         guard mode != .off, let model = model else { return ([], attachments) }
         var native: [Attachment] = []
         var text: [Attachment] = []
         for att in attachments {
-            switch AttachmentRouter.decide(attachment: att, provider: provider, model: model, mode: mode) {
+            switch AttachmentRouter.decide(attachment: att, provider: provider, model: model, mode: mode, fileInput: fileInput) {
             case .native: native.append(att)
             case .clientExtract: text.append(att)
             }
@@ -188,25 +193,14 @@ enum AttachmentDelivery {
         wrapper: AttachmentWrapperVersion,
         model: AIModel?,
         imagePlaceholderText: String?,
+        videoPlaceholderText: String?,
         dynamicText: String?
     ) -> (text: String, skipped: [(attachment: Attachment, reason: AttachmentInjector.SkipReason)]) {
         let limits = FileExtractionLimits.resolve(model: model)
-        // [D] is always the last segment: image placeholders and file text are both inserted before it.
+        // [D] is always the last segment: file text and image placeholders are both inserted before it.
         let (body, dynamic) = AttachmentInjector.splitDynamic(userText, dynamicText: dynamicText)
 
-        // 1. Image placeholders (for providers that do not support images)
-        var effectiveUserText = body
-        if let placeholder = imagePlaceholderText {
-            let imageCount = attachments.filter { $0.kind == .image }.count
-            if imageCount > 0 {
-                let placeholders = Array(repeating: placeholder, count: imageCount)
-                effectiveUserText = ([effectiveUserText] + placeholders)
-                    .filter { !$0.isEmpty }
-                    .joined(separator: "\n\n")
-            }
-        }
-
-        // 2. Inject file attachments by wrapper and limits
+        // 1. Inject file attachments by wrapper and limits
         let files = attachments.filter { $0.kind == .file }
         let fileAttachments: [(fileName: String, mimeType: String, sizeBytes: Int, extracted: ExtractedText?, errorCode: ExtractionErrorCode?)] = files.map { att in
             // Failed attachments (an OCR-recognized scan is still recorded as scanned_pdf but has body text, so it is injected as a success)
@@ -229,13 +223,30 @@ enum AttachmentDelivery {
         }
 
         let result = AttachmentInjector.injectAllIndexed(
-            intoUserText: AttachmentInjector.appendDynamic(dynamic, to: effectiveUserText),
+            intoUserText: body,
             fileAttachments: fileAttachments,
             limits: limits,
-            wrapper: wrapper,
-            dynamicText: dynamic
+            wrapper: wrapper
         )
-        return (result.text, result.skipped.map { (files[$0.index], $0.reason) })
+
+        // 2. Image placeholders: only images that reach here are written (a route whose image projection says outbound=placeholder has the
+        //    builder hand them over; when images are sent natively the builder does not hand them here); order: body, file blocks, placeholders.
+        var text = result.text
+        // 3. Video placeholders: a route that declares a placeholder cannot send video, so each video gets one line (without the file name),
+        //    after the image placeholders; only written into the outbound text, the local message is unchanged.
+        for (kind, placeholder) in [(AttachmentKind.image, imagePlaceholderText), (.video, videoPlaceholderText)] {
+            guard let placeholder else { continue }
+            let count = attachments.filter { $0.kind == kind }.count
+            if count > 0 {
+                text = ([text] + Array(repeating: placeholder, count: count))
+                    .filter { !$0.isEmpty }
+                    .joined(separator: "\n\n")
+            }
+        }
+        return (
+            AttachmentInjector.appendDynamic(dynamic, to: text),
+            result.skipped.map { (files[$0.index], $0.reason) }
+        )
     }
 
     private static func decodeAttachmentText(_ base64: String?) -> String? {
