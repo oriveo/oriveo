@@ -113,7 +113,7 @@ nonisolated struct ChatRequestSnapshot: Sendable {
     let preferences: ChatRequestPreferencesSnapshot
     let skill: ChatRequestSkillSnapshot?
     let retrievedSnippets: [ChatRequestRetrievedSnippet]
-    let pinnedNotes: [ChatRequestPinnedNoteSnapshot]
+    private(set) var pinnedNotes: [ChatRequestPinnedNoteSnapshot]
     let sendPath: ChatRequestSendPath
     /// Library evidence for this message (goes into [D] `<oriveo-library>`). nil = the library was not searched; empty array = searched but no evidence.
     /// The evidence is read back inside the send task, so it is not part of init; `withLibrary` fills it in before the builder gets it.
@@ -143,6 +143,12 @@ nonisolated struct ChatRequestSnapshot: Sendable {
     func withLibrary(_ entries: [ContextLibraryEntry]) -> ChatRequestSnapshot {
         var snapshot = self
         snapshot.library = entries
+        return snapshot
+    }
+
+    func withPinnedNotes(_ notes: [ChatRequestPinnedNoteSnapshot]) -> ChatRequestSnapshot {
+        var snapshot = self
+        snapshot.pinnedNotes = notes
         return snapshot
     }
 

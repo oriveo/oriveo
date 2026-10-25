@@ -1,6 +1,6 @@
 import Foundation
 
-struct ChatRequestPinnedNoteSnapshot: Hashable, Sendable {
+nonisolated struct ChatRequestPinnedNoteSnapshot: Hashable, Sendable {
     let id: UUID?
     let title: String
     let body: String
