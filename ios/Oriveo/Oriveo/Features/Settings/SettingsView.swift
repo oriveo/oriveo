@@ -83,6 +83,7 @@ struct SettingsView: View {
                                 iconColor: aiColor
                             )
                         }
+                        .accessibilityIdentifier("settings_context_row")
 
                         insetHairline()
 
@@ -95,6 +96,19 @@ struct SettingsView: View {
                                 iconColor: aiColor
                             )
                         }
+
+                        insetHairline()
+
+                        flatTapRow {
+                            navigation.attemptNavigate(to: .voiceSettings)
+                        } label: {
+                            SettingsRow(
+                                icon: "waveform",
+                                title: L10n.tr("Voice", table: .voice),
+                                iconColor: aiColor
+                            )
+                        }
+                        .accessibilityIdentifier("settings_voice_row")
                     }
                 }
 
@@ -245,6 +259,8 @@ struct SettingsView: View {
             .padding(.bottom, OriveoTheme.Spacing.xxl)
             .oriveoContentWidth()
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("settings_screen")
         .oriveoScreenBackground()
         .id(appState.preferences.language)
         // Also when coming back from MCP management: the count in the subtitle has to follow.
