@@ -14,7 +14,7 @@ import Testing
 /// presentation and levels. The slice carries no recipe bodies, so the fixture adds an empty recipe with each
 /// model's own protocol for the "recipe protocol == model protocol" check to work on. The remaining cases have no counterpart in the slice and use hand-written facts.
 @MainActor
-@Suite("Capability card shapes", .serialized)
+@Suite("Capability card shapes", .serialized, .sharedProcessState)
 struct ModelOptionCapabilityShapeTests {
     typealias Shape = ModelOptionCapabilityShape
 
@@ -651,7 +651,7 @@ struct ModelOptionCapabilityShapeTests {
 
 /// Copy carried by the shape function. Every string has all 16 languages, each written and
 /// reviewed by a native speaker.
-@Suite("Capability card shape copy")
+@Suite("Capability card shape copy", .sharedProcessState)
 struct ModelOptionCapabilityShapeCopyTests {
     private static let locales = [
         "ar", "de", "en", "es", "fr", "hi", "id", "ja", "ko", "pt-BR", "ru", "th", "tr", "vi", "zh-Hans", "zh-Hant",

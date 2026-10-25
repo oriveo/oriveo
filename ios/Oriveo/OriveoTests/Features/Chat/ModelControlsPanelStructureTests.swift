@@ -9,7 +9,7 @@ import Testing
 /// not exist" property. A SwiftUI `body` is an opaque type, so the render side cannot answer
 /// If one of these regresses, every logic test stays green. Properties that can be asserted against a function are not here:
 /// shapes are in `ModelOptionCapabilityShapeTests`, the page model in `ModelOptionsPanelModelTests`.
-@Suite("Model Controls Panel Structure Tests")
+@Suite("Model Controls Panel Structure Tests", .sharedProcessState)
 struct ModelControlsPanelStructureTests {
     private static let modelControls = [
         "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
@@ -48,6 +48,72 @@ struct ModelControlsPanelStructureTests {
         #expect(ModelControlsEditability.resolve(providerKind: .openAI, transportIdentity: "runtime", runtimeIsReadOnly: true) == .runtimeReadOnly)
         #expect(!ModelControlsEditability.runtimeIdentityUnavailable.canPersist)
         #expect(!ModelControlsEditability.runtimeReadOnly.canPersist)
+    }
+
+    // MARK: - The vision tile reads the three-valued projection
+
+    private static func visionInput(
+        _ verdict: CapabilityEvidenceFacade.InputVerdict?,
+        negativeCacheHit: Bool = false
+    ) -> CapabilityEvidenceFacade.InputCapabilityProjection {
+        CapabilityEvidenceFacade.inputCapabilityProjection(
+            verdict: verdict,
+            endImplements: verdict?.wireFamily.map(CapabilityEvidenceFacade.implementsWireFamily) ?? true,
+            override: nil, negativeCacheHit: negativeCacheHit, connection: .official
+        )
+    }
+
+    @MainActor
+    @Test("vision tile has three states: auto -> available; unknown -> unconfirmed; unavailable -> unavailable + disabled reason")
+    func visionTileReadsInputProjection() {
+        typealias Tiles = ModelOptionsTiles
+        let chat = { (key: String) in L10n.tr(key, table: .chat) }
+
+        let available = Tiles.visionTile(Tiles.vision(Self.visionInput(
+            .init(state: .autoAvailable, wireFamily: "openai_responses.input_image")
+        )))
+        #expect(available.accessory == .check)
+        #expect(available.status == chat("Available · photo picker shown"))
+        #expect(available.detail == nil)
+
+        for unknown in [Self.visionInput(.init(state: .unknown)), Self.visionInput(nil)] {
+            #expect(unknown.visible == false && unknown.disabledReason == nil, "precondition: the production projection yields unknown")
+            let tile = Tiles.visionTile(Tiles.vision(unknown))
+            #expect(tile.accessory == .question)
+            #expect(tile.status == chat("Unknown · remembered after sending"))
+            #expect(tile.detail == nil)
+        }
+        // No projection (incomplete identity) is also treated as unconfirmed: neither available nor unavailable.
+        #expect(Tiles.vision(nil) == .unknown)
+
+        let cases: [(CapabilityEvidenceFacade.InputCapabilityProjection, CapabilityEvidenceFacade.InputDisabledReason)] = [
+            (Self.visionInput(.init(state: .unavailable, reasonCode: "model_capability_absent")), .modelAbsent),
+            (Self.visionInput(.init(state: .unavailable, reasonCode: "provider_kill_switch")), .killSwitch),
+            (Self.visionInput(.init(state: .autoAvailable, wireFamily: "bedrock.image")), .wireNotImplemented),
+            (Self.visionInput(
+                .init(state: .autoAvailable, wireFamily: "openai_responses.input_image"), negativeCacheHit: true
+            ), .rejectedRecently),
+        ]
+        for (input, reason) in cases {
+            #expect(input.disabledReason == reason, "precondition: the production projection yields \(reason)")
+            let tile = Tiles.visionTile(Tiles.vision(input))
+            #expect(Tiles.vision(input) == .unavailable(reason))
+            #expect(tile.accessory == .cross)
+            #expect(tile.status == chat("Unavailable"))
+            #expect(tile.detail == InputCapabilityCopy.disabled(reason, .image))
+        }
+    }
+
+    @Test("the panel's vision fact reads the projection, no longer the photo picker entry or the relay no-positive-evidence predicate")
+    func sheetVisionFactReadsProjection() throws {
+        let sheet = try Self.source(Self.modelControls + ["ModelControlsSheet.swift"])
+        let start = try #require(sheet.range(of: "private var panelFacts: ModelOptionsPanelFacts {"))
+        let end = try #require(sheet.range(of: "private var banner:", range: start.upperBound..<sheet.endIndex))
+        let facts = String(sheet[start.lowerBound..<end.lowerBound])
+        #expect(facts.contains("ChatView.capabilityProjection("))
+        #expect(facts.contains(".inputProjection(for: CapabilityEvidenceFacade.visionInputKey)"))
+        #expect(!facts.contains("ChatView.photoPickerVisible("))
+        #expect(!facts.contains("RelayRejectionRecording.imageSupportUnknown("))
     }
 
     // MARK: - Pure functions decide what is drawn
@@ -353,9 +419,9 @@ struct ModelControlsPanelStructureTests {
         #expect(composer.contains("displayCapabilityPreferences("))
         #expect(!composer.contains("GenerationParameterSettingsStore.shared.capabilityPreferences("),
                 "the composer only inspects the conversation scope again")
-        let display = try #require(store.range(of: "func displayCapabilityPreferences("))
-        let displayBody = String(store[display.upperBound...].prefix(700))
-        #expect(displayBody.contains("capabilityScopeValues("), "the read entry point does not walk the shared scope ladder")
+        let migration = try #require(store.range(of: "func migrateLegacyWebPreference("))
+        let migrationBody = String(store[migration.upperBound...].prefix(700))
+        #expect(migrationBody.contains("displayCapabilityPreferences("), "the migration entry point does not fall back to the default scope on a miss")
         #expect(store.components(separatedBy: "capabilityScopeValues(").count == 4)
 
         #expect(sheet.contains("guard let transportIdentity = effectiveTransportIdentity else { return }"))

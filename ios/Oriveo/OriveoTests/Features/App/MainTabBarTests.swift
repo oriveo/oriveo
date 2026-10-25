@@ -6,7 +6,7 @@ import UIKit
 /// The bottom tab bar is the system TabView (native liquid glass from iOS 26). These tests drive the
 /// real AppRootView and check that the system bar is present, that content makes room for it, that the
 /// selection binding works both ways, and that pages stay alive across tab switches.
-@Suite("MainTabBar", .serialized)
+@Suite("MainTabBar", .serialized, .sharedProcessState)
 @MainActor
 struct MainTabBarTests {
     init() throws {
@@ -175,7 +175,7 @@ struct MainTabBarTests {
             UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first,
             "the test host has no window scene"
         )
-        let host = UIHostingController(rootView: AppRootView(appState: appState))
+        let host = UIHostingController(rootView: AppRootView(appState: appState, appUpdateController: AppUpdateController()))
         let window = UIWindow(windowScene: scene)
         window.frame = scene.screen.bounds
         window.windowLevel = .alert + 1

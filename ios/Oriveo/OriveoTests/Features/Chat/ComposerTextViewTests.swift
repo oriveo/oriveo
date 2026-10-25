@@ -13,7 +13,7 @@ import UIKit
 /// was dismissed and shown again. This suite pins machine-independent structure: display paragraphs are bounded, the
 /// binding holds the source text, and measurement only lays out a cached prefix. Wall-clock numbers are only printed.
 @MainActor
-@Suite("Composer text view - long paste stays bounded", .serialized)
+@Suite("Composer text view - long paste stays bounded", .serialized, .sharedProcessState)
 struct ComposerTextViewTests {
     static let arabicSentence = "هذا نص تجريبي طويل باللغة العربية لاختبار أداء التخطيط في مربع الإدخال، ويحتوي على كلمات متعددة وعلامات ترقيم مختلفة. "
 
@@ -48,7 +48,7 @@ struct ComposerTextViewTests {
     func longParagraphRoundTrip() {
         for source in [
             Self.arabic(utf16: 64_000),
-            String(repeating: "にほんごのながいぶんしょうで、かいぎょうがありません。", count: 2_000),
+            String(repeating: "にほんごのながいぶんしょうで\u{3001}かいぎょうがありません\u{3002}", count: 2_000),
             String(repeating: "emoji 👩‍👩‍👧‍👦 and combining e\u{301} ", count: 3_000),
             String(repeating: "x", count: 30_000),
         ] {

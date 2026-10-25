@@ -5,7 +5,7 @@ import UIKit
 @testable import Oriveo
 
 @MainActor
-@Suite("Chat Manager Multi Session Tests")
+@Suite("Chat Manager Multi Session Tests", .sharedProcessState)
 struct ChatManagerMultiSessionTests {
 
     @Test("Capability Intent Is Not Precleared By Persisted Raw Model")

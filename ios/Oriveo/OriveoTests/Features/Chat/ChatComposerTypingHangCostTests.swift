@@ -8,7 +8,7 @@ import UIKit
 /// real database, inserts text one character at a time (the same UITextInput path as the keyboard),
 /// and counts the page-level recomputation each keystroke triggers. Wall-clock numbers are printed only.
 @MainActor
-@Suite("Chat composer typing hang cost", .serialized)
+@Suite("Chat composer typing hang cost", .serialized, .sharedProcessState)
 struct ChatComposerTypingHangCostTests {
     private func yieldMainActor(for seconds: TimeInterval) async throws {
         let deadline = Date().addingTimeInterval(seconds)
@@ -99,8 +99,8 @@ struct ChatComposerTypingHangCostTests {
         try await yieldMainActor(for: 0.6)
 
         let typed = "hello, this is a typing"
-        ChatView.resetBodyEvaluationCount()
-        ChatMessageList.resetBodyEvaluationCount()
+        ChatView.resetBodyEvaluationCount(countingOnly: conversation.id)
+        ChatMessageList.resetBodyEvaluationCount(countingOnly: conversation.id)
         ChatComposerBar.resetBodyEvaluationCount()
         let probe = MainThreadStallProbe()
         var perKeystroke: [CFTimeInterval] = []
@@ -144,5 +144,15 @@ struct ChatComposerTypingHangCostTests {
         #expect(keystrokesWithoutComposerBody == 0, "\(keystrokesWithoutComposerBody) keystroke windows saw no composer recomputation, so the window missed the input")
         #expect(keystrokeChatViewBodies == 0, "ChatView body must not run while typing, got \(keystrokeChatViewBodies)")
         #expect(keystrokeMessageListBodies == 0, "The message list body must not run while typing, got \(keystrokeMessageListBodies)")
+
+        // For profiling: when ORIVEO_SAMPLE_READY is set, write a ready file and keep typing while an external sampler attaches.
+        if let ready = ProcessInfo.processInfo.environment["ORIVEO_SAMPLE_READY"] {
+            FileManager.default.createFile(atPath: ready, contents: Data("\(getpid())".utf8))
+            try await yieldMainActor(for: 1.5)
+            for index in 0..<250 {
+                input.insertText(index.isMultiple(of: 10) ? " " : "x")
+                try await yieldMainActor(for: 0.04)
+            }
+        }
     }
 }

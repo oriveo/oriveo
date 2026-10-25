@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Oriveo
 
-@Suite("Chat send anchor contracts")
+@Suite("Chat send anchor contracts", .sharedProcessState)
 struct ChatSendAnchorContractTests {
 
     @Test("pending anchor is nil before local send")
@@ -50,5 +50,28 @@ struct ChatSendAnchorContractTests {
         _ = await state.sendMessage("Anchor timing", in: conversationID)
 
         #expect(observedAnchorAtPublish == observedUserMessageID)
+
+        // Wait for the send to settle before releasing the lock: the sendTask must not leak into the next locked case and write shared state.
+        try await waitUntil(timeoutNanoseconds: 10_000_000_000) {
+            !state.conversations.contains { $0.messages.contains { $0.state == .generating } }
+        }
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        await MetadataClient.shared.drainBackgroundWorkForTesting()
+    }
+
+    @MainActor
+    private func waitUntil(
+        timeoutNanoseconds: UInt64 = 3_000_000_000,
+        intervalNanoseconds: UInt64 = 20_000_000,
+        condition: @MainActor @escaping () -> Bool
+    ) async throws {
+        let deadline = ContinuousClock.now + .nanoseconds(Int64(timeoutNanoseconds))
+        while condition() == false {
+            if ContinuousClock.now >= deadline {
+                Issue.record("Timed out waiting for condition")
+                return
+            }
+            try await Task.sleep(nanoseconds: intervalNanoseconds)
+        }
     }
 }

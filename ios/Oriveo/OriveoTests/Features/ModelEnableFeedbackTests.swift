@@ -4,6 +4,7 @@ import Testing
 
 /// Feedback after tapping "+" on a model catalog row: a toast on success, an error toast when
 /// the model cannot be found, and silence when an equivalent model is already enabled.
+@Suite("ModelEnableFeedback", .sharedProcessState)
 @MainActor
 struct ModelEnableFeedbackTests {
     @Test("added: success style with the model name in the copy")

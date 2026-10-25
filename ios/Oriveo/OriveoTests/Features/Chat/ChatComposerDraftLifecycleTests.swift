@@ -10,7 +10,7 @@ import UIKit
 /// edit restores, conversation switches, New Chat writing back the previous draft, keeping input after
 /// a pushed page, and writing back when the app goes to the background.
 @MainActor
-@Suite("Chat composer draft lifecycle", .serialized)
+@Suite("Chat composer draft lifecycle", .serialized, .sharedProcessState)
 struct ChatComposerDraftLifecycleTests {
     // MARK: - Reconciliation state (pure logic)
 

@@ -18,8 +18,7 @@ struct ModelOptionsBoardStructureTests {
         web: Input,
         reasoning: Input,
         chatTemplateThinking: ChatTemplateThinkingSwitch.State = .off,
-        visionVisible: Bool = true,
-        visionSupportUnknown: Bool = false,
+        visionInput: CapabilityEvidenceFacade.InputCapabilityProjection? = Self.visionAvailable,
         fileMode: NativeFileMode? = .always,
         nativeFileMimes: [String] = ["application/pdf"],
         pdfNativeDefault: Bool = false,
@@ -30,14 +29,26 @@ struct ModelOptionsBoardStructureTests {
             web: web, reasoning: reasoning
         )
         facts.chatTemplateThinking = chatTemplateThinking
-        facts.visionVisible = visionVisible
-        facts.visionSupportUnknown = visionSupportUnknown
+        facts.visionInput = visionInput
         facts.fileMode = fileMode
         facts.nativeFileMimes = nativeFileMimes
         facts.pdfNativeDefault = pdfNativeDefault
         facts.relayFileRejected = relayFileRejected
         return facts
     }
+
+    /// The vision projection can only come from the production facade: auto + a wire family this build implements -> available; a relay with no override -> unknown.
+    private static let visionAvailable = CapabilityEvidenceFacade.inputCapabilityProjection(
+        verdict: .init(state: .autoAvailable, wireFamily: "openai_responses.input_image"),
+        endImplements: true, override: nil, negativeCacheHit: false, connection: .official
+    )
+    private static let visionUnknown = CapabilityEvidenceFacade.inputCapabilityProjection(
+        verdict: nil, endImplements: true, override: nil, negativeCacheHit: false, connection: .relay
+    )
+    private static let visionAbsent = CapabilityEvidenceFacade.inputCapabilityProjection(
+        verdict: .init(state: .unavailable, reasonCode: "model_capability_absent"),
+        endImplements: true, override: nil, negativeCacheHit: false, connection: .official
+    )
 
     private static func officialWeb(_ selected: String = "automatic") -> Input {
         .init(capability: .web, presentation: .automaticAvailable, availableIntents: ["automatic"], selectedIntent: selected)
@@ -73,7 +84,7 @@ struct ModelOptionsBoardStructureTests {
             web: .init(capability: .web, presentation: .unknown, connection: .custom),
             reasoning: .init(capability: .reasoning, presentation: .unknown, connection: .custom),
             chatTemplateThinking: .on,
-            visionSupportUnknown: true,
+            visionInput: Self.visionUnknown,
             fileMode: .off
         ))
         #expect(model.tiles.map(\.kind) == [.reasoning, .web, .vision, .files])
@@ -221,12 +232,12 @@ struct ModelOptionsBoardStructureTests {
 
     @Test("BOARD-OPTIONS-09 image three states: entry not visible -> unavailable; visible and no positive relay evidence -> unknown; otherwise visible -> available")
     func visionStates() {
-        #expect(Tiles.vision(isVisible: false, supportUnknown: true) == .hidden)
-        #expect(Tiles.vision(isVisible: false, supportUnknown: false) == .hidden)
-        #expect(Tiles.vision(isVisible: true, supportUnknown: true) == .unknown)
-        #expect(Tiles.vision(isVisible: true, supportUnknown: false) == .available)
-        #expect(Tiles.visionTile(.hidden).accessory == .cross)
-        #expect(Tiles.visionTile(.hidden).status == Self.chat("Not available · photo picker hidden"))
+        #expect(Tiles.vision(Self.visionAvailable) == .available)
+        #expect(Tiles.vision(Self.visionUnknown) == .unknown)
+        #expect(Tiles.vision(Self.visionAbsent) == .unavailable(.modelAbsent))
+        #expect(Tiles.visionTile(.unavailable(.modelAbsent)).accessory == .cross)
+        #expect(Tiles.visionTile(.unavailable(.modelAbsent)).status == Self.chat("Unavailable"))
+        #expect(Tiles.visionTile(.unavailable(.modelAbsent)).detail == InputCapabilityCopy.disabled(.modelAbsent, .image))
         #expect(Tiles.visionTile(.unknown).accessory == .question)
         #expect(Tiles.visionTile(.available).accessory == .check)
 
@@ -253,7 +264,7 @@ struct ModelOptionsBoardStructureTests {
         let end = try #require(sheet.range(of: "private var banner:", range: start.upperBound..<sheet.endIndex))
         let facts = String(sheet[start.lowerBound..<end.lowerBound])
         for call in [
-            "ChatView.photoPickerVisible(", "RelayRejectionRecording.imageSupportUnknown(",
+            "ChatView.capabilityProjection(", ".inputProjection(for: CapabilityEvidenceFacade.visionInputKey)",
             "AttachmentTransportResolver.resolve(", "AttachmentTransportResolver.deliveryModel(",
             "NativeFileFallback.isKnownTextOnly(",
         ] {

@@ -5,7 +5,7 @@ import UIKit
 
 /// Rows and groups of the advanced settings page. Row data comes only from the evaluation of real storage and the outbound criteria,
 /// so the main cases here go from a real `GenerationParameterSettingsStore` to the row model.
-@Suite("Advanced settings: row model and groups")
+@Suite("Advanced settings: row model and groups", .sharedProcessState)
 @MainActor
 struct AdvancedSettingsModelTests {
     private static let providerID = UUID()
@@ -744,7 +744,7 @@ struct AdvancedSettingsModelTests {
 }
 
 /// The prediction of the thinking interplay reads the send path's own writer (it loads the runtime catalog, hence a separate, serialized suite).
-@Suite("Advanced settings: the thinking interplay comes from the send path's own source", .serialized)
+@Suite("Advanced settings: the thinking interplay comes from the send path's own source", .serialized, .sharedProcessState)
 @MainActor
 struct AdvancedSettingsThinkingProbeTests {
     private static let modelID = "claude-sonnet-4-5"
@@ -887,7 +887,7 @@ struct AdvancedSettingsThinkingProbeTests {
     }
 }
 
-@Suite("Advanced settings: swipe back inside the sheet, and the single channel for custom generation content")
+@Suite("Advanced settings: swipe back inside the sheet, and the single channel for custom generation content", .sharedProcessState)
 @MainActor
 struct AdvancedSettingsNavigationTests {
     @Test("while the page is visible it takes over the pop gesture's delegate: allowed only with more than one page on the stack; restored on leaving")
@@ -959,7 +959,7 @@ struct AdvancedSettingsNavigationTests {
     }
 }
 
-@Suite("Advanced settings: three presentation details")
+@Suite("Advanced settings: three presentation details", .sharedProcessState)
 @MainActor
 struct AdvancedSettingsPresentationTests {
     private static func parameter(
@@ -1158,7 +1158,7 @@ struct AdvancedSettingsPresentationTests {
     }
 }
 
-@Suite("Advanced settings: rows only label exceptions, and the header states the page's tone once", .serialized)
+@Suite("Advanced settings: rows only label exceptions, and the header states the page's tone once", .serialized, .sharedProcessState)
 @MainActor
 struct AdvancedSettingsRowAnnotationTests {
     private typealias Annotations = AdvancedSettingsRowAnnotations

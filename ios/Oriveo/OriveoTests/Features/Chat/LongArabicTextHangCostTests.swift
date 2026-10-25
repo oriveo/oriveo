@@ -12,7 +12,7 @@ import UIKit
 /// one stretch; synchronous calls are wrapped in wall-clock time directly. The text is a single 200K UTF-16 paragraph
 /// with no line breaks, the worst shape.
 @MainActor
-@Suite("Very long Arabic text · main-thread cost (production components)", .serialized)
+@Suite("Very long Arabic text · main-thread cost (production components)", .serialized, .sharedProcessState)
 struct LongArabicTextHangCostTests {
     /// A sentence with harakat (fatha / kasra / shadda / sukun / tanwin), the lam-alef ligature and the Allah
     /// ligature: `ApplyLigatureSubst` / `ApplyMarkLigPos` only show up on text like this.

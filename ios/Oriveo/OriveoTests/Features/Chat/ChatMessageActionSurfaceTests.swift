@@ -2,7 +2,7 @@ import Testing
 import UIKit
 @testable import Oriveo
 
-@Suite("Chat message action surface")
+@Suite("Chat message action surface", .sharedProcessState)
 @MainActor
 struct ChatMessageActionSurfaceTests {
 
@@ -16,7 +16,8 @@ struct ChatMessageActionSurfaceTests {
             leadingInset: 0,
             onRetry: {},
             onContinue: nil,
-            onSaveNote: {}
+            onSaveNote: {},
+            onCrosscheck: {}
         )
 
         #expect(Self.visibleLabelTexts(in: metadataView).contains("OpenAI"))
@@ -35,6 +36,7 @@ struct ChatMessageActionSurfaceTests {
             onRetry: {},
             onContinue: nil,
             onSaveNote: {},
+            onCrosscheck: {},
             isVisualRenderPending: true
         )
 
@@ -59,17 +61,20 @@ struct ChatMessageActionSurfaceTests {
             leadingInset: 0,
             onRetry: {},
             onContinue: nil,
-            onSaveNote: {}
+            onSaveNote: {},
+            onCrosscheck: {}
         )
 
         let visibleTitles = Self.visibleButtonTitles(in: metadataView)
         #expect(visibleTitles.contains(L10n.tr("Copy")))
         #expect(visibleTitles.contains(L10n.tr("Save as Note", table: .notes)))
         #expect(!visibleTitles.contains(L10n.tr("Regenerate", table: .chat)))
+        #expect(!visibleTitles.contains(L10n.tr("Cross-check", table: .notes)))
 
         let menus = Self.buttonMenus(in: metadataView)
         let menuTitles = menus.flatMap(\.children).compactMap { ($0 as? UIAction)?.title }
         #expect(menuTitles.contains(L10n.tr("Regenerate", table: .chat)))
+        #expect(menuTitles.contains(L10n.tr("Cross-check", table: .notes)))
 
         let moreButton = try #require(Self.visibleButtons(in: metadataView).first { $0.menu != nil })
         #expect(moreButton.accessibilityLabel == L10n.tr("More", table: .chat))
@@ -84,7 +89,8 @@ struct ChatMessageActionSurfaceTests {
             modelName: "GPT-4o",
             leadingInset: 0,
             onRetry: {},
-            onContinue: nil
+            onContinue: nil,
+            onCrosscheck: {}
         )
 
         let moreButton = try #require(Self.visibleButtons(in: metadataView).first { $0.menu != nil })
@@ -117,7 +123,8 @@ struct ChatMessageActionSurfaceTests {
             leadingInset: 0,
             onRetry: {},
             onContinue: nil,
-            onSaveNote: {}
+            onSaveNote: {},
+            onCrosscheck: {}
         )
 
         #expect(metadataView.axis == .vertical)
@@ -159,7 +166,8 @@ struct ChatMessageActionSurfaceTests {
             leadingInset: 0,
             onRetry: {},
             onContinue: nil,
-            onSaveNote: {}
+            onSaveNote: {},
+            onCrosscheck: {}
         )
         metadataView.setNeedsLayout()
         metadataView.layoutIfNeeded()
@@ -167,7 +175,7 @@ struct ChatMessageActionSurfaceTests {
         let labels = Self.visibleLabels(in: metadataView)
         let providerLabel = try #require(labels.first { $0.text == "OpenRouter" })
         let modelLabel = try #require(labels.first { $0.text == "Xiaomi: MiMo-V2.5" })
-        let dotLabels = labels.filter { $0.text == "•" }.sorted { $0.frame.minX < $1.frame.minX }
+        let dotLabels = labels.filter { $0.text == "·" }.sorted { $0.frame.minX < $1.frame.minX }
         let firstDot = try #require(dotLabels.first)
 
         #expect(
@@ -196,7 +204,8 @@ struct ChatMessageActionSurfaceTests {
             leadingInset: 0,
             onRetry: {},
             onContinue: nil,
-            onSaveNote: {}
+            onSaveNote: {},
+            onCrosscheck: {}
         )
         metadataView.setNeedsLayout()
         metadataView.layoutIfNeeded()
@@ -234,7 +243,8 @@ struct ChatMessageActionSurfaceTests {
             leadingInset: 4,
             onRetry: {},
             onContinue: nil,
-            onSaveNote: {}
+            onSaveNote: {},
+            onCrosscheck: {}
         )
         metadataView.setNeedsLayout()
         metadataView.layoutIfNeeded()
@@ -280,7 +290,8 @@ struct ChatMessageActionSurfaceTests {
             onRetry: {},
             onContinue: nil,
             onSaveNote: {},
-            onOpenNoteReferences: {}
+            onOpenNoteReferences: {},
+            onCrosscheck: {}
         )
 
         let rows = Self.visibleRows(in: metadataView)
@@ -372,6 +383,109 @@ struct ChatMessageActionSurfaceTests {
     }
 
     @Test("Assistant footer stays attached to message content in an oversized reused cell")
+    func userImageBubbleNotSentCaptionFollowsVisionProjection() async throws {
+        let data = try Data(contentsOf: Self.repoFixtureURL("shared/test-fixtures/relay/metadata-fixture.json"))
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(json: String(decoding: data, as: UTF8.self))
+        let model = AIModel(
+            id: "bubble-not-sent-\(UUID().uuidString)", name: "relay", capabilities: [.text],
+            reasoningModeAvailable: false, isAvailable: true, isDefault: true, priceTier: ""
+        )
+        let provider = Provider(
+            id: UUID(), kind: .relay, status: .connected, models: [model], catalogModels: [],
+            apiKey: "key", apiKeyPreview: "...key", baseURLText: "https://relay.test/v1",
+            relayRequested: RelayRequestedConfig(transport: .openaiChatCompletions)
+        )
+        defer { CapabilityNegativeCache.shared.clearConnection(provider.id.uuidString) }
+        func visionInput() -> CapabilityEvidenceFacade.InputCapabilityProjection? {
+            let identity = CapabilityEvidenceProductionAdapter.uiDispatchIdentity(
+                provider: provider, model: model, partitionID: "bubble-not-sent-tests"
+            )
+            return CapabilityEvidenceProductionAdapter.capabilityProjection(
+                provider: provider, model: model, identity: identity,
+                keys: [CapabilityEvidenceFacade.visionInputKey]
+            ).inputProjection(for: CapabilityEvidenceFacade.visionInputKey)
+        }
+        let image = Oriveo.Attachment(
+            id: UUID(), kind: .image, fileName: "p.png", mimeType: "image/png",
+            base64Data: RelayCapabilityTest.imagePNGBase64
+        )
+
+        // Relay vision unknown: image goes out natively, no caption.
+        let outbound = try #require(visionInput())
+        #expect(outbound.outbound == .nativePart)
+        let sendable = Self.layOutUserMessageCell(text: "look", attachments: [image], visionInput: outbound)
+        #expect(sendable.notSentToModelCaptionForTesting == nil)
+        #expect(!Self.visibleLabelTexts(in: sendable).contains(InputCapabilityCopy.bubbleNotSentToModel))
+
+        // Relay rejection recorded: projection strips the image to a placeholder, caption appears.
+        #expect(RelayRejectionRecording.recordImageRejection(
+            provider: provider, model: model, transport: .openaiChatCompletions,
+            rejection: RelayPreOutputRejection(
+                status: 400, contentType: "application/json", body: Data(#"{"error":{"message":"x"}}"#.utf8)
+            ),
+            negativeCache: RelayNegativeCache(defaults: UserDefaults(suiteName: "bubble-not-sent-\(UUID().uuidString)")!)
+        ))
+        let placeholder = try #require(visionInput())
+        #expect(placeholder.outbound == .placeholder)
+        let stripped = Self.layOutUserMessageCell(text: "look", attachments: [image], visionInput: placeholder)
+        #expect(stripped.notSentToModelCaptionForTesting == InputCapabilityCopy.bubbleNotSentToModel)
+        #expect(Self.visibleLabelTexts(in: stripped).contains(InputCapabilityCopy.bubbleNotSentToModel))
+
+        // Text-only message under the same placeholder projection: nothing to mark.
+        let textOnly = Self.layOutUserMessageCell(text: "look", visionInput: placeholder)
+        #expect(textOnly.notSentToModelCaptionForTesting == nil)
+    }
+
+    @Test("Production data source path: placeholder vision projection on the row reaches the user cell caption")
+    func userImageBubbleNotSentCaptionThroughDataSource() throws {
+        let model = AIModel(
+            id: "ds-relay", name: "relay", capabilities: [.text],
+            reasoningModeAvailable: false, isAvailable: true, isDefault: true, priceTier: ""
+        )
+        // Relay without a connection identity: production projection hard-blocks vision to a placeholder.
+        let placeholder = try #require(CapabilityEvidenceProductionAdapter.capabilityProjection(
+            form: .relay, providerKind: .relay, model: model, identity: nil,
+            keys: [CapabilityEvidenceFacade.visionInputKey]
+        ).inputProjection(for: CapabilityEvidenceFacade.visionInputKey))
+        #expect(placeholder.outbound == .placeholder)
+        let withImage = ChatMessage(
+            id: UUID(), role: .user, text: "look", reasoningText: nil,
+            providerKind: .relay, providerName: "Relay", modelName: "relay",
+            estimatedCost: 0, state: .delivered,
+            attachments: [Oriveo.Attachment(id: UUID(), kind: .image, fileName: "p.png", mimeType: "image/png")],
+            citations: nil
+        )
+        let textOnly = ChatMessage(
+            id: UUID(), role: .user, text: "plain", reasoningText: nil,
+            providerKind: .relay, providerName: "Relay", modelName: "relay",
+            estimatedCost: 0, state: .delivered, attachments: nil, citations: nil
+        )
+        let parent = UIViewController()
+        let layout = UICollectionViewFlowLayout()
+        let collectionView = UICollectionView(
+            frame: CGRect(x: 0, y: 0, width: 393, height: 844), collectionViewLayout: layout
+        )
+        ChatListDataSource.register(on: collectionView)
+
+        func captions(currentVisionInput: CapabilityEvidenceFacade.InputCapabilityProjection?) -> [String?] {
+            let rows = ChatCollectionProjectionBuilder.makeRows(
+                from: [withImage, textOnly], metadata: .empty, currentVisionInput: currentVisionInput
+            )
+            let plan = ChatCollectionProjectionBuilder.makeSnapshotPlan(from: rows, providerMetadataVersion: 0)
+            let dataSource = ChatListDataSource()
+            dataSource.commit(rows: rows, renderModels: plan.renderModelsByID, context: Self.makeRenderContext(parent: parent))
+            return (0..<rows.count).map { item in
+                (dataSource.collectionView(collectionView, cellForItemAt: IndexPath(item: item, section: 0))
+                    as? UserMessageCell)?.notSentToModelCaptionForTesting
+            }
+        }
+
+        #expect(captions(currentVisionInput: placeholder) == [InputCapabilityCopy.bubbleNotSentToModel, nil])
+        #expect(captions(currentVisionInput: nil) == [nil, nil])
+    }
+
+    @Test("Assistant footer stays attached to message content in an oversized reused cell")
     func assistantFooterDoesNotStretchToBottomOfOversizedCell() throws {
         let cell = AssistantMessageCell(frame: CGRect(x: 0, y: 0, width: 390, height: 900))
         cell.contentView.frame = cell.bounds
@@ -387,7 +501,8 @@ struct ChatMessageActionSurfaceTests {
             onContentHeightDidChange: nil,
             onRetry: {},
             onContinue: nil,
-            onSaveNote: {}
+            onSaveNote: {},
+            onCrosscheck: {}
         )
 
         cell.setNeedsLayout()
@@ -486,7 +601,8 @@ struct ChatMessageActionSurfaceTests {
             leadingInset: 0,
             onRetry: {},
             onContinue: nil,
-            onSaveNote: {}
+            onSaveNote: {},
+            onCrosscheck: {}
         )
 
         let menus = Self.buttonMenus(in: metadataView)
@@ -517,11 +633,13 @@ struct ChatMessageActionSurfaceTests {
         )
     }
 
-    private static func makeUserModel(text: String) -> ChatCollectionProjectionBuilder.MessageRenderModel {
+    private static func makeUserModel(
+        text: String, attachments: [Oriveo.Attachment]? = nil
+    ) -> ChatCollectionProjectionBuilder.MessageRenderModel {
         let message = ChatMessage(
             id: UUID(), role: .user, text: text, reasoningText: nil,
             providerKind: .openAI, providerName: "OpenAI", modelName: "GPT-4o",
-            estimatedCost: 0, state: .delivered, attachments: nil, citations: nil
+            estimatedCost: 0, state: .delivered, attachments: attachments, citations: nil
         )
         return ChatCollectionProjectionBuilder.MessageRenderModel(
             messageID: message.id, message: message, presentationKind: .user,
@@ -531,16 +649,21 @@ struct ChatMessageActionSurfaceTests {
         )
     }
 
-    private static func layOutUserMessageCell(text: String) -> UserMessageCell {
+    private static func layOutUserMessageCell(
+        text: String,
+        attachments: [Oriveo.Attachment]? = nil,
+        visionInput: CapabilityEvidenceFacade.InputCapabilityProjection? = nil
+    ) -> UserMessageCell {
         let cellWidth: CGFloat = 393
         let cell = UserMessageCell(frame: CGRect(x: 0, y: 0, width: cellWidth, height: 100))
         let parent = UIViewController()
         cell.configure(
-            model: makeUserModel(text: text),
+            model: makeUserModel(text: text, attachments: attachments),
             maxBubbleWidth: 320,
             parentViewController: parent,
             onSaveNote: {},
-            onSaveSelection: { _ in }
+            onSaveSelection: { _ in },
+            visionInput: visionInput
         )
         cell.contentView.frame = CGRect(x: 0, y: 0, width: cellWidth, height: 100)
         let fit = cell.contentView.systemLayoutSizeFitting(
@@ -555,6 +678,29 @@ struct ChatMessageActionSurfaceTests {
         cell.contentView.setNeedsLayout()
         cell.contentView.layoutIfNeeded()
         return cell
+    }
+
+    private static func makeRenderContext(parent: UIViewController) -> ChatListDataSource.RenderContext {
+        ChatListDataSource.RenderContext(
+            parentViewController: parent,
+            maxBubbleWidth: 320,
+            onRetry: { _ in }, onContinue: { _ in },
+            onRegenerate: { _ in }, onEditMessage: { _ in }, onSwitchModel: {},
+            isSendingMessage: false,
+            isErrorDismissed: { _ in false }, isRecoveryDetailExpanded: { _ in false },
+            onDismissError: { _ in }, onToggleRecoveryDetail: { _, _ in },
+            streamingMessageID: nil, onConfigureStreamingCell: { _ in }
+        )
+    }
+
+    private static func repoFixtureURL(_ relativePath: String) throws -> URL {
+        var cursor = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        while cursor.path != "/" {
+            let candidate = cursor.appendingPathComponent(relativePath)
+            if FileManager.default.fileExists(atPath: candidate.path) { return candidate }
+            cursor.deleteLastPathComponent()
+        }
+        throw CocoaError(.fileNoSuchFile)
     }
 
     private static func visibleButtonTitles(in view: UIView) -> [String] {

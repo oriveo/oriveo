@@ -58,11 +58,13 @@ struct ChatRowHeightParityTests {
     }
 
     private static func projection(
-        _ message: ChatMessage, replyNotice: RelayWebReplyNotice? = nil
+        _ message: ChatMessage, replyNotice: RelayWebReplyNotice? = nil,
+        currentVisionInput: CapabilityEvidenceFacade.InputCapabilityProjection? = nil
     ) -> (row: ChatCollectionProjectionBuilder.MessageRow,
           model: ChatCollectionProjectionBuilder.MessageRenderModel)? {
         let rows = ChatCollectionProjectionBuilder.makeRows(
-            from: [message], metadata: .empty, replyNotices: replyNotice.map { [message.id: $0] } ?? [:]
+            from: [message], metadata: .empty, replyNotices: replyNotice.map { [message.id: $0] } ?? [:],
+            currentVisionInput: currentVisionInput
         )
         let plan = ChatCollectionProjectionBuilder.makeSnapshotPlan(
             from: rows, providerMetadataVersion: 0
@@ -106,7 +108,13 @@ struct ChatRowHeightParityTests {
     }
 
     private static func measureUser(_ message: ChatMessage) -> (estimated: CGFloat, real: CGFloat) {
-        guard let (row, model) = projection(message) else { return (0, 0) }
+        measureUser(message, currentVisionInput: nil)
+    }
+
+    private static func measureUser(
+        _ message: ChatMessage, currentVisionInput: CapabilityEvidenceFacade.InputCapabilityProjection?
+    ) -> (estimated: CGFloat, real: CGFloat) {
+        guard let (row, model) = projection(message, currentVisionInput: currentVisionInput) else { return (0, 0) }
         let estimated = ChatListViewController.estimatedRowHeight(for: row, width: width)
         let cell = UserMessageCell(frame: CGRect(x: 0, y: 0, width: width, height: 100))
         cell.configure(
@@ -116,7 +124,8 @@ struct ChatRowHeightParityTests {
             onSaveNote: {},
             onSaveSelection: { _ in },
             onAskSelection: { _ in },
-            onOpenNoteReferences: nil
+            onOpenNoteReferences: nil,
+            visionInput: model.visionInput
         )
         cell.frame = CGRect(x: 0, y: 0, width: width, height: naturalHeight(of: cell))
         cell.setNeedsLayout()
@@ -206,7 +215,7 @@ struct ChatRowHeightParityTests {
 
     @Test("Assistant Parity")
     func assistantParity() {
-        let cjkPara = "このあいのうえについておかします。きくをけこしてからさしします。\n"
+        let cjkPara = "このあいのうえについておかします\u{3002}きくをけこしてからさしします\u{3002}\n"
         let codeLine = "    let value = compute(input, index)\n"
         let longCodeLine = "    let veryLongVariableNameForWrapping = compute(input, index, extra)\n"
         Self.assertParity([
@@ -225,22 +234,22 @@ struct ChatRowHeightParityTests {
             ("code/60 lines", Self.assistant(text: "```swift\n" + String(repeating: codeLine, count: 60) + "```")),
             ("code/200 lines", Self.assistant(text: "```swift\n" + String(repeating: codeLine, count: 200) + "```")),
             ("code/10 wrapped long lines", Self.assistant(text: "```swift\n" + String(repeating: longCodeLine, count: 10) + "```")),
-            ("reasoning/short", Self.assistant(text: "はい。", reasoning: "かえています。")),
-            ("reasoning/long", Self.assistant(text: "はい。", reasoning: String(repeating: "かえています。", count: 200))),
-            ("citations/1", Self.assistant(text: "はい。", citations: (1...1).map(Self.citation))),
-            ("citations/3", Self.assistant(text: "はい。", citations: (1...3).map(Self.citation))),
-            ("citations/5", Self.assistant(text: "はい。", citations: (1...5).map(Self.citation))),
-            ("citations/10", Self.assistant(text: "はい。", citations: (1...10).map(Self.citation))),
-            ("image/1", Self.assistant(text: "えです。", attachments: [Self.imageAttachment()])),
-            ("MCP steps/1 step", Self.assistant(text: "はい。", toolSteps: (1...1).map(Self.toolStep))),
-            ("MCP steps/8 steps", Self.assistant(text: "はい。", toolSteps: (1...8).map(Self.toolStep))),
+            ("reasoning/short", Self.assistant(text: "はい\u{3002}", reasoning: "かえています\u{3002}")),
+            ("reasoning/long", Self.assistant(text: "はい\u{3002}", reasoning: String(repeating: "かえています\u{3002}", count: 200))),
+            ("citations/1", Self.assistant(text: "はい\u{3002}", citations: (1...1).map(Self.citation))),
+            ("citations/3", Self.assistant(text: "はい\u{3002}", citations: (1...3).map(Self.citation))),
+            ("citations/5", Self.assistant(text: "はい\u{3002}", citations: (1...5).map(Self.citation))),
+            ("citations/10", Self.assistant(text: "はい\u{3002}", citations: (1...10).map(Self.citation))),
+            ("image/1", Self.assistant(text: "えです\u{3002}", attachments: [Self.imageAttachment()])),
+            ("MCP steps/1 step", Self.assistant(text: "はい\u{3002}", toolSteps: (1...1).map(Self.toolStep))),
+            ("MCP steps/8 steps", Self.assistant(text: "はい\u{3002}", toolSteps: (1...8).map(Self.toolStep))),
             ("mixed/text + code + citations", Self.assistant(
                 text: String(repeating: cjkPara, count: 3) + "```swift\n" + String(repeating: codeLine, count: 8) + "```\n" + cjkPara,
                 citations: (1...3).map(Self.citation)
             )),
             ("mixed/reasoning + citations", Self.assistant(
                 text: String(repeating: cjkPara, count: 2),
-                reasoning: String(repeating: "かえています。", count: 30),
+                reasoning: String(repeating: "かえています\u{3002}", count: 30),
                 citations: (1...4).map(Self.citation)
             )),
         ], band: Self.strictBand, measure: Self.measureAssistant)
@@ -248,11 +257,11 @@ struct ChatRowHeightParityTests {
 
     @Test("Reply Notice Parity")
     func replyNoticeParity() {
-        let cjkPara = "このあいのうえについておかします。きくをけこしてからさしします。\n"
+        let cjkPara = "このあいのうえについておかします\u{3002}きくをけこしてからさしします\u{3002}\n"
         Self.assertParity([
-            ("reply notice/short answer", Self.assistant(text: "はい。")),
+            ("reply notice/short answer", Self.assistant(text: "はい\u{3002}")),
             ("reply notice/3 paragraphs", Self.assistant(text: String(repeating: cjkPara, count: 3))),
-            ("reply notice/3 citations", Self.assistant(text: "はい。", citations: (1...3).map(Self.citation))),
+            ("reply notice/3 citations", Self.assistant(text: "はい\u{3002}", citations: (1...3).map(Self.citation))),
         ], band: Self.strictBand, measure: { Self.measureAssistant($0, replyNotice: .webNotUsed) })
     }
 
@@ -269,17 +278,73 @@ struct ChatRowHeightParityTests {
     func userParity() {
         Self.assertParity([
             ("user/short", Self.user(text: "こんにちは")),
-            ("user/medium", Self.user(text: String(repeating: "これはしつです。", count: 10))),
-            ("user/long", Self.user(text: String(repeating: "これはないしつもです。", count: 40))),
+            ("user/medium", Self.user(text: String(repeating: "これはしつです\u{3002}", count: 10))),
+            ("user/long", Self.user(text: String(repeating: "これはないしつもです\u{3002}", count: 40))),
             ("user/long ASCII", Self.user(text: String(repeating: "this is a question ", count: 40))),
-            ("user/multi-line", Self.user(text: String(repeating: "ひとつです。\n", count: 12))),
+            ("user/multi-line", Self.user(text: String(repeating: "ひとつです\u{3002}\n", count: 12))),
             // Past `UserMessageFold.thresholdUTF16`: a capped bubble plus the "Show full message" pill row, so the
             // estimate must stop growing with the full length.
-            ("user/folded", Self.user(text: String(repeating: "これはながいしつもんです。", count: 700))),
+            ("user/folded", Self.user(text: String(repeating: "これはながいしつもんです\u{3002}", count: 700))),
             ("user/folded ASCII", Self.user(text: String(repeating: "this is a question ", count: 2_000))),
         ], band: Self.userBand, measure: Self.measureUser)
     }
 
+    @Test("parity: user multi-image bubbles (real grid: 128-point cells for two and four images, 96-point cells for three)")
+    func userMultiImageParity() {
+        func withImages(_ count: Int) -> ChatMessage {
+            var message = Self.user(text: "look at these pictures")
+            message.attachments = (0..<count).map { _ in Self.imageAttachment() }
+            return message
+        }
+        Self.assertParity([
+            ("user/two images", withImages(2)),
+            ("user/three images", withImages(3)),
+            ("user/four images", withImages(4)),
+            ("user/file only", {
+                var message = Self.user(text: "look at this report")
+                message.attachments = [
+                    Oriveo.Attachment(id: UUID(), kind: .file, fileName: "report.pdf", mimeType: "application/pdf"),
+                ]
+                return message
+            }()),
+            ("user/two images + file", {
+                var message = withImages(2)
+                message.attachments?.append(
+                    Oriveo.Attachment(id: UUID(), kind: .file, fileName: "report.pdf", mimeType: "application/pdf")
+                )
+                return message
+            }()),
+        ], band: Self.userBand, measure: Self.measureUser)
+    }
+
+    @Test("parity: the \"Not sent to this model\" caption on a user bubble with an image")
+    func userNotSentCaptionParity() throws {
+        // A relay without a connection identity is hard-blocked to a placeholder by the production projection; all we need is one production-made placeholder projection.
+        let model = AIModel(
+            id: "parity-relay", name: "relay", capabilities: [.text],
+            reasoningModeAvailable: false, isAvailable: true, isDefault: true, priceTier: ""
+        )
+        let placeholder = try #require(CapabilityEvidenceProductionAdapter.capabilityProjection(
+            form: .relay, providerKind: .relay, model: model, identity: nil,
+            keys: [CapabilityEvidenceFacade.visionInputKey]
+        ).inputProjection(for: CapabilityEvidenceFacade.visionInputKey))
+        #expect(placeholder.outbound == .placeholder)
+        func withImages(_ text: String, _ count: Int) -> ChatMessage {
+            var message = Self.user(text: text)
+            message.attachments = (0..<count).map { _ in Self.imageAttachment() }
+            return message
+        }
+        // Single image with text only: the estimate of multi-image grids and text-less immersive images already differs from the real height (unrelated to the caption), so they are not reconciled here.
+        Self.assertParity([
+            ("user/single image + caption", withImages("look at this picture", 1)),
+        ], band: Self.userBand) { Self.measureUser($0, currentVisionInput: placeholder) }
+        // The estimate really includes this row: the same message with and without the caption differs by one constant.
+        let message = withImages("look at this picture", 1)
+        let with = Self.measureUser(message, currentVisionInput: placeholder)
+        let without = Self.measureUser(message, currentVisionInput: nil)
+        #expect(with.estimated - without.estimated == ChatListViewController.notSentCaptionHeight)
+        #expect(with.real > without.real)
+    }
 
     /// Sentinel for the number of slots a cell has.
     ///
@@ -294,7 +359,7 @@ struct ChatRowHeightParityTests {
     @Test("Cell Slot Inventory Is Stable")
     func cellSlotInventoryIsStable() {
         let cell = AssistantMessageCell(frame: CGRect(x: 0, y: 0, width: Self.width, height: 100))
-        guard let (_, model) = Self.projection(Self.assistant(text: "はい。")) else {
+        guard let (_, model) = Self.projection(Self.assistant(text: "はい\u{3002}")) else {
             Issue.record("projection failed"); return
         }
         cell.configure(

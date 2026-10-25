@@ -8,12 +8,30 @@ import UIKit
 /// Streaming checkpoints: production ChatView plus a store write of the generating row.
 /// After WindowSnapshot ignores the generating cursor, a checkpoint must not punch through the list body.
 @MainActor
-@Suite("Chat streaming checkpoint hang cost", .serialized)
+@Suite("Chat streaming checkpoint hang cost", .serialized, .sharedProcessState)
 struct ChatStreamingCheckpointHangCostTests {
     private func yieldMainActor(for seconds: TimeInterval) async throws {
         let deadline = Date().addingTimeInterval(seconds)
         while Date() < deadline {
             try await Task.sleep(for: .milliseconds(10))
+        }
+    }
+
+    /// Under a fully loaded concurrent run, the async settling after mount (conversation projection, sync state, note
+    /// summaries and so on) can arrive later than a fixed 1.5s, and a late body evaluation would be charged to the
+    /// checkpoints. Before measuring, wait until both body layers evaluate zero times for one full checkpoint window
+    /// (8 x 0.12s), up to 10s; the assertions stay as they were.
+    private func waitForRenderQuiescence(conversationID: UUID) async throws {
+        let deadline = Date().addingTimeInterval(10)
+        while true {
+            ChatView.resetBodyEvaluationCount(countingOnly: conversationID)
+            ChatMessageList.resetBodyEvaluationCount(countingOnly: conversationID)
+            try await yieldMainActor(for: 0.96)
+            if ChatView.bodyEvaluationCount == 0, ChatMessageList.bodyEvaluationCount == 0 { return }
+            if Date() >= deadline {
+                Issue.record("Still evaluating bodies 10s after mount (ChatView \(ChatView.bodyEvaluationCount), list \(ChatMessageList.bodyEvaluationCount)); the page never settled")
+                return
+            }
         }
     }
 
@@ -78,9 +96,10 @@ struct ChatStreamingCheckpointHangCostTests {
             window.rootViewController = nil
         }
         try await yieldMainActor(for: 1.5)
+        try await waitForRenderQuiescence(conversationID: conversationID)
 
-        ChatView.resetBodyEvaluationCount()
-        ChatMessageList.resetBodyEvaluationCount()
+        ChatView.resetBodyEvaluationCount(countingOnly: conversationID)
+        ChatMessageList.resetBodyEvaluationCount(countingOnly: conversationID)
         MessageWindowLoader.resetContentChangeCount()
         let pool = try DatabaseManager.shared.openIfNeeded(for: uid)
         let probe = MainThreadStallProbe()
