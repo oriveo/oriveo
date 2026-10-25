@@ -137,7 +137,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
 
         let breakdown = Self.parseUsage(geminiResponse.usageMetadata)
         let (cost, source) = await MetadataClient.shared.calcCost(
-            breakdown: breakdown, modelID: modelID, providerKind: .gemini
+            breakdown: breakdown, modelID: modelID, providerKind: .gemini, at: Date()
         )
         return ProviderChatResult(
             text: text,
@@ -146,6 +146,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
             estimatedCost: cost,
             attachments: imageAttachments.isEmpty ? nil : imageAttachments,
             usageBreakdown: breakdown,
+            usageReported: geminiResponse.usageMetadata != nil,
             costSource: source
         )
     }
@@ -214,6 +215,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
             estimatedCost: 0,
             attachments: attachments.isEmpty ? nil : attachments,
             usageBreakdown: breakdown,
+            usageReported: geminiResponse.usageMetadata != nil,
             costSource: nil
         )
     }
@@ -372,7 +374,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
                     }
                     let breakdown = Self.parseUsage(lastUsage)
                     let (cost, source) = await MetadataClient.shared.calcCost(
-                        breakdown: breakdown, modelID: modelID, providerKind: .gemini
+                        breakdown: breakdown, modelID: modelID, providerKind: .gemini, at: Date()
                     )
                     let result = ProviderChatResult(
                         text: finalText,
@@ -380,6 +382,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
                         completionTokens: breakdown.completionTokens,
                         estimatedCost: cost,
                         usageBreakdown: breakdown,
+                        usageReported: lastUsage != nil,
                         costSource: source,
                         finish: finishTracker.finish()
                     )
@@ -527,7 +530,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
                     let finalText = accumulatedText.trimmingCharacters(in: .whitespacesAndNewlines)
                     let breakdown = Self.parseUsage(lastUsage)
                     let (cost, source) = await MetadataClient.shared.calcCost(
-                        breakdown: breakdown, modelID: modelID, providerKind: .gemini
+                        breakdown: breakdown, modelID: modelID, providerKind: .gemini, at: Date()
                     )
                     let result = ProviderChatResult(
                         text: finalText,
@@ -535,6 +538,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
                         completionTokens: breakdown.completionTokens,
                         estimatedCost: cost,
                         usageBreakdown: breakdown,
+                        usageReported: lastUsage != nil,
                         costSource: source,
                         finish: finishTracker.finish()
                     )
@@ -780,11 +784,12 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         guard !text.isEmpty else { throw ProviderServiceError.emptyResponse }
         let breakdown = terminal.usage?.breakdown ?? UsageBreakdown()
         let (cost, source) = await MetadataClient.shared.calcCost(
-            breakdown: breakdown, modelID: modelID, providerKind: .gemini
+            breakdown: breakdown, modelID: modelID, providerKind: .gemini, at: Date()
         )
         return ProviderChatResult(text: text, promptTokens: breakdown.totalInputTokens,
                                   completionTokens: breakdown.completionTokens,
-                                  estimatedCost: cost, usageBreakdown: breakdown, costSource: source,
+                                  estimatedCost: cost, usageBreakdown: breakdown, usageReported: terminal.usage != nil,
+                                  costSource: source,
                                   citations: webEvidence.citations.isEmpty ? nil : webEvidence.citations)
     }
 
@@ -817,12 +822,12 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         ) else { return }
         let breakdown = parser.usage?.breakdown ?? UsageBreakdown()
         let (cost, source) = await MetadataClient.shared.calcCost(
-            breakdown: breakdown, modelID: modelID, providerKind: .gemini
+            breakdown: breakdown, modelID: modelID, providerKind: .gemini, at: Date()
         )
         continuation.yield(.done(ProviderChatResult(
             text: parser.text.trimmingCharacters(in: .whitespacesAndNewlines),
             promptTokens: breakdown.totalInputTokens, completionTokens: breakdown.completionTokens,
-            estimatedCost: cost, usageBreakdown: breakdown, costSource: source,
+            estimatedCost: cost, usageBreakdown: breakdown, usageReported: parser.usage != nil, costSource: source,
             // Reaching here means an interaction terminal state was seen (otherwise finish() has already thrown for the cut stream).
             finish: finish
         )))
@@ -1791,7 +1796,7 @@ private struct GeminiGenerateContentResponse: Decodable {
     }
 }
 
-private struct GeminiUsageMetadata: Decodable {
+nonisolated private struct GeminiUsageMetadata: Decodable {
     var promptTokenCount: Int?
     var candidatesTokenCount: Int?
     var totalTokenCount: Int?
@@ -1814,7 +1819,14 @@ private struct GeminiUsageMetadata: Decodable {
 }
 
 extension GeminiService {
-    fileprivate static func parseUsage(_ usage: GeminiUsageMetadata?) -> UsageBreakdown {
+    /// Tool legs reuse the same usage parser as ordinary chat: what a leg gets is the usageMetadata object of an SSE frame.
+    nonisolated static func legUsageBreakdown(usageJSON: [String: Any]) -> UsageBreakdown? {
+        guard let data = try? JSONSerialization.data(withJSONObject: usageJSON),
+              let usage = try? JSONDecoder().decode(GeminiUsageMetadata.self, from: data) else { return nil }
+        return parseUsage(usage)
+    }
+
+    nonisolated fileprivate static func parseUsage(_ usage: GeminiUsageMetadata?) -> UsageBreakdown {
         guard let usage else { return UsageBreakdown() }
         let prompt = usage.promptTokenCount ?? 0
         let cached = usage.cachedContentTokenCount ?? 0

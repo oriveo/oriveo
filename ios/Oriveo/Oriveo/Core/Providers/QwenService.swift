@@ -79,7 +79,8 @@ final class QwenService: BaseAPIService, ProviderServiceProtocol, CustomBaseURLP
             apiKey: apiKey, modelID: modelID, messages: messages, baseURL: baseURL, resolved: resolved
         ) {
             return ProviderChatResult(
-                text: "", promptTokens: 0, completionTokens: 0, estimatedCost: 0, attachments: attachments
+                text: "", promptTokens: 0, completionTokens: 0, estimatedCost: 0, attachments: attachments,
+                usageReported: false
             )
         }
 
@@ -105,7 +106,7 @@ final class QwenService: BaseAPIService, ProviderServiceProtocol, CustomBaseURLP
         let text = trimmed
         let breakdown = Self.parseUsage(response.usage)
         let (cost, source) = await MetadataClient.shared.calcCost(
-            breakdown: breakdown, modelID: modelID, providerKind: .qwen
+            breakdown: breakdown, modelID: modelID, providerKind: .qwen, at: Date()
         )
         return ProviderChatResult(
             text: text,
@@ -113,6 +114,7 @@ final class QwenService: BaseAPIService, ProviderServiceProtocol, CustomBaseURLP
             completionTokens: breakdown.completionTokens,
             estimatedCost: cost,
             usageBreakdown: breakdown,
+            usageReported: response.usage != nil,
             costSource: source,
             toolCalls: toolCalls.isEmpty ? nil : toolCalls
         )
@@ -258,7 +260,7 @@ final class QwenService: BaseAPIService, ProviderServiceProtocol, CustomBaseURLP
                     }
                     let breakdown = Self.parseUsage(lastUsage)
                     let (cost, source) = await MetadataClient.shared.calcCost(
-                        breakdown: breakdown, modelID: modelID, providerKind: .qwen
+                        breakdown: breakdown, modelID: modelID, providerKind: .qwen, at: Date()
                     )
                     let result = ProviderChatResult(
                         text: finalText,
@@ -266,6 +268,7 @@ final class QwenService: BaseAPIService, ProviderServiceProtocol, CustomBaseURLP
                         completionTokens: breakdown.completionTokens,
                         estimatedCost: cost,
                         usageBreakdown: breakdown,
+                        usageReported: lastUsage != nil,
                         costSource: source,
                         finish: finishTracker.finish()
                     )
@@ -659,7 +662,7 @@ private enum QwenContentValue: Decodable {
     }
 }
 
-private struct QwenUsage: Decodable {
+nonisolated private struct QwenUsage: Decodable {
     var prompt_tokens: Int?
     var completion_tokens: Int?
     var total_tokens: Int?
@@ -695,7 +698,14 @@ private struct QwenUsage: Decodable {
 }
 
 extension QwenService {
-    fileprivate static func parseUsage(_ usage: QwenUsage?) -> UsageBreakdown {
+    /// Maps the usage object of one openai_chat tool-leg frame to that leg's breakdown, with the same parser as ordinary chat (cached_tokens on both the top level and the details path).
+    nonisolated static func legUsageBreakdown(usageJSON: [String: Any]) -> UsageBreakdown? {
+        guard let data = try? JSONSerialization.data(withJSONObject: usageJSON),
+              let usage = try? JSONDecoder().decode(QwenUsage.self, from: data) else { return nil }
+        return parseUsage(usage)
+    }
+
+    nonisolated fileprivate static func parseUsage(_ usage: QwenUsage?) -> UsageBreakdown {
         guard let usage else { return UsageBreakdown() }
         let cached = usage.prompt_tokens_details?.cached_tokens ?? usage.cached_tokens ?? 0
         let total = usage.prompt_tokens ?? 0

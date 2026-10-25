@@ -81,7 +81,8 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
             apiKey: apiKey, modelID: modelID, messages: messages, baseURL: baseURL, resolved: resolved
         ) {
             return ProviderChatResult(
-                text: "", promptTokens: 0, completionTokens: 0, estimatedCost: 0, attachments: attachments
+                text: "", promptTokens: 0, completionTokens: 0, estimatedCost: 0, attachments: attachments,
+                usageReported: false
             )
         }
 
@@ -149,7 +150,7 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
         }
         let breakdown = Self.parseUsage(response.usage)
         let (cost, source) = await MetadataClient.shared.calcCost(
-            breakdown: breakdown, modelID: modelID, providerKind: .miniMax
+            breakdown: breakdown, modelID: modelID, providerKind: .miniMax, at: Date()
         )
         return ProviderChatResult(
             text: text,
@@ -158,6 +159,7 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
             completionTokens: breakdown.completionTokens,
             estimatedCost: cost,
             usageBreakdown: breakdown,
+            usageReported: response.usage != nil,
             costSource: source,
             toolCalls: toolCalls.isEmpty ? nil : toolCalls
         )
@@ -338,7 +340,7 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
                     let finalReasoning = accumulatedReasoning.trimmingCharacters(in: .whitespacesAndNewlines)
                     let breakdown = Self.parseUsage(lastUsage)
                     let (cost, source) = await MetadataClient.shared.calcCost(
-                        breakdown: breakdown, modelID: modelID, providerKind: .miniMax
+                        breakdown: breakdown, modelID: modelID, providerKind: .miniMax, at: Date()
                     )
                     let result = ProviderChatResult(
                         text: finalText,
@@ -347,6 +349,7 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
                         completionTokens: breakdown.completionTokens,
                         estimatedCost: cost,
                         usageBreakdown: breakdown,
+                        usageReported: lastUsage != nil,
                         costSource: source,
                         finish: finishTracker.finish()
                     )
@@ -442,12 +445,20 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
         let requestMessages = replay == nil ? messages : messages.filter {
             $0.id != requestOptions.localExplicitContinuationMessageID
         }
+        // The web route likewise decides whether to send images only from the image-input projection; web search itself is compiled by the recipe, so web_search is not registered here.
+        let capabilityIntent = CapabilityEvidenceProductionAdapter.finalChatIntent(
+            messages: requestMessages, request: request, effectiveTransport: resolved?.transport ?? "",
+            model: requestOptions.capabilityEvidenceModel,
+            requestedReasoningMode: .automatic, webSearchEnabled: false,
+            imagePlaceholderText: AttachmentTransport.miniMaxAnthropicWeb.profile.imagePlaceholderText
+        )
         var body: [String: Any] = [
             "model": modelID,
-            // The main chat path uses plan.budget.oWire; non-chat paths keep the original fallback.
-            "max_tokens": requestOptions.maxOutputTokens ?? resolved?.maxOutputTokens ?? 8192,
+            // The chat main path uses plan.budget.oWire; non-chat paths keep the original fallback.
+            "max_tokens": requestOptions.maxOutputTokens ?? resolved?.maxOutputTokens
+                ?? CapabilityEvidenceFacade.anthropicDefaultMaxOutputTokens,
             "stream": stream,
-            "messages": try AttachmentDelivery.mapTurns(requestMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil, dynamicText: requestOptions.dynamicText) { try Self.buildAnthropicWebMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) },
+            "messages": try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil, dynamicText: requestOptions.dynamicText) { try Self.buildAnthropicWebMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1, imageOutbound: capabilityIntent.imageOutbound) },
         ]
         let system = requestOptions.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         if !system.isEmpty { body["system"] = system }
@@ -482,12 +493,34 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
         return components.url
     }
 
-    private static func buildAnthropicWebMessage(_ message: ChatMessage, model: AIModel?, isOutgoingTurn: Bool) throws -> [String: Any] {
+    /// Anthropic Messages shape: when image recognition projects native_part, an image block follows the text block (as in `AnthropicService.buildRequestMessage`);
+    /// with a placeholder the images are handed to AttachmentDelivery, which writes the placeholder, and content stays a string.
+    private static func buildAnthropicWebMessage(
+        _ message: ChatMessage, model: AIModel?, isOutgoingTurn: Bool,
+        imageOutbound: CapabilityEvidenceFacade.InputCapabilityProjection.Outbound
+    ) throws -> [String: Any] {
+        let attachments = message.attachments ?? []
+        let images = imageOutbound == .nativePart ? attachments.filter { $0.kind == .image } : []
         let text = try AttachmentDelivery.deliver(
             isOutgoingTurn: isOutgoingTurn,
-            userText: message.text, attachments: message.attachments ?? [], transport: .miniMaxAnthropicWeb, model: model
+            userText: message.text,
+            attachments: imageOutbound == .nativePart ? attachments.filter { $0.kind != .image } : attachments,
+            transport: .miniMaxAnthropicWeb, model: model
         ).injectedText
-        return ["role": message.role.rawValue, "content": text]
+        let imageBlocks: [[String: Any]] = images.compactMap { image in
+            let b64 = image.resolvedBase64Data
+            guard !b64.isEmpty else { return nil }
+            return [
+                "type": "image",
+                "source": [
+                    "type": "base64",
+                    "media_type": ImageMediaType.resolve(base64: b64, declared: image.mimeType),
+                    "data": b64,
+                ],
+            ]
+        }
+        guard !imageBlocks.isEmpty else { return ["role": message.role.rawValue, "content": text] }
+        return ["role": message.role.rawValue, "content": [["type": "text", "text": text]] + imageBlocks]
     }
 
     private func sendAnthropicWebMessage(
@@ -536,14 +569,14 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
             completionTokens: usage?["output_tokens"] as? Int ?? 0
         )
         let (cost, source) = await MetadataClient.shared.calcCost(
-            breakdown: breakdown, modelID: modelID, providerKind: .miniMax
+            breakdown: breakdown, modelID: modelID, providerKind: .miniMax, at: Date()
         )
         return ProviderChatResult(
             text: text,
             reasoningText: reasoning.isEmpty ? nil : reasoning,
             promptTokens: breakdown.totalInputTokens,
             completionTokens: breakdown.completionTokens,
-            estimatedCost: cost, usageBreakdown: breakdown, costSource: source,
+            estimatedCost: cost, usageBreakdown: breakdown, usageReported: usage != nil, costSource: source,
             citations: citationAccumulator.citations.isEmpty ? nil : citationAccumulator.citations
         )
     }
@@ -582,6 +615,8 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
                     var citationCount = 0
                     var inputTokens = 0
                     var outputTokens = 0
+                    // The upstream counts as having reported usage only when message_start or message_delta carried a usage object.
+                    var sawUsage = false
                     var blocks: [Int: [String: Any]] = [:]
                     var inputFragments: [Int: String] = [:]
                     var terminal = false
@@ -614,7 +649,9 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
                         let index = object["index"] as? Int ?? 0
                         switch type {
                         case "message_start":
-                            inputTokens = ((object["message"] as? [String: Any])?["usage"] as? [String: Any])?["input_tokens"] as? Int ?? 0
+                            let startUsage = (object["message"] as? [String: Any])?["usage"] as? [String: Any]
+                            if startUsage != nil { sawUsage = true }
+                            inputTokens = startUsage?["input_tokens"] as? Int ?? 0
                         case "content_block_start":
                             if let block = object["content_block"] as? [String: Any],
                                Self.validAnthropicWebBlock(block, partial: true) {
@@ -629,7 +666,9 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
                                 ) && replayStateValid
                             } else { replayStateValid = false }
                         case "message_delta":
-                            outputTokens = (object["usage"] as? [String: Any])?["output_tokens"] as? Int ?? outputTokens
+                            let deltaUsage = object["usage"] as? [String: Any]
+                            if deltaUsage != nil { sawUsage = true }
+                            outputTokens = deltaUsage?["output_tokens"] as? Int ?? outputTokens
                         case "message_stop": terminal = true
                         default: break
                         }
@@ -650,14 +689,14 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
                         promptTokens: inputTokens, completionTokens: outputTokens
                     )
                     let (cost, source) = await MetadataClient.shared.calcCost(
-                        breakdown: breakdown, modelID: modelID, providerKind: .miniMax
+                        breakdown: breakdown, modelID: modelID, providerKind: .miniMax, at: Date()
                     )
                     continuation.yield(.done(ProviderChatResult(
                         text: context.accumulatedText.trimmingCharacters(in: .whitespacesAndNewlines),
                         reasoningText: finalizedReasoning.isEmpty ? nil : finalizedReasoning,
                         promptTokens: breakdown.totalInputTokens,
                         completionTokens: breakdown.completionTokens,
-                        estimatedCost: cost, usageBreakdown: breakdown, costSource: source,
+                        estimatedCost: cost, usageBreakdown: breakdown, usageReported: sawUsage, costSource: source,
                         finish: finishTracker.finish()
                     )))
                     continuation.finish()
@@ -775,7 +814,7 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
         if !systemPrompt.isEmpty {
             apiMessages.append(["role": "system", "content": systemPrompt])
         }
-        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil, dynamicText: requestOptions.dynamicText) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
+        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil, dynamicText: requestOptions.dynamicText) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1, imageOutbound: capabilityIntent.imageOutbound) })
         if let replayAssistantMessages {
             let insertAt = apiMessages.lastIndex(where: { $0["role"] as? String == "user" })
                 ?? apiMessages.count
@@ -804,16 +843,14 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
         return request
     }
 
-    private static func buildRequestMessage(_ msg: ChatMessage, model: AIModel?, isOutgoingTurn: Bool) throws -> [String: Any] {
-        let atts = msg.attachments ?? []
-        let text = try AttachmentDelivery.deliver(
-            isOutgoingTurn: isOutgoingTurn,
-            userText: msg.text,
-            attachments: atts,
-            transport: .miniMaxChat,
-            model: model
-        ).injectedText
-        return ["role": msg.role.rawValue, "content": text]
+    private static func buildRequestMessage(
+        _ msg: ChatMessage, model: AIModel?, isOutgoingTurn: Bool,
+        imageOutbound: CapabilityEvidenceFacade.InputCapabilityProjection.Outbound
+    ) throws -> [String: Any] {
+        try OpenAIChatImageParts.message(
+            msg, transport: .miniMaxChat, model: model,
+            isOutgoingTurn: isOutgoingTurn, imageOutbound: imageOutbound
+        )
     }
 
     private static func reasoningReplayRecipe(

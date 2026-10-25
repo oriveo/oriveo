@@ -332,6 +332,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                 estimatedCost: 0,
                 attachments: attachments.isEmpty ? nil : attachments,
                 usageBreakdown: breakdown,
+                usageReported: response.usage != nil,
                 costSource: nil
             )
 
@@ -373,6 +374,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                 completionTokens: breakdown.completionTokens,
                 estimatedCost: 0,
                 usageBreakdown: breakdown,
+                usageReported: response.usage != nil,
                 costSource: nil,
                 toolCalls: toolCalls.isEmpty ? nil : toolCalls
             )
@@ -408,7 +410,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         }
 
         let (data, httpResponse) = try await performRawWithUnsupportedParamSelfHeal(
-            providerKind: resolveCostProviderKind(modelID: modelID),
+            providerKind: resolveCostProviderKind(modelID: modelID, model: requestOptions.capabilityEvidenceModel),
             modelID: modelID,
             shouldReturnWithoutMapping: { statusCode, data, _ in
                 self.isResponsesNotSupported(statusCode, data: data)
@@ -471,9 +473,9 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         }
 
         let breakdown = Self.parseResponsesUsage(responsesResult.usage)
-        let providerKind = resolveCostProviderKind(modelID: modelID)
+        let providerKind = resolveCostProviderKind(modelID: modelID, model: requestOptions.capabilityEvidenceModel)
         let (cost, source) = await MetadataClient.shared.calcCost(
-            breakdown: breakdown, modelID: modelID, providerKind: providerKind
+            breakdown: breakdown, modelID: modelID, providerKind: providerKind, at: Date()
         )
         return ProviderChatResult(
             text: text,
@@ -482,6 +484,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             estimatedCost: cost,
             attachments: imageAttachments.isEmpty ? nil : imageAttachments,
             usageBreakdown: breakdown,
+            usageReported: responsesResult.usage != nil,
             costSource: source
         )
     }
@@ -587,7 +590,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                         )
                         do {
                             (bytes, _) = try await self.bytesWithUnsupportedParamSelfHeal(
-                                providerKind: self.resolveCostProviderKind(modelID: modelID),
+                                providerKind: self.resolveCostProviderKind(modelID: modelID, model: requestOptions.capabilityEvidenceModel),
                                 modelID: modelID,
                                 request: request,
                                 effectiveTransport: TransportKind.openaiResponses.rawValue
@@ -617,7 +620,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                     let responsesShape = MetadataClient.shared.syncWebSearchStreamShape(
                         profileName: MetadataClient.shared.syncResolveCatalogModel(
                             modelID: modelID,
-                            providerKind: self.resolveCostProviderKind(modelID: modelID)
+                            providerKind: self.resolveCostProviderKind(modelID: modelID, model: requestOptions.capabilityEvidenceModel)
                         )?.profiles.webSearch
                     )
                     var responsesCtx = StreamContext()
@@ -738,11 +741,11 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                         )
                     }
                     let breakdown = Self.parseResponsesUsage(lastUsage)
-                    let providerKind = self.resolveCostProviderKind(modelID: modelID)
+                    let providerKind = self.resolveCostProviderKind(modelID: modelID, model: requestOptions.capabilityEvidenceModel)
                     let (cost, source): (Double, CostSource) = subscription != nil
                         ? (0, .subscription)
                         : await MetadataClient.shared.calcCost(
-                            breakdown: breakdown, modelID: modelID, providerKind: providerKind
+                            breakdown: breakdown, modelID: modelID, providerKind: providerKind, at: Date()
                         )
                     let result = ProviderChatResult(
                         text: finalText,
@@ -750,6 +753,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                         completionTokens: breakdown.completionTokens,
                         estimatedCost: cost,
                         usageBreakdown: breakdown,
+                        usageReported: lastUsage != nil,
                         costSource: source,
                         finish: finishTracker.finish()
                     )
@@ -802,7 +806,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         requestOptions: ChatRequestOptions = ChatRequestOptions()
     ) async throws -> ProviderChatResult {
         let (data, _) = try await performRawWithUnsupportedParamSelfHeal(
-            providerKind: resolveCostProviderKind(modelID: modelID),
+            providerKind: resolveCostProviderKind(modelID: modelID, model: requestOptions.capabilityEvidenceModel),
             modelID: modelID
         ) { droppedParams in
             try buildChatCompletionsRequest(
@@ -831,10 +835,10 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         guard !text.isEmpty || !toolCalls.isEmpty else {
             throw ProviderServiceError.emptyResponse
         }
-        let breakdown = Self.parseUsage(response.usage)
-        let providerKind = resolveCostProviderKind(modelID: modelID)
+        let (breakdown, usageReported) = Self.parseUsageSignal(response.usage)
+        let providerKind = resolveCostProviderKind(modelID: modelID, model: requestOptions.capabilityEvidenceModel)
         let (cost, source) = await MetadataClient.shared.calcCost(
-            breakdown: breakdown, modelID: modelID, providerKind: providerKind
+            breakdown: breakdown, modelID: modelID, providerKind: providerKind, at: Date()
         )
         return ProviderChatResult(
             text: text,
@@ -842,6 +846,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             completionTokens: breakdown.completionTokens,
             estimatedCost: cost,
             usageBreakdown: breakdown,
+            usageReported: usageReported,
             costSource: source,
             toolCalls: toolCalls.isEmpty ? nil : toolCalls
         )
@@ -880,7 +885,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             requestOptions: requestOptions
         )
         let (bytes, _) = try await bytesWithUnsupportedParamSelfHeal(
-            providerKind: resolveCostProviderKind(modelID: modelID),
+            providerKind: resolveCostProviderKind(modelID: modelID, model: requestOptions.capabilityEvidenceModel),
             modelID: modelID,
             request: request,
             effectiveTransport: TransportKind.openaiChat.rawValue
@@ -892,7 +897,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         let chatShape = MetadataClient.shared.syncWebSearchStreamShape(
             profileName: MetadataClient.shared.syncResolveCatalogModel(
                 modelID: modelID,
-                providerKind: resolveCostProviderKind(modelID: modelID)
+                providerKind: resolveCostProviderKind(modelID: modelID, model: requestOptions.capabilityEvidenceModel)
             )?.profiles.webSearch
         )
         var chatCtx = StreamContext()
@@ -942,9 +947,9 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
 
         let finalText = accumulatedText.trimmingCharacters(in: .whitespacesAndNewlines)
         let breakdown = Self.parseUsage(lastUsage)
-        let providerKind = resolveCostProviderKind(modelID: modelID)
+        let providerKind = resolveCostProviderKind(modelID: modelID, model: requestOptions.capabilityEvidenceModel)
         let (cost, source) = await MetadataClient.shared.calcCost(
-            breakdown: breakdown, modelID: modelID, providerKind: providerKind
+            breakdown: breakdown, modelID: modelID, providerKind: providerKind, at: Date()
         )
         let result = ProviderChatResult(
             text: finalText,
@@ -952,6 +957,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             completionTokens: breakdown.completionTokens,
             estimatedCost: cost,
             usageBreakdown: breakdown,
+            usageReported: lastUsage != nil,
             costSource: source,
             finish: finishTracker.finish()
         )
@@ -1155,7 +1161,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             size: "1024x1024",
             response_format: responseFormat
         )
-        let body = try JSONSerialization.jsonObject(with: JSONEncoder().encode(payload)) as? [String: Any] ?? [:]
+        var body = try JSONSerialization.jsonObject(with: JSONEncoder().encode(payload)) as? [String: Any] ?? [:]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         return request
     }
@@ -1418,7 +1424,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         }
         let text = try Self.llamaCppContent(from: data).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { throw ProviderServiceError.emptyResponse }
-        return ProviderChatResult(text: text, promptTokens: 0, completionTokens: 0, estimatedCost: 0)
+        return ProviderChatResult(text: text, promptTokens: 0, completionTokens: 0, estimatedCost: 0, usageReported: false)
     }
 
     private func streamLlamaCppNative(
@@ -1448,6 +1454,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                     continuation.yield(.done(ProviderChatResult(
                         text: accumulated.trimmingCharacters(in: .whitespacesAndNewlines),
                         promptTokens: 0, completionTokens: 0, estimatedCost: 0,
+                        usageReported: false,
                         finish: finish
                     )))
                     continuation.finish()
@@ -1563,6 +1570,19 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         return url
     }
 
+    /// Subscription web search follows the subscription-mode verdict: a placeholder subscription connection asks
+    /// `subscriptionVerdict(web)`, and the web_search tool is attached only when it is `autoAvailable`.
+    static func codexSubscriptionWebAvailable(model: AIModel) -> Bool {
+        var link = Provider(
+            id: UUID(), kind: .openAI, status: .connected, models: [], catalogModels: [],
+            lastCheckedAt: nil, apiKey: "", apiKeyPreview: "", lastError: nil,
+            baseURLText: nil, customName: nil, updatedAt: Date()
+        )
+        link.authMode = .subscription
+        return CapabilityControlResolution.subscriptionVerdict(
+            provider: link, model: model, capability: "web"
+        ).state == .autoAvailable
+    }
     private func buildCodexSubscriptionResponsesRequest(
         modelID: String,
         messages: [ChatMessage],
@@ -1587,7 +1607,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         let systemPrompt = requestOptions.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
 
         let model = requestOptions.capabilityEvidenceModel
-        let supportsWeb = model?.capabilities.contains(.web) ?? false
+        let supportsWeb = model.map { Self.codexSubscriptionWebAvailable(model: $0) } ?? false
         let tools: [ResponsesRequest.Tool]? = (webSearchEnabled && supportsWeb)
             ? [ResponsesRequest.Tool(type: "web_search")]
             : nil
@@ -2354,6 +2374,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                         completionTokens: breakdown.completionTokens,
                         estimatedCost: 0,
                         usageBreakdown: breakdown,
+                        usageReported: firstResult.lastUsage != nil,
                         costSource: nil,
                         finish: firstResult.finishTracker.finish()
                     )))
@@ -2575,7 +2596,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                         continuation.yield(ev)
                     }
 
-                    let relayBreakdown = Self.parseUsage(lastUsage)
+                    let (relayBreakdown, relayUsageReported) = Self.parseUsageSignal(lastUsage)
                     continuation.yield(
                         .done(
                             ProviderChatResult(
@@ -2584,6 +2605,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                                 completionTokens: relayBreakdown.completionTokens,
                                 estimatedCost: 0,
                                 usageBreakdown: relayBreakdown,
+                                usageReported: relayUsageReported,
                                 costSource: nil,
                                 finish: finishTracker.finish()
                             )
@@ -2900,7 +2922,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         let (cost, source): (Double, CostSource?) = await {
             guard let costProviderKind else { return (0, nil) }
             let result = await MetadataClient.shared.calcCost(
-                breakdown: breakdown, modelID: modelID, providerKind: costProviderKind
+                breakdown: breakdown, modelID: modelID, providerKind: costProviderKind, at: Date()
             )
             return (result.cost, result.source)
         }()
@@ -2911,19 +2933,26 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             estimatedCost: cost,
             attachments: attachments,
             usageBreakdown: breakdown,
+            usageReported: imagesResult.usage != nil,
             costSource: source
         )
     }
 
 
-    private func resolveCostProviderKind(modelID: String) -> ProviderKind {
-        if let matched = MetadataClient.shared.syncResolveCatalogModelAcrossProvidersWithProvider(
+    /// Finds the providerKind of the model family that matches modelID by sweeping the official providers (OpenAI first).
+    /// Used on the Relay path: Relay goes through OpenAIService, but the modelID may belong to any family (claude / gemini behind an
+    /// OpenAI Chat Completions compatible proxy), so .openAI cannot be hard-coded when looking up pricing.
+    /// A real OpenAI model also hits .openAI first in the sweep, so the result equals the hard-coded one.
+    /// This is only the Service layer's USD estimate; when Relay hits an official entry, the stored cost is re-estimated by the delivery layer
+    /// (`ChatDeliveryAccounting.generationCost` via `RelayOfficialCatalogResolver.officialMatch`) and this amount is ignored.
+    /// It uses the same matching function as delivery estimation and capability inheritance (`RelayOfficialCatalogResolver.officialMatch`): canonicalModelId first, otherwise id.
+    private func resolveCostProviderKind(modelID: String, model: AIModel? = nil) -> ProviderKind {
+        RelayOfficialCatalogResolver.officialMatch(
             modelID: modelID,
-            transportPriority: .openAI
-        ) {
-            return matched.matchedProviderKind
-        }
-        return .openAI
+            canonicalModelId: model?.canonicalModelId,
+            transportPriority: .openAI,
+            metadata: .shared
+        )?.matchedProviderKind ?? .openAI
     }
 
     fileprivate func injectResponsesEventType(payload: String, type: String) -> String {
@@ -3146,7 +3175,7 @@ private struct StreamDelta: Decodable {
     var content: OpenAIChatMessageContent?
 }
 
-private struct OpenAIUsage: Decodable {
+nonisolated private struct OpenAIUsage: Decodable {
     var prompt_tokens: Int?
     var completion_tokens: Int?
     var total_tokens: Int?
@@ -3292,7 +3321,7 @@ private struct ResponsesResponse: Decodable {
     }
 }
 
-private struct ResponsesUsage: Decodable {
+nonisolated private struct ResponsesUsage: Decodable {
     var input_tokens: Int?
     var output_tokens: Int?
     var input_tokens_details: InputTokensDetails?
@@ -3399,7 +3428,14 @@ private struct ImagesGenerationResponse: Decodable {
 }
 
 extension OpenAIService {
-    fileprivate static func parseUsage(_ usage: OpenAIUsage?) -> UsageBreakdown {
+    /// Tool legs reuse the same usage parser as ordinary chat: what a leg gets is the usage object of an SSE frame.
+    nonisolated static func legUsageBreakdown(usageJSON: [String: Any]) -> UsageBreakdown? {
+        guard let data = try? JSONSerialization.data(withJSONObject: usageJSON),
+              let usage = try? JSONDecoder().decode(OpenAIUsage.self, from: data) else { return nil }
+        return parseUsage(usage)
+    }
+
+    nonisolated fileprivate static func parseUsage(_ usage: OpenAIUsage?) -> UsageBreakdown {
         guard let usage else { return UsageBreakdown() }
         let cached = usage.prompt_tokens_details?.cached_tokens ?? 0
         let total = usage.prompt_tokens ?? 0
@@ -3415,14 +3451,23 @@ extension OpenAIService {
         )
     }
 
+    /// Usage parsing plus an explicit signal for "did the upstream give a usage object": `parseUsage(nil)` also returns an empty breakdown,
+    /// so the delivery layer cannot tell from the breakdown whether there was usage.
+    fileprivate static func parseUsageSignal(_ usage: OpenAIUsage?) -> (breakdown: UsageBreakdown, reported: Bool) {
+        (parseUsage(usage), usage != nil)
+    }
     #if DEBUG
+    /// Test entry: a non-stream Chat Completions response body goes through production decoding and `parseUsageSignal`.
+    static func chatCompletionUsageForTesting(responseBody: Data) throws -> (breakdown: UsageBreakdown, reported: Bool) {
+        parseUsageSignal(try JSONDecoder().decode(ChatCompletionResponse.self, from: responseBody).usage)
+    }
     static func parseUsageForTesting(
         promptTokens: Int?,
         completionTokens: Int?,
         cachedTokens: Int?,
         reasoningTokens: Int?
     ) -> UsageBreakdown {
-        let usage = OpenAIUsage(
+        var usage = OpenAIUsage(
             prompt_tokens: promptTokens,
             completion_tokens: completionTokens,
             total_tokens: nil,
@@ -3433,7 +3478,15 @@ extension OpenAIService {
     }
     #endif
 
-    fileprivate static func parseResponsesUsage(_ usage: ResponsesUsage?) -> UsageBreakdown {
+    /// The OpenAI Responses API names usage fields input_tokens / output_tokens (same meaning as chat completions but different fields).
+    /// Tool legs of openai_responses reuse the same Responses usage parser as ordinary chat: what a leg gets is the usage object of the `response.completed` frame.
+    nonisolated static func responsesLegUsageBreakdown(usageJSON: [String: Any]) -> UsageBreakdown? {
+        guard let data = try? JSONSerialization.data(withJSONObject: usageJSON),
+              let usage = try? JSONDecoder().decode(ResponsesUsage.self, from: data) else { return nil }
+        return parseResponsesUsage(usage)
+    }
+
+    nonisolated fileprivate static func parseResponsesUsage(_ usage: ResponsesUsage?) -> UsageBreakdown {
         guard let usage else { return UsageBreakdown() }
         let cached = usage.input_tokens_details?.cached_tokens ?? 0
         let total = usage.input_tokens ?? 0

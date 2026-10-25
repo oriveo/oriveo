@@ -169,7 +169,8 @@ struct OpenAISubscriptionOAuthClient: Sendable {
                     supportedReasoningLevels: item.supported_reasoning_levels ?? [],
                     defaultReasoningLevel: item.default_reasoning_level,
                     supportsImageInput: (item.input_modalities ?? []).contains("image"),
-                    contextWindow: item.context_window
+                    contextWindow: item.context_window,
+                    inputModalities: item.input_modalities
                 )
             }
     }
@@ -384,6 +385,7 @@ struct CodexModelDescriptor: Equatable, Sendable {
     let defaultReasoningLevel: String?
     let supportsImageInput: Bool
     let contextWindow: Int?
+    var inputModalities: [String]? = nil
 
     var supportsReasoning: Bool { !supportedReasoningLevels.isEmpty }
 }

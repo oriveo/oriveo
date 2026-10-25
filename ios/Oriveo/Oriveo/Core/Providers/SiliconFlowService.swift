@@ -86,7 +86,7 @@ final class SiliconFlowService: BaseAPIService, ProviderServiceProtocol, CustomB
 
         let breakdown = Self.parseUsage(response.usage)
         let (cost, source) = await MetadataClient.shared.calcCost(
-            breakdown: breakdown, modelID: modelID, providerKind: .siliconFlow
+            breakdown: breakdown, modelID: modelID, providerKind: .siliconFlow, at: Date()
         )
         return ProviderChatResult(
             text: text,
@@ -94,6 +94,7 @@ final class SiliconFlowService: BaseAPIService, ProviderServiceProtocol, CustomB
             completionTokens: breakdown.completionTokens,
             estimatedCost: cost,
             usageBreakdown: breakdown,
+            usageReported: response.usage != nil,
             costSource: source,
             toolCalls: toolCalls.isEmpty ? nil : toolCalls
         )
@@ -212,7 +213,7 @@ final class SiliconFlowService: BaseAPIService, ProviderServiceProtocol, CustomB
                     let finalText = accumulatedText.trimmingCharacters(in: .whitespacesAndNewlines)
                     let breakdown = Self.parseUsage(lastUsage)
                     let (cost, source) = await MetadataClient.shared.calcCost(
-                        breakdown: breakdown, modelID: modelID, providerKind: .siliconFlow
+                        breakdown: breakdown, modelID: modelID, providerKind: .siliconFlow, at: Date()
                     )
 
                     continuation.yield(
@@ -223,6 +224,7 @@ final class SiliconFlowService: BaseAPIService, ProviderServiceProtocol, CustomB
                                 completionTokens: breakdown.completionTokens,
                                 estimatedCost: cost,
                                 usageBreakdown: breakdown,
+                                usageReported: lastUsage != nil,
                                 costSource: source,
                                 finish: finishTracker.finish()
                             )

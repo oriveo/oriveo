@@ -93,7 +93,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
 
         let breakdown = Self.parseUsage(anthropicResponse.usage)
         let (cost, source) = await MetadataClient.shared.calcCost(
-            breakdown: breakdown, modelID: modelID, providerKind: .anthropic
+            breakdown: breakdown, modelID: modelID, providerKind: .anthropic, at: Date()
         )
         return ProviderChatResult(
             text: text,
@@ -101,6 +101,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
             completionTokens: breakdown.completionTokens,
             estimatedCost: cost,
             usageBreakdown: breakdown,
+            usageReported: anthropicResponse.usage != nil,
             costSource: source
         )
     }
@@ -161,6 +162,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
             completionTokens: breakdown.completionTokens,
             estimatedCost: 0,
             usageBreakdown: breakdown,
+            usageReported: anthropicResponse.usage != nil,
             costSource: nil
         )
     }
@@ -222,6 +224,8 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
 
                     var accumulatedText = ""
                     var startUsage: AnthropicUsage?
+                    // The upstream counts as having reported usage only when message_start or message_delta carried a usage object.
+                    var sawUsage = false
                     var outputTokens = 0
                     var currentEvent = ""
                     let antStrategy = TransportRegistry.strategy(for: .anthropicMessages)
@@ -278,6 +282,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
                         case "message_start":
                             if let msg = try? self.decoder.decode(AnthropicMessageStart.self, from: jsonData) {
                                 startUsage = msg.message?.usage
+                                if startUsage != nil { sawUsage = true }
                                 outputTokens = msg.message?.usage?.output_tokens ?? 0
                             }
                         case "content_block_delta":
@@ -293,6 +298,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
                             }
                         case "message_delta":
                             if let delta = try? self.decoder.decode(AnthropicMessageDelta.self, from: jsonData) {
+                                if delta.usage != nil { sawUsage = true }
                                 outputTokens = delta.usage?.output_tokens ?? outputTokens
                             }
                         case "message_stop":
@@ -325,7 +331,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
                     finalUsage.output_tokens = outputTokens
                     let breakdown = Self.parseUsage(finalUsage)
                     let (cost, source) = await MetadataClient.shared.calcCost(
-                        breakdown: breakdown, modelID: modelID, providerKind: .anthropic
+                        breakdown: breakdown, modelID: modelID, providerKind: .anthropic, at: Date()
                     )
                     let result = ProviderChatResult(
                         text: finalText,
@@ -333,6 +339,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
                         completionTokens: breakdown.completionTokens,
                         estimatedCost: cost,
                         usageBreakdown: breakdown,
+                        usageReported: sawUsage,
                         costSource: source,
                         finish: finishTracker.finish()
                     )
@@ -406,6 +413,8 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
 
                     var accumulatedText = ""
                     var startUsage: AnthropicUsage?
+                    // The upstream counts as having reported usage only when message_start or message_delta carried a usage object.
+                    var sawUsage = false
                     var outputTokens = 0
                     var currentEvent = ""
                     let relayStrategy = TransportRegistry.strategy(for: .anthropicMessages)
@@ -457,6 +466,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
                         case "message_start":
                             if let msg = try? self.decoder.decode(AnthropicMessageStart.self, from: jsonData) {
                                 startUsage = msg.message?.usage
+                                if startUsage != nil { sawUsage = true }
                                 outputTokens = msg.message?.usage?.output_tokens ?? 0
                             }
                         case "content_block_delta":
@@ -467,6 +477,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
                             }
                         case "message_delta":
                             if let delta = try? self.decoder.decode(AnthropicMessageDelta.self, from: jsonData) {
+                                if delta.usage != nil { sawUsage = true }
                                 outputTokens = delta.usage?.output_tokens ?? outputTokens
                             }
                         case "message_stop":
@@ -484,7 +495,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
                     finalUsage.output_tokens = outputTokens
                     let breakdown = Self.parseUsage(finalUsage)
                     let (cost, source) = await MetadataClient.shared.calcCost(
-                        breakdown: breakdown, modelID: modelID, providerKind: .anthropic
+                        breakdown: breakdown, modelID: modelID, providerKind: .anthropic, at: Date()
                     )
                     let result = ProviderChatResult(
                         text: finalText,
@@ -492,6 +503,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
                         completionTokens: breakdown.completionTokens,
                         estimatedCost: cost,
                         usageBreakdown: breakdown,
+                        usageReported: sawUsage,
                         costSource: source,
                         finish: finishTracker.finish()
                     )
@@ -589,7 +601,8 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
         // On the main chat path the base value is plan.budget.oWire (already capped by the model limit and the window);
         // non-chat paths keep the original fallback.
         let defaultMaxTokens = requestOptions.maxOutputTokens
-            ?? resolved?.maxOutputTokens.flatMap { $0 > 0 ? $0 : nil } ?? 8192
+            ?? resolved?.maxOutputTokens.flatMap { $0 > 0 ? $0 : nil }
+            ?? CapabilityEvidenceFacade.anthropicDefaultMaxOutputTokens
         let payload = AnthropicChatRequest(
             model: modelID,
             max_tokens: defaultMaxTokens,
@@ -601,7 +614,13 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
             messages: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil, dynamicText: requestOptions.dynamicText) { try Self.buildRequestMessage($0, transport: .anthropicMessages, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) }
         )
         var body = try JSONSerialization.jsonObject(with: JSONEncoder().encode(payload)) as? [String: Any] ?? [:]
-        Self.applyCacheBreakpoint(to: &body, dynamicText: requestOptions.dynamicText)
+        // The official route places a breakpoint only when the catalog declares promptCache.policyRef == anthropic.explicit; with no catalog it places none.
+        Self.applyCacheBreakpoint(
+            to: &body, dynamicText: requestOptions.dynamicText,
+            placeBreakpoint: CapabilityEvidenceFacade.placesOfficialAnthropicCacheBreakpoint(
+                policyRef: resolved?.promptCachePolicyRef
+            )
+        )
         if capabilityIntent.webSearchEnabled,
            let webMerge = ProfileParamsResolver.webSearchMergeParams(
             providerKind: .anthropic,
@@ -754,7 +773,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
         // thinking at 8192. The formula matches the Web client.
         // The main chat path uses plan.budget.oWire; when the thinking budget is >= that, applyAnthropicThinkingGuard below raises it to budget + 4096.
         let resolvedMaxTokens = maxOutputTokens ?? requestOptions.maxOutputTokens ?? max(
-            8192,
+            CapabilityEvidenceFacade.anthropicDefaultMaxOutputTokens,
             (capabilityIntent.reasoningMode.flatMap(Self.relayAnthropicBudgetTokens) ?? 0) + 4096
         )
         let payload = AnthropicChatRequest(
@@ -930,7 +949,8 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
     /// - Breakpoint: the last non-[D] block of the last user message in the whole request (on a tool leg that is the
     ///   tool_result turn, landing on the notice if there is one); when that message has only the [D] block, it goes there.
     /// Plain-text content is first expanded into a single text block.
-    static func applyCacheBreakpoint(to body: inout [String: Any], dynamicText: String?) {
+    /// `placeBreakpoint == false` (the official catalog does not declare anthropic.explicit): [D] is still split off, but no breakpoint is placed and content is not rewritten.
+    static func applyCacheBreakpoint(to body: inout [String: Any], dynamicText: String?, placeBreakpoint: Bool = true) {
         guard var messages = body["messages"] as? [[String: Any]],
               let lastUserIndex = messages.lastIndex(where: { $0["role"] as? String == "user" })
         else { return }
@@ -967,7 +987,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
             }
         }
 
-        guard var lastBlocks = blocks(of: messages[lastUserIndex]) else {
+        guard placeBreakpoint, var lastBlocks = blocks(of: messages[lastUserIndex]) else {
             body["messages"] = messages
             return
         }
@@ -1211,7 +1231,7 @@ private struct AnthropicChatResponse: Decodable {
     }
 }
 
-private struct AnthropicUsage: Decodable {
+nonisolated private struct AnthropicUsage: Decodable {
     var input_tokens: Int?
     var output_tokens: Int?
     var cache_read_input_tokens: Int?
@@ -1270,7 +1290,14 @@ private struct AnthropicMessageDelta: Decodable {
 }
 
 extension AnthropicService {
-    fileprivate static func parseUsage(_ usage: AnthropicUsage?) -> UsageBreakdown {
+    /// Tool legs reuse the same usage parser as ordinary chat: what a leg gets is the usage object of an SSE frame.
+    nonisolated static func legUsageBreakdown(usageJSON: [String: Any]) -> UsageBreakdown? {
+        guard let data = try? JSONSerialization.data(withJSONObject: usageJSON),
+              let usage = try? JSONDecoder().decode(AnthropicUsage.self, from: data) else { return nil }
+        return parseUsage(usage)
+    }
+
+    nonisolated fileprivate static func parseUsage(_ usage: AnthropicUsage?) -> UsageBreakdown {
         guard let usage else { return UsageBreakdown() }
         let cc = usage.cache_creation
         let write5m = cc?.ephemeral_5m_input_tokens

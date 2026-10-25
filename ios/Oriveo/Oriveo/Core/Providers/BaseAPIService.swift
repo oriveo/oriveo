@@ -300,7 +300,8 @@ class BaseAPIService {
                 promptTokens: 0,
                 completionTokens: 0,
                 estimatedCost: 0,
-                attachments: attachments
+                attachments: attachments,
+                usageReported: false
             )
         )
     }
@@ -571,8 +572,8 @@ class BaseAPIService {
 
         let lowerBody = (String(data: data, encoding: .utf8) ?? "").lowercased()
         // Providers based in China return these error bodies in Chinese.
-        let isQuota = lowerBody.range(of: "quota|daily limit|used up|insufficient quota|credit|billing hard limit|allowance|免费额度|额度已用完|额度耗尽|配额已用完", options: .regularExpression) != nil
-        let isUnavailable = lowerBody.range(of: "temporarily unavailable|currently unavailable|not available|disabled|offline|maintenance|暂不可用|不可用|已停用|维护", options: .regularExpression) != nil
+        let isQuota = lowerBody.range(of: "quota|daily limit|used up|insufficient quota|credit|billing hard limit|allowance|\u{514D}\u{8D39}\u{989D}\u{5EA6}|\u{989D}\u{5EA6}\u{5DF2}\u{7528}\u{5B8C}|\u{989D}\u{5EA6}\u{8017}\u{5C3D}|\u{914D}\u{989D}\u{5DF2}\u{7528}\u{5B8C}", options: .regularExpression) != nil
+        let isUnavailable = lowerBody.range(of: "temporarily unavailable|currently unavailable|not available|disabled|offline|maintenance|\u{6682}\u{4E0D}\u{53EF}\u{7528}|\u{4E0D}\u{53EF}\u{7528}|\u{5DF2}\u{505C}\u{7528}|\u{7EF4}\u{62A4}", options: .regularExpression) != nil
         let isTransientOverload = Self.isTransientOverloadBody(lowerBody)
 
         switch statusCode {
@@ -624,7 +625,7 @@ class BaseAPIService {
         // Keep the upstream text in the technical details even when the error is classified: the category
         // decides what the user is offered to do, the original wording explains why.
         let upstream = " Upstream: \(message)"
-        if lower.range(of: "quota|daily limit|used up|insufficient quota|credit|billing hard limit|allowance|免费额度|额度已用完|额度耗尽|配额已用完", options: .regularExpression) != nil {
+        if lower.range(of: "quota|daily limit|used up|insufficient quota|credit|billing hard limit|allowance|\u{514D}\u{8D39}\u{989D}\u{5EA6}|\u{989D}\u{5EA6}\u{5DF2}\u{7528}\u{5B8C}|\u{989D}\u{5EA6}\u{8017}\u{5C3D}|\u{914D}\u{989D}\u{5DF2}\u{7528}\u{5B8C}", options: .regularExpression) != nil {
             return .quotaExceeded(detail: "The provider stream reported that quota or credit is unavailable." + upstream)
         }
         if isTransientOverloadBody(lower) {
@@ -633,7 +634,7 @@ class BaseAPIService {
         if lower.contains("authentication") || lower.contains("permission") || lower.contains("api key") {
             return .invalidAPIKey(detail: "The provider stream rejected authentication." + upstream)
         }
-        if lower.range(of: "temporarily unavailable|currently unavailable|not available|disabled|offline|maintenance|暂不可用|不可用|已停用|维护", options: .regularExpression) != nil {
+        if lower.range(of: "temporarily unavailable|currently unavailable|not available|disabled|offline|maintenance|\u{6682}\u{4E0D}\u{53EF}\u{7528}|\u{4E0D}\u{53EF}\u{7528}|\u{5DF2}\u{505C}\u{7528}|\u{7EF4}\u{62A4}", options: .regularExpression) != nil {
             return .modelUnavailable(detail: "The provider stream reported that the model is unavailable." + upstream)
         }
         return .upstream(statusCode: 200, detail: message)
@@ -954,9 +955,9 @@ class BaseAPIService {
     private static func isCodexClientIdentityRejection(_ body: String) -> Bool {
         let needles = [
             "Codex official clients",
-            "Codex 官方客户端",      // Simplified Chinese
-            "Codex 官方客戶端",      // Traditional Chinese
-            "Codex 公式クライアント",  // Japanese
+            "Codex \u{5B98}\u{65B9}\u{5BA2}\u{6237}\u{7AEF}",      // Simplified Chinese
+            "Codex \u{5B98}\u{65B9}\u{5BA2}\u{6236}\u{7AEF}",      // Traditional Chinese
+            "Codex \u{516C}\u{5F0F}\u{30AF}\u{30E9}\u{30A4}\u{30A2}\u{30F3}\u{30C8}",  // Japanese
             "Codex 공식 클라이언트"    // Korean
         ]
         return needles.contains { body.localizedCaseInsensitiveContains($0) }
@@ -970,8 +971,8 @@ class BaseAPIService {
             "Upstream authentication",
             "Upstream timeout",
             "upstream service",
-            "上游认证",
-            "上游服务"
+            "\u{4E0A}\u{6E38}\u{8BA4}\u{8BC1}",
+            "\u{4E0A}\u{6E38}\u{670D}\u{52A1}"
         ]
         return needles.contains { body.localizedCaseInsensitiveContains($0) }
     }
@@ -985,7 +986,8 @@ class BaseAPIService {
     /// which request is sent — the transport the user configured decides that.
     private static func isCodexStyleHost(_ url: URL) -> Bool {
         guard let host = url.host?.lowercased() else { return false }
-        return host.contains("codex")
+        let codexHosts = ["packy", "ylsagi", "code-for", "ccswitch", "cc-switch", "codex"]
+        return codexHosts.contains(where: host.contains)
     }
 
     private static func isUnknownStoreParameter(_ body: String) -> Bool {
@@ -1007,7 +1009,7 @@ class BaseAPIService {
         let lower = body.lowercased()
         guard lower.contains("max_tokens") else { return false }
         return lower.contains("required") || lower.contains("must include")
-            || lower.contains("missing") || lower.contains("缺少")
+            || lower.contains("missing") || lower.contains("\u{7F3A}\u{5C11}")
     }
 
     private static func isAnthropicAuthMismatch(_ body: String) -> Bool {
@@ -1026,14 +1028,14 @@ class BaseAPIService {
 
     private static func isUpstreamModelUnavailable(_ body: String) -> Bool {
         let needles = [
-            "不支持的模型",
-            "請更換模型",     // Traditional Chinese
-            "模型不存在",
+            "\u{4E0D}\u{652F}\u{6301}\u{7684}\u{6A21}\u{578B}",
+            "\u{8ACB}\u{66F4}\u{63DB}\u{6A21}\u{578B}",     // Traditional Chinese
+            "\u{6A21}\u{578B}\u{4E0D}\u{5B58}\u{5728}",
             "model_not_found",
             "model not found",
             "model is not supported",
             "No available channel for model",
-            "无可用渠道",
+            "\u{65E0}\u{53EF}\u{7528}\u{6E20}\u{9053}",
             "invalid model",
             "unknown model"
         ]

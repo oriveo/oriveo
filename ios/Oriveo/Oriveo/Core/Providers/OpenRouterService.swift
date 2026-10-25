@@ -15,11 +15,18 @@ struct ProviderChatResult {
     var attachments: [Attachment]? = nil
     var servedModelID: String? = nil
     var usageBreakdown: UsageBreakdown? = nil
+    /// Whether the upstream gave a usage object: each Service fills it in explicitly according to whether its parser obtained one.
+    /// `parseUsage(nil)` also returns an empty breakdown, so the breakdown being nil cannot be used to tell. There is no default value:
+    /// every construction site must give it explicitly (enforced at compile time); paths without usage (image generation, native llama.cpp) pass false.
+    var usageReported: Bool
     var costSource: CostSource? = nil
     var toolCalls: [ProviderToolCall]? = nil
     var citations: [Citation]? = nil
     /// Stream finish info: the streaming parser attaches it to `.done`; it is nil for non-streaming and for families not wired up.
     var finish: StreamFinish? = nil
+    /// Per-leg usage when one answer is made of several upstream requests (for example Kimi's internal multi-request `$web_search`): the delivery layer prices each leg
+    /// and adds them up; nil for a single request.
+    var legUsage: ToolLoopUsage? = nil
 }
 
 /// Every failure a provider request can surface to the user.
@@ -574,7 +581,7 @@ final class OpenRouterService: BaseAPIService, ProviderServiceProtocol, BalanceQ
         let breakdown = Self.parseUsage(response.usage)
         let resolvedModelID = response.model ?? modelID
         let (cost, source) = await MetadataClient.shared.calcCost(
-            breakdown: breakdown, modelID: resolvedModelID, providerKind: .openRouter
+            breakdown: breakdown, modelID: resolvedModelID, providerKind: .openRouter, at: Date()
         )
 
         return ProviderChatResult(
@@ -585,6 +592,7 @@ final class OpenRouterService: BaseAPIService, ProviderServiceProtocol, BalanceQ
             attachments: imageAttachments.isEmpty ? nil : imageAttachments,
             servedModelID: response.model,
             usageBreakdown: breakdown,
+            usageReported: response.usage != nil,
             costSource: source
         )
     }
@@ -816,7 +824,7 @@ final class OpenRouterService: BaseAPIService, ProviderServiceProtocol, BalanceQ
                     let breakdown = Self.parseUsage(lastUsage)
                     let resolvedModelID = lastModel ?? modelID
                     let (cost, source) = await MetadataClient.shared.calcCost(
-                        breakdown: breakdown, modelID: resolvedModelID, providerKind: .openRouter
+                        breakdown: breakdown, modelID: resolvedModelID, providerKind: .openRouter, at: Date()
                     )
 
                     let result = ProviderChatResult(
@@ -826,6 +834,7 @@ final class OpenRouterService: BaseAPIService, ProviderServiceProtocol, BalanceQ
                         estimatedCost: cost,
                         servedModelID: lastModel,
                         usageBreakdown: breakdown,
+                        usageReported: lastUsage != nil,
                         costSource: source,
                         finish: finishTracker.finish()
                     )
@@ -1470,7 +1479,7 @@ private struct OpenRouterChatResponse: Decodable {
     }
 }
 
-private struct OpenRouterUsage: Decodable {
+nonisolated private struct OpenRouterUsage: Decodable {
     var prompt_tokens: Int?
     var completion_tokens: Int?
     var total_tokens: Int?
@@ -1625,7 +1634,14 @@ private enum ContentValue: Decodable {
 }
 
 extension OpenRouterService {
-    fileprivate static func parseUsage(_ usage: OpenRouterUsage?) -> UsageBreakdown {
+    /// Tool legs reuse the same usage parser as ordinary chat: what a leg gets is the usage object of an SSE frame.
+    nonisolated static func legUsageBreakdown(usageJSON: [String: Any]) -> UsageBreakdown? {
+        guard let data = try? JSONSerialization.data(withJSONObject: usageJSON),
+              let usage = try? JSONDecoder().decode(OpenRouterUsage.self, from: data) else { return nil }
+        return parseUsage(usage)
+    }
+
+    nonisolated fileprivate static func parseUsage(_ usage: OpenRouterUsage?) -> UsageBreakdown {
         guard let usage else { return UsageBreakdown() }
         let cached = usage.prompt_tokens_details?.cached_tokens ?? 0
         let writeTokens = usage.prompt_tokens_details?.cache_write_tokens ?? 0

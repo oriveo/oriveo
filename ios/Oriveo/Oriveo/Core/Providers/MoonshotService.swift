@@ -77,9 +77,10 @@ final class MoonshotService: BaseAPIService, ProviderServiceProtocol, CustomBase
         let text = (choice.message.content ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let reasoningText = choice.message.reasoning_content?.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { throw ProviderServiceError.emptyResponse }
-        let breakdown = Self.parseUsage(response.usage)
+        let responseUsage = Self.reportedUsage(response)
+        let breakdown = Self.parseUsage(responseUsage)
         let (cost, source) = await MetadataClient.shared.calcCost(
-            breakdown: breakdown, modelID: modelID, providerKind: .moonshot
+            breakdown: breakdown, modelID: modelID, providerKind: .moonshot, at: Date()
         )
         return ProviderChatResult(
             text: text,
@@ -88,6 +89,7 @@ final class MoonshotService: BaseAPIService, ProviderServiceProtocol, CustomBase
             completionTokens: breakdown.completionTokens,
             estimatedCost: cost,
             usageBreakdown: breakdown,
+            usageReported: responseUsage != nil,
             costSource: source
         )
     }
@@ -305,11 +307,15 @@ final class MoonshotService: BaseAPIService, ProviderServiceProtocol, CustomBase
                     }
                     let accumulatedText = await progress.text
                     let accumulatedReasoning = await progress.reasoning
+                    // `$web_search` issues several requests internally: each request is one leg, and a leg that reported no usage is kept too (the whole message is then recorded as unknown).
+                    let legUsages = usageSources.flatMap(\.collectedLegUsages)
                     var totalUsage = ProviderTokenUsageAccumulator()
-                    for source in usageSources {
-                        for usage in source.collectedLegUsages { totalUsage.add(usage) }
+                    for usage in legUsages { totalUsage.add(usage) }
+                    let legs = legUsages.map { usage in
+                        usage.map { ToolLoopUsage.leg(OpenAICompatibleStreamState.usageBreakdown(from: $0)) }
                     }
 
+                    let mergedLegs = legs.reduce(nil as ToolLoopUsage?) { ToolLoopUsage.accumulate($0, leg: $1) }
                     let trimmedText = accumulatedText.trimmingCharacters(in: .whitespacesAndNewlines)
                     if trimmedText.isEmpty, !result.receivedStructuredToolCalls, !Task.isCancelled {
                         throw ProviderServiceError.emptyResponse
@@ -331,7 +337,7 @@ final class MoonshotService: BaseAPIService, ProviderServiceProtocol, CustomBase
                     }
                     let breakdown = OpenAICompatibleStreamState.usageBreakdown(from: totalUsage.combined)
                     let (cost, source) = await MetadataClient.shared.calcCost(
-                        breakdown: breakdown, modelID: modelID, providerKind: .moonshot
+                        breakdown: breakdown, modelID: modelID, providerKind: .moonshot, at: Date()
                     )
                     let trimmedReasoning = accumulatedReasoning.trimmingCharacters(in: .whitespacesAndNewlines)
                     continuation.yield(.done(ProviderChatResult(
@@ -341,7 +347,9 @@ final class MoonshotService: BaseAPIService, ProviderServiceProtocol, CustomBase
                         completionTokens: breakdown.completionTokens,
                         estimatedCost: cost,
                         usageBreakdown: breakdown,
-                        costSource: source
+                        usageReported: ToolLoopUsage.reported(mergedLegs),
+                        costSource: source,
+                        legUsage: legs.count > 1 ? mergedLegs : nil
                     )))
                     continuation.finish()
                 } catch {
@@ -738,7 +746,16 @@ extension MoonshotService {
         )
     }
 
+    /// The usage reported by the upstream: when the top level has none, read choices[0].usage (the Kimi stream puts it there, and the non-stream response gets the same fallback).
+    fileprivate static func reportedUsage(_ response: MoonshotChatCompletionResponse) -> MoonshotUsage? {
+        response.usage ?? response.choices.first?.usage
+    }
     #if DEBUG
+    /// Test entry: runs a non-stream response body through production decoding and usage parsing, returning the breakdown and whether usage was reported.
+    static func chatCompletionUsageForTesting(responseBody: Data) throws -> (breakdown: UsageBreakdown, reported: Bool) {
+        let usage = reportedUsage(try JSONDecoder().decode(MoonshotChatCompletionResponse.self, from: responseBody))
+        return (parseUsage(usage), usage != nil)
+    }
     static func parseUsageForTesting(
         promptTokens: Int?,
         completionTokens: Int?,
@@ -761,6 +778,8 @@ private struct MoonshotChatCompletionResponse: Decodable {
 
 private struct MoonshotChoice: Decodable {
     let message: MoonshotMessage
+    /// Kimi puts usage inside choices[0] (read when the top level has none).
+    let usage: MoonshotUsage?
 }
 
 private struct MoonshotMessage: Decodable {

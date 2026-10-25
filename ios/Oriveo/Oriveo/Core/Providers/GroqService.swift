@@ -56,7 +56,7 @@ final class GroqService: BaseAPIService, ProviderServiceProtocol {
         }
         let breakdown = Self.parseUsage(response.usage)
         let (cost, source) = await MetadataClient.shared.calcCost(
-            breakdown: breakdown, modelID: modelID, providerKind: .groq
+            breakdown: breakdown, modelID: modelID, providerKind: .groq, at: Date()
         )
         return ProviderChatResult(
             text: text,
@@ -64,6 +64,7 @@ final class GroqService: BaseAPIService, ProviderServiceProtocol {
             completionTokens: breakdown.completionTokens,
             estimatedCost: cost,
             usageBreakdown: breakdown,
+            usageReported: response.usage != nil,
             costSource: source,
             toolCalls: toolCalls.isEmpty ? nil : toolCalls
         )
@@ -164,7 +165,7 @@ final class GroqService: BaseAPIService, ProviderServiceProtocol {
                     let finalText = accumulatedText.trimmingCharacters(in: .whitespacesAndNewlines)
                     let breakdown = Self.parseUsage(lastUsage)
                     let (cost, source) = await MetadataClient.shared.calcCost(
-                        breakdown: breakdown, modelID: modelID, providerKind: .groq
+                        breakdown: breakdown, modelID: modelID, providerKind: .groq, at: Date()
                     )
                     let result = ProviderChatResult(
                         text: finalText,
@@ -172,6 +173,7 @@ final class GroqService: BaseAPIService, ProviderServiceProtocol {
                         completionTokens: breakdown.completionTokens,
                         estimatedCost: cost,
                         usageBreakdown: breakdown,
+                        usageReported: lastUsage != nil,
                         costSource: source,
                         finish: finishTracker.finish()
                     )

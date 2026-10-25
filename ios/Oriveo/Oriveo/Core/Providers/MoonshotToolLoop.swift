@@ -66,7 +66,9 @@ nonisolated final class MoonshotToolLoopLegRunner: ToolLoopLegRunning, @unchecke
     private let citationsSink: CitationsSink
     private let kimiShape: MetadataClient.StreamShape?
     private let lock = NSLock()
-    private var legUsages: [ProviderTokenUsage] = []
+    /// One entry per leg (including each request of the internal multi-request `$web_search`): nil = this leg reported no usage; it is not dropped, and the whole message is recorded as unknown.
+    /// MoonshotService prices each leg and adds them up, and the token counts are merged with ProviderTokenUsageAccumulator.
+    private var legUsages: [ProviderTokenUsage?] = []
 
     init(
         initialRequest: URLRequest,
@@ -80,7 +82,7 @@ nonisolated final class MoonshotToolLoopLegRunner: ToolLoopLegRunning, @unchecke
         self.citationsSink = citationsSink
     }
 
-    var collectedLegUsages: [ProviderTokenUsage] {
+    var collectedLegUsages: [ProviderTokenUsage?] {
         lock.withLock { legUsages }
     }
 
@@ -152,15 +154,11 @@ nonisolated final class MoonshotToolLoopLegRunner: ToolLoopLegRunning, @unchecke
                     try Task.checkCancellation()
                     forward(state.consume(try assembler.finish()))
                     if let usage = state.usage {
-                        continuation.yield(.usage(ToolLoopUsage(
-                            promptTokens: Int(clamping: usage.inputTokens),
-                            completionTokens: Int(clamping: usage.outputTokens),
-                            totalTokens: Int(clamping: usage.inputTokens + usage.outputTokens)
-                        )))
+                        // The same parsing as ordinary chat (top-level cached_tokens goes into the cache bucket).
+                        continuation.yield(.usage(.leg(OpenAICompatibleStreamState.usageBreakdown(from: usage))))
                     }
-                    if let usage = state.usage {
-                        lock.withLock { legUsages.append(usage) }
-                    }
+                    let legUsage = state.usage
+                    lock.withLock { legUsages.append(legUsage) }
                     continuation.yield(.finish(finishTracker.finish()))
                     continuation.finish()
                 } catch {

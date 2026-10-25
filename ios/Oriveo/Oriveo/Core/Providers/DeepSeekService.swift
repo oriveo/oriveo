@@ -66,7 +66,7 @@ final class DeepSeekService: BaseAPIService, ProviderServiceProtocol, BalanceQue
 
         let breakdown = Self.parseUsage(response.usage)
         let (cost, source) = await MetadataClient.shared.calcCost(
-            breakdown: breakdown, modelID: modelID, providerKind: .deepseek
+            breakdown: breakdown, modelID: modelID, providerKind: .deepseek, at: Date()
         )
         return ProviderChatResult(
             text: text,
@@ -74,6 +74,7 @@ final class DeepSeekService: BaseAPIService, ProviderServiceProtocol, BalanceQue
             completionTokens: breakdown.completionTokens,
             estimatedCost: cost,
             usageBreakdown: breakdown,
+            usageReported: response.usage != nil,
             costSource: source
         )
     }
@@ -182,7 +183,7 @@ final class DeepSeekService: BaseAPIService, ProviderServiceProtocol, BalanceQue
                     let finalText = streamState.accumulatedText.trimmingCharacters(in: .whitespacesAndNewlines)
                     let breakdown = streamState.usageBreakdown
                     let (cost, source) = await MetadataClient.shared.calcCost(
-                        breakdown: breakdown, modelID: modelID, providerKind: .deepseek
+                        breakdown: breakdown, modelID: modelID, providerKind: .deepseek, at: Date()
                     )
                     continuation.yield(
                         .done(
@@ -192,6 +193,7 @@ final class DeepSeekService: BaseAPIService, ProviderServiceProtocol, BalanceQue
                                 completionTokens: breakdown.completionTokens,
                                 estimatedCost: cost,
                                 usageBreakdown: breakdown,
+                                usageReported: streamState.usage != nil,
                                 costSource: source,
                                 finish: streamState.streamFinish(sawDoneMarker: assembler.isDone)
                             )
@@ -308,7 +310,7 @@ final class DeepSeekService: BaseAPIService, ProviderServiceProtocol, BalanceQue
         if !systemPrompt.isEmpty {
             apiMessages.append(["role": "system", "content": systemPrompt])
         }
-        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil, dynamicText: requestOptions.dynamicText) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1) })
+        apiMessages.append(contentsOf: try AttachmentDelivery.mapTurns(capabilityIntent.outboundMessages, isChatSend: requestOptions.capabilityEvidenceModel != nil, dynamicText: requestOptions.dynamicText) { try Self.buildRequestMessage($0, model: requestOptions.capabilityEvidenceModel, isOutgoingTurn: $1, imageOutbound: capabilityIntent.imageOutbound) })
         // `localExplicitContinuationMessageID` is set only by ChatManager's continue/retry
         // action. A normal new send cannot load sidecar state, even if it shares a model.
         if let replayAssistantMessages {
@@ -343,19 +345,14 @@ final class DeepSeekService: BaseAPIService, ProviderServiceProtocol, BalanceQue
         return request
     }
 
-    private static func buildRequestMessage(_ msg: ChatMessage, model: AIModel?, isOutgoingTurn: Bool) throws -> [String: Any] {
-        let attachments = msg.attachments ?? []
-        let text = try AttachmentDelivery.deliver(
-            isOutgoingTurn: isOutgoingTurn,
-            userText: msg.text,
-            attachments: attachments,
-            transport: .deepSeekChat,
-            model: model
-        ).injectedText
-        return [
-            "role": msg.role.rawValue,
-            "content": text,
-        ]
+    private static func buildRequestMessage(
+        _ msg: ChatMessage, model: AIModel?, isOutgoingTurn: Bool,
+        imageOutbound: CapabilityEvidenceFacade.InputCapabilityProjection.Outbound
+    ) throws -> [String: Any] {
+        try OpenAIChatImageParts.message(
+            msg, transport: .deepSeekChat, model: model,
+            isOutgoingTurn: isOutgoingTurn, imageOutbound: imageOutbound
+        )
     }
 
     private static func reasoningReplayRecipe(
@@ -551,5 +548,36 @@ extension DeepSeekService {
         apiKey: String, modelID: String, messages: [ChatMessage], requestOptions: ChatRequestOptions
     ) -> AsyncThrowingStream<StreamEvent, Error> {
         sendMessageStream(apiKey: apiKey, modelID: modelID, messages: messages, reasoningMode: .automatic, requestOptions: requestOptions)
+    }
+}
+
+/// User message in the OpenAI Chat Completions shape (shared by DeepSeek / MiniMax Chat): when image recognition projects native_part,
+/// an `image_url` part follows the text part (as in `OpenAIService.buildRequestMessage`); with a placeholder the images are handed to
+/// AttachmentDelivery, which writes a wire placeholder per image and keeps content a string. This wire cannot carry video: AttachmentDelivery
+/// writes one wire video placeholder line per video (`videoPlaceholderText`) instead of silently dropping it.
+enum OpenAIChatImageParts {
+    static func message(
+        _ msg: ChatMessage,
+        transport: AttachmentTransport,
+        model: AIModel?,
+        isOutgoingTurn: Bool,
+        imageOutbound: CapabilityEvidenceFacade.InputCapabilityProjection.Outbound
+    ) throws -> [String: Any] {
+        let attachments = msg.attachments ?? []
+        let images = imageOutbound == .nativePart ? attachments.filter { $0.kind == .image } : []
+        let text = try AttachmentDelivery.deliver(
+            isOutgoingTurn: isOutgoingTurn,
+            userText: msg.text,
+            attachments: imageOutbound == .nativePart ? attachments.filter { $0.kind != .image } : attachments,
+            transport: transport,
+            model: model
+        ).injectedText
+        let imageParts: [[String: Any]] = images.compactMap { image in
+            let dataURL = image.resolvedDataURL
+            guard !dataURL.isEmpty else { return nil }
+            return ["type": "image_url", "image_url": ["url": dataURL, "detail": "auto"]]
+        }
+        guard !imageParts.isEmpty else { return ["role": msg.role.rawValue, "content": text] }
+        return ["role": msg.role.rawValue, "content": [["type": "text", "text": text]] + imageParts]
     }
 }

@@ -62,7 +62,7 @@ final class ZhipuService: BaseAPIService, ProviderServiceProtocol, CustomBaseURL
         }
         let breakdown = Self.parseUsage(response.usage)
         let (cost, source) = await MetadataClient.shared.calcCost(
-            breakdown: breakdown, modelID: modelID, providerKind: .zhipu
+            breakdown: breakdown, modelID: modelID, providerKind: .zhipu, at: Date()
         )
         return ProviderChatResult(
             text: text,
@@ -70,6 +70,7 @@ final class ZhipuService: BaseAPIService, ProviderServiceProtocol, CustomBaseURL
             completionTokens: breakdown.completionTokens,
             estimatedCost: cost,
             usageBreakdown: breakdown,
+            usageReported: response.usage != nil,
             costSource: source
         )
     }
@@ -218,7 +219,7 @@ final class ZhipuService: BaseAPIService, ProviderServiceProtocol, CustomBaseURL
                     let finalText = accumulatedText.trimmingCharacters(in: .whitespacesAndNewlines)
                     let breakdown = Self.parseUsage(lastUsage)
                     let (cost, source) = await MetadataClient.shared.calcCost(
-                        breakdown: breakdown, modelID: modelID, providerKind: .zhipu
+                        breakdown: breakdown, modelID: modelID, providerKind: .zhipu, at: Date()
                     )
                     let result = ProviderChatResult(
                         text: finalText,
@@ -226,6 +227,7 @@ final class ZhipuService: BaseAPIService, ProviderServiceProtocol, CustomBaseURL
                         completionTokens: breakdown.completionTokens,
                         estimatedCost: cost,
                         usageBreakdown: breakdown,
+                        usageReported: lastUsage != nil,
                         costSource: source,
                         finish: finishTracker.finish()
                     )
@@ -326,7 +328,7 @@ final class ZhipuService: BaseAPIService, ProviderServiceProtocol, CustomBaseURL
         for img in imageAtts {
             let b64 = img.resolvedBase64Data
             guard !b64.isEmpty else { continue }
-            let mime = ImageMediaType.resolve(base64: b64, declared: img.mimeType)
+            let mime = ImageMediaType.resolve(base64: b64, declared: img.mimeType ?? "image/jpeg")
             contentParts.append([
                 "type": "image_url",
                 "image_url": ["url": "data:\(mime);base64,\(b64)"]

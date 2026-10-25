@@ -4,7 +4,9 @@ import OriveoProviderKit
 final class GrokService: BaseAPIService, ProviderServiceProtocol {
     private let baseURL = "https://api.x.ai/v1"
 
-    static let grokTicksPerUSD: Double = 10_000_000_000
+    /// xAI's official plain-text `cost_usd = cost_in_usd_ticks / 10,000,000,000` (1 USD = 10^10 ticks).
+    /// **Not 1e8** - using 1e8 would overstate the cost of every Grok message by 100x.
+    nonisolated static let grokTicksPerUSD: Double = 10_000_000_000
 
     func syncProvider(apiKey: String, preferredModelID: String?) async throws -> ProviderSyncResult {
         try validateAPIKey(apiKey)
@@ -70,6 +72,7 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
                 completionTokens: breakdown.completionTokens,
                 estimatedCost: 0,
                 usageBreakdown: breakdown,
+                usageReported: response.usage != nil,
                 costSource: .subscription
             )
         }
@@ -116,6 +119,7 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
                 completionTokens: breakdown.completionTokens,
                 estimatedCost: cost,
                 usageBreakdown: breakdown,
+                usageReported: response.usage != nil,
                 costSource: source
             )
         }
@@ -152,6 +156,7 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
             completionTokens: breakdown.completionTokens,
             estimatedCost: cost,
             usageBreakdown: breakdown,
+            usageReported: response.usage != nil,
             costSource: source
         )
     }
@@ -331,6 +336,7 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
                         completionTokens: breakdown.completionTokens,
                         estimatedCost: cost,
                         usageBreakdown: breakdown,
+                        usageReported: lastUsage != nil,
                         costSource: source,
                         finish: finishTracker.finish()
                     )))
@@ -610,9 +616,24 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
             completionTokens: breakdown.completionTokens,
             estimatedCost: cost,
             usageBreakdown: breakdown,
+            usageReported: lastUsage != nil,
             costSource: source,
             finish: finishTracker.finish()
         )))
+    }
+
+    /// Subscription web search follows the subscription-mode verdict: a placeholder subscription connection asks
+    /// `subscriptionVerdict(web)`, and the web_search tool is attached only when it is `autoAvailable`.
+    static func subscriptionWebAvailable(model: AIModel) -> Bool {
+        var link = Provider(
+            id: UUID(), kind: .grok, status: .connected, models: [], catalogModels: [],
+            lastCheckedAt: nil, apiKey: "", apiKeyPreview: "", lastError: nil,
+            baseURLText: nil, customName: nil, updatedAt: Date()
+        )
+        link.authMode = .subscription
+        return CapabilityControlResolution.subscriptionVerdict(
+            provider: link, model: model, capability: "web"
+        ).state == .autoAvailable
     }
 
     private func buildSubscriptionResponsesRequest(
@@ -645,7 +666,13 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
         ]
         if stream { body["stream"] = true }
         if !systemPrompt.isEmpty { body["instructions"] = systemPrompt }
-        let supportsWeb = model?.capabilities.contains(.web) ?? false
+        // cli-chat-proxy is an agent backend: its harness system prompt tells the model "you have a web_search tool".
+        // If the real tool is not attached, the model will randomly emit `<web_search>` as plain text, and once one turn does that and it is
+        // sent back as assistant history, every later turn repeats it (a self-reinforcing loop). With the real web_search attached the model switches to real searches
+        // immediately, whether or not the history is already polluted.
+        // So whenever the upstream declares supports_backend_search the subscription lane always attaches the tool, regardless of the `webSearchEnabled` switch:
+        // this proxy has no "turn search off" semantics, turning it off only makes the model fake it, and a subscription is not billed per call, so always attaching is the only way not to fake it.
+        let supportsWeb = model.map { Self.subscriptionWebAvailable(model: $0) } ?? false
         if supportsWeb {
             body["tools"] = [["type": "web_search"]]
         }
@@ -767,7 +794,7 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
     ) async -> (Double, CostSource) {
         if subscription != nil { return (0, .subscription) }
         return await MetadataClient.shared.calcCost(
-            breakdown: breakdown, modelID: modelID, providerKind: .grok
+            breakdown: breakdown, modelID: modelID, providerKind: .grok, at: Date()
         )
     }
 
@@ -944,7 +971,7 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
             for img in imageAttachments {
                 let b64 = img.resolvedBase64Data
                 guard !b64.isEmpty else { continue }
-                let mime = ImageMediaType.resolve(base64: b64, declared: img.mimeType)
+                let mime = ImageMediaType.resolve(base64: b64, declared: img.mimeType ?? "image/png")
                 let dataURL = "data:\(mime);base64,\(b64)"
                 parts.append(["type": "image_url", "image_url": ["url": dataURL]])
             }
@@ -1045,7 +1072,7 @@ private struct GrokResponsesResponse: Decodable {
     }
 }
 
-private struct GrokResponsesUsage: Decodable {
+nonisolated private struct GrokResponsesUsage: Decodable {
     var input_tokens: Int?
     var output_tokens: Int?
     var cost_in_usd_ticks: Int64?
@@ -1099,7 +1126,11 @@ private struct GrokResponsesStreamErrorEnvelope: Decodable {
     }
 }
 
-private struct GrokUsage: Decodable {
+/// Grok usage fields.
+/// - `cost_in_usd_ticks`: returned by xAI by default, 1 USD = 1e10 ticks
+/// - `prompt_tokens_details.cached_tokens`: the subset of input tokens read from a cache hit
+/// - `completion_tokens_details.reasoning_tokens`: only present for grok-3-mini / grok-4-fast-reasoning and similar
+nonisolated private struct GrokUsage: Decodable {
     let prompt_tokens: Int?
     let completion_tokens: Int?
     let cost_in_usd_ticks: Int64?
@@ -1229,7 +1260,16 @@ struct GrokResponsesSSEFrameLog {
 }
 
 extension GrokService {
-    fileprivate static func parseUsage(_ usage: GrokUsage?) -> UsageBreakdown {
+    /// Tier S: the upstream cost wins (`cost_in_usd_ticks / 1e10`);
+    /// cache-hit tokens are recorded separately, but upstreamCost already includes the discount, so the local formula is skipped.
+    /// Tool legs reuse the same usage parser as ordinary chat: what a leg gets is the usage object of an SSE frame.
+    nonisolated static func legUsageBreakdown(usageJSON: [String: Any]) -> UsageBreakdown? {
+        guard let data = try? JSONSerialization.data(withJSONObject: usageJSON),
+              let usage = try? JSONDecoder().decode(GrokUsage.self, from: data) else { return nil }
+        return parseUsage(usage)
+    }
+
+    nonisolated fileprivate static func parseUsage(_ usage: GrokUsage?) -> UsageBreakdown {
         guard let usage else { return UsageBreakdown() }
         let cached = usage.prompt_tokens_details?.cached_tokens ?? 0
         let total = usage.prompt_tokens ?? 0
@@ -1246,7 +1286,14 @@ extension GrokService {
         )
     }
 
-    fileprivate static func parseResponsesUsage(_ usage: GrokResponsesUsage?) -> UsageBreakdown {
+    /// Tool legs of openai_responses reuse the parser of ordinary Grok Responses chat: they carry the `cost_in_usd_ticks` upstream actual cost.
+    nonisolated static func responsesLegUsageBreakdown(usageJSON: [String: Any]) -> UsageBreakdown? {
+        guard let data = try? JSONSerialization.data(withJSONObject: usageJSON),
+              let usage = try? JSONDecoder().decode(GrokResponsesUsage.self, from: data) else { return nil }
+        return parseResponsesUsage(usage)
+    }
+
+    nonisolated fileprivate static func parseResponsesUsage(_ usage: GrokResponsesUsage?) -> UsageBreakdown {
         guard let usage else { return UsageBreakdown() }
         let cached = usage.input_tokens_details?.cached_tokens ?? 0
         let total = usage.input_tokens ?? 0

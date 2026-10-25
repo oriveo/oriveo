@@ -51,7 +51,13 @@ struct OpenAICompatibleStreamState {
         Self.usageBreakdown(from: usage)
     }
 
-    static func usageBreakdown(from usage: ProviderTokenUsage?) -> UsageBreakdown {
+    /// Warning: `cacheWriteObserved` is always false on this path, and that is an honest result, not an omission:
+    /// the ProviderKit wire mirror `OpenAICompatibleChunk.Usage` has no field that carries cache writes at all,
+    /// and `ProviderTokenUsage` has no matching property either - the providers that come through here (DeepSeek / Moonshot / MiniMax / Groq...)
+    /// have no cache-write observation surface on OpenAI-compatible usage. The observed bit means "the upstream explicitly gave this item", so setting it true
+    /// when no parse surface exists would render "could not be measured" as "0 written this time", which is exactly the disguise the contract forbids.
+    /// When ProviderKit really parses a cache-write number in the future, add it here together, and do not turn on the observed bit alone.
+    nonisolated static func usageBreakdown(from usage: ProviderTokenUsage?) -> UsageBreakdown {
         guard let usage else { return UsageBreakdown() }
         let totalInput = max(0, usage.inputTokens)
         let cachedInput = max(0, usage.cachedInputTokens ?? 0)
@@ -63,6 +69,21 @@ struct OpenAICompatibleStreamState {
             upstreamCost: nil,
             cacheReadObserved: usage.cachedInputTokens != nil
         )
+    }
+}
+
+extension OpenAICompatibleStreamState {
+    /// Tool legs reuse the same parsing as ordinary chat: the usage object of a leg frame is handed to the same ProviderKit assembler
+    /// (which finds the cache field positions by the provider profile) and then goes through `usageBreakdown(from:)`; nil when no usage can be parsed.
+    nonisolated static func legUsageBreakdown(usageJSON: [String: Any], profile: ProviderWireProfile) -> UsageBreakdown? {
+        guard let data = try? JSONSerialization.data(withJSONObject: ["choices": [Any](), "usage": usageJSON]) else { return nil }
+        var assembler = OpenAICompatibleStreamAssembler(profile: profile, decodesFunctionNames: false)
+        _ = try? assembler.ingest("data: " + String(decoding: data, as: UTF8.self))
+        let events = (try? assembler.finish(requireTerminalEvidence: false)) ?? []
+        for case let .usage(usage) in events {
+            return usageBreakdown(from: usage)
+        }
+        return nil
     }
 }
 
