@@ -5,7 +5,7 @@ import Testing
 /// Local negative cache for the Relay rejection loop, plus the vision (image) entry point.
 ///
 /// The fixture `shared/test-fixtures/relay/negative-cache.v1.json` drives it by caseId; the same cases have the same names on all platforms.
-@Suite("Relay negative cache / vision entry (iOS)", .serialized)
+@Suite("Relay negative cache / vision entry (iOS)", .serialized, .sharedProcessState)
 struct RelayNegativeCacheContractTests {
 
     // MARK: - Fixture
@@ -231,12 +231,39 @@ struct RelayNegativeCacheContractTests {
         try await MetadataClient.shared.loadForTesting(json: json)
     }
 
+    /// The image negative entry is recorded in v2: key = connection x model x the wire family of that protocol x vision_input.
+    private func recordVisionRejection(provider: Provider, model: AIModel, transport: RelayTransport) throws {
+        let family = try #require(CapabilityEvidenceProductionAdapter.relayWireFamily(
+            transport: transport, key: CapabilityEvidenceFacade.visionInputKey
+        ))
+        CapabilityNegativeCache.shared.record(
+            connectionId: provider.id.uuidString, modelId: model.id, wireFamily: family,
+            capabilityKey: CapabilityEvidenceFacade.visionInputKey, signatureId: "relay.classified_rejected",
+            verdictRevision: Self.synthesizedRevision(
+                provider: provider, model: model, key: CapabilityEvidenceFacade.visionInputKey, family: family
+            )
+        )
+    }
+
+    /// The revision is the hash of the composite verdict from the facade, not the hash of a missing verdict.
+    private static func synthesizedRevision(provider: Provider, model: AIModel, key: String, family: String) -> String {
+        CapabilityNegativeCache.verdictRevision(CapabilityEvidenceProductionAdapter.relayInputVerdict(
+            key: key,
+            visionEvidence: CapabilityEvidenceProductionAdapter.relayVisionEvidence(provider: provider, model: model),
+            wireFamily: family
+        ))
+    }
+
     /// Photo entry: ChatView's visible set feeds ChatComposerBar's image-entry check; both are production static functions.
-    private func photoEntryVisible(
+    private func photoEntryVisible(provider: Provider, model: AIModel) -> Bool {
+        visionEntry(provider: provider, model: model).entry
+    }
+
+    /// One production projection: the vision input projection (badge visible / entry editable) and the photo entry.
+    private func visionEntry(
         provider: Provider,
-        model: AIModel,
-        cache: RelayNegativeCache
-    ) -> Bool {
+        model: AIModel
+    ) -> (input: CapabilityEvidenceFacade.InputCapabilityProjection?, entry: Bool) {
         let partitionID = "relay-negative-cache-tests"
         let identity = CapabilityEvidenceProductionAdapter.uiDispatchIdentity(
             provider: provider, model: model, partitionID: partitionID
@@ -249,15 +276,16 @@ struct RelayNegativeCacheContractTests {
             provider: provider, model: model, identity: identity,
             keys: ["vision_input", "tool_call"]
         )
-        let visibleKeys = ChatView.visibleCapabilityKeys(
-            provider: provider, model: model, projection: projection, negativeCache: cache
-        )
-        return ChatComposerBar.supportsImageAttachment(
-            provider: provider, model: model, visibleCapabilityKeys: visibleKeys
+        let visibleKeys = ChatView.visibleCapabilityKeys(provider: provider, model: model, projection: projection)
+        return (
+            projection.inputProjection(for: CapabilityEvidenceFacade.visionInputKey),
+            ChatComposerBar.supportsImageAttachment(
+                provider: provider, model: model, visibleCapabilityKeys: visibleKeys
+            )
         )
     }
 
-    @Test("RL2-NEGCACHE-03 visionEntryCases: Relay vision stays visible when unknown, is hidden by negative evidence or an image negative entry, and an override of true beats the negative entry")
+    @Test("RL2-NEGCACHE-03 visionEntryCases: Relay vision stays visible when unknown, is hidden by negative evidence or a v2 negative entry, and a tested override cannot beat the negative entry")
     func rl2NegCache03VisionEntryCases() async throws {
         try await loadMetadataWithChatEnvelopeWithoutImage()
         let fixture = try loadFixture()
@@ -265,7 +293,6 @@ struct RelayNegativeCacheContractTests {
         #expect(!cases.isEmpty)
         for item in cases {
             let caseID = try #require(item["caseId"] as? String)
-            let cache = makeCache()
             // The model itself lacks .image: even with "no candidate" the entry must stay visible.
             var model = AIModel(
                 id: "relay-vision-\(caseID)", name: caseID, capabilities: [.text],
@@ -297,18 +324,26 @@ struct RelayNegativeCacheContractTests {
                 Issue.record("\(caseID): unknown form")
                 continue
             }
+            defer { CapabilityNegativeCache.shared.clearConnection(provider.id.uuidString) }
             if try #require(item["imageNegCached"] as? Bool) {
-                cache.record(
-                    connectionID: provider.id.uuidString, modelID: model.id,
-                    transport: transport.rawValue, kind: .image
-                )
+                try recordVisionRejection(provider: provider, model: model, transport: transport)
             }
-            let expected = try #require(item["expectVisible"] as? Bool)
-            #expect(photoEntryVisible(provider: provider, model: model, cache: cache) == expected, "\(caseID)")
+            let (input, entry) = visionEntry(provider: provider, model: model)
+            if let e39 = item["e39Expect"] as? [String: Any] {
+                // Badge = projection visible, entry = projection editable.
+                let input = try #require(input, "\(caseID) input projection")
+                #expect(input.visible == (try #require(e39["visible"] as? Bool)), "\(caseID) badge")
+                #expect(input.editable == (try #require(e39["editable"] as? Bool)), "\(caseID) projection entry")
+                #expect(entry == input.editable, "\(caseID) photo entry")
+            } else {
+                let expected = try #require(item["expectVisible"] as? Bool)
+                #expect(entry == expected, "\(caseID) entry")
+                if let input { #expect(input.editable == expected, "\(caseID) projection entry") }
+            }
         }
     }
 
-    @Test("RL2-NEGCACHE-03 connection auto with a model that has no protocol is not an incomplete identity: vision stays visible when unknown and is hidden after an image negative entry on the chat key")
+    @Test("RL2-NEGCACHE-03 connection auto with a model that has no protocol is not an incomplete identity: vision stays visible when unknown and is hidden after a v2 negative entry on the chat family")
     func rl2NegCache03AutoConnectionUsesEffectiveTransport() async throws {
         let data = try Data(contentsOf: fixtureURL("shared/test-fixtures/relay/metadata-fixture.json"))
         await MetadataClient.shared.resetForTesting()
@@ -319,13 +354,129 @@ struct RelayNegativeCacheContractTests {
         )
         // `auto` resolves to Chat via effectiveTransport.
         let provider = relayProvider(transport: .auto, models: [model])
-        let cache = makeCache()
-        #expect(photoEntryVisible(provider: provider, model: model, cache: cache))
-        cache.record(
-            connectionID: provider.id.uuidString, modelID: model.id,
-            transport: RelayTransport.openaiChatCompletions.rawValue, kind: .image
+        defer { CapabilityNegativeCache.shared.clearConnection(provider.id.uuidString) }
+        #expect(photoEntryVisible(provider: provider, model: model))
+        try recordVisionRejection(provider: provider, model: model, transport: .openaiChatCompletions)
+        #expect(!photoEntryVisible(provider: provider, model: model))
+    }
+
+    // MARK: Relay rejections are written to both v1 and v2
+
+    /// The family follows this Relay protocol; a protocol without a family (native llama.cpp) writes no v2 entry.
+    private static let relayDualWriteCases: [(RelayTransport, image: String?, file: String?)] = [
+        (.openaiChatCompletions, "openai_chat.image_url", "openai_chat.file"),
+        (.openaiResponses, "openai_responses.input_image", "openai_responses.input_file"),
+        (.anthropicMessages, "anthropic.image", "anthropic.document"),
+        (.geminiGenerateContent, "gemini.inline_data", "gemini.inline_data"),
+        (.llamacppNative, nil, nil),
+    ]
+
+    private static let allRelayFamilies = [
+        "openai_chat.image_url", "openai_chat.file", "openai_responses.input_image", "openai_responses.input_file",
+        "anthropic.image", "anthropic.document", "gemini.inline_data",
+    ]
+
+    /// The disabledReason of that input key in the production projection (the same projection as the vision entry).
+    private func inputReason(
+        provider: Provider, model: AIModel, key: String
+    ) -> CapabilityEvidenceFacade.InputDisabledReason? {
+        let identity = CapabilityEvidenceProductionAdapter.uiDispatchIdentity(
+            provider: provider, model: model, partitionID: "relay-negative-cache-tests"
         )
-        #expect(!photoEntryVisible(provider: provider, model: model, cache: cache))
+        return CapabilityEvidenceProductionAdapter.capabilityProjection(
+            provider: provider, model: model, identity: identity, keys: [key]
+        ).inputProjection(for: key)?.disabledReason
+    }
+
+    private func assertDualWrite(
+        provider: Provider, model: AIModel, key: String, family: String?, label: String,
+        reasonBefore: CapabilityEvidenceFacade.InputDisabledReason?
+    ) throws {
+        let v2 = CapabilityNegativeCache.shared
+        guard let family else {
+            for other in Self.allRelayFamilies {
+                #expect(v2.entry(
+                    connectionId: provider.id.uuidString, modelId: model.id, wireFamily: other, capabilityKey: key
+                ) == nil, "\(label) a protocol without a family writes no v2 entry (\(other))")
+            }
+            return
+        }
+        let entry = try #require(v2.entry(
+            connectionId: provider.id.uuidString, modelId: model.id, wireFamily: family, capabilityKey: key
+        ), "\(label) v2 entry")
+        #expect(entry.signatureId == "relay.classified_rejected", "\(label)")
+        #expect(entry.verdictRevision == Self.synthesizedRevision(provider: provider, model: model, key: key, family: family),
+                "\(label) the revision comes from the facade's composite verdict")
+        #expect(entry.verdictRevision != CapabilityNegativeCache.verdictRevision(nil), "\(label) does not use the missing-verdict hash")
+        // A hard block (this end does not implement the family) beats the negative entry: v2 is still written, and the projection keeps the original hard-block reason.
+        let expected: CapabilityEvidenceFacade.InputDisabledReason =
+            reasonBefore == .wireNotImplemented ? .wireNotImplemented : .rejectedRecently
+        #expect(inputReason(provider: provider, model: model, key: key) == expected, "\(label) production projection")
+    }
+
+    @Test("recordImageRejection hit: v1 image and v2 vision_input are both written, the family follows the protocol, and the projection is rejected_recently")
+    @MainActor
+    func imageRejectionDualWritesV2() async throws {
+        try await loadSharedMetadata()
+        let rejected = RelayPreOutputRejection(
+            status: 400, contentType: "application/json", body: Data(#"{"error":{"message":"x"}}"#.utf8)
+        )
+        for (transport, family, _) in Self.relayDualWriteCases {
+            let model = plainModel("relay-dual-image-\(transport.rawValue)")
+            let provider = relayProvider(transport: transport, models: [model])
+            defer {
+                RelayNegativeCache.shared.clearConnection(provider.id.uuidString)
+                CapabilityNegativeCache.shared.clearConnection(provider.id.uuidString)
+            }
+            let before = inputReason(provider: provider, model: model, key: CapabilityEvidenceFacade.visionInputKey)
+            let written = RelayRejectionRecording.recordImageRejection(
+                provider: provider, model: model, transport: transport, rejection: rejected
+            )
+            #expect(written, "\(transport)")
+            #expect(RelayNegativeCache.shared.isRejected(
+                connectionID: provider.id.uuidString, modelID: model.id, transport: transport.rawValue, kind: .image
+            ), "\(transport) v1 image")
+            try assertDualWrite(
+                provider: provider, model: model, key: CapabilityEvidenceFacade.visionInputKey,
+                family: family, label: "\(transport)", reasonBefore: before
+            )
+        }
+    }
+
+    @Test("native file rejected then fell back to text: v1 file and v2 file_input are both written, the family follows the protocol, and the projection is rejected_recently")
+    @MainActor
+    func nativeFileRejectionDualWritesV2() async throws {
+        try await loadSharedMetadata()
+        for (transport, _, family) in Self.relayDualWriteCases {
+            let model = plainModel("relay-dual-file-\(transport.rawValue)")
+            let provider = relayProvider(transport: transport, models: [model])
+            defer {
+                RelayNegativeCache.shared.clearConnection(provider.id.uuidString)
+                CapabilityNegativeCache.shared.clearConnection(provider.id.uuidString)
+            }
+            let scope = NativeFileFallback.Scope.relayScope(transport, connectionID: provider.id, modelID: model.id)
+            let before = inputReason(provider: provider, model: model, key: CapabilityEvidenceFacade.fileInputKey)
+            NativeFileFallback.rememberTextOnly(scope, rejectedStatusCode: 400)
+            #expect(RelayNegativeCache.shared.isRejected(
+                connectionID: provider.id.uuidString, modelID: model.id, transport: transport.rawValue, kind: .file
+            ), "\(transport) v1 file")
+            try assertDualWrite(
+                provider: provider, model: model, key: CapabilityEvidenceFacade.fileInputKey,
+                family: family, label: "\(transport)", reasonBefore: before
+            )
+        }
+        // 413 is not a rejection signal: neither v1 nor v2 is written.
+        let model = plainModel("relay-dual-file-413")
+        let provider = relayProvider(transport: .openaiChatCompletions, models: [model])
+        defer { CapabilityNegativeCache.shared.clearConnection(provider.id.uuidString) }
+        NativeFileFallback.rememberTextOnly(
+            .relayScope(.openaiChatCompletions, connectionID: provider.id, modelID: model.id), rejectedStatusCode: 413
+        )
+        #expect(!anyEntry(.shared, connection: provider.id, modelID: model.id))
+        #expect(CapabilityNegativeCache.shared.entry(
+            connectionId: provider.id.uuidString, modelId: model.id, wireFamily: "openai_chat.file",
+            capabilityKey: CapabilityEvidenceFacade.fileInputKey
+        ) == nil)
     }
 }
 
@@ -524,6 +675,42 @@ extension RelayNegativeCacheContractTests {
         }
     }
 
+    @Test("RL2-NEGCACHE-01 same-key tools: a production tool rejection writes toolCall and the verdict reads the same key; 5xx / 413 write nothing; a Relay false does not go into the old tool memory")
+    @MainActor
+    func rl2NegCache01ToolRejectionWritesSameKey() throws {
+        let memory = try makeToolLoopMemoryStore()
+        let cache = makeCache()
+        var model = plainModel("relay-tool-write")
+        model.toolCall = true
+        // Connection auto, model without a protocol: the tool leg actually sends Chat, so the key protocol = the protocol actually sent.
+        let provider = relayProvider(transport: .auto, models: [model])
+
+        for status in [500, 503, 413, 429] {
+            RelayRejectionRecording.rememberToolCall(
+                provider: provider, model: model, toolCall: false, reason: .toolsRejected4xx,
+                statusCode: status, sentTransport: .openaiChatCompletions, memory: memory, negativeCache: cache
+            )
+            #expect(!anyEntry(cache, connection: provider.id, modelID: model.id), "HTTP \(status)")
+        }
+        RelayRejectionRecording.rememberToolCall(
+            provider: provider, model: model, toolCall: false, reason: .toolsRejected4xx,
+            statusCode: 400, sentTransport: .openaiChatCompletions, memory: memory, negativeCache: cache
+        )
+        #expect(cache.isRejected(
+            connectionID: provider.id.uuidString, modelID: model.id,
+            transport: RelayTransport.openaiChatCompletions.rawValue, kind: .toolCall
+        ))
+        #expect(memory.lookup(connectionID: provider.id, modelID: model.id) == nil, "a Relay false is not written to the old tool memory")
+        #expect(ToolCallCapabilityPolicy.catalogVerdict(provider: provider, model: model, negativeCache: cache).verdict == false)
+
+        // A true still goes into the tool memory as before.
+        RelayRejectionRecording.rememberToolCall(
+            provider: provider, model: model, toolCall: true, reason: .structuredToolCalls,
+            statusCode: nil, sentTransport: nil, memory: memory, negativeCache: cache
+        )
+        #expect(memory.lookup(connectionID: provider.id, modelID: model.id)?.toolCall == true)
+    }
+
     @Test("RL2-NEGCACHE-01 connection auto, model without a protocol: the toolCall negative entry is read under effectiveTransport (Chat)")
     func rl2NegCache01AutoConnectionReadsEffectiveTransport() {
         let cache = makeCache()
@@ -535,6 +722,22 @@ extension RelayNegativeCacheContractTests {
             transport: RelayTransport.openaiChatCompletions.rawValue, kind: .toolCall
         )
         #expect(ToolCallCapabilityPolicy.catalogVerdict(provider: provider, model: model, negativeCache: cache).verdict == false)
+    }
+
+    @Test("RL2-NEGCACHE-01 when a Relay tool verdict falls back to the tool memory, only true counts and false is treated as no value")
+    func rl2NegCache01RelayMemoryFalseIgnored() throws {
+        let memory = try makeToolLoopMemoryStore()
+        let model = plainModel("relay-memory-false")
+        let provider = relayProvider(transport: .openaiChatCompletions, models: [model])
+        #expect(memory.record(connectionID: provider.id, modelID: model.id, toolCall: false, reason: .toolsRejected4xx))
+        let ignored = ToolCallCapabilityPolicy.decide(provider: provider, model: model, memory: memory)
+        #expect(ignored.verdict == nil)
+        #expect(ignored.allowed)
+
+        #expect(memory.record(connectionID: provider.id, modelID: model.id, toolCall: true, reason: .structuredToolCalls))
+        let remembered = ToolCallCapabilityPolicy.decide(provider: provider, model: model, memory: memory)
+        #expect(remembered.verdict == true)
+        #expect(remembered.source == .memory)
     }
 
     @Test("RL2-NEGCACHE-01 key clearing: a capability-test write-back clears image + toolCall for the model's current protocol, and deleting the connection clears the whole connection")
@@ -619,7 +822,7 @@ extension RelayNegativeCacheContractTests {
             let model = plainModel("relay-vision-unknown")
             let provider = relayProvider(transport: transport, models: [model])
             defer { RelayNegativeCache.shared.clearConnection(provider.id.uuidString) }
-            #expect(photoEntryVisible(provider: provider, model: model, cache: .shared), "\(transport): precondition: stays visible when unknown")
+            #expect(photoEntryVisible(provider: provider, model: model), "\(transport): precondition: stays visible when unknown")
             RelayNegCacheScriptedProtocol.reset([
                 .json(status: 400, body: #"{"error":{"message":"image input is not supported for this model"}}"#),
             ])
@@ -638,7 +841,7 @@ extension RelayNegativeCacheContractTests {
                 connectionID: provider.id.uuidString, modelID: model.id,
                 transport: transport.rawValue, kind: .image
             ), "\(transport)")
-            #expect(!photoEntryVisible(provider: provider, model: model, cache: .shared), "\(transport)")
+            #expect(!photoEntryVisible(provider: provider, model: model), "\(transport)")
 
             // Hint card: the failed message carries the existing recovery card, its body uses a string-table key, and the primary action reuses Switch Model.
             let action = recoveryPrimaryAction(for: message)
@@ -1117,7 +1320,7 @@ extension RelayNegativeCacheContractTests {
         let provider = relayProvider(transport: .auto, models: [model])
         defer { RelayNegativeCache.shared.clearConnection(provider.id.uuidString) }
         #expect(RelayFirstSendTransport.current(provider: provider, model: model) == .anthropicMessages)
-        #expect(photoEntryVisible(provider: provider, model: model, cache: .shared), "Precondition: vision stays visible when unknown")
+        #expect(photoEntryVisible(provider: provider, model: model), "Precondition: vision stays visible when unknown")
         RelayNegCacheScriptedProtocol.reset([
             .json(status: 400, body: #"{"error":{"message":"image input is not supported for this model"}}"#),
         ])
@@ -1138,12 +1341,37 @@ extension RelayNegativeCacheContractTests {
         let storedProvider = try #require(state.provider(for: provider.id))
         let stored = try #require(storedProvider.models.first { $0.id == model.id })
         #expect(stored.relayTransport == nil)
-        #expect(!photoEntryVisible(provider: storedProvider, model: stored, cache: .shared), "the vision entry is hidden by the negative entry")
+        #expect(!photoEntryVisible(provider: storedProvider, model: stored), "the vision entry is hidden by the negative entry")
         let board = RelayModelAdvancedBoard.make(
             provider: storedProvider, model: stored, partitionID: "relay-negative-cache-tests"
         )
         let imageRow = try #require(board.capabilityRows.first { $0.capability == .image })
         #expect(imageRow.source == .detected, "the advanced page's vision row reads the same negative entry")
+    }
+
+    @Test("RL2-FIRSTSEND-07 tool negative entry written and read under the same key: an unverified Claude-family model is written under the first-send protocol Messages, the verdict reads false, and the Chat key has no entry")
+    @MainActor
+    func rl2FirstSendToolRejectionSameKey() async throws {
+        let modelID = "claude-first-send-tool"
+        try await loadClaudeFamily(modelID)
+        let memory = try makeToolLoopMemoryStore()
+        let cache = makeCache()
+        var model = plainModel(modelID)
+        model.toolCall = true
+        let provider = relayProvider(transport: .auto, models: [model])
+        RelayRejectionRecording.rememberToolCall(
+            provider: provider, model: model, toolCall: false, reason: .toolsRejected4xx,
+            statusCode: 400, sentTransport: .anthropicMessages, memory: memory, negativeCache: cache
+        )
+        #expect(cache.isRejected(
+            connectionID: provider.id.uuidString, modelID: model.id,
+            transport: RelayTransport.anthropicMessages.rawValue, kind: .toolCall
+        ))
+        #expect(!cache.isRejected(
+            connectionID: provider.id.uuidString, modelID: model.id,
+            transport: RelayTransport.openaiChatCompletions.rawValue, kind: .toolCall
+        ))
+        #expect(ToolCallCapabilityPolicy.catalogVerdict(provider: provider, model: model, negativeCache: cache).verdict == false)
     }
 
     @Test("RL2-NEGCACHE-04 production send: a 404 from a user-sourced protocol does not switch; after one switch a second 404 reports the second error and does not switch again")
