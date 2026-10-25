@@ -1,0 +1,4618 @@
+{
+  "schema": "oriveo.voice.realtime-conversation",
+  "version": 1,
+  "$comment": "Native realtime conversation state machine (reducer contract). Input: the 12 unified events of realtime-events.v1 (same keys as its mapCases.expected; itemId may be null and is never used for matching) plus local inputs mute / unmute / tapOrb / playbackDrained / tick{ms} / end / systemInterruption / failed{code} / screenReaderSpeaking{speaking}. Each case replays steps from the initial state; every step locks the statusKey after the input and the ordered effects it emits. Each client implements the same reducer and replays this fixture.",
+  "constants": {
+    "idleEndMs": 120000,
+    "thinkingEarconMs": 3000,
+    "lateUserTranscriptMs": 3000,
+    "muteSilenceMs": 1000
+  },
+  "rules": {
+    "state": [
+      "1. State: phase connecting | listening | thinking | speaking | ended; muted; userSpeaking; drainPending; turn {userPending, userText, assistantStarted, assistantDone, assistantText, heldMs, userAfterReply}; idleMs; thinkingMs; earconDone; dormant; reopenAwaitingProgress; screenReaderSpeaking. Initial phase is connecting with everything else false / empty / 0.",
+      "statusKey: ended → null; connecting → thinking; listening while muted → muted; otherwise the phase. Muted does not override thinking or speaking.",
+      "Inputs with an unknown type change nothing (idleMs included) and emit nothing. After ended every input is ignored."
+    ],
+    "transitions": [
+      "ready → listening only from connecting; a later ready (reconnect) changes nothing.",
+      "userSpeechStarted → listening, userSpeaking = true, userPending = true, thinkingMs = 0, earconDone = false. While speaking it first emits interruptPlayback (the client stops local playback; the server confirms later). A held assistant reply is released (persisted) before the new utterance starts; if the current reply has started but is not done, the utterance is marked userAfterReply (it belongs to the next turn).",
+      "userSpeechStopped → thinking from any live phase, userSpeaking = false, thinkingMs = 0.",
+      "assistantAudio → speaking and marks the reply started; assistantTranscript stores the cumulative assistant text and marks the reply started; neither changes anything else.",
+      "assistantTurnDone: while speaking stays speaking with drainPending = true, otherwise → listening. playbackDrained → listening only when speaking with drainPending; otherwise it changes nothing (more audio may follow).",
+      "interrupted → listening (drainPending cleared, nothing persisted). tapOrb only while speaking: interruptPlayback then → listening; in every other phase it is a no-op (it does not unmute).",
+      "goAway / resumable change nothing in this reducer (reconnect and resumption belong to the session layer) but still reset idleMs. The unified error event is non-fatal (realtime-events.v1: the connection close decides fatality): it changes nothing and emits nothing, only resets idleMs; the conversation continues.",
+      "planChanged (local; at a turn boundary the host replans off the main thread with currentSessionId = the open session and sends this when the new fingerprint differs from the open session’s, per realtime-session.v1): only in phase listening, not dormant, not userSpeaking and with no turn in progress (no userPending, no assistantStarted) → drainPending = false, turn cleared, phase connecting (statusKey thinking), emit reopen; the host reopens from the new plan and sends ready. Otherwise ignored; the host compares again at the next turn boundary."
+    ],
+    "persistence": [
+      "userTranscript stores text in userText. Non-final sets userPending = true (Gemini sends no speech-start signal). Final sets userPending = false and emits persist {role: user, text: trimmed} unless echoUnits(text) is empty (blank or punctuation / separators only, same separator set as voice-conversation.v1 isEcho).",
+      "assistantTurnDone text = event.text when it is non-blank after trim, otherwise the latest assistantTranscript (null and \"\" both fall back). If userPending and the utterance is not userAfterReply, a non-blank reply is held (heldMs = 0); a blank one is not held. Otherwise persist {role: assistant, text: trimmed} immediately; blank text writes nothing.",
+      "A held reply is released by the user final (persist user first, then assistant), by tick when heldMs reaches lateUserTranscriptMs (assistant only; a later user final is then persisted on its own), by the next userSpeechStarted, or by the end sequence.",
+      "Barge-in: if the userAfterReply utterance goes final before the interrupted reply's assistantTurnDone, the reply is persisted first with its current transcript and that assistantTurnDone writes nothing; if the reply finishes first it is persisted immediately and the utterance (pending flag and text) carries over to the next turn.",
+      "After a reply is written the turn is cleared, except the userPending / userText of a userAfterReply utterance."
+    ],
+    "mute": [
+      "mute (when not muted): muted = true; if userSpeaking emit sendSilence {ms: muteSilenceMs} first, then setUplink {on: false}. unmute (when muted): muted = false, setUplink {on: true}. Repeated mute / unmute emit nothing.",
+      "sessionExpired (local; the host sends it when the transport reports the provider closed the session as expired, Gemini close 1008): while muted and not dormant → persist a held assistant reply, then dormant = true, phase listening, turn cleared, no effects (the call stays open, statusKey muted, idle does not count while muted). Ignored while dormant. unmute while dormant → dormant = false, reopenAwaitingProgress = true, phase connecting, emit reopen then setUplink {on: true}; the host opens a new session from the text history and sends ready when it is up.",
+      "Not muted (and not dormant): if reopenAwaitingProgress is false → persist a held assistant reply, turn cleared, userSpeaking = false, drainPending = false, reopenAwaitingProgress = true, phase connecting (statusKey thinking), emit reopen (uplink gating unchanged, it stays on); the host reopens from the text history and sends ready, which goes connecting → listening. If reopenAwaitingProgress is true → showError {code: \"sessionExpired\"} then end with reason error (no reopen loop). reopenAwaitingProgress is cleared by userTranscript, assistantAudio, assistantTranscript or assistantTurnDone; ready is not progress.",
+      "screenReaderSpeaking{speaking} (local; the host sends it when the platform screen reader starts / finishes announcing): screenReaderSpeaking = speaking. Uplink is on only when not muted and the screen reader is not speaking; mute wins. speaking true while not muted → setUplink {on: false}; speaking false while not muted → setUplink {on: true}; while muted both emit nothing and muted / statusKey are unchanged. unmute while the screen reader is speaking clears muted but does not emit setUplink {on: true} (reopen still applies while dormant). Repeated values emit nothing."
+    ],
+    "timers": [
+      "tick{ms} is the only clock. There is no periodic tick: after every reduce the host arms one one-shot timer for nextTickMs (cancelling the previous one; none when null); before dispatching any other input, and when that timer fires, it first dispatches tick{ms: monotonic time elapsed since the last tick or since the session became ready}. nextTickMs = min of (lateUserTranscriptMs - heldMs while a reply is held, thinkingEarconMs - thinkingMs while thinking and the earcon has not played, idleEndMs - idleMs while listening, not muted and not userSpeaking), clamped at 0; null when none applies or ended. A tick with ms <= 0 changes nothing, so the host never arms a timer for nextTickMs <= 0 (it would only spin). In this order: held reply heldMs += ms (release at lateUserTranscriptMs); while thinking thinkingMs += ms and the first time it reaches thinkingEarconMs emit earcon (once until the next userSpeechStarted); while listening, not muted and not userSpeaking idleMs += ms and at idleEndMs run the end sequence with reason idle.",
+      "Every input other than tick resets idleMs to 0, including goAway, resumable, mute, unmute and no-op tapOrb.",
+      "playbackDrained comes from the player's own completion callback when the last queued buffer has played; the host never polls the player. When drainPending turns on and the player has already played everything (so no callback will follow), the host reads the player's state once at that moment and dispatches playbackDrained."
+    ],
+    "end": [
+      "end → reason user; systemInterruption and sessionEnded → reason system; local failed {code} (sent by the host when the session stream throws or the connection drops unexpectedly) → emit showError {code} first, then reason error.",
+      "End sequence, in order: persist a held assistant reply; for reason user only, writeDraft {text: trimmed userText} when userPending and echoUnits(userText) is non-empty; close; ended {reason}. Then phase = ended, statusKey null. A reply still in progress (not done) is not persisted."
+    ],
+    "fixture": [
+      "cases[]: {id, steps: [{input, expected: {statusKey, effects[], nextTickMs}}]}. Effects: persist {role, text}, interruptPlayback, sendSilence {ms}, setUplink {on}, earcon, showError {code}, writeDraft {text}, close, ended {reason}, reopen."
+    ],
+    "host": [
+      "Home entry (no conversation yet): on the first assistantAudio, assistant transcript or user transcript event of the session, the host creates the chat and moves to the chat page on the main thread BEFORE it reduces that event and publishes the status, so the home bar never shows speaking (voice-conversation pageReachableStatusKeys.home). Later persist effects write into that conversation in effect order (user before assistant per rules.persistence). Event order does not matter: an assistant reply that arrives before any user transcript still lands on the chat page.",
+      "Only the home entry does this. A chat-page entry (draft or existing conversation) never creates through this path and never deletes.",
+      "The host tries to create once per session. If creation fails it ends the session with the same error the home cascade first send uses, so the home bar never reaches speaking.",
+      "A home session deletes the conversation it created only when all hold: it created it, it persisted nothing into it, and the store still has no message in it (checked and deleted in one transaction, not counted as a user delete). Creation and the handoff are not cancellable halfway: an end during creation still records the created id so the empty check runs. The page holding that conversation is left (only when it is still the current page) before or atomically with the delete, so no send can target a conversation being deleted: iOS removes it from memory and dismisses in one main-actor turn, then deletes in the store; Android leaves the page, then deletes in one transaction. A delete skipped because the store has messages navigates no further.",
+      "One user turn, one user message: every inputTranscription fragment of one user turn (until that turn ends at turnComplete; a provider item id, when present, groups fragments the same way) accumulates into one text and is persisted once at the turn boundary. Fragments are never persisted one by one, and two real turns are never merged after the fact.",
+      "The event that triggers home creation (often the first user fragment) is not lost: it is reduced only after creation finished, in arrival order, with every later event queued behind it.",
+      "Replay: recordings/*.v1.json (gemini-live-home-two-turn with its variants, gemini-live-barge-in) hold real provider server messages; both ends replay them in order through the production mapper, reducer and sink and must produce expectedMessages exactly (order, count, text).",
+      "end is synchronous for the UI: active turns false and the bar hides in the same call; audio teardown finishes in the background and never blocks navigation."
+    ]
+  },
+  "cases": [
+    {
+      "id": "rt_normal_turn",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStopped",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": "item_u1",
+            "text": "What time is it?",
+            "final": true
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "user",
+                "text": "What time is it?"
+              }
+            ],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "assistantAudio",
+            "itemId": "item_a1",
+            "contentIndex": 0,
+            "base64": "AAAA",
+            "sampleRateHz": 24000
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTranscript",
+            "itemId": "item_a1",
+            "text": "It is noon.",
+            "final": false
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTurnDone",
+            "itemId": "item_a1",
+            "text": "It is noon.",
+            "status": "completed"
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "assistant",
+                "text": "It is noon."
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "playbackDrained"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_late_user_transcript_held_then_ordered",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStopped",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "assistantAudio",
+            "itemId": "item_a1",
+            "contentIndex": 0,
+            "base64": "AAAA",
+            "sampleRateHz": 24000
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTurnDone",
+            "itemId": "item_a1",
+            "text": "Sure, here it is.",
+            "status": "completed"
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "playbackDrained"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 1000
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 2000
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": "item_u1",
+            "text": "Tell me a joke",
+            "final": true
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "user",
+                "text": "Tell me a joke"
+              },
+              {
+                "type": "persist",
+                "role": "assistant",
+                "text": "Sure, here it is."
+              }
+            ],
+            "nextTickMs": 120000
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_late_user_transcript_timeout_writes_assistant_only",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStopped",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": "item_u1",
+            "text": "Tell",
+            "final": false
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "assistantAudio",
+            "itemId": "item_a1",
+            "contentIndex": 0,
+            "base64": "AAAA",
+            "sampleRateHz": 24000
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTurnDone",
+            "itemId": "item_a1",
+            "text": "Sure.",
+            "status": "completed"
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "playbackDrained"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 2500
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 500
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 500
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "assistant",
+                "text": "Sure."
+              }
+            ],
+            "nextTickMs": 117000
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_noise_turn_not_persisted",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStopped",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": "item_u1",
+            "text": "   ",
+            "final": true
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTurnDone",
+            "itemId": "item_a1",
+            "text": "",
+            "status": "completed"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_punctuation_only_is_empty",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStopped",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": "item_u1",
+            "text": "\u3002…?!",
+            "final": true
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "assistantAudio",
+            "itemId": "item_a1",
+            "contentIndex": 0,
+            "base64": "AAAA",
+            "sampleRateHz": 24000
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTurnDone",
+            "itemId": "item_a1",
+            "text": "OK.",
+            "status": "completed"
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "assistant",
+                "text": "OK."
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "playbackDrained"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_tap_orb_while_speaking_interrupts",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStopped",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": "item_u1",
+            "text": "Read me a poem",
+            "final": true
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "user",
+                "text": "Read me a poem"
+              }
+            ],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "assistantAudio",
+            "itemId": "item_a1",
+            "contentIndex": 0,
+            "base64": "AAAA",
+            "sampleRateHz": 24000
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "tapOrb"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [
+              {
+                "type": "interruptPlayback"
+              }
+            ],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTurnDone",
+            "itemId": "item_a1",
+            "text": "Roses are",
+            "status": "interrupted"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "assistant",
+                "text": "Roses are"
+              }
+            ],
+            "nextTickMs": 120000
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_tap_orb_while_listening_noop",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "tapOrb"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "tapOrb"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStopped",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "tapOrb"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_mute_mid_speech_sends_silence",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "mute"
+          },
+          "expected": {
+            "statusKey": "muted",
+            "effects": [
+              {
+                "type": "sendSilence",
+                "ms": 1000
+              },
+              {
+                "type": "setUplink",
+                "on": false
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStopped",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "unmute"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [
+              {
+                "type": "setUplink",
+                "on": true
+              }
+            ],
+            "nextTickMs": 3000
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_mute_unmute_uplink",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "mute"
+          },
+          "expected": {
+            "statusKey": "muted",
+            "effects": [
+              {
+                "type": "setUplink",
+                "on": false
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "mute"
+          },
+          "expected": {
+            "statusKey": "muted",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "unmute"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [
+              {
+                "type": "setUplink",
+                "on": true
+              }
+            ],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "unmute"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        }
+      ]
+    },
+    {
+      "id": "screen_reader_speaking_pauses_uplink_without_mute",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "screenReaderSpeaking",
+            "speaking": true
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [
+              {
+                "type": "setUplink",
+                "on": false
+              }
+            ],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "screenReaderSpeaking",
+            "speaking": true
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "screenReaderSpeaking",
+            "speaking": false
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [
+              {
+                "type": "setUplink",
+                "on": true
+              }
+            ],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "screenReaderSpeaking",
+            "speaking": false
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        }
+      ]
+    },
+    {
+      "id": "screen_reader_done_while_muted_keeps_uplink_off",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "mute"
+          },
+          "expected": {
+            "statusKey": "muted",
+            "effects": [
+              {
+                "type": "setUplink",
+                "on": false
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "screenReaderSpeaking",
+            "speaking": true
+          },
+          "expected": {
+            "statusKey": "muted",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "screenReaderSpeaking",
+            "speaking": false
+          },
+          "expected": {
+            "statusKey": "muted",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "screenReaderSpeaking",
+            "speaking": true
+          },
+          "expected": {
+            "statusKey": "muted",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "unmute"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "screenReaderSpeaking",
+            "speaking": false
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [
+              {
+                "type": "setUplink",
+                "on": true
+              }
+            ],
+            "nextTickMs": 120000
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_idle_120s_ends",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 60000
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 60000
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 59999
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 1
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 1
+          },
+          "expected": {
+            "statusKey": null,
+            "effects": [
+              {
+                "type": "close"
+              },
+              {
+                "type": "ended",
+                "reason": "idle"
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 1000
+          },
+          "expected": {
+            "statusKey": null,
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": null,
+            "effects": [],
+            "nextTickMs": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_idle_not_counted_when_muted",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 100000
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 20000
+          }
+        },
+        {
+          "input": {
+            "type": "mute"
+          },
+          "expected": {
+            "statusKey": "muted",
+            "effects": [
+              {
+                "type": "setUplink",
+                "on": false
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 200000
+          },
+          "expected": {
+            "statusKey": "muted",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "unmute"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [
+              {
+                "type": "setUplink",
+                "on": true
+              }
+            ],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 119999
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 1
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 1
+          },
+          "expected": {
+            "statusKey": null,
+            "effects": [
+              {
+                "type": "close"
+              },
+              {
+                "type": "ended",
+                "reason": "idle"
+              }
+            ],
+            "nextTickMs": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_idle_reset_by_any_input",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 119000
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 1000
+          }
+        },
+        {
+          "input": {
+            "type": "goAway",
+            "timeLeftMs": 10000
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 119000
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 1000
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 1000
+          },
+          "expected": {
+            "statusKey": null,
+            "effects": [
+              {
+                "type": "close"
+              },
+              {
+                "type": "ended",
+                "reason": "idle"
+              }
+            ],
+            "nextTickMs": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_idle_not_counted_while_user_speaking",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 130000
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStopped",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": "item_u1",
+            "text": "Hi",
+            "final": true
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "user",
+                "text": "Hi"
+              }
+            ],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTurnDone",
+            "itemId": "item_a1",
+            "text": "",
+            "status": "completed"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 120000
+          },
+          "expected": {
+            "statusKey": null,
+            "effects": [
+              {
+                "type": "close"
+              },
+              {
+                "type": "ended",
+                "reason": "idle"
+              }
+            ],
+            "nextTickMs": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_thinking_earcon_once",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStopped",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 2999
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 1
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 1
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [
+              {
+                "type": "earcon"
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 5000
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": "item_u1",
+            "text": "Plan my week",
+            "final": true
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "user",
+                "text": "Plan my week"
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "assistantAudio",
+            "itemId": "item_a1",
+            "contentIndex": 0,
+            "base64": "AAAA",
+            "sampleRateHz": 24000
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTurnDone",
+            "itemId": "item_a1",
+            "text": "Done.",
+            "status": "completed"
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "assistant",
+                "text": "Done."
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "playbackDrained"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u2"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStopped",
+            "itemId": "item_u2"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 3000
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [
+              {
+                "type": "earcon"
+              }
+            ],
+            "nextTickMs": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_earcon_not_while_listening_or_speaking",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 5000
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 115000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStopped",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": "item_u1",
+            "text": "Hi",
+            "final": true
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "user",
+                "text": "Hi"
+              }
+            ],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "assistantAudio",
+            "itemId": "item_a1",
+            "contentIndex": 0,
+            "base64": "AAAA",
+            "sampleRateHz": 24000
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 5000
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTurnDone",
+            "itemId": "item_a1",
+            "text": "Hello.",
+            "status": "completed"
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "assistant",
+                "text": "Hello."
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "playbackDrained"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 5000
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 115000
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_new_turn_releases_held_assistant",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStopped",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "assistantAudio",
+            "itemId": "item_a1",
+            "contentIndex": 0,
+            "base64": "AAAA",
+            "sampleRateHz": 24000
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTurnDone",
+            "itemId": "item_a1",
+            "text": "First reply.",
+            "status": "completed"
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "playbackDrained"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u2"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "assistant",
+                "text": "First reply."
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": "item_u2",
+            "text": "Second question",
+            "final": true
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "user",
+                "text": "Second question"
+              }
+            ],
+            "nextTickMs": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_barge_in_user_final_before_turn_done",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStopped",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": "item_u1",
+            "text": "Tell me a story",
+            "final": true
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "user",
+                "text": "Tell me a story"
+              }
+            ],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "assistantAudio",
+            "itemId": "item_a1",
+            "contentIndex": 0,
+            "base64": "AAAA",
+            "sampleRateHz": 24000
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTranscript",
+            "itemId": "item_a1",
+            "text": "Once upon a",
+            "final": false
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u2"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [
+              {
+                "type": "interruptPlayback"
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStopped",
+            "itemId": "item_u2"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": "item_u2",
+            "text": "Stop",
+            "final": true
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "assistant",
+                "text": "Once upon a"
+              },
+              {
+                "type": "persist",
+                "role": "user",
+                "text": "Stop"
+              }
+            ],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTurnDone",
+            "itemId": "item_a1",
+            "text": "Once upon a time",
+            "status": "interrupted"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "assistantAudio",
+            "itemId": "item_a2",
+            "contentIndex": 0,
+            "base64": "AAAA",
+            "sampleRateHz": 24000
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTurnDone",
+            "itemId": "item_a2",
+            "text": "OK.",
+            "status": "completed"
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "assistant",
+                "text": "OK."
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "playbackDrained"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_barge_in_user_partial_carries_to_next_turn",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStopped",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": "item_u1",
+            "text": "Tell me a story",
+            "final": true
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "user",
+                "text": "Tell me a story"
+              }
+            ],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "assistantAudio",
+            "itemId": "item_a1",
+            "contentIndex": 0,
+            "base64": "AAAA",
+            "sampleRateHz": 24000
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u2"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [
+              {
+                "type": "interruptPlayback"
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": "item_u2",
+            "text": "Actually",
+            "final": false
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTurnDone",
+            "itemId": "item_a1",
+            "text": "Once",
+            "status": "interrupted"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "assistant",
+                "text": "Once"
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStopped",
+            "itemId": "item_u2"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "assistantAudio",
+            "itemId": "item_a2",
+            "contentIndex": 0,
+            "base64": "AAAA",
+            "sampleRateHz": 24000
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTurnDone",
+            "itemId": "item_a2",
+            "text": "Sure.",
+            "status": "completed"
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": "item_u2",
+            "text": "Actually no",
+            "final": true
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "user",
+                "text": "Actually no"
+              },
+              {
+                "type": "persist",
+                "role": "assistant",
+                "text": "Sure."
+              }
+            ],
+            "nextTickMs": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_turn_done_waits_playback_drained",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStopped",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": "item_u1",
+            "text": "Hello",
+            "final": true
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "user",
+                "text": "Hello"
+              }
+            ],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "assistantAudio",
+            "itemId": "item_a1",
+            "contentIndex": 0,
+            "base64": "AAAA",
+            "sampleRateHz": 24000
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTurnDone",
+            "itemId": "item_a1",
+            "text": "Hi there.",
+            "status": "completed"
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "assistant",
+                "text": "Hi there."
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 5000
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "playbackDrained"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "playbackDrained"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_playback_drained_before_turn_done_keeps_speaking",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStopped",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": "item_u1",
+            "text": "Hello",
+            "final": true
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "user",
+                "text": "Hello"
+              }
+            ],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "assistantAudio",
+            "itemId": "item_a1",
+            "contentIndex": 0,
+            "base64": "AAAA",
+            "sampleRateHz": 24000
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "playbackDrained"
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "assistantAudio",
+            "itemId": "item_a1",
+            "contentIndex": 0,
+            "base64": "AAAA",
+            "sampleRateHz": 24000
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTurnDone",
+            "itemId": "item_a1",
+            "text": "Hi again.",
+            "status": "completed"
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "assistant",
+                "text": "Hi again."
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "playbackDrained"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_interrupted_back_to_listening",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStopped",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": "item_u1",
+            "text": "Long story please",
+            "final": true
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "user",
+                "text": "Long story please"
+              }
+            ],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "assistantAudio",
+            "itemId": "item_a1",
+            "contentIndex": 0,
+            "base64": "AAAA",
+            "sampleRateHz": 24000
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTranscript",
+            "itemId": "item_a1",
+            "text": "Once upon",
+            "final": false
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "interrupted"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTurnDone",
+            "itemId": "item_a1",
+            "text": null,
+            "status": "interrupted"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "assistant",
+                "text": "Once upon"
+              }
+            ],
+            "nextTickMs": 120000
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_user_speech_while_speaking_stops_playback",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStopped",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": "item_u1",
+            "text": "Count to ten",
+            "final": true
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "user",
+                "text": "Count to ten"
+              }
+            ],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "assistantAudio",
+            "itemId": "item_a1",
+            "contentIndex": 0,
+            "base64": "AAAA",
+            "sampleRateHz": 24000
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u2"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [
+              {
+                "type": "interruptPlayback"
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTurnDone",
+            "itemId": "item_a1",
+            "text": "One, two",
+            "status": "interrupted"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "assistant",
+                "text": "One, two"
+              }
+            ],
+            "nextTickMs": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_end_user_writes_draft",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": "item_u1",
+            "text": "Remind me to",
+            "final": false
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "end"
+          },
+          "expected": {
+            "statusKey": null,
+            "effects": [
+              {
+                "type": "writeDraft",
+                "text": "Remind me to"
+              },
+              {
+                "type": "close"
+              },
+              {
+                "type": "ended",
+                "reason": "user"
+              }
+            ],
+            "nextTickMs": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_end_user_final_text_no_draft",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStopped",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": "item_u1",
+            "text": "Thanks",
+            "final": true
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "user",
+                "text": "Thanks"
+              }
+            ],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "end"
+          },
+          "expected": {
+            "statusKey": null,
+            "effects": [
+              {
+                "type": "close"
+              },
+              {
+                "type": "ended",
+                "reason": "user"
+              }
+            ],
+            "nextTickMs": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_end_releases_held_assistant_before_draft",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStopped",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": "item_u1",
+            "text": "Book a",
+            "final": false
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "assistantAudio",
+            "itemId": "item_a1",
+            "contentIndex": 0,
+            "base64": "AAAA",
+            "sampleRateHz": 24000
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTurnDone",
+            "itemId": "item_a1",
+            "text": "Which day?",
+            "status": "completed"
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "playbackDrained"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "end"
+          },
+          "expected": {
+            "statusKey": null,
+            "effects": [
+              {
+                "type": "persist",
+                "role": "assistant",
+                "text": "Which day?"
+              },
+              {
+                "type": "writeDraft",
+                "text": "Book a"
+              },
+              {
+                "type": "close"
+              },
+              {
+                "type": "ended",
+                "reason": "user"
+              }
+            ],
+            "nextTickMs": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_system_interruption_closes",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": "item_u1",
+            "text": "Remind me to",
+            "final": false
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "systemInterruption"
+          },
+          "expected": {
+            "statusKey": null,
+            "effects": [
+              {
+                "type": "close"
+              },
+              {
+                "type": "ended",
+                "reason": "system"
+              }
+            ],
+            "nextTickMs": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_session_ended_system",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStopped",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": "item_u1",
+            "text": "Hi",
+            "final": true
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "user",
+                "text": "Hi"
+              }
+            ],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "assistantAudio",
+            "itemId": "item_a1",
+            "contentIndex": 0,
+            "base64": "AAAA",
+            "sampleRateHz": 24000
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "sessionEnded",
+            "reason": "max_duration"
+          },
+          "expected": {
+            "statusKey": null,
+            "effects": [
+              {
+                "type": "close"
+              },
+              {
+                "type": "ended",
+                "reason": "system"
+              }
+            ],
+            "nextTickMs": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_error_shows_and_ends",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStopped",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": "item_u1",
+            "text": "Hi",
+            "final": true
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "user",
+                "text": "Hi"
+              }
+            ],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "assistantAudio",
+            "itemId": "item_a1",
+            "contentIndex": 0,
+            "base64": "AAAA",
+            "sampleRateHz": 24000
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "failed",
+            "code": "connection_lost"
+          },
+          "expected": {
+            "statusKey": null,
+            "effects": [
+              {
+                "type": "showError",
+                "code": "connection_lost"
+              },
+              {
+                "type": "close"
+              },
+              {
+                "type": "ended",
+                "reason": "error"
+              }
+            ],
+            "nextTickMs": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_error_event_non_fatal",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 100000
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 20000
+          }
+        },
+        {
+          "input": {
+            "type": "error",
+            "code": "invalid_event",
+            "message": "The 'type' field is missing."
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 100000
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 20000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStopped",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": "item_u1",
+            "text": "Still there?",
+            "final": true
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "user",
+                "text": "Still there?"
+              }
+            ],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "assistantAudio",
+            "itemId": "item_a1",
+            "contentIndex": 0,
+            "base64": "AAAA",
+            "sampleRateHz": 24000
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "error",
+            "code": "rate_limit_exceeded",
+            "message": "Slow down."
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTurnDone",
+            "itemId": "item_a1",
+            "text": "Yes.",
+            "status": "completed"
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "assistant",
+                "text": "Yes."
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "playbackDrained"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_ignored_after_ended",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "end"
+          },
+          "expected": {
+            "statusKey": null,
+            "effects": [
+              {
+                "type": "close"
+              },
+              {
+                "type": "ended",
+                "reason": "user"
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": null,
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "assistantAudio",
+            "itemId": "item_a1",
+            "contentIndex": 0,
+            "base64": "AAAA",
+            "sampleRateHz": 24000
+          },
+          "expected": {
+            "statusKey": null,
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "tapOrb"
+          },
+          "expected": {
+            "statusKey": null,
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 200000
+          },
+          "expected": {
+            "statusKey": null,
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "end"
+          },
+          "expected": {
+            "statusKey": null,
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "failed",
+            "code": "x"
+          },
+          "expected": {
+            "statusKey": null,
+            "effects": [],
+            "nextTickMs": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_connecting_shows_thinking",
+      "steps": [
+        {
+          "input": {
+            "type": "tapOrb"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 200000
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "resumable",
+            "handle": "h-1"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_assistant_text_falls_back_to_transcript",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStopped",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": "item_u1",
+            "text": "Weather?",
+            "final": true
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "user",
+                "text": "Weather?"
+              }
+            ],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "assistantAudio",
+            "itemId": "item_a1",
+            "contentIndex": 0,
+            "base64": "AAAA",
+            "sampleRateHz": 24000
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTranscript",
+            "itemId": "item_a1",
+            "text": "Sunny",
+            "final": false
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTranscript",
+            "itemId": "item_a1",
+            "text": "Sunny today.",
+            "final": true
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTurnDone",
+            "itemId": "item_a1",
+            "text": null,
+            "status": "completed"
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "assistant",
+                "text": "Sunny today."
+              }
+            ],
+            "nextTickMs": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_assistant_empty_text_falls_back_to_transcript",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStopped",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": "item_u1",
+            "text": "Weather?",
+            "final": true
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "user",
+                "text": "Weather?"
+              }
+            ],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "assistantAudio",
+            "itemId": "item_a1",
+            "contentIndex": 0,
+            "base64": "AAAA",
+            "sampleRateHz": 24000
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTranscript",
+            "itemId": "item_a1",
+            "text": "Sunny",
+            "final": false
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTranscript",
+            "itemId": "item_a1",
+            "text": "Sunny today.",
+            "final": true
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTurnDone",
+            "itemId": "item_a1",
+            "text": "",
+            "status": "completed"
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "assistant",
+                "text": "Sunny today."
+              }
+            ],
+            "nextTickMs": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_gemini_null_item_ids",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": null,
+            "text": "What is",
+            "final": false
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": null,
+            "text": "What is two plus two",
+            "final": false
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "assistantAudio",
+            "itemId": null,
+            "contentIndex": 0,
+            "base64": "AAAA",
+            "sampleRateHz": 24000
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTranscript",
+            "itemId": null,
+            "text": "Four.",
+            "final": false
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": null,
+            "text": "What is two plus two",
+            "final": true
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "user",
+                "text": "What is two plus two"
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTurnDone",
+            "itemId": null,
+            "text": "Four.",
+            "status": "completed"
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "assistant",
+                "text": "Four."
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "playbackDrained"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_unknown_input_ignored",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "bogus"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 120000
+          },
+          "expected": {
+            "statusKey": null,
+            "effects": [
+              {
+                "type": "close"
+              },
+              {
+                "type": "ended",
+                "reason": "idle"
+              }
+            ],
+            "nextTickMs": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_session_expired_while_muted_dormant_then_reopen",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "mute"
+          },
+          "expected": {
+            "statusKey": "muted",
+            "effects": [
+              {
+                "type": "setUplink",
+                "on": false
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 485000
+          },
+          "expected": {
+            "statusKey": "muted",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "sessionExpired"
+          },
+          "expected": {
+            "statusKey": "muted",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 600000
+          },
+          "expected": {
+            "statusKey": "muted",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "unmute"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [
+              {
+                "type": "reopen"
+              },
+              {
+                "type": "setUplink",
+                "on": true
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_session_expired_unmuted_reopens",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "sessionExpired"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [
+              {
+                "type": "reopen"
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_reopen_expired_again_without_progress_ends_error",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "sessionExpired"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [
+              {
+                "type": "reopen"
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "sessionExpired"
+          },
+          "expected": {
+            "statusKey": null,
+            "effects": [
+              {
+                "type": "showError",
+                "code": "sessionExpired"
+              },
+              {
+                "type": "close"
+              },
+              {
+                "type": "ended",
+                "reason": "error"
+              }
+            ],
+            "nextTickMs": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_reopen_progress_resets_guard",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "sessionExpired"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [
+              {
+                "type": "reopen"
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": null
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": null,
+            "text": "hello",
+            "final": true
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "user",
+                "text": "hello"
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "sessionExpired"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [
+              {
+                "type": "reopen"
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "sessionExpired"
+          },
+          "expected": {
+            "statusKey": null,
+            "effects": [
+              {
+                "type": "showError",
+                "code": "sessionExpired"
+              },
+              {
+                "type": "close"
+              },
+              {
+                "type": "ended",
+                "reason": "error"
+              }
+            ],
+            "nextTickMs": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_dormant_reopen_expired_without_progress_ends_error",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "mute"
+          },
+          "expected": {
+            "statusKey": "muted",
+            "effects": [
+              {
+                "type": "setUplink",
+                "on": false
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "sessionExpired"
+          },
+          "expected": {
+            "statusKey": "muted",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "unmute"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [
+              {
+                "type": "reopen"
+              },
+              {
+                "type": "setUplink",
+                "on": true
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "sessionExpired"
+          },
+          "expected": {
+            "statusKey": null,
+            "effects": [
+              {
+                "type": "showError",
+                "code": "sessionExpired"
+              },
+              {
+                "type": "close"
+              },
+              {
+                "type": "ended",
+                "reason": "error"
+              }
+            ],
+            "nextTickMs": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_dormant_end_by_user",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "mute"
+          },
+          "expected": {
+            "statusKey": "muted",
+            "effects": [
+              {
+                "type": "setUplink",
+                "on": false
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "sessionExpired"
+          },
+          "expected": {
+            "statusKey": "muted",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "end"
+          },
+          "expected": {
+            "statusKey": null,
+            "effects": [
+              {
+                "type": "close"
+              },
+              {
+                "type": "ended",
+                "reason": "user"
+              }
+            ],
+            "nextTickMs": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_dormant_repeat_expired_ignored",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "mute"
+          },
+          "expected": {
+            "statusKey": "muted",
+            "effects": [
+              {
+                "type": "setUplink",
+                "on": false
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "sessionExpired"
+          },
+          "expected": {
+            "statusKey": "muted",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "sessionExpired"
+          },
+          "expected": {
+            "statusKey": "muted",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "mute"
+          },
+          "expected": {
+            "statusKey": "muted",
+            "effects": [],
+            "nextTickMs": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_tick_zero_or_negative_ms_noop",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 0
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": -5
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 119999
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 1
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 0
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 1
+          }
+        },
+        {
+          "input": {
+            "type": "tick",
+            "ms": 1
+          },
+          "expected": {
+            "statusKey": null,
+            "effects": [
+              {
+                "type": "close"
+              },
+              {
+                "type": "ended",
+                "reason": "idle"
+              }
+            ],
+            "nextTickMs": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_plan_changed_at_turn_boundary_reopens",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStopped",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "userTranscript",
+            "itemId": "item_u1",
+            "text": "What time is it?",
+            "final": true
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "user",
+                "text": "What time is it?"
+              }
+            ],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "assistantAudio",
+            "itemId": "item_a1",
+            "contentIndex": 0,
+            "base64": "AAAA",
+            "sampleRateHz": 24000
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTranscript",
+            "itemId": "item_a1",
+            "text": "It is noon.",
+            "final": false
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "assistantTurnDone",
+            "itemId": "item_a1",
+            "text": "It is noon.",
+            "status": "completed"
+          },
+          "expected": {
+            "statusKey": "speaking",
+            "effects": [
+              {
+                "type": "persist",
+                "role": "assistant",
+                "text": "It is noon."
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "playbackDrained"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "planChanged"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [
+              {
+                "type": "reopen"
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_plan_changed_mid_turn_ignored",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStarted",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "planChanged"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "userSpeechStopped",
+            "itemId": "item_u1"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        },
+        {
+          "input": {
+            "type": "planChanged"
+          },
+          "expected": {
+            "statusKey": "thinking",
+            "effects": [],
+            "nextTickMs": 3000
+          }
+        }
+      ]
+    },
+    {
+      "id": "rt_plan_changed_while_dormant_ignored",
+      "steps": [
+        {
+          "input": {
+            "type": "ready"
+          },
+          "expected": {
+            "statusKey": "listening",
+            "effects": [],
+            "nextTickMs": 120000
+          }
+        },
+        {
+          "input": {
+            "type": "mute"
+          },
+          "expected": {
+            "statusKey": "muted",
+            "effects": [
+              {
+                "type": "setUplink",
+                "on": false
+              }
+            ],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "sessionExpired"
+          },
+          "expected": {
+            "statusKey": "muted",
+            "effects": [],
+            "nextTickMs": null
+          }
+        },
+        {
+          "input": {
+            "type": "planChanged"
+          },
+          "expected": {
+            "statusKey": "muted",
+            "effects": [],
+            "nextTickMs": null
+          }
+        }
+      ]
+    }
+  ]
+}
