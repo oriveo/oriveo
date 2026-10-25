@@ -71,6 +71,8 @@ struct ComposerTextView: UIViewRepresentable {
     /// Called when a user edit is shortened or blocked by the limit; it fires once per over-limit episode and
     /// re-arms only after the length drops below the limit.
     var onLengthLimitExceeded: (@MainActor () -> Void)?
+    /// Selection outlet (dictation reads the selection and inserts at it); nil = the selection is not published.
+    var selectionProbe: ComposerSelectionProbe? = nil
     /// Return on a hardware keyboard sends; nil = Return inserts a newline as usual (the Home hero and others do not opt in). See `ComposerReturnKey`.
     var onHardwareReturnSend: (@MainActor () -> Void)?
     /// The same can-send condition as the send button; only meaningful when `onHardwareReturnSend` is non-nil.
@@ -101,6 +103,7 @@ struct ComposerTextView: UIViewRepresentable {
         textView.pasteDelegate = coordinator
         textView.textDragDelegate = coordinator
         textView.coordinator = coordinator
+        coordinator.attachSelectionProbe(to: textView)
         let container = ComposerContainerView(textView: textView)
         container.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         return container
@@ -110,6 +113,7 @@ struct ComposerTextView: UIViewRepresentable {
         let coordinator = context.coordinator
         coordinator.parent = self
         coordinator.applyStyle(self, to: container, force: false)
+        coordinator.attachSelectionProbe(to: container.textView)
         // While typing, the binding holds the very String that was just published, so this comparison is cheap;
         // it only differs when the text is pushed from outside (cleared after sending, draft or edit restored).
         if text != coordinator.publishedSource {
@@ -214,6 +218,7 @@ struct ComposerTextView: UIViewRepresentable {
                 lengthCeiling = max(limit, Self.sourceLength(of: textView.textStorage.string as NSString))
             }
             contentDidChange(in: textView)
+            publishSelection(of: textView)
         }
 
         func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
@@ -245,6 +250,77 @@ struct ComposerTextView: UIViewRepresentable {
             if parent.text != source {
                 parent.text = source
             }
+        }
+
+        // MARK: Selection outlet
+
+        func textViewDidChangeSelection(_ textView: UITextView) {
+            guard !isApplying else { return }
+            publishSelection(of: textView)
+        }
+
+        /// Attaches when the host swaps the probe (or the view is first created); attaching the same probe again is a no-op.
+        func attachSelectionProbe(to textView: ComposerUITextView) {
+            guard let probe = parent.selectionProbe, !probe.isAttached(to: textView) else { return }
+            probe.attach(textView)
+            publishSelection(of: textView)
+        }
+
+        /// Converts the view selection (display-string offsets) to source offsets for the probe: soft breaks before
+        /// and inside the selection are not counted.
+        private func publishSelection(of textView: UITextView) {
+            guard let probe = parent.selectionProbe else { return }
+            let text = textView.textStorage.string as NSString
+            let selection = Self.clamped(textView.selectedRange, to: text.length)
+            let start = Self.sourceLength(of: text, in: NSRange(location: 0, length: selection.location))
+            let length = selection.length == 0 ? 0 : Self.sourceLength(of: text, in: selection)
+            probe.update(range: NSRange(location: start, length: length))
+        }
+
+        private static func clamped(_ range: NSRange, to length: Int) -> NSRange {
+            let location = min(max(range.location, 0), length)
+            return NSRange(location: location, length: min(max(range.length, 0), length - location))
+        }
+
+        /// Dictation insert: placement follows `DictationRules.insert` (after the end of the selection, selected text
+        /// kept, spaces added as needed); the write goes through the same entry point as typing, `interceptInsertion`
+        /// (length-limit truncation plus splitting of overlong paragraphs), and the caret lands after the transcript.
+        /// Returns the full source text after the insert.
+        func insertDictation(_ transcript: String, into textView: ComposerUITextView) -> String {
+            if textView.markedTextRange != nil {
+                textView.unmarkText()
+            }
+            let original = SoftParagraphBreaks.source(fromDisplay: textView.textStorage.string)
+            let display = textView.textStorage.string as NSString
+            let selection = Self.clamped(textView.selectedRange, to: display.length)
+            let start = Self.sourceLength(of: display, in: NSRange(location: 0, length: selection.location))
+            let end = start + Self.sourceLength(of: display, in: selection)
+            let result = DictationRules.insert(transcript: transcript, into: original, selectionStart: start, selectionEnd: end)
+            let addedLength = (result.text as NSString).length - (original as NSString).length
+            guard addedLength > 0 else { return original }
+            // The rule inserts one run at `end` (possibly with a space added on each side); the rest of the source is untouched.
+            let inserted = (result.text as NSString).substring(with: NSRange(location: end, length: addedLength))
+            let caretInInserted = result.cursor - end
+            let at = NSRange(location: NSMaxRange(selection), length: 0)
+            textView.selectedRange = at
+            if !interceptInsertion(inserted, in: at, of: textView) {
+                replaceWithSoftBrokenDisplay(SoftParagraphBreaks.display(forSource: inserted), in: at, of: textView)
+            }
+            // After the write the caret is at the end of the run actually written; if the trailing space was written
+            // too, move the caret back before it (skipping soft breaks).
+            let kept = (publishedSource as NSString).length - (original as NSString).length
+            var back = kept - caretInInserted
+            if back > 0 {
+                let current = textView.textStorage.string as NSString
+                var location = min(textView.selectedRange.location, current.length)
+                while back > 0, location > 0 {
+                    location -= 1
+                    if current.character(at: location) != SoftParagraphBreaks.separator { back -= 1 }
+                }
+                textView.selectedRange = NSRange(location: location, length: 0)
+            }
+            publishSelection(of: textView)
+            return publishedSource
         }
 
         // MARK: Length limit
