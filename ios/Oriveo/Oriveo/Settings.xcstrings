@@ -1302,7 +1302,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hasilkan draf dari obrolan terbaru"
+            "value" : "Hasilkan draf dari percakapan terbaru"
           }
         },
         "ja" : {
@@ -4153,7 +4153,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Erzähl der KI von dir. Sie wird es automatisch am Anfang jedes Gesprächs wissen."
+            "value" : "Erzähl der KI von dir. Sie wird es automatisch am Anfang jeder Unterhaltung wissen."
           }
         },
         "en" : {
@@ -4830,7 +4830,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Beschreibe deinen Hintergrund und deine Vorlieben. Die KI wird dies in jedem Gespräch automatisch wissen — kein Wiederholen nötig."
+            "value" : "Beschreibe deinen Hintergrund und deine Vorlieben. Die KI wird dies in jeder Unterhaltung automatisch wissen — kein Wiederholen nötig."
           }
         },
         "en" : {

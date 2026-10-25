@@ -2063,7 +2063,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Selalu izinkan di chat ini"
+            "value" : "Selalu izinkan di percakapan ini"
           }
         },
         "ja" : {
@@ -3679,7 +3679,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hubungkan server MCP, lalu model bisa mencari di Linear, menulis ke Notion, atau memakai alat yang Anda kelola sendiri, langsung dari chat."
+            "value" : "Hubungkan server MCP, lalu model bisa mencari di Linear, menulis ke Notion, atau memakai alat yang Anda kelola sendiri, langsung dari percakapan."
           }
         },
         "ja" : {
@@ -7113,7 +7113,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Server MCP membuat layanan seperti Linear dan Notion, atau alat yang Anda kelola sendiri, bisa dipakai model langsung di dalam chat."
+            "value" : "Server MCP membuat layanan seperti Linear dan Notion, atau alat yang Anda kelola sendiri, bisa dipakai model langsung di dalam percakapan."
           }
         },
         "ja" : {
@@ -16506,7 +16506,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Alat untuk chat ini"
+            "value" : "Alat untuk percakapan ini"
           }
         },
         "ja" : {
@@ -17213,7 +17213,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bisa dinyalakan atau dimatikan per chat"
+            "value" : "Bisa dinyalakan atau dimatikan per percakapan"
           }
         },
         "ja" : {

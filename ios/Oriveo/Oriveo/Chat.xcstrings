@@ -8719,7 +8719,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Chat baru dengan ringkasan"
+            "value" : "Percakapan baru dengan ringkasan"
           }
         },
         "ja" : {
@@ -9224,7 +9224,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Balasan AI sebelumnya tidak lagi dikirim ke model; pesan Anda sendiri tetap disertakan. Semua pesan di atas tetap ada di chat ini dan tetap bisa dibaca serta disalin."
+            "value" : "Balasan AI sebelumnya tidak lagi dikirim ke model; pesan Anda sendiri tetap disertakan. Semua pesan di atas tetap ada di percakapan ini dan tetap bisa dibaca serta disalin."
           }
         },
         "ja" : {
@@ -10846,7 +10846,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ringkasan chat sebelumnya"
+            "value" : "Ringkasan percakapan sebelumnya"
           }
         },
         "ja" : {
@@ -11513,7 +11513,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Chat ini sudah dipadatkan 3 kali, jadi detail awal yang terlihat oleh model makin sedikit. Anda bisa memulai chat baru dan membawa ringkasannya."
+            "value" : "Percakapan ini sudah dipadatkan 3 kali, jadi detail awal yang terlihat oleh model makin sedikit. Anda bisa memulai percakapan baru dan membawa ringkasannya."
           }
         },
         "ja" : {
@@ -11715,7 +11715,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Chat baru"
+            "value" : "Percakapan baru"
           }
         },
         "ja" : {
@@ -12018,7 +12018,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Chat ini masih cukup pendek. Belum ada yang perlu dipadatkan."
+            "value" : "Percakapan ini masih cukup pendek. Belum ada yang perlu dipadatkan."
           }
         },
         "ja" : {
@@ -16777,7 +16777,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Konversation"
+            "value" : "Unterhaltung"
           }
         },
         "en" : {
@@ -17781,7 +17781,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gesprächsübersicht"
+            "value" : "Übersicht der Unterhaltung"
           }
         },
         "en" : {
@@ -20490,7 +20490,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gedächtnis für diese Konversation nicht verwenden"
+            "value" : "Gedächtnis für diese Unterhaltung nicht verwenden"
           }
         },
         "en" : {
@@ -29481,7 +29481,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Yang dikirim: pesan Anda sendiri ke penyedia ini dari maksimal 5 obrolan terbaru, 500 karakter pertama dari tiap obrolan. Balasan AI tidak disertakan."
+            "value" : "Yang dikirim: pesan Anda sendiri ke penyedia ini dari maksimal 5 percakapan terbaru, 500 karakter pertama dari tiap percakapan. Balasan AI tidak disertakan."
           }
         },
         "ja" : {
@@ -30562,7 +30562,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Aus Gesprächen vorschlagen"
+            "value" : "Aus Unterhaltungen vorschlagen"
           }
         },
         "en" : {
@@ -32612,7 +32612,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Semua obrolan"
+            "value" : "Semua percakapan"
           }
         },
         "ja" : {
@@ -32713,7 +32713,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Satu obrolan"
+            "value" : "Satu percakapan"
           }
         },
         "ja" : {
@@ -46865,7 +46865,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Den Gesprächsverlauf fügt Oriveo selbst ein."
+            "value" : "Den Verlauf der Unterhaltung fügt Oriveo selbst ein."
           }
         },
         "en" : {
@@ -49081,7 +49081,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Model obrolan ini sudah tidak ada di %@."
+            "value" : "Model percakapan ini sudah tidak ada di %@."
           }
         },
         "ja" : {
@@ -49651,7 +49651,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Diese Konversation verwendet das Gedächtnis"
+            "value" : "Diese Unterhaltung verwendet das Gedächtnis"
           }
         },
         "en" : {

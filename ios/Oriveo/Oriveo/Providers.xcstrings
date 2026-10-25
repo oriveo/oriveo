@@ -10990,7 +10990,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Deteksi katalog saja tidak cukup. Pengujian otomatis mengirimkan paling banyak 1 token melalui jalur obrolan sebenarnya dan memilih protokol yang berfungsi untuk Anda."
+            "value" : "Deteksi katalog saja tidak cukup. Pengujian otomatis mengirimkan paling banyak 1 token melalui jalur chat sebenarnya dan memilih protokol yang berfungsi untuk Anda."
           }
         },
         "ja" : {
@@ -25270,7 +25270,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mengikuti templat chat. Atur di “Opsi Model” pada chat."
+            "value" : "Mengikuti templat chat. Atur di “Opsi Model” pada percakapan."
           }
         },
         "ja" : {
@@ -38378,7 +38378,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Opsional. Setiap protokol sudah punya pengaturan pencarian web bawaan; isian di sini menggantikannya. Apa pun yang dipakai, pengaturan hanya dikirim saat pencarian web diaktifkan di obrolan."
+            "value" : "Opsional. Setiap protokol sudah punya pengaturan pencarian web bawaan; isian di sini menggantikannya. Apa pun yang dipakai, pengaturan hanya dikirim saat pencarian web diaktifkan di percakapan."
           }
         },
         "ja" : {
@@ -46474,7 +46474,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mengirim hingga %1$lld permintaan kecil dengan kunci “%2$@”, lewat jalur yang sama dengan obrolan. Salah satunya melakukan pencarian web, yang mungkin dikenai biaya pencarian. Maksimal 30 detik per item."
+            "value" : "Mengirim hingga %1$lld permintaan kecil dengan kunci “%2$@”, lewat jalur yang sama dengan percakapan. Salah satunya melakukan pencarian web, yang mungkin dikenai biaya pencarian. Maksimal 30 detik per item."
           }
         },
         "ja" : {
@@ -46809,7 +46809,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mengirim hingga %1$lld permintaan kecil dengan kunci “%2$@”, lewat jalur yang sama dengan obrolan. Maksimal 30 detik per item."
+            "value" : "Mengirim hingga %1$lld permintaan kecil dengan kunci “%2$@”, lewat jalur yang sama dengan percakapan. Maksimal 30 detik per item."
           }
         },
         "ja" : {
@@ -52130,7 +52130,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Obrolan teks"
+            "value" : "Chat teks"
           }
         },
         "ja" : {
@@ -55546,7 +55546,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tingkat berpikir yang bisa dipilih di chat"
+            "value" : "Tingkat berpikir yang bisa dipilih di percakapan"
           }
         },
         "ja" : {
@@ -56146,7 +56146,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Koneksi ini tidak menyediakan API terpisah untuk membuat gambar. Buka Penyedia → koneksi ini → Perpustakaan Model → model ini → Lanjutan, lalu ubah protokol ke OpenAI Responses. Oriveo akan membuat gambar langsung di dalam chat."
+            "value" : "Koneksi ini tidak menyediakan API terpisah untuk membuat gambar. Buka Penyedia → koneksi ini → Perpustakaan Model → model ini → Lanjutan, lalu ubah protokol ke OpenAI Responses. Oriveo akan membuat gambar langsung di dalam percakapan."
           }
         },
         "ja" : {
@@ -63245,7 +63245,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ terverifikasi melalui jalur obrolan sebenarnya."
+            "value" : "%@ terverifikasi melalui jalur chat sebenarnya."
           }
         },
         "ja" : {
@@ -63346,7 +63346,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Diverifikasi melalui jalur obrolan sebenarnya"
+            "value" : "Diverifikasi melalui jalur chat sebenarnya"
           }
         },
         "ja" : {

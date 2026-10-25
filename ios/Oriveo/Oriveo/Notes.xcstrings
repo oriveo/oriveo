@@ -346,7 +346,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bawa ke chat"
+            "value" : "Bawa ke percakapan"
           }
         },
         "ja" : {
@@ -2568,7 +2568,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Simpan isi chat sebagai catatan"
+            "value" : "Simpan isi percakapan sebagai catatan"
           }
         },
         "ja" : {
@@ -3881,7 +3881,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Catatan yang dibawa ke chat ini"
+            "value" : "Catatan yang dibawa ke percakapan ini"
           }
         },
         "ja" : {
@@ -4689,7 +4689,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Catatan yang bisa dibawa ke chat ini"
+            "value" : "Catatan yang bisa dibawa ke percakapan ini"
           }
         },
         "ja" : {
@@ -5396,7 +5396,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Simpan isi chat sebagai catatan"
+            "value" : "Simpan isi percakapan sebagai catatan"
           }
         },
         "ja" : {

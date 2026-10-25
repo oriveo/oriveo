@@ -108,7 +108,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "تطبيق تفضيلات الويب والاستدلال المحفوظة لهذه الـ Skill في محادثات Skill الجديدة."
+            "value" : "تطبيق تفضيلات الويب والاستدلال المحفوظة لهذه المهارة في المحادثات الجديدة التي تستخدمها."
           }
         },
         "de" : {
@@ -144,7 +144,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Terapkan preferensi web dan penalaran tersimpan dari Skill ini di obrolan Skill baru."
+            "value" : "Terapkan preferensi web dan penalaran tersimpan dari Skill ini di percakapan Skill baru."
           }
         },
         "ja" : {
@@ -1474,7 +1474,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Persönliche Einstellungen in Gespräche einbeziehen"
+            "value" : "Persönliche Einstellungen in Unterhaltungen einbeziehen"
           }
         },
         "en" : {
@@ -2650,7 +2650,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "يتطلب الحفظ. تفضيلات Skill القديمة غير المؤكدة ترث الإعدادات الافتراضية للمحادثة بدلاً من ذلك."
+            "value" : "يتطلب الحفظ. تفضيلات المهارات القديمة غير المؤكدة ترث الإعدادات الافتراضية للمحادثة بدلاً من ذلك."
           }
         },
         "de" : {
@@ -2686,7 +2686,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Perlu disimpan. Preferensi Skill lama yang belum dikonfirmasi akan mengikuti default obrolan."
+            "value" : "Perlu disimpan. Preferensi Skill lama yang belum dikonfirmasi akan mengikuti default percakapan."
           }
         },
         "ja" : {

@@ -453,7 +453,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "この端末では読み上げを使えません"
+            "value" : "このデバイスではシステムの声を使えません"
           }
         },
         "ko" : {
@@ -465,7 +465,7 @@
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Este aparelho não tem nenhuma voz de leitura disponível"
+            "value" : "Nenhuma voz de leitura está disponível neste dispositivo"
           }
         },
         "ru" : {
@@ -495,13 +495,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "这台设备没有可用的系统语音"
+            "value" : "这台设备没有可用的系统音色"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這台裝置沒有可用的系統語音"
+            "value" : "這台裝置沒有可用的系統音色"
           }
         }
       }
@@ -685,13 +685,13 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cümle %1$lld, toplam %2$lld"
+            "value" : "Cümle %1$lld/%2$lld"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Câu %1$lld trên %2$lld"
+            "value" : "Câu %1$lld/%2$lld"
           }
         },
         "zh-Hans" : {

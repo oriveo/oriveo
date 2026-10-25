@@ -589,7 +589,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gespräche im Ordner bleiben erhalten."
+            "value" : "Unterhaltungen im Ordner bleiben erhalten."
           }
         },
         "en" : {
@@ -1860,7 +1860,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gespräche hierher verschieben oder ein neues starten"
+            "value" : "Unterhaltungen hierher verschieben oder eine neue starten"
           }
         },
         "en" : {
@@ -2163,7 +2163,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld Gespräche in „%@\" verschoben"
+            "value" : "%lld Unterhaltungen in „%@\" verschoben"
           }
         },
         "en" : {
@@ -2466,7 +2466,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Noch keine Gespräche"
+            "value" : "Noch keine Unterhaltungen"
           }
         },
         "en" : {
@@ -3143,7 +3143,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld Gespräche aus Ordner entfernt"
+            "value" : "%lld Unterhaltungen aus Ordner entfernt"
           }
         },
         "en" : {
