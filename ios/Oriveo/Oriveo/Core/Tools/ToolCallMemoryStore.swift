@@ -9,6 +9,10 @@ nonisolated struct ToolCallMemoryRecord: Codable, Equatable, Sendable, Fetchable
     var toolCall: Bool
     var observedAt: Date
     var reason: String
+    /// The `modelFactsRevision` at the time of recording (nil = there was no facts dictionary then); a mismatch with the current one voids the record.
+    var factsRevision: String?
+    /// Snapshot of the hand-entered tool_call declaration of the model at the time of recording; a current declaration that differs means the user changed it after recording, which voids the record.
+    var handEnteredDeclaration: Bool?
 }
 
 nonisolated enum ToolCallMemoryReason: String, Sendable {
@@ -35,7 +39,19 @@ nonisolated final class ToolCallMemoryStore: @unchecked Sendable {
         "\(connection)\u{1F}\(model)"
     }
 
-    func lookup(connectionID: UUID, modelID: String) -> ToolCallMemoryRecord? {
+    /// A rejection record (false) whose revision differs from `currentFactsRevision` is treated as absent;
+    /// "observed to support" (true) is not voided by a revision change.
+    func lookup(
+        connectionID: UUID,
+        modelID: String,
+        currentFactsRevision: String? = MetadataClient.shared.syncModelFactsRevision()
+    ) -> ToolCallMemoryRecord? {
+        let record = cachedOrFetched(connectionID: connectionID, modelID: modelID)
+        guard let record, record.toolCall || record.factsRevision == currentFactsRevision else { return nil }
+        return record
+    }
+
+    private func cachedOrFetched(connectionID: UUID, modelID: String) -> ToolCallMemoryRecord? {
         let (connection, model) = Self.key(connectionID: connectionID, modelID: modelID)
         let key = Self.cacheKey(connection, model)
         if let cached = cacheLock.withLock({ cache[key] }) { return cached }
@@ -59,12 +75,15 @@ nonisolated final class ToolCallMemoryStore: @unchecked Sendable {
         modelID: String,
         toolCall: Bool,
         reason: ToolCallMemoryReason,
+        handEnteredDeclaration: Bool? = nil,
+        factsRevision: String? = MetadataClient.shared.syncModelFactsRevision(),
         now: Date = Date()
     ) -> Bool {
         let (connection, model) = Self.key(connectionID: connectionID, modelID: modelID)
         let record = ToolCallMemoryRecord(
             connectionId: connection, modelId: model, toolCall: toolCall,
-            observedAt: now, reason: reason.rawValue
+            observedAt: now, reason: reason.rawValue,
+            factsRevision: factsRevision, handEnteredDeclaration: handEnteredDeclaration
         )
         do {
             try poolProvider().write { db in try record.save(db) }

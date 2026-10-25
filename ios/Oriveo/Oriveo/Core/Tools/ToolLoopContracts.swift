@@ -185,26 +185,127 @@ nonisolated struct ToolLoopUsage: Codable, Equatable, Sendable {
     var promptTokens: Int?
     var completionTokens: Int?
     var totalTokens: Int?
+    /// Whether every merged leg reported usage: when any leg lacks usage, the cost of the whole message is unknown.
+    var allLegsReported: Bool = true
+    /// The breakdown this leg produced through the same usage parser as the provider's normal chat (cache buckets, upstream-reported
+    /// actual cost such as OpenRouter `usage.cost` / Grok ticks). A merged total does not carry it, each leg is in `legs`; nil = token counts only.
+    var breakdown: UsageBreakdown? = nil
+    /// Every merged leg (per-leg pricing); empty = this is a single leg itself.
+    var legs: [ToolLoopUsage] = []
+
+    private enum CodingKeys: String, CodingKey {
+        case promptTokens, completionTokens, totalTokens, allLegsReported, breakdown, legs
+    }
+
+    /// Usage of one leg: token counts come from the breakdown of the normal chat parser (input = uncached + cache read + cache write), and the breakdown travels with the leg for per-leg pricing.
+    static func leg(_ breakdown: UsageBreakdown) -> ToolLoopUsage {
+        let input = breakdown.totalInputTokens
+        return ToolLoopUsage(
+            promptTokens: input,
+            completionTokens: breakdown.completionTokens,
+            totalTokens: input + breakdown.completionTokens,
+            breakdown: breakdown
+        )
+    }
+
+    /// The per-leg usages used for per-leg pricing: a single leg is itself.
+    var perLeg: [ToolLoopUsage] {
+        legs.isEmpty ? [self] : legs
+    }
+
+    /// Placeholder for a leg whose upstream reported no usage: carries no tokens and marks "not all reported".
+    static let unreported = ToolLoopUsage(allLegsReported: false)
 
     var resolvedTotalTokens: Int {
         max(totalTokens ?? 0, (promptTokens ?? 0) + (completionTokens ?? 0))
     }
 
+    /// Whether it carries any token count (for progress reporting; an unreported placeholder carries none).
+    var hasTokenCounts: Bool {
+        promptTokens != nil || completionTokens != nil || totalTokens != nil
+    }
+
+    /// Adds two parts; a nil `other` means that part reported no usage.
     func merging(_ other: ToolLoopUsage?) -> ToolLoopUsage {
-        guard let other else { return self }
+        let other = other ?? .unreported
         func sum(_ left: Int?, _ right: Int?) -> Int? {
             left == nil && right == nil ? nil : (left ?? 0) + (right ?? 0)
         }
         return ToolLoopUsage(
             promptTokens: sum(promptTokens, other.promptTokens),
             completionTokens: sum(completionTokens, other.completionTokens),
-            totalTokens: sum(totalTokens, other.totalTokens)
+            totalTokens: sum(totalTokens, other.totalTokens),
+            allLegsReported: allLegsReported && other.allLegsReported,
+            legs: perLeg + other.perLeg
         )
     }
 
-    static func merge(_ current: ToolLoopUsage?, _ next: ToolLoopUsage?) -> ToolLoopUsage? {
-        guard let current else { return next }
-        return current.merging(next)
+    /// Merges two complete usages (MCP first leg + resend): a nil part means that part reported no usage.
+    static func merge(_ current: ToolLoopUsage?, _ next: ToolLoopUsage?) -> ToolLoopUsage {
+        (current ?? .unreported).merging(next)
+    }
+
+    /// Per-leg accumulation of the tool loop: a nil `accumulated` means there is no leg yet; a nil `leg` means this leg reported no usage.
+    static func accumulate(_ accumulated: ToolLoopUsage?, leg: ToolLoopUsage?) -> ToolLoopUsage {
+        guard let accumulated else { return leg ?? .unreported }
+        return accumulated.merging(leg)
+    }
+
+    /// The whole message can be priced: at least one leg and every leg reported usage.
+    static func reported(_ usage: ToolLoopUsage?) -> Bool {
+        usage?.allLegsReported == true
+    }
+}
+
+nonisolated extension ToolLoopUsage {
+    /// The old shape has no allLegsReported: read as all reported.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            promptTokens: try container.decodeIfPresent(Int.self, forKey: .promptTokens),
+            completionTokens: try container.decodeIfPresent(Int.self, forKey: .completionTokens),
+            totalTokens: try container.decodeIfPresent(Int.self, forKey: .totalTokens),
+            allLegsReported: try container.decodeIfPresent(Bool.self, forKey: .allLegsReported) ?? true,
+            breakdown: try container.decodeIfPresent(UsageBreakdown.self, forKey: .breakdown),
+            legs: try container.decodeIfPresent([ToolLoopUsage].self, forKey: .legs) ?? []
+        )
+    }
+}
+
+nonisolated extension ToolLoopUsage {
+    /// The usage object in an openai_chat leg SSE frame -> usage of this leg: goes through the same usage parser as the provider's normal
+    /// chat: OpenRouter carries `usage.cost`, Grok carries `cost_in_usd_ticks`, DeepSeek cache hit / miss, Moonshot top-level
+    /// `cached_tokens`, and the rest (including Relay) use the OpenAI standard `prompt_tokens_details.cached_tokens`.
+    static func openAIChatLeg(usageJSON: [String: Any], providerKind: ProviderKind) -> ToolLoopUsage? {
+        let breakdown: UsageBreakdown?
+        switch providerKind {
+        case .openRouter:
+            breakdown = OpenRouterService.legUsageBreakdown(usageJSON: usageJSON)
+        case .grok:
+            breakdown = GrokService.legUsageBreakdown(usageJSON: usageJSON)
+        case .deepseek:
+            breakdown = OpenAICompatibleStreamState.legUsageBreakdown(usageJSON: usageJSON, profile: .deepSeek)
+        case .moonshot:
+            breakdown = OpenAICompatibleStreamState.legUsageBreakdown(usageJSON: usageJSON, profile: .moonshot)
+        case .qwen:
+            breakdown = QwenService.legUsageBreakdown(usageJSON: usageJSON)
+        default:
+            breakdown = OpenAIService.legUsageBreakdown(usageJSON: usageJSON)
+        }
+        return breakdown.map(ToolLoopUsage.leg)
+    }
+
+    /// The usage object in one openai_chat leg frame: Groq puts usage in `x_groq.usage`, so that is taken first and the top-level `usage` is the fallback
+    /// (same as the normal GroqService chat); Moonshot (Kimi) puts usage in `choices[0].usage` and it is read when the top level is missing
+    /// (the same parsing as normal chat); every other provider takes the top-level `usage`.
+    static func openAIChatLegUsageJSON(chunk: [String: Any], providerKind: ProviderKind) -> [String: Any]? {
+        if providerKind == .groq,
+           let groqUsage = (chunk["x_groq"] as? [String: Any])?["usage"] as? [String: Any] {
+            return groqUsage
+        }
+        if let usage = chunk["usage"] as? [String: Any] { return usage }
+        guard providerKind == .moonshot else { return nil }
+        return (chunk["choices"] as? [[String: Any]])?.first?["usage"] as? [String: Any]
     }
 }
 

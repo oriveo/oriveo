@@ -133,8 +133,8 @@ nonisolated struct ToolCallLoop: Sendable {
                 onProgress: onProgress
             )
             legTexts.append(leg.text)
-            usage = ToolLoopUsage.merge(usage, leg.usage)
-            if let usage { await onProgress(.usage(usage)) }
+            usage = ToolLoopUsage.accumulate(usage, leg: leg.usage)
+            if let usage, usage.hasTokenCounts { await onProgress(.usage(usage)) }
 
             if leg.toolCalls.isEmpty {
                 return Result(
@@ -295,8 +295,8 @@ nonisolated struct ToolCallLoop: Sendable {
             onProgress: onProgress
         )
         legTexts.append(finalLeg.text)
-        usage = ToolLoopUsage.merge(usage, finalLeg.usage)
-        if let usage { await onProgress(.usage(usage)) }
+        usage = ToolLoopUsage.accumulate(usage, leg: finalLeg.usage)
+        if let usage, usage.hasTokenCounts { await onProgress(.usage(usage)) }
         if !finalLeg.toolCalls.isEmpty {
             await onUnhandledToolCalls(finalLeg.toolCalls.map {
                 ProviderToolCall(providerCallID: $0.id, name: $0.function.name, rawArguments: $0.function.arguments)

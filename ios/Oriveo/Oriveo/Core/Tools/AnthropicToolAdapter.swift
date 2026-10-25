@@ -249,7 +249,7 @@ nonisolated struct AnthropicLegWire: ToolLoopLegWire {
             "model": modelID,
             "messages": conversation.messages,
             "stream": true,
-            "max_tokens": maxOutputTokens ?? 8192,
+            "max_tokens": maxOutputTokens ?? CapabilityEvidenceFacade.anthropicDefaultMaxOutputTokens,
         ]
         if let system = conversation.system { body["system"] = system }
         if let tools {
@@ -259,19 +259,33 @@ nonisolated struct AnthropicLegWire: ToolLoopLegWire {
         return body
     }
 
+    /// Leg usage goes through the same parser as normal Anthropic chat: cache reads / writes at 5m / 1h each go to their own bucket and are priced
+    /// at the cache price, never folded into the uncached input; the token count (input = uncached + cached) is only a display total.
     func usage(from frame: [String: Any], current: ToolLoopUsage?) -> ToolLoopUsage? {
         switch frame["type"] as? String {
         case "message_start":
-            guard let usage = (frame["message"] as? [String: Any])?["usage"] as? [String: Any] else { return nil }
-            let input = (usage["input_tokens"] as? Int ?? 0)
-                + (usage["cache_creation_input_tokens"] as? Int ?? 0)
-                + (usage["cache_read_input_tokens"] as? Int ?? 0)
-            let output = usage["output_tokens"] as? Int ?? 0
-            return ToolLoopUsage(promptTokens: input, completionTokens: output, totalTokens: input + output)
+            guard let usage = (frame["message"] as? [String: Any])?["usage"] as? [String: Any],
+                  let breakdown = AnthropicService.legUsageBreakdown(usageJSON: usage) else { return nil }
+            return .leg(breakdown)
         case "message_delta":
-            guard let output = (frame["usage"] as? [String: Any])?["output_tokens"] as? Int else { return nil }
-            let input = current?.promptTokens ?? 0
-            return ToolLoopUsage(promptTokens: input, completionTokens: output, totalTokens: input + output)
+            // The usage of one leg arrives in two events: merged by field; when the delta carries the input side its (cumulative) value wins, otherwise message_start's is kept.
+            guard let usage = frame["usage"] as? [String: Any],
+                  var breakdown = AnthropicService.legUsageBreakdown(usageJSON: usage) else { return nil }
+            let inputKeys = ["input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "cache_creation"]
+            if !inputKeys.contains(where: { usage[$0] != nil }) {
+                let start = current?.breakdown
+                    ?? UsageBreakdown(promptTokens: current?.promptTokens ?? 0)
+                breakdown.promptTokens = start.promptTokens
+                breakdown.cachedInputTokens = start.cachedInputTokens
+                breakdown.cacheCreation5mTokens = start.cacheCreation5mTokens
+                breakdown.cacheCreation1hTokens = start.cacheCreation1hTokens
+                breakdown.cacheReadObserved = start.cacheReadObserved
+                breakdown.cacheWriteObserved = start.cacheWriteObserved
+            }
+            if usage["output_tokens"] == nil {
+                breakdown.completionTokens = current?.completionTokens ?? 0
+            }
+            return .leg(breakdown)
         default:
             return nil
         }

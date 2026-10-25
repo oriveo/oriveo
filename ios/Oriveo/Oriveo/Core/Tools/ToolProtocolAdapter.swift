@@ -51,8 +51,12 @@ nonisolated enum ToolProtocolAdapters {
         available[transport]
     }
 
-    static func legWire(for transport: String) -> (any ToolLoopLegWire)? {
-        legWires[transport]
+    /// The leg wire for a transport; for openai_responses it carries the provider so usage is parsed like that provider's normal chat.
+    static func legWire(for transport: String, providerKind: ProviderKind) -> (any ToolLoopLegWire)? {
+        if transport == TransportKind.openaiResponses.rawValue {
+            return OpenAIResponsesLegWire(providerKind: providerKind)
+        }
+        return legWires[transport]
     }
 }
 

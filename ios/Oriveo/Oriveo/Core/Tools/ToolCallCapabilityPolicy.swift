@@ -31,11 +31,8 @@ nonisolated enum ToolCallCapabilityPolicy {
 
     static func finalTransportKindName(provider: Provider, model: AIModel) -> String? {
         if provider.kind == .relay {
-            // A model-level protocol wins, otherwise follow the connection; `auto` is an intent, not a chosen protocol, so it still resolves to nothing.
-            guard let transport = RelayEndpointResolver.explicitTransport(provider: provider, model: model) else {
-                return nil
-            }
-            return transportKindName(for: transport)
+            // A model-level protocol wins, otherwise follow the connection; when both are `auto` the first-send protocol is used, the same source as the negative-cache read key and the advanced page's "Auto =".
+            return transportKindName(for: RelayFirstSendTransport.current(provider: provider, model: model))
         }
         // Subscription and catalog transports resolve below.
         if let subscription = CapabilityControlResolution.subscriptionFinalTransport(for: provider, model: model) {
@@ -71,7 +68,9 @@ nonisolated enum ToolCallCapabilityPolicy {
     static func catalogVerdict(
         provider: Provider,
         model: AIModel,
-        negativeCache: RelayNegativeCache = .shared
+        negativeCache: RelayNegativeCache = .shared,
+        rejectionRemembered: Bool = false,
+        now: Date = Date()
     ) -> (verdict: Bool?, source: VerdictSource) {
         if provider.kind == .relay {
             // An override (user / tested) is the highest source for relay tools.
@@ -93,44 +92,72 @@ nonisolated enum ToolCallCapabilityPolicy {
             if provider.relayRequested?.engineProfile != nil, let declared = model.engineDeclaration?.toolCall {
                 return (declared, .relayDeclaration)
             }
-            return (model.toolCall, model.toolCall == nil ? .unknown : .relayDeclaration)
+            let declared = RelayTruthAdapter.toolCallDeclaration(model)
+            return (declared, declared == nil ? .unknown : .relayDeclaration)
         }
         if provider.authMode == .subscription {
-            if let firstParty = model.toolCall { return (firstParty, .catalog) }
-            if let fact = MetadataClient.shared.syncModelFacts(
-                providerKind: provider.kind, modelID: model.id
-            )?.toolCall {
+            // The subscription /models has no tool field, so there is no first-hand layer: remembered rejection > modelFacts > remembered true (decide) > unknown.
+            if rejectionRemembered { return (false, .memory) }
+            if let fact = SubscriptionTruthAdapter.toolCallModelFact(providerKind: provider.kind, model: model) {
                 return (fact, .modelFacts)
             }
             return (nil, .unknown)
         }
         let catalog = MetadataClient.shared.syncResolveCatalogModel(modelID: model.id, providerKind: provider.kind)
         if let catalog {
-            return (catalog.toolCall, catalog.toolCall == nil ? .unknown : .catalog)
+            // Official only trusts the tool_call evidence the catalog sends; missing or expired is unknown and the top-level `toolCall` field is not a fallback.
+            let verdict = officialToolCallEvidence(catalog, now: now)
+            if verdict == nil, rejectionRemembered { return (false, .memory) }
+            return (verdict, verdict == nil ? .unknown : .catalog)
         }
-        guard model.isManual else { return (nil, .unknown) }
+        if rejectionRemembered { return (false, .memory) }
+        // On a catalog miss the facts are consulted right away. Relay already short-circuited at the top of the function, so it never
+        // borrows cross-connection facts by looking like Claude/GPT.
         if let fact = MetadataClient.shared.syncModelFacts(
             providerKind: provider.kind, modelID: model.id
         )?.toolCall {
             return (fact, .modelFacts)
         }
-        if let local = model.toolCall { return (local, .localDeclaration) }
+        if let local = OfficialTruthAdapter.handEnteredToolCallDeclaration(model) { return (local, .localDeclaration) }
         return (nil, .unknown)
+    }
+
+    /// The official catalog's tool_call evidence (candidates of the evidence namespace): takes the unexpired supported / unsupported ones;
+    /// none, all expired or contradicting each other is nil (unknown).
+    static func officialToolCallEvidence(
+        _ resolved: MetadataClient.ResolvedModelMetadata,
+        now: Date = Date()
+    ) -> Bool? {
+        let nowMillis = Int64(now.timeIntervalSince1970 * 1_000)
+        let supports = Set(resolved.capabilityEvidenceCandidates.compactMap { candidate -> Bool? in
+            guard candidate.key == "tool_call" else { return nil }
+            if let expiresAt = candidate.expiresAt, expiresAt <= nowMillis { return nil }
+            switch candidate.support {
+            case .supported: return true
+            case .unsupported: return false
+            case .unknown: return nil
+            }
+        })
+        return supports.count == 1 ? supports.first : nil
     }
 
     static func decide(
         provider: Provider,
         model: AIModel,
         memory: ToolCallMemoryStore = .shared,
-        adapterTransports: Set<String> = localAdapterTransports
+        adapterTransports: Set<String> = localAdapterTransports,
+        now: Date = Date()
     ) -> Decision {
         let transport = finalTransportKindName(provider: provider, model: model)
-        var (verdict, source) = catalogVerdict(provider: provider, model: model)
-        if verdict == nil, memoryEligible(provider: provider, model: model),
-           let remembered = memory.lookup(connectionID: provider.id, modelID: model.id),
-           // A relay's "unsupported" is recognized only from the toolCall negative cache; a false in the old tool memory counts as no value.
-           provider.kind != .relay || remembered.toolCall {
-            verdict = remembered.toolCall
+        let remembered = validMemory(provider: provider, model: model, memory: memory)
+        // A relay's "unsupported" is recognized only from the toolCall negative cache; a false in the old tool memory counts as no value.
+        var (verdict, source) = catalogVerdict(
+            provider: provider, model: model,
+            rejectionRemembered: provider.kind != .relay && remembered == false,
+            now: now
+        )
+        if verdict == nil, remembered == true {
+            verdict = true
             source = .memory
         }
         let adapterAvailable = transport.map(adapterTransports.contains) ?? false
@@ -143,8 +170,21 @@ nonisolated enum ToolCallCapabilityPolicy {
         )
     }
 
-    static func permitsToolsOutbound(provider: Provider, model: AIModel, memory: ToolCallMemoryStore = .shared) -> Bool {
-        decide(provider: provider, model: model, memory: memory).allowed
+    /// The remembered connection value that is still valid: only for connections the memory applies to; a revision mismatch (inside `lookup`) or a hand-entered declaration changed after recording voids it.
+    static func validMemory(provider: Provider, model: AIModel, memory: ToolCallMemoryStore) -> Bool? {
+        guard memoryEligible(provider: provider, model: model),
+              let record = memory.lookup(connectionID: provider.id, modelID: model.id),
+              record.handEnteredDeclaration == OfficialTruthAdapter.handEnteredToolCallDeclaration(model)
+        else { return nil }
+        return record.toolCall
+    }
+
+    /// Outbound gate: whether this request should carry tools. Same source as `decide`, with the extra premise that the caller already decided to use tools.
+    /// - Parameter now: the clock of the evidence time window; always the current time in production, injected in tests.
+    static func permitsToolsOutbound(
+        provider: Provider, model: AIModel, memory: ToolCallMemoryStore = .shared, now: Date = Date()
+    ) -> Bool {
+        decide(provider: provider, model: model, memory: memory, now: now).allowed
     }
 }
 

@@ -248,12 +248,26 @@ nonisolated struct GeminiLegWire: ToolLoopLegWire {
     }
 
     func usage(from frame: [String: Any], current: ToolLoopUsage?) -> ToolLoopUsage? {
-        guard let usage = frame["usageMetadata"] as? [String: Any] else { return nil }
-        return ToolLoopUsage(
-            promptTokens: usage["promptTokenCount"] as? Int ?? current?.promptTokens,
-            completionTokens: usage["candidatesTokenCount"] as? Int ?? current?.completionTokens,
-            totalTokens: usage["totalTokenCount"] as? Int ?? current?.totalTokens
-        )
+        guard var usage = frame["usageMetadata"] as? [String: Any] else { return nil }
+        // The first frame often carries only promptTokenCount and only the last frame gives candidatesTokenCount: fields are overridden one by one and
+        // missing ones carry over from the previous frame; the merged object goes through the same parser as normal Gemini chat:
+        // cachedContentTokenCount goes to the cache bucket and thoughts count towards the output.
+        if let previous = current?.breakdown {
+            if usage["promptTokenCount"] == nil {
+                usage["promptTokenCount"] = previous.promptTokens + previous.cachedInputTokens
+            }
+            if usage["cachedContentTokenCount"] == nil, previous.cacheReadObserved {
+                usage["cachedContentTokenCount"] = previous.cachedInputTokens
+            }
+            if usage["candidatesTokenCount"] == nil {
+                usage["candidatesTokenCount"] = previous.completionTokens - previous.reasoningTokens
+            }
+            if usage["thoughtsTokenCount"] == nil, previous.reasoningTokens > 0 {
+                usage["thoughtsTokenCount"] = previous.reasoningTokens
+            }
+        }
+        guard let breakdown = GeminiService.legUsageBreakdown(usageJSON: usage) else { return nil }
+        return .leg(breakdown)
     }
 
     func streamError(in frame: [String: Any]) -> ProviderServiceError? {

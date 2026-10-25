@@ -130,6 +130,13 @@ private struct SimpleReasoningReplayAccumulator {
 nonisolated enum ToolLoopVisionGate {
     static let defaultPlaceholder = "[Image omitted: this route sends text only]"
 
+    /// How a leg sends vision reads only the vision projection: placeholder when there is an image and the projection does not let the native part through, otherwise native_part.
+    static func outbound(
+        hasVisionInput: Bool, projection: CapabilityEvidenceProjection
+    ) -> CapabilityEvidenceFacade.InputCapabilityProjection.Outbound {
+        hasVisionInput && !projection.permitsOutbound(CapabilityEvidenceFacade.visionInputKey) ? .placeholder : .nativePart
+    }
+
     static func placeholder(providerKind: ProviderKind) -> String {
         AttachmentTransport.toolLoop(providerKind).profile.imagePlaceholderText ?? defaultPlaceholder
     }
@@ -165,7 +172,6 @@ nonisolated final class OpenAIChatToolLoopLegRunner: ToolLoopLegRunning, @unchec
         var serviceTier: String?
         var reasoningProfileName: String?
         var reasoningMode: ReasoningMode
-        var relayReasoningEffort: String?
         var generationOptions: ChatRequestOptions
         var generationProfile: GenerationProfileRef?
         var effectiveTransport: String
@@ -203,7 +209,7 @@ nonisolated final class OpenAIChatToolLoopLegRunner: ToolLoopLegRunning, @unchec
         toolCallMemory: ToolCallMemoryStore = .shared,
         session: URLSession = .shared
     ) throws {
-        let effectiveKey = accessToken ?? provider.apiKey
+        let effectiveKey = accessToken ?? ProviderCredentialResolver.apiKey(provider: provider, modelID: model.id)
         let endpoint = try Self.resolveEndpoint(
             provider: provider, apiKey: effectiveKey, requestOptions: requestOptions
         )
@@ -245,9 +251,6 @@ nonisolated final class OpenAIChatToolLoopLegRunner: ToolLoopLegRunning, @unchec
             serviceTier: provider.kind == .relay ? provider.relayRequested?.serviceTier : nil,
             reasoningProfileName: reasoningProfileName,
             reasoningMode: reasoningMode,
-            relayReasoningEffort: provider.kind == .relay
-                ? provider.relayRequested?.reasoningEffort.flatMap { $0 == .automatic ? nil : $0.rawValue }
-                : nil,
             generationOptions: generationOptions,
             generationProfile: generationProfile,
             effectiveTransport: effectiveTransport,
@@ -313,7 +316,10 @@ nonisolated final class OpenAIChatToolLoopLegRunner: ToolLoopLegRunning, @unchec
                         if let data = payload.data(using: .utf8) {
                             replayAccumulator?.ingest(data)
                         }
-                        for event in try Self.events(from: payload, shape: streamShape, toolCalls: &toolCallDecoder) {
+                        for event in try Self.events(
+                            from: payload, providerKind: self.configuration.providerKind,
+                            shape: streamShape, toolCalls: &toolCallDecoder
+                        ) {
                             if case let .textDelta(delta) = event { visibleText += delta }
                             continuation.yield(event)
                         }
@@ -350,16 +356,20 @@ nonisolated final class OpenAIChatToolLoopLegRunner: ToolLoopLegRunning, @unchec
         let dynamicIndex = chatMessages.lastIndex(where: { $0.role == .user })
         return try chatMessages.enumerated().compactMap { index, message in
             let attachments = message.attachments ?? []
+            let transport = AttachmentTransport.toolLoop(providerKind)
             let delivery = try AttachmentDelivery.deliver(
                 isOutgoingTurn: index == outgoingTurnIndex,
                 userText: message.text,
                 attachments: attachments,
-                transport: .toolLoop(providerKind),
+                transport: transport,
                 model: model,
                 dynamicText: index == dynamicIndex ? dynamicText : nil
             )
             let injected = delivery.injectedText
-            let images = attachments.filter { $0.kind == .image && !$0.resolvedDataURL.isEmpty }
+            // The route declares an image placeholder (text only): AttachmentDelivery already wrote the placeholder into the body, so no image_url is added.
+            let images = transport.profile.imagePlaceholderText != nil
+                ? []
+                : attachments.filter { $0.kind == .image && !$0.resolvedDataURL.isEmpty }
             // Skip empty strings like nil: an empty file_data is rejected upstream
             let nativeFiles = delivery.native.filter { $0.originalBase64Data?.isEmpty == false }
             guard !images.isEmpty || !nativeFiles.isEmpty else {
@@ -437,15 +447,13 @@ nonisolated final class OpenAIChatToolLoopLegRunner: ToolLoopLegRunning, @unchec
             message.contentParts?.contains(where: { $0.type == "image_url" }) == true
         }
         let requestsTools = !leg.tools.isEmpty && leg.toolChoice != .none
-        let requestedReasoningMode = Self.semanticReasoningMode(
-            relayEffort: configuration.relayReasoningEffort,
-            fallback: configuration.reasoningMode
-        )
+        // A stored connection-level reasoning level is voided when read: only this turn's reasoningMode counts.
+        let requestedReasoningMode = configuration.reasoningMode
         var capabilityKeys: Set<String> = []
         var explicitKeys: Set<String> = []
         if hasVisionInput {
-            capabilityKeys.insert("vision_input")
-            explicitKeys.insert("vision_input")
+            capabilityKeys.insert(CapabilityEvidenceFacade.visionInputKey)
+            explicitKeys.insert(CapabilityEvidenceFacade.visionInputKey)
         }
         if requestsTools {
             capabilityKeys.insert("tool_call")
@@ -474,7 +482,10 @@ nonisolated final class OpenAIChatToolLoopLegRunner: ToolLoopLegRunning, @unchec
                 detail: "Tools are unavailable for this model or connection."
             )
         }
-        let outboundMessages = hasVisionInput && !capabilityIntent.permitsOutbound("vision_input")
+        // Vision projection outbound: native_part carries the image parts as they are and writes no placeholder; only placeholder removes the images and
+        // writes one route placeholder line per image. The leg message conversion still keeps the images.
+        let visionOutbound = ToolLoopVisionGate.outbound(hasVisionInput: hasVisionInput, projection: capabilityIntent)
+        let outboundMessages = visionOutbound == .placeholder
             ? leg.messages.map { Self.removingVisionInput($0, providerKind: configuration.providerKind) }
             : leg.messages
         let allowedReasoningMode: ReasoningMode? = {
@@ -510,10 +521,6 @@ nonisolated final class OpenAIChatToolLoopLegRunner: ToolLoopLegRunning, @unchec
         ) {
             ProfileParamsResolver.deepMerge(&payload, reasoningParams)
         }
-        if allowedReasoningMode != nil,
-           let relayReasoningEffort = configuration.relayReasoningEffort {
-            payload["reasoning_effort"] = relayReasoningEffort
-        }
         // Every leg shares the generation-parameter resolver with plain chat, so model defaults and
         // per-conversation overrides apply here too and stay behind the same capability gate.
         ProfileParamsResolver.applyGenerationParameters(
@@ -537,6 +544,8 @@ nonisolated final class OpenAIChatToolLoopLegRunner: ToolLoopLegRunning, @unchec
             webSearchEnabled: false,
             reasoningMode: allowedReasoningMode ?? .automatic
         )
+        // The leg shares the request options with chat: the panel parameters take effect on this leg, and so does the additional request body.
+        try AdditionalRequestBody.apply(configuration.generationOptions.localAdditionalRequestBody, to: &payload)
         request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
         return request
     }
@@ -546,19 +555,6 @@ nonisolated final class OpenAIChatToolLoopLegRunner: ToolLoopLegRunning, @unchec
         ToolLoopVisionGate.removingVisionInput(
             message, placeholder: ToolLoopVisionGate.placeholder(providerKind: providerKind)
         )
-    }
-
-    private static func semanticReasoningMode(
-        relayEffort: String?,
-        fallback: ReasoningMode
-    ) -> ReasoningMode {
-        switch relayEffort {
-        case "low": return .fast
-        case "medium": return .balanced
-        case "high": return .deep
-        case "xhigh": return .max
-        default: return fallback
-        }
     }
 
     private static func reasoningReplayParserKind(
@@ -614,7 +610,7 @@ nonisolated final class OpenAIChatToolLoopLegRunner: ToolLoopLegRunning, @unchec
             )
         }
 
-        let rawUserBase = provider.baseURLText?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let rawUserBase = provider.requestBaseURLText()?.trimmingCharacters(in: .whitespacesAndNewlines)
         let userBase = rawUserBase.flatMap { value in
             value.isEmpty ? nil : (value.hasPrefix("http://") || value.hasPrefix("https://") ? value : "https://\(value)")
         }
@@ -704,8 +700,9 @@ nonisolated final class OpenAIChatToolLoopLegRunner: ToolLoopLegRunning, @unchec
         })
     }
 
-    private static func events(
+    static func events(
         from payload: String,
+        providerKind: ProviderKind,
         shape: MetadataClient.StreamShape? = nil,
         toolCalls decoder: inout OpenAIChatToolCallStreamDecoder
     ) throws -> [ToolLoopLegEvent] {
@@ -721,12 +718,10 @@ nonisolated final class OpenAIChatToolLoopLegRunner: ToolLoopLegRunning, @unchec
         }
 
         var events: [ToolLoopLegEvent] = []
-        if let usage = root["usage"] as? [String: Any] {
-            events.append(.usage(ToolLoopUsage(
-                promptTokens: usage["prompt_tokens"] as? Int,
-                completionTokens: usage["completion_tokens"] as? Int,
-                totalTokens: usage["total_tokens"] as? Int
-            )))
+        // Leg usage goes through the same parser as that provider's normal chat (cached_tokens goes to the cache bucket, OpenRouter / Grok carry the upstream actual cost).
+        if let usage = ToolLoopUsage.openAIChatLegUsageJSON(chunk: root, providerKind: providerKind),
+           let leg = ToolLoopUsage.openAIChatLeg(usageJSON: usage, providerKind: providerKind) {
+            events.append(.usage(leg))
         }
         guard let choice = (root["choices"] as? [[String: Any]])?.first else { return events }
         // `finish_reason` may arrive in a frame of its own with no delta, so flushing cannot depend
@@ -806,8 +801,12 @@ nonisolated final class ProtocolToolLoopLegRunner: ToolLoopLegRunning, @unchecke
         /// catalog's for an official provider. Request building never derives it a second time.
         var effectiveTransport: String
         var maxOutputTokens: Int?
+        /// Whether an Anthropic leg places a cache_control breakpoint: Relay always does; official only when the catalog promptCache.policyRef is explicit.
+        var placesAnthropicCacheBreakpoint: Bool
         var capabilityEvidenceModel: AIModel
         var userAgent: String
+        /// Codex identity headers of a Relay Responses leg (the same criterion as chat); empty = not injected, and the body gets no prompt_cache_key either.
+        var codexIdentityHeaders: [String: String]
         var subscriptionHeaders: [String: String]
         var provider: Provider
         var model: AIModel
@@ -822,7 +821,8 @@ nonisolated final class ProtocolToolLoopLegRunner: ToolLoopLegRunning, @unchecke
     /// Output cap base: the chat main path uses plan.budget.oWire. Only legs that already sent a cap are replaced -
     /// anthropic_messages always sends max_tokens, the other protocols only when the catalog has a value; a cap that was not sent is not added.
     private static func legMaxOutputTokens(oWire: Int?, catalog: Int?, transport: TransportKind) -> Int? {
-        guard catalog != nil || transport == .anthropicMessages else { return nil }
+        let requiresMaxTokens = CapabilityEvidenceFacade.protocolOutputDefault(for: transport)?.requiresMaxTokens ?? false
+        guard catalog != nil || requiresMaxTokens else { return nil }
         return oWire ?? catalog
     }
 
@@ -849,9 +849,9 @@ nonisolated final class ProtocolToolLoopLegRunner: ToolLoopLegRunning, @unchecke
             : (CapabilityControlResolution.subscriptionFinalTransport(for: provider, model: model)
                 ?? catalog?.transport ?? "")
         let authMode = Self.resolvedAuthMode(provider: provider, wire: wire)
-        let effectiveKey = accessToken ?? provider.apiKey
+        let effectiveKey = accessToken ?? ProviderCredentialResolver.apiKey(provider: provider, modelID: model.id)
         let url = try Self.resolveEndpoint(
-            provider: provider, modelID: modelID, apiKey: effectiveKey, authMode: authMode, wire: wire,
+            provider: provider, model: model, modelID: modelID, apiKey: effectiveKey, authMode: authMode, wire: wire,
             requestOptions: requestOptions
         )
         configuration = Configuration(
@@ -873,10 +873,17 @@ nonisolated final class ProtocolToolLoopLegRunner: ToolLoopLegRunning, @unchecke
                 catalog: catalog?.maxOutputTokens.flatMap { $0 > 0 ? $0 : nil },
                 transport: wire.transportKind
             ),
+            placesAnthropicCacheBreakpoint: provider.kind == .relay
+                || CapabilityEvidenceFacade.placesOfficialAnthropicCacheBreakpoint(policyRef: catalog?.promptCachePolicyRef),
             capabilityEvidenceModel: provider.kind == .relay
                 ? model
                 : MetadataClient.shared.syncCurrentCapabilityEvidenceModel(model, providerKind: provider.kind),
             userAgent: UserAgentProvider.nativeUserAgent,
+            codexIdentityHeaders: provider.kind == .relay && wire.transportKind == .openaiResponses
+                ? RelayRuntimeSupport.codexIdentityHeaders(
+                    for: .openaiResponses, relayRequested: provider.relayRequested, resolvedAuthMode: authMode
+                )
+                : [:],
             subscriptionHeaders: requestOptions.grokSubscription?.requiredHeaders ?? [:],
             provider: provider,
             model: model,
@@ -987,6 +994,11 @@ nonisolated final class ProtocolToolLoopLegRunner: ToolLoopLegRunning, @unchecke
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(configuration.userAgent, forHTTPHeaderField: "User-Agent")
+        // Responses requests from the same relay connection keep the same identity: the identity headers go in first, and the user's own headers below can still override them.
+        for (name, value) in configuration.codexIdentityHeaders {
+            // session_id is one per request, the same as chat.
+            request.setValue(name == "session_id" ? UUID().uuidString : value, forHTTPHeaderField: name)
+        }
         wire.applyProtocolHeaders(to: &request)
         Self.applyAuthentication(to: &request, mode: configuration.authMode, apiKey: configuration.apiKey)
         for header in configuration.headers where !header.key.isEmpty {
@@ -1003,8 +1015,8 @@ nonisolated final class ProtocolToolLoopLegRunner: ToolLoopLegRunning, @unchecke
         var capabilityKeys: Set<String> = []
         var explicitKeys: Set<String> = []
         if hasVisionInput {
-            capabilityKeys.insert("vision_input")
-            explicitKeys.insert("vision_input")
+            capabilityKeys.insert(CapabilityEvidenceFacade.visionInputKey)
+            explicitKeys.insert(CapabilityEvidenceFacade.visionInputKey)
         }
         if requestsTools {
             capabilityKeys.insert("tool_call")
@@ -1034,7 +1046,10 @@ nonisolated final class ProtocolToolLoopLegRunner: ToolLoopLegRunning, @unchecke
                 detail: "Tools are unavailable for this model or connection."
             )
         }
-        let outboundMessages = hasVisionInput && !capabilityIntent.permitsOutbound("vision_input")
+        // Vision projection outbound: native_part carries the image parts as they are and writes no placeholder; only placeholder removes the images and
+        // writes one route placeholder line per image. The leg message conversion still keeps the images.
+        let visionOutbound = ToolLoopVisionGate.outbound(hasVisionInput: hasVisionInput, projection: capabilityIntent)
+        let outboundMessages = visionOutbound == .placeholder
             ? leg.messages.map { Self.removingVisionInput($0, providerKind: configuration.providerKind) }
             : leg.messages
         let allowedReasoningMode: ReasoningMode? = {
@@ -1061,7 +1076,10 @@ nonisolated final class ProtocolToolLoopLegRunner: ToolLoopLegRunning, @unchecke
         // The tool leg assembles its own Anthropic turns, with the same breakpoint rule as chat: a single breakpoint on the last non-[D] block
         // of the last user message of the whole request (the tool_result turn if there is one; the notice if there is one).
         if wire.transportKind == .anthropicMessages {
-            AnthropicService.applyCacheBreakpoint(to: &payload, dynamicText: configuration.generationOptions.dynamicText)
+            AnthropicService.applyCacheBreakpoint(
+                to: &payload, dynamicText: configuration.generationOptions.dynamicText,
+                placeBreakpoint: configuration.placesAnthropicCacheBreakpoint
+            )
         }
         if let allowedReasoningMode,
            let reasoningParams = ProfileParamsResolver.reasoningMergeParams(
@@ -1072,13 +1090,15 @@ nonisolated final class ProtocolToolLoopLegRunner: ToolLoopLegRunning, @unchecke
         ) {
             ProfileParamsResolver.deepMerge(&payload, reasoningParams)
         }
-        ProfileParamsResolver.applyGenerationParameters(
+        let builderDefaultMaxTokens = (payload["max_tokens"] as? NSNumber)?.intValue
+        let generationApplication = ProfileParamsResolver.applyGenerationParameters(
             to: &payload,
             options: configuration.generationOptions,
             profile: configuration.generationProfile,
             finalRequest: request,
             effectiveTransport: configuration.effectiveTransport
         )
+        // The exact recipe is the only automatic writer of capability fields (same position and same arguments as the openai_chat leg).
         CapabilityRecipeRequestCompiler.apply(
             to: &payload,
             providerKind: configuration.providerKind,
@@ -1087,6 +1107,23 @@ nonisolated final class ProtocolToolLoopLegRunner: ToolLoopLegRunning, @unchecke
             webSearchEnabled: false,
             reasoningMode: allowedReasoningMode ?? .automatic
         )
+        // The leg shares the same thinking-linkage guard with chat; only an Anthropic-protocol request body carries thinking.
+        if configuration.effectiveTransport == RelayTransport.anthropicMessages.rawValue {
+            ProfileParamsResolver.applyAnthropicThinkingGuard(
+                to: &payload, application: generationApplication,
+                builderDefaultMaxTokens: builderDefaultMaxTokens
+            )
+        }
+        // The leg shares the request options with chat: the panel parameters take effect on this leg, and so does the additional request body.
+        try AdditionalRequestBody.apply(configuration.generationOptions.localAdditionalRequestBody, to: &payload)
+        // Goes in and out with the identity headers; placed after the additional request body, so a value the user wrote themselves is kept.
+        if !configuration.codexIdentityHeaders.isEmpty, payload["prompt_cache_key"] == nil {
+            payload["prompt_cache_key"] = RelayRuntimeSupport.promptCacheKey(
+                model: payload["model"] as? String ?? configuration.modelID,
+                instructions: payload["instructions"] as? String ?? "",
+                firstUserText: outboundMessages.first(where: { $0.role == "user" })?.plainText ?? ""
+            )
+        }
         request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
         return request
     }
@@ -1095,6 +1132,7 @@ nonisolated final class ProtocolToolLoopLegRunner: ToolLoopLegRunning, @unchecke
     @MainActor
     private static func resolveEndpoint(
         provider: Provider,
+        model: AIModel,
         modelID: String,
         apiKey: String,
         authMode: RelayAuthMode,
@@ -1115,9 +1153,10 @@ nonisolated final class ProtocolToolLoopLegRunner: ToolLoopLegRunning, @unchecke
                 throw ProviderServiceError.invalidConfiguration(detail: "Missing Relay base URL.")
             }
             let rule = relayRule(for: wire)
+            // The root address is resolved per model (the same injected copy as a chat send), not from a single connection-level value.
             let apiBase = try RelayEndpointResolver.runtimeAPIBaseURL(
                 rawBaseURL: rawBaseURL,
-                relayRequested: provider.relayRequested,
+                relayRequested: RelayEndpointResolver.routedRequested(provider: provider, model: model),
                 defaultVersion: rule.defaultVersion,
                 acceptedVersions: Set(rule.acceptedVersions)
             )
@@ -1141,7 +1180,7 @@ nonisolated final class ProtocolToolLoopLegRunner: ToolLoopLegRunning, @unchecke
             return url
         }
 
-        let rawUserBase = provider.baseURLText?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let rawUserBase = provider.requestBaseURLText()?.trimmingCharacters(in: .whitespacesAndNewlines)
         let userBase = rawUserBase.flatMap { value in
             value.isEmpty ? nil : (value.hasPrefix("http://") || value.hasPrefix("https://") ? value : "https://\(value)")
         }
@@ -1248,7 +1287,7 @@ nonisolated enum ToolLoopLegRunnerFactory {
                 detail: "Tools are unavailable for this model or connection."
             )
         }
-        if let wire = ToolProtocolAdapters.legWire(for: transport) {
+        if let wire = ToolProtocolAdapters.legWire(for: transport, providerKind: provider.kind) {
             let runner = try ProtocolToolLoopLegRunner(
                 adapter: adapter, wire: wire, provider: provider, model: model, modelID: modelID,
                 reasoningMode: reasoningMode, requestOptions: requestOptions, accessToken: accessToken,

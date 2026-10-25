@@ -180,6 +180,8 @@ nonisolated struct OpenAIResponsesToolCallStreamDecoder: ToolCallStreamDecoding 
 
 nonisolated struct OpenAIResponsesLegWire: ToolLoopLegWire {
     let transportKind = TransportKind.openaiResponses
+    /// The connection's provider: usage is parsed by that provider's normal chat Responses parser (Grok carries ticks); nil means OpenAI.
+    var providerKind: ProviderKind? = nil
     let relayTransportKey = MetadataClient.RelayTransportKey.openaiResponses
     let officialAuthMode = RelayAuthMode.bearer
     let streamQueryItems: [URLQueryItem] = []
@@ -219,14 +221,15 @@ nonisolated struct OpenAIResponsesLegWire: ToolLoopLegWire {
         return body
     }
 
+    /// Leg usage goes through the same parser as that provider's normal chat Responses: `input_tokens_details.cached_tokens` goes to the cache bucket
+    /// and is priced at the cache price; Grok also carries `cost_in_usd_ticks` as the upstream actual cost.
     func usage(from frame: [String: Any], current: ToolLoopUsage?) -> ToolLoopUsage? {
         guard frame["type"] as? String == "response.completed",
               let usage = (frame["response"] as? [String: Any])?["usage"] as? [String: Any] else { return nil }
-        return ToolLoopUsage(
-            promptTokens: usage["input_tokens"] as? Int,
-            completionTokens: usage["output_tokens"] as? Int,
-            totalTokens: usage["total_tokens"] as? Int
-        )
+        let breakdown = providerKind == .grok
+            ? GrokService.responsesLegUsageBreakdown(usageJSON: usage)
+            : OpenAIService.responsesLegUsageBreakdown(usageJSON: usage)
+        return breakdown.map(ToolLoopUsage.leg)
     }
 
     func streamError(in frame: [String: Any]) -> ProviderServiceError? {
