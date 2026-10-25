@@ -1,0 +1,1937 @@
+{
+  "$comment": "Shared dictation contract. Every client must reproduce each expected value from the same input. Catalog entries are referenced by {providerKind, direction, model} into the data object of shared/model-contracts/voice_catalog_contract.v2.json.",
+  "schema": "oriveo.voice.dictation",
+  "version": 1,
+  "constants": {
+    "textUnit": "unicode_scalar",
+    "recording": {
+      "container": "aac_adts",
+      "fileExtension": "aac",
+      "sampleRateHz": 16000,
+      "channels": 1,
+      "uploadContainer": "m4a",
+      "uploadConversion": "passthrough"
+    },
+    "envelope": {
+      "windowSec": 0.05,
+      "measure": "rms_dbfs",
+      "digitalSilence": null,
+      "speechThresholdDbfs": -45
+    },
+    "precheck": {
+      "minDurationSec": 0.5,
+      "minVoicedSec": 0.3,
+      "minVoicedWindows": 6
+    },
+    "segmentation": {
+      "minSilenceRunSec": 0.4,
+      "minSilenceRunWindows": 8,
+      "byteSafetyFactor": 0.9,
+      "secondsDecimals": 3,
+      "compareTolerance": 1e-9
+    },
+    "discardUndoAboveSec": 5,
+    "pendingRetentionSec": 604800,
+    "retry": {
+      "maxAutoRetries": 1,
+      "defaultDelaySec": 1,
+      "maxRetryAfterSec": 10,
+      "retryAfterFormat": "non_negative_decimal_seconds",
+      "transientHttpStatuses": [
+        408,
+        409,
+        429
+      ],
+      "transientHttpFrom": 500,
+      "authHttpStatuses": [
+        401,
+        403
+      ]
+    },
+    "text": {
+      "whitespace": [
+        "U+0020",
+        "U+0009",
+        "U+000A",
+        "U+000B",
+        "U+000C",
+        "U+000D",
+        "U+00A0",
+        "U+1680",
+        "U+2000",
+        "U+2001",
+        "U+2002",
+        "U+2003",
+        "U+2004",
+        "U+2005",
+        "U+2006",
+        "U+2007",
+        "U+2008",
+        "U+2009",
+        "U+200A",
+        "U+2028",
+        "U+2029",
+        "U+202F",
+        "U+205F",
+        "U+3000"
+      ],
+      "noSpaceScripts": [
+        "U+0E00..U+0E7F",
+        "U+0E80..U+0EFF",
+        "U+1000..U+109F",
+        "U+1780..U+17FF",
+        "U+2E80..U+2FFF",
+        "U+3000..U+303F",
+        "U+3040..U+309F",
+        "U+30A0..U+30FF",
+        "U+31F0..U+31FF",
+        "U+3400..U+4DBF",
+        "U+4E00..U+9FFF",
+        "U+F900..U+FAFF",
+        "U+FF00..U+FFEF",
+        "U+20000..U+3FFFF"
+      ],
+      "noSpaceBefore": [
+        ",",
+        ".",
+        "!",
+        "?",
+        ";",
+        ":",
+        ")",
+        "]",
+        "}",
+        "%",
+        "…"
+      ],
+      "noSpaceAfter": [
+        "(",
+        "[",
+        "{",
+        "¿",
+        "¡"
+      ],
+      "offsets": "utf16"
+    },
+    "multipart": {
+      "fileFieldLast": true,
+      "fileName": "audio.m4a",
+      "contentType": "audio/mp4",
+      "languageValue": "iso639_1_primary_subtag",
+      "legacyLanguageCodes": {
+        "in": "id",
+        "iw": "he",
+        "ji": "yi"
+      }
+    }
+  },
+  "rules": {
+    "precheck": [
+      "durationSec < minDurationSec → too_short.",
+      "Count windows, not seconds: voiced windows = windows with value != null and value >= speechThresholdDbfs; fewer than minVoicedWindows (6) → no_speech.",
+      "Otherwise ok. too_short and no_speech show the no-sound-detected notice and do not upload."
+    ],
+    "silenceRuns": [
+      "A run is a maximal sequence of windows with value == null or value < speechThresholdDbfs.",
+      "Keep runs of >= minSilenceRunWindows (8) windows; output [startSec, endSec] at window boundaries (index × windowSec), rounded to 3 decimals."
+    ],
+    "uploadFormat": [
+      "Always m4a: the AAC-ADTS recording is repackaged to .m4a without re-encoding (passthrough). The v2 catalog lists only stt entries that accept m4a, so there is no per-entry format choice and no wav fallback."
+    ],
+    "segmentPlan": [
+      "bytesPerSec = uploadBytes / durationSec (the m4a upload actually produced).",
+      "Lmax = min(maxDurationSec, maxBytes × byteSafetyFactor / bytesPerSec).",
+      "All segment boundaries (cuts, starts, ends) are rounded to secondsDecimals (3); comparisons use compareTolerance (durationSec − s > Lmax + 1e-9; a midpoint m is in the window when lo − 1e-9 <= m <= hi + 1e-9). From s = 0: while durationSec − s > Lmax, cut at the latest silence-run midpoint (rounded to 3 decimals) in [s + Lmax/2, s + Lmax]; with none, cut at s + Lmax. The rest is the last segment.",
+      "Segments are transcribed in order, one request each; the joined text is the result."
+    ],
+    "join": [
+      "Text is handled as Unicode scalars (Swift unicodeScalars, Kotlin codePoint APIs) — never grapheme clusters or UTF-16 units — except insert offsets. Trim only the constants.text.whitespace set (no platform trim: U+0085 / U+FEFF are kept). Trim each segment text, drop empty ones, concatenate; insert one U+0020 between neighbours only when needsSpace(last code point of left, first code point of right).",
+      "needsSpace(l, r) is false when either side is missing or whitespace, either side is in noSpaceScripts, r is in noSpaceBefore, or l is in noSpaceAfter; otherwise true."
+    ],
+    "insert": [
+      "Offsets are UTF-16 code units; the insertion point is max(selectionStart, selectionEnd) (Android selections can be reversed); neighbouring characters are read as scalars (codePointBefore / codePointAt). The transcript (trimmed) is inserted there; selected text is kept (never overwritten).",
+      "Add one space before it when needsSpace(char before, first char of transcript), and one after when needsSpace(last char of transcript, char after).",
+      "cursor = offset right after the inserted transcript (after the leading space, before the trailing space). Empty transcript leaves text and cursor (= selection end) unchanged."
+    ],
+    "failure": [
+      "Transient = network error, timeout, HTTP 408 / 409 / 429 / >= 500. Auth = HTTP 401 / 403. Everything else is permanent.",
+      "attempt = 1-based number of the request that just failed. Transient with attempt <= maxAutoRetries: retry silently after Retry-After when present, else defaultDelaySec; Retry-After > maxRetryAfterSec (10 itself still retries) means no auto retry. input.failure.retryAfter is the raw header: only a non-negative decimal number of seconds counts; an HTTP-date or anything unparsable counts as absent; retry-after-ms is ignored.",
+      "When not retrying: primaryAction check_connection for auth, retry otherwise; the recording stays in the slot."
+    ],
+    "request": [
+      "Parts in this order: model, then the language hint (only when the user picked a recognition language and the entry has languageField; the part name is languageField verbatim, value = ISO-639-1 primary subtag of input.language, which is the recognition language chosen in settings (one of the app locales; null = auto), after normalising _ to - and legacy codes in / iw / ji to id / he / yi), then file last (xai_stt requires file last; openai_transcriptions follows the same order).",
+      "No response_format part (json is the default for every P1 entry). Request URL = connection origin + entry path.",
+      "gemini_transcribe and dashscope_asr send JSON; their cases have expected {method, path, headers, json} and input.audioBase64 (the m4a bytes, standard base64) and input.apiKey (always \"test-key\"); expected.headers lists the auth header and Content-Type, and each client compares headers entry by entry. Auth header is decided by transport only: gemini_* use x-goog-api-key: <key>, all others Authorization: Bearer <key>; JSON requests also send Content-Type: application/json. gemini_transcribe body = {model, store: false, input: [{type: audio, mime_type: audio/m4a, data: <b64>}]} and never sends a language. dashscope_asr body = {model, input: {messages: [{role: user, content: [{type: input_audio, input_audio: {data: \"data:audio/mp4;base64,<b64>\"}}]}]}, parameters: {format: m4a}}; when a recognition language is picked and languageField == language_hints, parameters.language_hints = [ISO-639-1 primary subtag, same normalisation as above]. Allowed languageField per transport: openai_transcriptions / xai_stt → language; dashscope_asr → language_hints; gemini_transcribe → none. Mistral stt is plain openai_transcriptions multipart (unchanged shape). Old transports are byte-for-byte unchanged; unknown transports are dropped at decode."
+    ],
+    "response": [
+      "Transcript = top-level string field text, trimmed. Missing or non-string text = invalid response (treated as a permanent failure). An empty transcript after joining all segments = no_speech.",
+      "input.transport selects the parser (absent = openai_transcriptions; xai_stt parses the same). gemini_transcribe: concatenate, in order, every steps[].content[] item with type == text, then trim; empty or no text = invalid response. dashscope_asr: output.text, trimmed; missing or non-string = invalid response. Invalid responses are not retried (same as today); retry classification looks only at the HTTP status, never at the error body."
+    ],
+    "retention": [
+      "Pending files with age > pendingRetentionSec are deleted at launch (expired, not counted as lost). Discarding a recording longer than discardUndoAboveSec shows the undo toast; exactly 5 s does not."
+    ]
+  },
+  "precheckCases": [
+    {
+      "id": "precheck_shorter_than_half_second",
+      "input": {
+        "durationSec": 0.45,
+        "envelope": [
+          -20,
+          -20,
+          -20,
+          -20,
+          -20,
+          -20,
+          -20,
+          -20,
+          -20
+        ]
+      },
+      "expected": "too_short"
+    },
+    {
+      "id": "precheck_exactly_half_second_with_speech",
+      "input": {
+        "durationSec": 0.5,
+        "envelope": [
+          -20,
+          -20,
+          -20,
+          -20,
+          -20,
+          -20,
+          -20,
+          -20,
+          -20,
+          -20
+        ]
+      },
+      "expected": "ok"
+    },
+    {
+      "id": "precheck_digital_silence_android_muted_mic",
+      "input": {
+        "durationSec": 3,
+        "envelope": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      },
+      "expected": "no_speech"
+    },
+    {
+      "id": "precheck_room_noise_only",
+      "input": {
+        "durationSec": 2,
+        "envelope": [
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52,
+          -52
+        ]
+      },
+      "expected": "no_speech"
+    },
+    {
+      "id": "precheck_voiced_just_below_minimum",
+      "input": {
+        "durationSec": 2,
+        "envelope": [
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -30,
+          -30,
+          -30,
+          -30,
+          -30,
+          -60
+        ]
+      },
+      "expected": "no_speech"
+    },
+    {
+      "id": "precheck_voiced_exactly_minimum",
+      "input": {
+        "durationSec": 2,
+        "envelope": [
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -30,
+          -30,
+          -30,
+          -30,
+          -30,
+          -30
+        ]
+      },
+      "expected": "ok"
+    },
+    {
+      "id": "precheck_threshold_inclusive",
+      "input": {
+        "durationSec": 1,
+        "envelope": [
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -45,
+          -45,
+          -45,
+          -45,
+          -45,
+          -45
+        ]
+      },
+      "expected": "ok"
+    },
+    {
+      "id": "precheck_normal_speech",
+      "input": {
+        "durationSec": 2,
+        "envelope": [
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -25,
+          -25,
+          -25,
+          -25,
+          -25,
+          -25,
+          -25,
+          -25,
+          -25,
+          -25,
+          -25,
+          -25,
+          -25,
+          -25,
+          -25,
+          -25,
+          -25,
+          -25,
+          -25,
+          -25,
+          -25,
+          -25,
+          -25,
+          -25,
+          -25,
+          -25,
+          -25,
+          -25,
+          -25,
+          -25,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60
+        ]
+      },
+      "expected": "ok"
+    }
+  ],
+  "silenceRunCases": [
+    {
+      "id": "silence_run_minimum_length_kept",
+      "input": {
+        "envelope": [
+          -20,
+          -20,
+          -20,
+          -20,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -20,
+          -20,
+          -20,
+          -20
+        ]
+      },
+      "expected": [
+        [
+          0.2,
+          0.6
+        ]
+      ]
+    },
+    {
+      "id": "silence_run_too_short_dropped",
+      "input": {
+        "envelope": [
+          -20,
+          -20,
+          -20,
+          -20,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -60,
+          -20,
+          -20,
+          -20,
+          -20
+        ]
+      },
+      "expected": []
+    },
+    {
+      "id": "silence_run_leading_trailing_and_null",
+      "input": {
+        "envelope": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          -30,
+          -30,
+          -30,
+          -30,
+          -30,
+          -30,
+          -50,
+          -50,
+          -50,
+          -30,
+          -30,
+          -30,
+          -30,
+          -30,
+          -30,
+          -70,
+          -70,
+          -70,
+          -70,
+          -70,
+          -70,
+          -70,
+          -70,
+          -70
+        ]
+      },
+      "expected": [
+        [
+          0,
+          0.5
+        ],
+        [
+          1.25,
+          1.7
+        ]
+      ]
+    }
+  ],
+  "segmentPlanCases": [
+    {
+      "id": "segment_short_single",
+      "input": {
+        "entry": {
+          "providerKind": "openAI",
+          "direction": "stt",
+          "model": "gpt-transcribe"
+        },
+        "recording": {
+          "durationSec": 42.3,
+          "uploadBytes": 340000,
+          "silences": [
+            [
+              10,
+              11
+            ]
+          ]
+        }
+      },
+      "expected": [
+        [
+          0,
+          42.3
+        ]
+      ]
+    },
+    {
+      "id": "segment_exactly_max_duration_single",
+      "input": {
+        "entry": {
+          "providerKind": "openAI",
+          "direction": "stt",
+          "model": "gpt-transcribe"
+        },
+        "recording": {
+          "durationSec": 600,
+          "uploadBytes": 4800000,
+          "silences": []
+        }
+      },
+      "expected": [
+        [
+          0,
+          600
+        ]
+      ]
+    },
+    {
+      "id": "segment_twelve_minutes_cut_at_latest_silence",
+      "input": {
+        "entry": {
+          "providerKind": "openAI",
+          "direction": "stt",
+          "model": "gpt-transcribe"
+        },
+        "recording": {
+          "durationSec": 720,
+          "uploadBytes": 5760000,
+          "silences": [
+            [
+              250,
+              251
+            ],
+            [
+              497.2,
+              498
+            ],
+            [
+              583.6,
+              584.4
+            ],
+            [
+              610,
+              611
+            ]
+          ]
+        }
+      },
+      "expected": [
+        [
+          0,
+          584
+        ],
+        [
+          584,
+          720
+        ]
+      ]
+    },
+    {
+      "id": "segment_no_silence_hard_cut",
+      "input": {
+        "entry": {
+          "providerKind": "openAI",
+          "direction": "stt",
+          "model": "gpt-transcribe"
+        },
+        "recording": {
+          "durationSec": 1300,
+          "uploadBytes": 10400000,
+          "silences": []
+        }
+      },
+      "expected": [
+        [
+          0,
+          600
+        ],
+        [
+          600,
+          1200
+        ],
+        [
+          1200,
+          1300
+        ]
+      ]
+    },
+    {
+      "id": "segment_silence_before_window_ignored",
+      "input": {
+        "entry": {
+          "providerKind": "openAI",
+          "direction": "stt",
+          "model": "gpt-transcribe"
+        },
+        "recording": {
+          "durationSec": 700,
+          "uploadBytes": 5600000,
+          "silences": [
+            [
+              100,
+              101
+            ],
+            [
+              299,
+              299.8
+            ]
+          ]
+        }
+      },
+      "expected": [
+        [
+          0,
+          600
+        ],
+        [
+          600,
+          700
+        ]
+      ]
+    },
+    {
+      "id": "segment_bytes_limit_binds",
+      "input": {
+        "limits": {
+          "maxBytes": 25000000,
+          "maxDurationSec": 3600
+        },
+        "recording": {
+          "durationSec": 1800,
+          "uploadBytes": 72000000,
+          "silences": [
+            [
+              290,
+              291
+            ],
+            [
+              560,
+              561.2
+            ],
+            [
+              845.4,
+              846
+            ],
+            [
+              1120,
+              1120.6
+            ],
+            [
+              1400,
+              1401
+            ],
+            [
+              1690,
+              1690.4
+            ]
+          ]
+        }
+      },
+      "expected": [
+        [
+          0,
+          560.6
+        ],
+        [
+          560.6,
+          1120.3
+        ],
+        [
+          1120.3,
+          1682.8
+        ],
+        [
+          1682.8,
+          1800
+        ]
+      ]
+    }
+  ],
+  "joinCases": [
+    {
+      "id": "join_latin_space",
+      "input": {
+        "texts": [
+          "Hello there.",
+          "How are you?"
+        ]
+      },
+      "expected": "Hello there. How are you?"
+    },
+    {
+      "id": "join_cjk_no_space",
+      "input": {
+        "texts": [
+          "今天天气不错。",
+          "我们出去走走吧"
+        ]
+      },
+      "expected": "今天天气不错。我们出去走走吧"
+    },
+    {
+      "id": "join_cjk_then_latin_no_space",
+      "input": {
+        "texts": [
+          "我在用 iPhone",
+          "Pro 写代码"
+        ]
+      },
+      "expected": "我在用 iPhone Pro 写代码"
+    },
+    {
+      "id": "join_trim_and_drop_empty",
+      "input": {
+        "texts": [
+          "  first part ",
+          "   ",
+          "\nsecond part\n"
+        ]
+      },
+      "expected": "first part second part"
+    },
+    {
+      "id": "join_next_starts_with_punctuation",
+      "input": {
+        "texts": [
+          "so I said",
+          ", and then left"
+        ]
+      },
+      "expected": "so I said, and then left"
+    },
+    {
+      "id": "join_japanese_and_thai",
+      "input": {
+        "texts": [
+          "これはテストです",
+          "สวัสดีครับ"
+        ]
+      },
+      "expected": "これはテストですสวัสดีครับ"
+    },
+    {
+      "id": "join_arabic_space",
+      "input": {
+        "texts": [
+          "مرحبا بكم",
+          "في التطبيق"
+        ]
+      },
+      "expected": "مرحبا بكم في التطبيق"
+    },
+    {
+      "id": "join_all_empty",
+      "input": {
+        "texts": [
+          "",
+          " "
+        ]
+      },
+      "expected": ""
+    },
+    {
+      "id": "join_supplementary_han_no_space",
+      "input": {
+        "texts": [
+          "𠀀",
+          "𠀁"
+        ]
+      },
+      "expected": "𠀀𠀁"
+    },
+    {
+      "id": "join_keeps_u0085_and_ufeff",
+      "input": {
+        "texts": [
+          "a",
+          "b﻿"
+        ]
+      },
+      "expected": "a b﻿"
+    }
+  ],
+  "insertCases": [
+    {
+      "id": "insert_empty_field",
+      "input": {
+        "text": "",
+        "selectionStart": 0,
+        "selectionEnd": 0,
+        "transcript": " Hello world "
+      },
+      "expected": {
+        "text": "Hello world",
+        "cursor": 11
+      }
+    },
+    {
+      "id": "insert_append_latin_adds_space",
+      "input": {
+        "text": "Hello",
+        "selectionStart": 5,
+        "selectionEnd": 5,
+        "transcript": "world"
+      },
+      "expected": {
+        "text": "Hello world",
+        "cursor": 11
+      }
+    },
+    {
+      "id": "insert_middle_adds_both_spaces",
+      "input": {
+        "text": "Hello there",
+        "selectionStart": 5,
+        "selectionEnd": 5,
+        "transcript": "big"
+      },
+      "expected": {
+        "text": "Hello big there",
+        "cursor": 9
+      }
+    },
+    {
+      "id": "insert_after_existing_space",
+      "input": {
+        "text": "Hello ",
+        "selectionStart": 6,
+        "selectionEnd": 6,
+        "transcript": "world"
+      },
+      "expected": {
+        "text": "Hello world",
+        "cursor": 11
+      }
+    },
+    {
+      "id": "insert_cjk_no_space",
+      "input": {
+        "text": "你好",
+        "selectionStart": 2,
+        "selectionEnd": 2,
+        "transcript": "世界"
+      },
+      "expected": {
+        "text": "你好世界",
+        "cursor": 4
+      }
+    },
+    {
+      "id": "insert_selection_kept_inserted_at_end",
+      "input": {
+        "text": "pick this word",
+        "selectionStart": 5,
+        "selectionEnd": 9,
+        "transcript": "and"
+      },
+      "expected": {
+        "text": "pick this and word",
+        "cursor": 13
+      }
+    },
+    {
+      "id": "insert_before_punctuation",
+      "input": {
+        "text": "Thanks!",
+        "selectionStart": 6,
+        "selectionEnd": 6,
+        "transcript": "a lot"
+      },
+      "expected": {
+        "text": "Thanks a lot!",
+        "cursor": 12
+      }
+    },
+    {
+      "id": "insert_utf16_emoji_offset",
+      "input": {
+        "text": "Hi 😀",
+        "selectionStart": 5,
+        "selectionEnd": 5,
+        "transcript": "there"
+      },
+      "expected": {
+        "text": "Hi 😀 there",
+        "cursor": 11
+      }
+    },
+    {
+      "id": "insert_after_supplementary_han",
+      "input": {
+        "text": "𠀀",
+        "selectionStart": 2,
+        "selectionEnd": 2,
+        "transcript": "abc"
+      },
+      "expected": {
+        "text": "𠀀abc",
+        "cursor": 5
+      }
+    },
+    {
+      "id": "insert_reversed_selection_uses_max",
+      "input": {
+        "text": "pick this word",
+        "selectionStart": 9,
+        "selectionEnd": 5,
+        "transcript": "and"
+      },
+      "expected": {
+        "text": "pick this and word",
+        "cursor": 13
+      }
+    },
+    {
+      "id": "insert_empty_transcript_noop",
+      "input": {
+        "text": "Draft",
+        "selectionStart": 2,
+        "selectionEnd": 3,
+        "transcript": "   "
+      },
+      "expected": {
+        "text": "Draft",
+        "cursor": 3
+      }
+    }
+  ],
+  "failureCases": [
+    {
+      "id": "failure_network_first_attempt_retries",
+      "input": {
+        "failure": {
+          "kind": "network"
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "autoRetry": true,
+        "delaySec": 1
+      }
+    },
+    {
+      "id": "failure_timeout_first_attempt_retries",
+      "input": {
+        "failure": {
+          "kind": "timeout"
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "autoRetry": true,
+        "delaySec": 1
+      }
+    },
+    {
+      "id": "failure_500_retries",
+      "input": {
+        "failure": {
+          "kind": "http",
+          "status": 500
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "autoRetry": true,
+        "delaySec": 1
+      }
+    },
+    {
+      "id": "failure_503_second_attempt_stops",
+      "input": {
+        "failure": {
+          "kind": "http",
+          "status": 503
+        },
+        "attempt": 2
+      },
+      "expected": {
+        "autoRetry": false,
+        "primaryAction": "retry"
+      }
+    },
+    {
+      "id": "failure_429_retry_after_honoured",
+      "input": {
+        "failure": {
+          "kind": "http",
+          "status": 429,
+          "retryAfter": "3"
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "autoRetry": true,
+        "delaySec": 3
+      }
+    },
+    {
+      "id": "failure_429_retry_after_ten_still_retries",
+      "input": {
+        "failure": {
+          "kind": "http",
+          "status": 429,
+          "retryAfter": "10"
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "autoRetry": true,
+        "delaySec": 10
+      }
+    },
+    {
+      "id": "failure_503_retry_after_http_date_ignored",
+      "input": {
+        "failure": {
+          "kind": "http",
+          "status": 503,
+          "retryAfter": "Wed, 21 Oct 2026 07:28:00 GMT"
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "autoRetry": true,
+        "delaySec": 1
+      }
+    },
+    {
+      "id": "failure_429_retry_after_too_long",
+      "input": {
+        "failure": {
+          "kind": "http",
+          "status": 429,
+          "retryAfter": "30"
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "autoRetry": false,
+        "primaryAction": "retry"
+      }
+    },
+    {
+      "id": "failure_408_retries",
+      "input": {
+        "failure": {
+          "kind": "http",
+          "status": 408
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "autoRetry": true,
+        "delaySec": 1
+      }
+    },
+    {
+      "id": "failure_401_check_connection",
+      "input": {
+        "failure": {
+          "kind": "http",
+          "status": 401
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "autoRetry": false,
+        "primaryAction": "check_connection"
+      }
+    },
+    {
+      "id": "failure_403_check_connection",
+      "input": {
+        "failure": {
+          "kind": "http",
+          "status": 403
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "autoRetry": false,
+        "primaryAction": "check_connection"
+      }
+    },
+    {
+      "id": "failure_400_permanent",
+      "input": {
+        "failure": {
+          "kind": "http",
+          "status": 400
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "autoRetry": false,
+        "primaryAction": "retry"
+      }
+    },
+    {
+      "id": "failure_413_permanent",
+      "input": {
+        "failure": {
+          "kind": "http",
+          "status": 413
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "autoRetry": false,
+        "primaryAction": "retry"
+      }
+    },
+    {
+      "id": "failure_network_second_attempt_stops",
+      "input": {
+        "failure": {
+          "kind": "network"
+        },
+        "attempt": 2
+      },
+      "expected": {
+        "autoRetry": false,
+        "primaryAction": "retry"
+      }
+    }
+  ],
+  "requestCases": [
+    {
+      "id": "request_openai_transcribe_auto_language",
+      "input": {
+        "entry": {
+          "providerKind": "openAI",
+          "direction": "stt",
+          "model": "gpt-transcribe"
+        },
+        "language": null
+      },
+      "expected": {
+        "method": "POST",
+        "path": "/v1/audio/transcriptions",
+        "parts": [
+          {
+            "name": "model",
+            "value": "gpt-transcribe"
+          },
+          {
+            "name": "file",
+            "filename": "audio.m4a",
+            "contentType": "audio/mp4"
+          }
+        ]
+      }
+    },
+    {
+      "id": "request_openai_transcribe_language_hint",
+      "input": {
+        "entry": {
+          "providerKind": "openAI",
+          "direction": "stt",
+          "model": "gpt-transcribe"
+        },
+        "language": "zh-Hans"
+      },
+      "expected": {
+        "method": "POST",
+        "path": "/v1/audio/transcriptions",
+        "parts": [
+          {
+            "name": "model",
+            "value": "gpt-transcribe"
+          },
+          {
+            "name": "language",
+            "value": "zh"
+          },
+          {
+            "name": "file",
+            "filename": "audio.m4a",
+            "contentType": "audio/mp4"
+          }
+        ]
+      }
+    },
+    {
+      "id": "request_xai_stt_file_last",
+      "input": {
+        "entry": {
+          "providerKind": "grok",
+          "direction": "stt",
+          "model": "grok-voice-transcribe-2.0"
+        },
+        "language": "pt-BR"
+      },
+      "expected": {
+        "method": "POST",
+        "path": "/v1/stt",
+        "parts": [
+          {
+            "name": "model",
+            "value": "grok-voice-transcribe-2.0"
+          },
+          {
+            "name": "language",
+            "value": "pt"
+          },
+          {
+            "name": "file",
+            "filename": "audio.m4a",
+            "contentType": "audio/mp4"
+          }
+        ]
+      }
+    },
+    {
+      "id": "request_groq_legacy_code_normalised",
+      "input": {
+        "entry": {
+          "providerKind": "groq",
+          "direction": "stt",
+          "model": "whisper-large-v3-turbo"
+        },
+        "language": "in_ID"
+      },
+      "expected": {
+        "method": "POST",
+        "path": "/openai/v1/audio/transcriptions",
+        "parts": [
+          {
+            "name": "model",
+            "value": "whisper-large-v3-turbo"
+          },
+          {
+            "name": "language",
+            "value": "id"
+          },
+          {
+            "name": "file",
+            "filename": "audio.m4a",
+            "contentType": "audio/mp4"
+          }
+        ]
+      }
+    },
+    {
+      "id": "request_groq_language_singular",
+      "input": {
+        "entry": {
+          "providerKind": "groq",
+          "direction": "stt",
+          "model": "whisper-large-v3-turbo"
+        },
+        "language": "ja"
+      },
+      "expected": {
+        "method": "POST",
+        "path": "/openai/v1/audio/transcriptions",
+        "parts": [
+          {
+            "name": "model",
+            "value": "whisper-large-v3-turbo"
+          },
+          {
+            "name": "language",
+            "value": "ja"
+          },
+          {
+            "name": "file",
+            "filename": "audio.m4a",
+            "contentType": "audio/mp4"
+          }
+        ]
+      }
+    },
+    {
+      "id": "request_no_language_field_omits_hint",
+      "input": {
+        "inlineEntry": {
+          "model": "inline-stt",
+          "transport": "openai_transcriptions",
+          "path": "/v1/audio/transcriptions"
+        },
+        "language": "zh-Hans"
+      },
+      "expected": {
+        "method": "POST",
+        "path": "/v1/audio/transcriptions",
+        "parts": [
+          {
+            "name": "model",
+            "value": "inline-stt"
+          },
+          {
+            "name": "file",
+            "filename": "audio.m4a",
+            "contentType": "audio/mp4"
+          }
+        ]
+      }
+    },
+    {
+      "id": "request_gemini_transcribe_inline_audio",
+      "input": {
+        "entry": {
+          "providerKind": "gemini",
+          "direction": "stt",
+          "model": "gemini-3.5-transcribe"
+        },
+        "language": "zh-Hans",
+        "audioBase64": "AAECAw==",
+        "apiKey": "test-key"
+      },
+      "expected": {
+        "method": "POST",
+        "path": "/v1beta/interactions",
+        "headers": {
+          "x-goog-api-key": "test-key",
+          "Content-Type": "application/json"
+        },
+        "json": {
+          "model": "gemini-3.5-transcribe",
+          "store": false,
+          "input": [
+            {
+              "type": "audio",
+              "mime_type": "audio/m4a",
+              "data": "AAECAw=="
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "request_dashscope_asr_language_hints",
+      "input": {
+        "inlineEntry": {
+          "model": "qwen3-asr-flash",
+          "transport": "dashscope_asr",
+          "path": "/api/v1/services/aigc/multimodal-generation/generation",
+          "maxBytes": 10000000,
+          "maxDurationSec": 300,
+          "languageField": "language_hints",
+          "isDefault": true
+        },
+        "language": "zh_Hans",
+        "audioBase64": "AAECAw==",
+        "apiKey": "test-key"
+      },
+      "expected": {
+        "method": "POST",
+        "path": "/api/v1/services/aigc/multimodal-generation/generation",
+        "headers": {
+          "Authorization": "Bearer test-key",
+          "Content-Type": "application/json"
+        },
+        "json": {
+          "model": "qwen3-asr-flash",
+          "input": {
+            "messages": [
+              {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "input_audio",
+                    "input_audio": {
+                      "data": "data:audio/mp4;base64,AAECAw=="
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "parameters": {
+            "format": "m4a",
+            "language_hints": [
+              "zh"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "request_dashscope_asr_auto_language",
+      "input": {
+        "inlineEntry": {
+          "model": "qwen3-asr-flash",
+          "transport": "dashscope_asr",
+          "path": "/api/v1/services/aigc/multimodal-generation/generation",
+          "maxBytes": 10000000,
+          "maxDurationSec": 300,
+          "languageField": "language_hints",
+          "isDefault": true
+        },
+        "language": null,
+        "audioBase64": "AAECAw==",
+        "apiKey": "test-key"
+      },
+      "expected": {
+        "method": "POST",
+        "path": "/api/v1/services/aigc/multimodal-generation/generation",
+        "headers": {
+          "Authorization": "Bearer test-key",
+          "Content-Type": "application/json"
+        },
+        "json": {
+          "model": "qwen3-asr-flash",
+          "input": {
+            "messages": [
+              {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "input_audio",
+                    "input_audio": {
+                      "data": "data:audio/mp4;base64,AAECAw=="
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "parameters": {
+            "format": "m4a"
+          }
+        }
+      }
+    },
+    {
+      "id": "request_mistral_transcribe_multipart",
+      "input": {
+        "inlineEntry": {
+          "model": "voxtral-mini-latest",
+          "transport": "openai_transcriptions",
+          "path": "/v1/audio/transcriptions",
+          "maxBytes": 25000000,
+          "maxDurationSec": 600,
+          "languageField": "language",
+          "isDefault": true
+        },
+        "language": "fr"
+      },
+      "expected": {
+        "method": "POST",
+        "path": "/v1/audio/transcriptions",
+        "parts": [
+          {
+            "name": "model",
+            "value": "voxtral-mini-latest"
+          },
+          {
+            "name": "language",
+            "value": "fr"
+          },
+          {
+            "name": "file",
+            "filename": "audio.m4a",
+            "contentType": "audio/mp4"
+          }
+        ]
+      }
+    }
+  ],
+  "responseCases": [
+    {
+      "id": "response_openai_json",
+      "input": {
+        "body": {
+          "text": " Hello world. ",
+          "usage": {
+            "type": "duration",
+            "seconds": 3
+          }
+        }
+      },
+      "expected": "Hello world."
+    },
+    {
+      "id": "response_gpt_transcribe_languages",
+      "input": {
+        "body": {
+          "text": "你好",
+          "languages": [
+            {
+              "code": "zh"
+            }
+          ]
+        }
+      },
+      "expected": "你好"
+    },
+    {
+      "id": "response_xai_stt",
+      "input": {
+        "body": {
+          "text": "Bonjour",
+          "language": "fr",
+          "duration": 2.4,
+          "words": []
+        }
+      },
+      "expected": "Bonjour"
+    },
+    {
+      "id": "response_empty_text",
+      "input": {
+        "body": {
+          "text": ""
+        }
+      },
+      "expected": ""
+    },
+    {
+      "id": "response_missing_text_invalid",
+      "input": {
+        "body": {
+          "error": "x"
+        }
+      },
+      "expected": null
+    },
+    {
+      "id": "response_non_string_text_invalid",
+      "input": {
+        "body": {
+          "text": 42
+        }
+      },
+      "expected": null
+    },
+    {
+      "id": "response_gemini_steps_text",
+      "input": {
+        "transport": "gemini_transcribe",
+        "body": {
+          "id": "v1_abc",
+          "status": "completed",
+          "steps": [
+            {
+              "type": "model_output",
+              "content": [
+                {
+                  "type": "text",
+                  "text": " Hello"
+                },
+                {
+                  "type": "text",
+                  "text": " world. "
+                }
+              ]
+            },
+            {
+              "type": "model_output",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Again.\n"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "expected": "Hello world. Again."
+    },
+    {
+      "id": "response_gemini_no_text_invalid",
+      "input": {
+        "transport": "gemini_transcribe",
+        "body": {
+          "id": "v1_abc",
+          "status": "completed",
+          "steps": [
+            {
+              "type": "model_output",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "  "
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "expected": null
+    },
+    {
+      "id": "response_dashscope_output_text",
+      "input": {
+        "transport": "dashscope_asr",
+        "body": {
+          "output": {
+            "text": " 你好，世界。 ",
+            "finish_reason": "stop"
+          },
+          "usage": {
+            "seconds": 3
+          },
+          "request_id": "req-1"
+        }
+      },
+      "expected": "你好，世界。"
+    },
+    {
+      "id": "response_mistral_extra_fields",
+      "input": {
+        "body": {
+          "model": "voxtral-mini-latest",
+          "text": " Bonjour à tous. ",
+          "language": "fr",
+          "segments": [],
+          "usage": {
+            "prompt_audio_seconds": 3,
+            "total_tokens": 40
+          }
+        }
+      },
+      "expected": "Bonjour à tous."
+    },
+    {
+      "id": "response_gemini_live_sample",
+      "input": {
+        "transport": "gemini_transcribe",
+        "body": {
+          "status": "completed",
+          "usage": {
+            "total_tokens": 112,
+            "total_input_tokens": 101,
+            "input_tokens_by_modality": [
+              {
+                "modality": "text",
+                "tokens": 1
+              },
+              {
+                "modality": "audio",
+                "tokens": 100
+              }
+            ],
+            "total_cached_tokens": 0,
+            "total_output_tokens": 11,
+            "total_tool_use_tokens": 0,
+            "total_thought_tokens": 0
+          },
+          "created": "2026-10-21T09:34:36Z",
+          "updated": "2026-10-21T09:34:36Z",
+          "service_tier": "standard",
+          "steps": [
+            {
+              "content": [
+                {
+                  "text": "今天天气很好，我们下午去公园散步。",
+                  "type": "text"
+                }
+              ],
+              "type": "model_output"
+            }
+          ],
+          "object": "interaction",
+          "model": "gemini-3.5-transcribe"
+        }
+      },
+      "expected": "今天天气很好，我们下午去公园散步。"
+    },
+    {
+      "id": "response_mistral_live_sample",
+      "input": {
+        "body": {
+          "model": "voxtral-mini-transcribe-3-0",
+          "text": "今天天气很好，我们下午去公园散步。",
+          "language": null,
+          "segments": [],
+          "usage": {
+            "prompt_audio_seconds": 3,
+            "prompt_tokens": 3,
+            "total_tokens": 393,
+            "completion_tokens": 15,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "audio_tokens": 375
+            },
+            "service_tier": "standard"
+          },
+          "finish_reason": null
+        }
+      },
+      "expected": "今天天气很好，我们下午去公园散步。"
+    },
+    {
+      "id": "response_dashscope_live_sample",
+      "input": {
+        "transport": "dashscope_asr",
+        "body": {
+          "output": {
+            "output": {
+              "request_id": "<id>",
+              "sentence": {
+                "begin_time": 160,
+                "channel_id": 0,
+                "end_time": 3990,
+                "sentence_end": true,
+                "sentence_id": 1,
+                "text": "今天天气很好，我们下午去公园散步。",
+                "words": [
+                  {
+                    "begin_time": 160,
+                    "end_time": 640,
+                    "fixed": true,
+                    "punctuation": "",
+                    "text": "今天"
+                  },
+                  {
+                    "begin_time": 640,
+                    "end_time": 1160,
+                    "fixed": true,
+                    "punctuation": "",
+                    "text": "天气"
+                  }
+                ]
+              },
+              "text": "今天天气很好，我们下午去公园散步。"
+            },
+            "request_id": "<id>",
+            "sentence": {
+              "begin_time": 160,
+              "channel_id": 0,
+              "end_time": 3990,
+              "sentence_end": true,
+              "sentence_id": 1,
+              "text": "今天天气很好，我们下午去公园散步。",
+              "words": [
+                {
+                  "begin_time": 160,
+                  "end_time": 640,
+                  "fixed": true,
+                  "punctuation": "",
+                  "text": "今天"
+                },
+                {
+                  "begin_time": 640,
+                  "end_time": 1160,
+                  "fixed": true,
+                  "punctuation": "",
+                  "text": "天气"
+                }
+              ]
+            },
+            "text": "今天天气很好，我们下午去公园散步。",
+            "usage": {
+              "duration": 4
+            }
+          },
+          "usage": {
+            "duration": 4
+          },
+          "request_id": "<id>"
+        }
+      },
+      "expected": "今天天气很好，我们下午去公园散步。"
+    }
+  ],
+  "thresholdCases": [
+    {
+      "id": "discard_exactly_five_seconds_no_toast",
+      "input": {
+        "kind": "discard_undo",
+        "value": 5
+      },
+      "expected": false
+    },
+    {
+      "id": "discard_over_five_seconds_toast",
+      "input": {
+        "kind": "discard_undo",
+        "value": 5.05
+      },
+      "expected": true
+    },
+    {
+      "id": "retention_exactly_seven_days_kept",
+      "input": {
+        "kind": "retention_age",
+        "value": 604800
+      },
+      "expected": false
+    },
+    {
+      "id": "retention_over_seven_days_deleted",
+      "input": {
+        "kind": "retention_age",
+        "value": 604801
+      },
+      "expected": true
+    }
+  ]
+}

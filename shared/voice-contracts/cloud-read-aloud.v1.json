@@ -1,0 +1,1504 @@
+{
+  "$comment": "Shared cloud read-aloud contract. Input sentences are the texts the read-aloud pipeline speaks after speakable-text (placeholders already localized). bodyCases reference entries {providerKind, direction, model} in the data object of shared/model-contracts/voice_catalog_contract.v2.json.",
+  "schema": "oriveo.voice.cloud-read-aloud",
+  "version": 1,
+  "constants": {
+    "unit": "unicode_scalar",
+    "firstChunkMaxCodePoints": 200,
+    "firstChunkMaxSentences": 2,
+    "laterChunkCapCodePoints": 1000,
+    "sentenceJoiner": " ",
+    "prefetchChunks": 1,
+    "languageMinConfidence": 0.5,
+    "xaiTtsLanguages": [
+      "en",
+      "ar-EG",
+      "ar-SA",
+      "ar-AE",
+      "bn",
+      "zh",
+      "fr",
+      "de",
+      "hi",
+      "id",
+      "it",
+      "ja",
+      "ko",
+      "pt-BR",
+      "pt-PT",
+      "ru",
+      "es-MX",
+      "es-ES",
+      "tr",
+      "vi"
+    ],
+    "xaiDefaultRegion": {
+      "ar": "ar-SA",
+      "es": "es-MX",
+      "pt": "pt-BR"
+    },
+    "speedSlider": {
+      "min": 0.5,
+      "max": 2,
+      "step": 0.1,
+      "default": 1
+    },
+    "speedDecimals": 2,
+    "cache": {
+      "maxBytes": 52428800,
+      "eviction": "lru",
+      "keyFields": [
+        "textSha256",
+        "providerKind",
+        "model",
+        "voice",
+        "speed",
+        "language"
+      ],
+      "backup": false
+    }
+  },
+  "rules": {
+    "chunks": [
+      "Lengths are Unicode scalar counts (not grapheme clusters, not UTF-16). Trim sentences (whitespace set of dictation.v1.json) and drop empty ones. Chunk 1 = sentence 1, plus sentence 2 when \"s1 s2\" fits in min(200, maxChars) code points.",
+      "Chunk k (k >= 2) packs whole sentences joined by one space up to limit_k = min(maxChars, 1000, 200 × 2^(k−1)) code points (400, 800, 1000, 1000, …). A sentence is never split (speakable-text caps sentences at 200).",
+      "Requests are serial; while chunk k plays only chunk k+1 is fetched. Stopping cancels the in-flight request."
+    ],
+    "readingLanguage": [
+      "Take the hypothesis with the highest confidence (ties: the lexicographically smallest tag, since iOS hypotheses are an unordered dictionary); if there is none or its confidence < 0.5, use the app UI locale. Detector tags are kept as given (BCP-47)."
+    ],
+    "xaiLanguage": [
+      "Normalise first (_ → -, in / iw / ji → id / he / yi). Case-insensitive exact match in xaiTtsLanguages → that spelling; else the primary subtag when it is in the list (zh-Hans / zh-Hant → zh); else xaiDefaultRegion for the primary subtag; else auto."
+    ],
+    "body": [
+      "openai_speech: {model, input, voice, response_format = entry.outputFormat, speed?}. xai_tts: {text, voice_id, language, output_format: {codec: entry.outputFormat}, speed?} — no model field (catalog id xai-tts is ours).",
+      "Effective speed: compute in double precision (Android converts the Float slider value to Double first); clamp the slider value to the catalog entry speedRange {min, max}, then round half up to 2 decimals as floor(x × 100 + 0.5) / 100 (not banker's rounding, not toFixed); omit speed when the result equals 1. An entry without speedRange does not support speed (e.g. groq Orpheus): the effective speed is 1 and speed is never sent. A missing slider value = 1. The cache key field speed is this effective speed, not the raw slider value.",
+      "Key order in expected is the canonical order; JSON key order is not significant on the wire.",
+      "Cases with input.apiKey carry expected.headers: auth header by transport only (gemini_* → x-goog-api-key: <key>; others → Authorization: Bearer <key>) plus Content-Type: application/json. gemini_tts: {model, store: false, input: [{type: user_input, content: [{type: text, text}]}], response_format: {type: audio, mime_type: audio/wav}, generation_config: {speech_config: [{voice}]}}. mistral_speech: {model, input, voice_id, response_format: mp3}. dashscope_tts: {model, input: {text, voice, language_type}}; language_type maps the normalised primary subtag of the reading language zh→Chinese en→English de→German it→Italian pt→Portuguese es→Spanish ja→Japanese ko→Korean fr→French ru→Russian, anything else Auto. The new TTS transports never send speed."
+    ],
+    "failure": [
+      "Per chunk, auto retry follows dictation failure rules. When not retrying (including 401 / 403), continue from the failed chunk with the system engine and show the fallback notice once."
+    ],
+    "audioResponse": [
+      "expected = {audioBase64} (decode it: these bytes are the audio, cached and played; not the JSON) | {downloadUrl} (GET it without auth headers; non-2xx follows the same status rules; the body bytes are the wav audio) | null (invalid response: no retry, fall back to the system engine as today).",
+      "gemini_tts: data of the first steps[].content[] item with type == audio. mistral_speech: top-level audio_data. dashscope_tts: output.audio.url, must be https. Missing field, bad base64 (standard alphabet, padded) or empty decoded audio → null."
+    ],
+    "reviewUnification": [
+      "Review unification (X-VPRIV): base64 must be strict (length multiple of 4, padded, standard alphabet) or the response is invalid; the dashscope download URL is parsed as a URL, scheme compared case-insensitively to https and host must be non-empty; gemini_tts takes only the first audio block and an empty data there is invalid (no searching further); dashscope_tts only accepts output.audio.url, data without url is invalid; JSON requests send only the auth header and Content-Type (no Accept); mistral_speech always sends response_format mp3; JSON and base64 decoding stays off the main thread.",
+      "Accept: code never sets Accept explicitly; Accept headers added by the HTTP stack or a client plugin do not count, and expected.headers compares only explicitly set headers. Download URL host: any non-empty host a lenient URL parser accepts (underscores allowed); URL-safe base64 alphabet (- _) is invalid."
+    ]
+  },
+  "chunkCases": [
+    {
+      "id": "chunk_single_sentence",
+      "input": {
+        "sentences": [
+          "Only one sentence."
+        ],
+        "maxChars": 4096
+      },
+      "expected": [
+        "Only one sentence."
+      ]
+    },
+    {
+      "id": "chunk_first_two_sentences_fit",
+      "input": {
+        "sentences": [
+          "First one.",
+          "Second one.",
+          "Third one."
+        ],
+        "maxChars": 4096
+      },
+      "expected": [
+        "First one. Second one.",
+        "Third one."
+      ]
+    },
+    {
+      "id": "chunk_first_two_exceed_200",
+      "input": {
+        "sentences": [
+          "Axxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "Bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "C."
+        ],
+        "maxChars": 4096
+      },
+      "expected": [
+        "Axxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+        "Bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. C."
+      ]
+    },
+    {
+      "id": "chunk_first_exactly_200_with_joiner",
+      "input": {
+        "sentences": [
+          "Axxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "Bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "C."
+        ],
+        "maxChars": 4096
+      },
+      "expected": [
+        "Axxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. Bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+        "C."
+      ]
+    },
+    {
+      "id": "chunk_growth_400_800_1000",
+      "input": {
+        "sentences": [
+          "S0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S2xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S3xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S4xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S5xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S6xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S7xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S8xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S9xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S10xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S11xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S12xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S13xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S14xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S15xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S16xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S17xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S18xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S19xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S20xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S21xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S22xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S23xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S24xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S25xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S26xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S27xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S28xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S29xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S30xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S31xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S32xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S33xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S34xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S35xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S36xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S37xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S38xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S39xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S40xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S41xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S42xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S43xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S44xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S45xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S46xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S47xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S48xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S49xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S50xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S51xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S52xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S53xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S54xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S55xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S56xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S57xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S58xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "S59xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx."
+        ],
+        "maxChars": 4096
+      },
+      "expected": [
+        "S0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+        "S2xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S3xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S4xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S5xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S6xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S7xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S8xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+        "S9xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S10xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S11xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S12xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S13xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S14xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S15xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S16xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S17xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S18xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S19xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S20xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S21xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S22xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S23xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+        "S24xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S25xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S26xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S27xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S28xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S29xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S30xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S31xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S32xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S33xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S34xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S35xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S36xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S37xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S38xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S39xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S40xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S41xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S42xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+        "S43xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S44xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S45xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S46xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S47xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S48xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S49xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S50xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S51xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S52xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S53xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S54xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S55xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S56xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S57xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S58xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. S59xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx."
+      ]
+    },
+    {
+      "id": "chunk_maxchars_smaller_than_growth",
+      "input": {
+        "sentences": [
+          "T0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "T1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "T2xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "T3xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "T4xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "T5xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "T6xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "T7xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "T8xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "T9xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "T10xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "T11xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx."
+        ],
+        "maxChars": 300
+      },
+      "expected": [
+        "T0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+        "T1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+        "T2xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+        "T3xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+        "T4xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+        "T5xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+        "T6xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+        "T7xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+        "T8xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+        "T9xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+        "T10xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+        "T11xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx."
+      ]
+    },
+    {
+      "id": "chunk_xai_large_maxchars_still_capped",
+      "input": {
+        "sentences": [
+          "U0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "U1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "U2xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "U3xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "U4xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "U5xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "U6xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "U7xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "U8xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "U9xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "U10xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "U11xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "U12xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "U13xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "U14xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "U15xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "U16xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "U17xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "U18xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "U19xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "U20xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "U21xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "U22xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "U23xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "U24xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "U25xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "U26xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "U27xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "U28xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+          "U29xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx."
+        ],
+        "maxChars": 60000
+      },
+      "expected": [
+        "U0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. U1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+        "U2xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. U3xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. U4xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. U5xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+        "U6xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. U7xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. U8xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. U9xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. U10xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. U11xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. U12xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. U13xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+        "U14xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. U15xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. U16xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. U17xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. U18xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. U19xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. U20xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. U21xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. U22xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. U23xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. U24xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+        "U25xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. U26xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. U27xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. U28xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx. U29xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx."
+      ]
+    },
+    {
+      "id": "chunk_cjk_code_points",
+      "input": {
+        "sentences": [
+          "第一句话。",
+          "第二句话。",
+          "第三句话很长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长。",
+          "第四句。"
+        ],
+        "maxChars": 4096
+      },
+      "expected": [
+        "第一句话。 第二句话。",
+        "第三句话很长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长。 第四句。"
+      ]
+    },
+    {
+      "id": "chunk_trim_and_drop_empty",
+      "input": {
+        "sentences": [
+          "  Hello.  ",
+          "",
+          "   ",
+          "World."
+        ],
+        "maxChars": 4096
+      },
+      "expected": [
+        "Hello. World."
+      ]
+    },
+    {
+      "id": "chunk_empty_input",
+      "input": {
+        "sentences": [],
+        "maxChars": 4096
+      },
+      "expected": []
+    },
+    {
+      "id": "chunk_devanagari_counts_scalars_not_graphemes",
+      "input": {
+        "sentences": [
+          "नमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्ते।",
+          "नमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्ते।",
+          "ठीक है।"
+        ],
+        "maxChars": 4096
+      },
+      "expected": [
+        "नमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्ते।",
+        "नमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्तेनमस्ते। ठीक है।"
+      ]
+    }
+  ],
+  "readingLanguageCases": [
+    {
+      "id": "reading_language_top_hypothesis",
+      "input": {
+        "hypotheses": [
+          {
+            "language": "en",
+            "confidence": 0.62
+          },
+          {
+            "language": "de",
+            "confidence": 0.3
+          }
+        ],
+        "uiLocale": "zh-Hans"
+      },
+      "expected": "en"
+    },
+    {
+      "id": "reading_language_unsorted_input",
+      "input": {
+        "hypotheses": [
+          {
+            "language": "fr",
+            "confidence": 0.2
+          },
+          {
+            "language": "ja",
+            "confidence": 0.91
+          }
+        ],
+        "uiLocale": "en"
+      },
+      "expected": "ja"
+    },
+    {
+      "id": "reading_language_below_threshold_falls_back",
+      "input": {
+        "hypotheses": [
+          {
+            "language": "es",
+            "confidence": 0.49
+          }
+        ],
+        "uiLocale": "pt-BR"
+      },
+      "expected": "pt-BR"
+    },
+    {
+      "id": "reading_language_exactly_threshold_kept",
+      "input": {
+        "hypotheses": [
+          {
+            "language": "ko",
+            "confidence": 0.5
+          }
+        ],
+        "uiLocale": "en"
+      },
+      "expected": "ko"
+    },
+    {
+      "id": "reading_language_empty_falls_back",
+      "input": {
+        "hypotheses": [],
+        "uiLocale": "ar"
+      },
+      "expected": "ar"
+    },
+    {
+      "id": "reading_language_tie_smallest_tag",
+      "input": {
+        "hypotheses": [
+          {
+            "language": "zh-Hant",
+            "confidence": 0.6
+          },
+          {
+            "language": "ja",
+            "confidence": 0.6
+          }
+        ],
+        "uiLocale": "en"
+      },
+      "expected": "ja"
+    }
+  ],
+  "xaiLanguageCases": [
+    {
+      "id": "xai_language_zh_hans",
+      "input": {
+        "language": "zh-Hans"
+      },
+      "expected": "zh"
+    },
+    {
+      "id": "xai_language_zh_hant",
+      "input": {
+        "language": "zh-Hant"
+      },
+      "expected": "zh"
+    },
+    {
+      "id": "xai_language_pt_br",
+      "input": {
+        "language": "pt-BR"
+      },
+      "expected": "pt-BR"
+    },
+    {
+      "id": "xai_language_pt_plain",
+      "input": {
+        "language": "pt"
+      },
+      "expected": "pt-BR"
+    },
+    {
+      "id": "xai_language_ar_default_region",
+      "input": {
+        "language": "ar"
+      },
+      "expected": "ar-SA"
+    },
+    {
+      "id": "xai_language_es_exact_region",
+      "input": {
+        "language": "es-ES"
+      },
+      "expected": "es-ES"
+    },
+    {
+      "id": "xai_language_es_default_region",
+      "input": {
+        "language": "es"
+      },
+      "expected": "es-MX"
+    },
+    {
+      "id": "xai_language_case_insensitive",
+      "input": {
+        "language": "EN"
+      },
+      "expected": "en"
+    },
+    {
+      "id": "xai_language_thai_unsupported_auto",
+      "input": {
+        "language": "th"
+      },
+      "expected": "auto"
+    },
+    {
+      "id": "xai_language_en_us_primary",
+      "input": {
+        "language": "en-US"
+      },
+      "expected": "en"
+    },
+    {
+      "id": "xai_language_underscore",
+      "input": {
+        "language": "pt_PT"
+      },
+      "expected": "pt-PT"
+    },
+    {
+      "id": "xai_language_legacy_in",
+      "input": {
+        "language": "in"
+      },
+      "expected": "id"
+    },
+    {
+      "id": "xai_language_indonesian_region",
+      "input": {
+        "language": "in_ID"
+      },
+      "expected": "id"
+    }
+  ],
+  "bodyCases": [
+    {
+      "id": "body_openai_default_speed_omitted",
+      "input": {
+        "entry": {
+          "providerKind": "openAI",
+          "direction": "tts",
+          "model": "gpt-4o-mini-tts"
+        },
+        "text": "Hello there.",
+        "voice": "marin",
+        "speed": 1,
+        "language": "en"
+      },
+      "expected": {
+        "method": "POST",
+        "path": "/v1/audio/speech",
+        "json": {
+          "model": "gpt-4o-mini-tts",
+          "input": "Hello there.",
+          "voice": "marin",
+          "response_format": "mp3"
+        }
+      }
+    },
+    {
+      "id": "body_openai_speed_sent",
+      "input": {
+        "entry": {
+          "providerKind": "openAI",
+          "direction": "tts",
+          "model": "tts-1"
+        },
+        "text": "Hi.",
+        "voice": "alloy",
+        "speed": 1.5,
+        "language": "en"
+      },
+      "expected": {
+        "method": "POST",
+        "path": "/v1/audio/speech",
+        "json": {
+          "model": "tts-1",
+          "input": "Hi.",
+          "voice": "alloy",
+          "response_format": "mp3",
+          "speed": 1.5
+        }
+      }
+    },
+    {
+      "id": "body_siliconflow_voice_id_verbatim",
+      "input": {
+        "entry": {
+          "providerKind": "siliconFlow",
+          "direction": "tts",
+          "model": "FunAudioLLM/CosyVoice2-0.5B"
+        },
+        "text": "你好。",
+        "voice": "FunAudioLLM/CosyVoice2-0.5B:anna",
+        "speed": 0.8,
+        "language": "zh-Hans"
+      },
+      "expected": {
+        "method": "POST",
+        "path": "/v1/audio/speech",
+        "json": {
+          "model": "FunAudioLLM/CosyVoice2-0.5B",
+          "input": "你好。",
+          "voice": "FunAudioLLM/CosyVoice2-0.5B:anna",
+          "response_format": "mp3",
+          "speed": 0.8
+        }
+      }
+    },
+    {
+      "id": "body_xai_language_and_no_model",
+      "input": {
+        "entry": {
+          "providerKind": "grok",
+          "direction": "tts",
+          "model": "xai-tts"
+        },
+        "text": "你好。",
+        "voice": "eve",
+        "speed": 1,
+        "language": "zh-Hans"
+      },
+      "expected": {
+        "method": "POST",
+        "path": "/v1/tts",
+        "json": {
+          "text": "你好。",
+          "voice_id": "eve",
+          "language": "zh",
+          "output_format": {
+            "codec": "mp3"
+          }
+        }
+      }
+    },
+    {
+      "id": "body_xai_speed_clamped_high",
+      "input": {
+        "entry": {
+          "providerKind": "grok",
+          "direction": "tts",
+          "model": "xai-tts"
+        },
+        "text": "Fast.",
+        "voice": "eve",
+        "speed": 2,
+        "language": "en"
+      },
+      "expected": {
+        "method": "POST",
+        "path": "/v1/tts",
+        "json": {
+          "text": "Fast.",
+          "voice_id": "eve",
+          "language": "en",
+          "output_format": {
+            "codec": "mp3"
+          },
+          "speed": 1.5
+        }
+      }
+    },
+    {
+      "id": "body_xai_speed_clamped_low",
+      "input": {
+        "entry": {
+          "providerKind": "grok",
+          "direction": "tts",
+          "model": "xai-tts"
+        },
+        "text": "Slow.",
+        "voice": "eve",
+        "speed": 0.5,
+        "language": "th"
+      },
+      "expected": {
+        "method": "POST",
+        "path": "/v1/tts",
+        "json": {
+          "text": "Slow.",
+          "voice_id": "eve",
+          "language": "auto",
+          "output_format": {
+            "codec": "mp3"
+          },
+          "speed": 0.7
+        }
+      }
+    },
+    {
+      "id": "body_groq_wav_response_format",
+      "input": {
+        "entry": {
+          "providerKind": "groq",
+          "direction": "tts",
+          "model": "canopylabs/orpheus-v1-english"
+        },
+        "text": "Hello there.",
+        "voice": "autumn",
+        "speed": 1,
+        "language": "en"
+      },
+      "expected": {
+        "method": "POST",
+        "path": "/openai/v1/audio/speech",
+        "json": {
+          "model": "canopylabs/orpheus-v1-english",
+          "input": "Hello there.",
+          "voice": "autumn",
+          "response_format": "wav"
+        }
+      }
+    },
+    {
+      "id": "body_groq_speed_not_sent",
+      "input": {
+        "entry": {
+          "providerKind": "groq",
+          "direction": "tts",
+          "model": "canopylabs/orpheus-v1-english"
+        },
+        "text": "Faster please.",
+        "voice": "troy",
+        "speed": 1.5,
+        "language": "en"
+      },
+      "expected": {
+        "method": "POST",
+        "path": "/openai/v1/audio/speech",
+        "json": {
+          "model": "canopylabs/orpheus-v1-english",
+          "input": "Faster please.",
+          "voice": "troy",
+          "response_format": "wav"
+        }
+      }
+    },
+    {
+      "id": "body_siliconflow_speed_2_sent",
+      "input": {
+        "entry": {
+          "providerKind": "siliconFlow",
+          "direction": "tts",
+          "model": "FunAudioLLM/CosyVoice2-0.5B"
+        },
+        "text": "快一点。",
+        "voice": "FunAudioLLM/CosyVoice2-0.5B:anna",
+        "speed": 2,
+        "language": "zh-Hans"
+      },
+      "expected": {
+        "method": "POST",
+        "path": "/v1/audio/speech",
+        "json": {
+          "model": "FunAudioLLM/CosyVoice2-0.5B",
+          "input": "快一点。",
+          "voice": "FunAudioLLM/CosyVoice2-0.5B:anna",
+          "response_format": "mp3",
+          "speed": 2
+        }
+      }
+    },
+    {
+      "id": "body_openai_speed_float_noise_not_sent",
+      "input": {
+        "entry": {
+          "providerKind": "openAI",
+          "direction": "tts",
+          "model": "tts-1"
+        },
+        "text": "Hi.",
+        "voice": "alloy",
+        "speed": 1.0000000000000002,
+        "language": "en"
+      },
+      "expected": {
+        "method": "POST",
+        "path": "/v1/audio/speech",
+        "json": {
+          "model": "tts-1",
+          "input": "Hi.",
+          "voice": "alloy",
+          "response_format": "mp3"
+        }
+      }
+    },
+    {
+      "id": "body_openai_speed_float32_rounds",
+      "input": {
+        "entry": {
+          "providerKind": "openAI",
+          "direction": "tts",
+          "model": "tts-1"
+        },
+        "text": "Hi.",
+        "voice": "alloy",
+        "speed": 1.100000023841858,
+        "language": "en"
+      },
+      "expected": {
+        "method": "POST",
+        "path": "/v1/audio/speech",
+        "json": {
+          "model": "tts-1",
+          "input": "Hi.",
+          "voice": "alloy",
+          "response_format": "mp3",
+          "speed": 1.1
+        }
+      }
+    },
+    {
+      "id": "body_xai_speed_float_noise_at_min",
+      "input": {
+        "entry": {
+          "providerKind": "grok",
+          "direction": "tts",
+          "model": "xai-tts"
+        },
+        "text": "Slow.",
+        "voice": "eve",
+        "speed": 0.7000000000000001,
+        "language": "en"
+      },
+      "expected": {
+        "method": "POST",
+        "path": "/v1/tts",
+        "json": {
+          "text": "Slow.",
+          "voice_id": "eve",
+          "language": "en",
+          "output_format": {
+            "codec": "mp3"
+          },
+          "speed": 0.7
+        }
+      }
+    },
+    {
+      "id": "body_gemini_tts_voice",
+      "input": {
+        "entry": {
+          "providerKind": "gemini",
+          "direction": "tts",
+          "model": "gemini-3.8-flash-tts"
+        },
+        "text": "Hello there.",
+        "voice": "Kore",
+        "speed": 1.5,
+        "language": "en",
+        "apiKey": "test-key"
+      },
+      "expected": {
+        "method": "POST",
+        "path": "/v1beta/interactions",
+        "headers": {
+          "x-goog-api-key": "test-key",
+          "Content-Type": "application/json"
+        },
+        "json": {
+          "model": "gemini-3.8-flash-tts",
+          "store": false,
+          "input": [
+            {
+              "type": "user_input",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Hello there."
+                }
+              ]
+            }
+          ],
+          "response_format": {
+            "type": "audio",
+            "mime_type": "audio/wav"
+          },
+          "generation_config": {
+            "speech_config": [
+              {
+                "voice": "Kore"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "body_mistral_speech_voice_id",
+      "input": {
+        "entry": {
+          "providerKind": "mistral",
+          "direction": "tts",
+          "model": "voxtral-mini-tts-3-0"
+        },
+        "text": "Hello there.",
+        "voice": "en_paul_neutral",
+        "speed": 1.5,
+        "language": "en",
+        "apiKey": "test-key"
+      },
+      "expected": {
+        "method": "POST",
+        "path": "/v1/audio/speech",
+        "headers": {
+          "Authorization": "Bearer test-key",
+          "Content-Type": "application/json"
+        },
+        "json": {
+          "model": "voxtral-mini-tts-3-0",
+          "input": "Hello there.",
+          "voice_id": "en_paul_neutral",
+          "response_format": "mp3"
+        }
+      }
+    },
+    {
+      "id": "body_dashscope_tts_language_type",
+      "input": {
+        "entry": {
+          "providerKind": "qwen",
+          "direction": "tts",
+          "model": "qwen3-tts-flash"
+        },
+        "text": "你好。",
+        "voice": "Cherry",
+        "speed": 1,
+        "language": "zh-Hans",
+        "apiKey": "test-key"
+      },
+      "expected": {
+        "method": "POST",
+        "path": "/api/v1/services/aigc/multimodal-generation/generation",
+        "headers": {
+          "Authorization": "Bearer test-key",
+          "Content-Type": "application/json"
+        },
+        "json": {
+          "model": "qwen3-tts-flash",
+          "input": {
+            "text": "你好。",
+            "voice": "Cherry",
+            "language_type": "Chinese"
+          }
+        }
+      }
+    },
+    {
+      "id": "body_dashscope_tts_unmapped_language_auto",
+      "input": {
+        "entry": {
+          "providerKind": "qwen",
+          "direction": "tts",
+          "model": "qwen3-tts-flash"
+        },
+        "text": "สวัสดี",
+        "voice": "Cherry",
+        "speed": 1,
+        "language": "th",
+        "apiKey": "test-key"
+      },
+      "expected": {
+        "method": "POST",
+        "path": "/api/v1/services/aigc/multimodal-generation/generation",
+        "headers": {
+          "Authorization": "Bearer test-key",
+          "Content-Type": "application/json"
+        },
+        "json": {
+          "model": "qwen3-tts-flash",
+          "input": {
+            "text": "สวัสดี",
+            "voice": "Cherry",
+            "language_type": "Auto"
+          }
+        }
+      }
+    },
+    {
+      "id": "body_together_openai_speech",
+      "input": {
+        "entry": {
+          "providerKind": "together",
+          "direction": "tts",
+          "model": "canopylabs/orpheus-3b-0.1-ft"
+        },
+        "text": "Hello there.",
+        "voice": "tara",
+        "speed": 1,
+        "language": "en",
+        "apiKey": "test-key"
+      },
+      "expected": {
+        "method": "POST",
+        "path": "/v1/audio/speech",
+        "headers": {
+          "Authorization": "Bearer test-key",
+          "Content-Type": "application/json"
+        },
+        "json": {
+          "model": "canopylabs/orpheus-3b-0.1-ft",
+          "input": "Hello there.",
+          "voice": "tara",
+          "response_format": "mp3"
+        }
+      }
+    },
+    {
+      "id": "body_dashscope_tts_underscore_locale",
+      "input": {
+        "entry": {
+          "providerKind": "qwen",
+          "direction": "tts",
+          "model": "qwen3-tts-flash"
+        },
+        "text": "你好。",
+        "voice": "Cherry",
+        "speed": 1,
+        "language": "zh_Hant_TW",
+        "apiKey": "test-key"
+      },
+      "expected": {
+        "method": "POST",
+        "path": "/api/v1/services/aigc/multimodal-generation/generation",
+        "headers": {
+          "Authorization": "Bearer test-key",
+          "Content-Type": "application/json"
+        },
+        "json": {
+          "model": "qwen3-tts-flash",
+          "input": {
+            "text": "你好。",
+            "voice": "Cherry",
+            "language_type": "Chinese"
+          }
+        }
+      }
+    }
+  ],
+  "failureCases": [
+    {
+      "id": "tts_failure_5xx_retries_once",
+      "input": {
+        "failure": {
+          "kind": "http",
+          "status": 502
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "autoRetry": true,
+        "delaySec": 1
+      }
+    },
+    {
+      "id": "tts_failure_5xx_then_fallback",
+      "input": {
+        "failure": {
+          "kind": "http",
+          "status": 502
+        },
+        "attempt": 2
+      },
+      "expected": {
+        "autoRetry": false,
+        "then": "fallback_system_from_failed_chunk"
+      }
+    },
+    {
+      "id": "tts_failure_401_fallback",
+      "input": {
+        "failure": {
+          "kind": "http",
+          "status": 401
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "autoRetry": false,
+        "then": "fallback_system_from_failed_chunk"
+      }
+    },
+    {
+      "id": "tts_failure_400_fallback",
+      "input": {
+        "failure": {
+          "kind": "http",
+          "status": 400
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "autoRetry": false,
+        "then": "fallback_system_from_failed_chunk"
+      }
+    }
+  ],
+  "audioResponseCases": [
+    {
+      "id": "audio_gemini_tts_steps_base64",
+      "input": {
+        "transport": "gemini_tts",
+        "body": {
+          "id": "v1_tts",
+          "status": "completed",
+          "steps": [
+            {
+              "type": "model_output",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "ignored"
+                },
+                {
+                  "type": "audio",
+                  "mime_type": "audio/wav",
+                  "data": "UklGRiQAAABXQVZF"
+                },
+                {
+                  "type": "audio",
+                  "mime_type": "audio/wav",
+                  "data": "AAECAw=="
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "expected": {
+        "audioBase64": "UklGRiQAAABXQVZF"
+      }
+    },
+    {
+      "id": "audio_gemini_tts_no_audio_invalid",
+      "input": {
+        "transport": "gemini_tts",
+        "body": {
+          "id": "v1_tts",
+          "status": "completed",
+          "steps": [
+            {
+              "type": "model_output",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Sorry."
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "expected": null
+    },
+    {
+      "id": "audio_mistral_speech_audio_data",
+      "input": {
+        "transport": "mistral_speech",
+        "body": {
+          "audio_data": "SUQzBAAAAAAAI1RTU0U="
+        }
+      },
+      "expected": {
+        "audioBase64": "SUQzBAAAAAAAI1RTU0U="
+      }
+    },
+    {
+      "id": "audio_mistral_speech_bad_base64_invalid",
+      "input": {
+        "transport": "mistral_speech",
+        "body": {
+          "audio_data": "not base64!"
+        }
+      },
+      "expected": null
+    },
+    {
+      "id": "audio_dashscope_tts_download_url",
+      "input": {
+        "transport": "dashscope_tts",
+        "body": {
+          "output": {
+            "finish_reason": "stop",
+            "audio": {
+              "url": "https://dashscope-result.oss-cn-beijing.aliyuncs.com/tts/abc.wav?Expires=1760000000&Signature=x",
+              "id": "audio_1",
+              "expires_at": 1760000000,
+              "data": ""
+            }
+          },
+          "usage": {
+            "characters": 3
+          },
+          "request_id": "req-2"
+        }
+      },
+      "expected": {
+        "downloadUrl": "https://dashscope-result.oss-cn-beijing.aliyuncs.com/tts/abc.wav?Expires=1760000000&Signature=x"
+      }
+    },
+    {
+      "id": "audio_dashscope_tts_http_url_upgraded",
+      "input": {
+        "transport": "dashscope_tts",
+        "body": {
+          "output": {
+            "finish_reason": "stop",
+            "audio": {
+              "url": "http://dashscope-result.oss-cn-beijing.aliyuncs.com/tts/abc.wav",
+              "id": "audio_1"
+            }
+          },
+          "request_id": "req-3"
+        }
+      },
+      "expected": {
+        "downloadUrl": "https://dashscope-result.oss-cn-beijing.aliyuncs.com/tts/abc.wav"
+      }
+    },
+    {
+      "id": "audio_gemini_tts_live_sample",
+      "input": {
+        "transport": "gemini_tts",
+        "body": {
+          "status": "completed",
+          "usage": {
+            "total_tokens": 28,
+            "total_input_tokens": 3,
+            "input_tokens_by_modality": [
+              {
+                "modality": "text",
+                "tokens": 3
+              }
+            ],
+            "total_cached_tokens": 0,
+            "total_output_tokens": 25,
+            "output_tokens_by_modality": [
+              {
+                "modality": "audio",
+                "tokens": 25
+              }
+            ],
+            "total_tool_use_tokens": 0,
+            "total_thought_tokens": 0
+          },
+          "created": "2026-10-21T09:34:39Z",
+          "updated": "2026-10-21T09:34:39Z",
+          "service_tier": "standard",
+          "steps": [
+            {
+              "content": [
+                {
+                  "data": "UklGRiQAAABXQVZF",
+                  "mime_type": "audio/wav",
+                  "type": "audio"
+                }
+              ],
+              "type": "model_output"
+            }
+          ],
+          "object": "interaction",
+          "model": "gemini-3.8-flash-tts"
+        }
+      },
+      "expected": {
+        "audioBase64": "UklGRiQAAABXQVZF"
+      }
+    },
+    {
+      "id": "audio_dashscope_tts_live_sample",
+      "input": {
+        "transport": "dashscope_tts",
+        "body": {
+          "output": {
+            "audio": {
+              "data": "",
+              "expires_at": 1792661729,
+              "id": "<id>",
+              "url": "http://dashscope-result-sgp.oss-ap-southeast-1.aliyuncs.com/prod/qwen3-tts/20261021/0000000000000000/sample.wav?Expires=1792661729"
+            },
+            "finish_reason": "stop"
+          },
+          "usage": {
+            "characters": 5
+          },
+          "request_id": "<id>"
+        }
+      },
+      "expected": {
+        "downloadUrl": "https://dashscope-result-sgp.oss-ap-southeast-1.aliyuncs.com/prod/qwen3-tts/20261021/0000000000000000/sample.wav?Expires=1792661729"
+      }
+    },
+    {
+      "id": "audio_mistral_speech_unpadded_base64_invalid",
+      "input": {
+        "transport": "mistral_speech",
+        "body": {
+          "audio_data": "SUQzBAAAAAAAI1RTU0U"
+        }
+      },
+      "expected": null
+    },
+    {
+      "id": "audio_dashscope_tts_uppercase_https_ok",
+      "input": {
+        "transport": "dashscope_tts",
+        "body": {
+          "output": {
+            "finish_reason": "stop",
+            "audio": {
+              "url": "HTTPS://dashscope-result.oss-cn-beijing.aliyuncs.com/tts/abc.wav",
+              "id": "audio_1"
+            }
+          },
+          "request_id": "req-4"
+        }
+      },
+      "expected": {
+        "downloadUrl": "HTTPS://dashscope-result.oss-cn-beijing.aliyuncs.com/tts/abc.wav"
+      }
+    },
+    {
+      "id": "audio_dashscope_tts_empty_host_invalid",
+      "input": {
+        "transport": "dashscope_tts",
+        "body": {
+          "output": {
+            "finish_reason": "stop",
+            "audio": {
+              "url": "https://",
+              "id": "audio_1"
+            }
+          },
+          "request_id": "req-5"
+        }
+      },
+      "expected": null
+    },
+    {
+      "id": "audio_gemini_tts_first_audio_empty_invalid",
+      "input": {
+        "transport": "gemini_tts",
+        "body": {
+          "id": "v1_tts",
+          "status": "completed",
+          "steps": [
+            {
+              "type": "model_output",
+              "content": [
+                {
+                  "type": "audio",
+                  "mime_type": "audio/wav",
+                  "data": ""
+                },
+                {
+                  "type": "audio",
+                  "mime_type": "audio/wav",
+                  "data": "UklGRiQAAABXQVZF"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "expected": null
+    },
+    {
+      "id": "audio_dashscope_tts_data_without_url_invalid",
+      "input": {
+        "transport": "dashscope_tts",
+        "body": {
+          "output": {
+            "finish_reason": "stop",
+            "audio": {
+              "id": "audio_1",
+              "data": "UklGRiQAAABXQVZF"
+            }
+          },
+          "request_id": "req-6"
+        }
+      },
+      "expected": null
+    },
+    {
+      "id": "audio_dashscope_tts_underscore_host_ok",
+      "input": {
+        "transport": "dashscope_tts",
+        "body": {
+          "output": {
+            "finish_reason": "stop",
+            "audio": {
+              "url": "https://result_bucket.oss-cn-beijing.aliyuncs.com/tts/abc.wav",
+              "id": "audio_1"
+            }
+          },
+          "request_id": "req-7"
+        }
+      },
+      "expected": {
+        "downloadUrl": "https://result_bucket.oss-cn-beijing.aliyuncs.com/tts/abc.wav"
+      }
+    },
+    {
+      "id": "audio_mistral_speech_urlsafe_base64_invalid",
+      "input": {
+        "transport": "mistral_speech",
+        "body": {
+          "audio_data": "SUQz-_AAAAAAI1RTU0U="
+        }
+      },
+      "expected": null
+    },
+    {
+      "id": "audio_dashscope_tts_triple_slash_invalid",
+      "input": {
+        "transport": "dashscope_tts",
+        "body": {
+          "output": {
+            "finish_reason": "stop",
+            "audio": {
+              "url": "http:///x.wav",
+              "id": "<id>"
+            }
+          },
+          "request_id": "<id>"
+        }
+      },
+      "expected": null
+    },
+    {
+      "id": "audio_dashscope_tts_leading_space_invalid",
+      "input": {
+        "transport": "dashscope_tts",
+        "body": {
+          "output": {
+            "finish_reason": "stop",
+            "audio": {
+              "url": " http://h.example/a.wav",
+              "id": "<id>"
+            }
+          },
+          "request_id": "<id>"
+        }
+      },
+      "expected": null
+    },
+    {
+      "id": "audio_dashscope_tts_ipv6_empty_brackets_invalid",
+      "input": {
+        "transport": "dashscope_tts",
+        "body": {
+          "output": {
+            "finish_reason": "stop",
+            "audio": {
+              "url": "http://[]/a.wav",
+              "id": "<id>"
+            }
+          },
+          "request_id": "<id>"
+        }
+      },
+      "expected": null
+    },
+    {
+      "id": "audio_dashscope_tts_ipv6_unclosed_invalid",
+      "input": {
+        "transport": "dashscope_tts",
+        "body": {
+          "output": {
+            "finish_reason": "stop",
+            "audio": {
+              "url": "http://[::1/a.wav",
+              "id": "<id>"
+            }
+          },
+          "request_id": "<id>"
+        }
+      },
+      "expected": null
+    },
+    {
+      "id": "audio_dashscope_tts_http_underscore_host_upgraded",
+      "input": {
+        "transport": "dashscope_tts",
+        "body": {
+          "output": {
+            "finish_reason": "stop",
+            "audio": {
+              "url": "http://a_b.example/x.wav",
+              "id": "<id>"
+            }
+          },
+          "request_id": "<id>"
+        }
+      },
+      "expected": {
+        "downloadUrl": "https://a_b.example/x.wav"
+      }
+    }
+  ]
+}
