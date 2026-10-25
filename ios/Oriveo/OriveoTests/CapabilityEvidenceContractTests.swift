@@ -9,7 +9,7 @@ private final class CapabilityDispatchCounter: @unchecked Sendable {
     func increment() { lock.withLock { storage += 1 } }
 }
 
-@Suite("capability evidence facade contract", .serialized)
+@Suite("capability evidence facade contract", .serialized, .sharedProcessState)
 struct CapabilityEvidenceContractTests {
     @Test("Golden Cases Match Contract")
     func goldenCasesMatchContract() throws {
@@ -664,11 +664,17 @@ struct CapabilityEvidenceContractTests {
         try await MetadataClient.shared.loadForTesting(json: """
         {
           "version":1,
+          "capabilityRuntime":{
+            "schemaVersion":\(RequestPreferenceResolver.runtimeSchemaVersion),
+            "revision":"sha256:malformed","generatedAt":"2026-10-19T02:00:00Z",
+            "recipes":{},"controlDefinitions":{},"sourceIndex":{}
+          },
           "providers":{"openAI":{"resolveMap":{"capability-model":"capability-model"},
             "models":{"capability-model":{
               "canonicalModelId":"capability-model","transport":"openai_responses",
               "capabilities":["text","image","web"],"profiles":{"webSearch":"web-profile"},
-              "toolCall":true,"capabilityEvidenceView":null
+              "toolCall":true,"capabilityEvidenceView":null,
+              "capabilityControls":{"vision_input":{"state":"unavailable","reasonCode":"model_capability_absent"}}
             }}
           }}
         }
@@ -694,13 +700,24 @@ struct CapabilityEvidenceContractTests {
     @Test("Final Chat Intent Filters Outbound Vision Copy After Evidence Withdrawal")
     func finalChatIntentFiltersOutboundVisionCopyAfterEvidenceWithdrawal() async throws {
         await MetadataClient.shared.resetForTesting()
-        func payload(view: String) -> String {
-            """
+        // Outbound vision copy follows capabilityControls only, so a withdrawal ships an unavailable control too.
+        func payload(view: String, visionWithdrawn: Bool = false) -> String {
+            let runtime = visionWithdrawn ? """
+            "capabilityRuntime":{
+              "schemaVersion":\(RequestPreferenceResolver.runtimeSchemaVersion),
+              "revision":"sha256:vision-withdrawn","generatedAt":"2026-10-19T02:00:00Z",
+              "recipes":{},"controlDefinitions":{},"sourceIndex":{}
+            },
+            """ : ""
+            let controls = visionWithdrawn ? """
+            "capabilityControls":{"vision_input":{"state":"unavailable","reasonCode":"model_capability_absent"}},
+            """ : ""
+            return """
             {
-              "version":11,
+              "version":11,\(runtime)
               "providers":{"openAI":{"resolveMap":{"vision-model":"vision-model"},
                 "models":{"vision-model":{
-                  "canonicalModelId":"vision-model","transport":"openai_responses",
+                  "canonicalModelId":"vision-model","transport":"openai_responses",\(controls)
                   "capabilities":["text","image"],"capabilityEvidenceView":\(view)
                 }}
               }}
@@ -765,7 +782,7 @@ struct CapabilityEvidenceContractTests {
         #expect(allowedTelemetry.value == 1)
 
         try await MetadataClient.shared.loadForTesting(
-            json: payload(view: "null"), metadataETag: "vision-etag-2"
+            json: payload(view: "null", visionWithdrawn: true), metadataETag: "vision-etag-2"
         )
         let deniedTelemetry = CapabilityDispatchCounter()
         let filtered = CapabilityEvidenceDispatchContext.$onWebSearchDispatched.withValue({
@@ -849,6 +866,11 @@ struct CapabilityEvidenceContractTests {
         try await MetadataClient.shared.loadForTesting(json: """
         {
           "version":12,
+          "capabilityRuntime":{
+            "schemaVersion":\(RequestPreferenceResolver.runtimeSchemaVersion),
+            "revision":"sha256:operator","generatedAt":"2026-10-19T02:00:00Z",
+            "recipes":{},"controlDefinitions":{},"sourceIndex":{}
+          },
           "profiles":{
             "reasoning":{"reasoning-profile":{"levels":["deep"],"defaultLevel":"deep"}},
             "webSearch":{"web-profile":{"mergeParams":{"tools":[{"type":"web_search"}]}}}
@@ -858,6 +880,7 @@ struct CapabilityEvidenceContractTests {
               "canonicalModelId":"operator-model","transport":"openai_responses",
               "capabilities":["text","image","web","reasoning"],"toolCall":true,
               "profiles":{"reasoning":"reasoning-profile","webSearch":"web-profile"},
+              "capabilityControls":{"vision_input":{"state":"unavailable","reasonCode":"provider_kill_switch"}},
               "capabilityEvidenceView":{"schema":"capability-evidence-view/v1","candidates":[\(candidates)]}
             }}
           }}

@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Oriveo
 
-@Suite("Recipe execution fixtures")
+@Suite("Recipe execution fixtures", .sharedProcessState)
 struct CapabilityRecipeExecutionTests {
     @Test("continuation fixture maps to protocol-specific wire locations")
     func continuations() throws {
@@ -510,6 +510,7 @@ struct CapabilityRecipeExecutionTests {
             "This JSON fragment is too large or complex to apply.",
             "Remove custom request fields?", "Keep custom fields", "Remove custom fields",
             "This removes the custom fields for %@ on this conversation, connection, model and transport. This cannot be undone.",
+            "Custom fields need an official field schema for this exact model and transport.",
             "This connection declares no custom fields for this control.",
             "Custom is selected but empty, so messages using this control will fail to send.",
             "Switch back to automatic",
