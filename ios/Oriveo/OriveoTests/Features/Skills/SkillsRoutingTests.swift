@@ -51,6 +51,30 @@ struct SkillsRoutingTests {
         #expect(source.contains(".frame(maxWidth: .infinity, alignment: .top)"))
     }
 
+    @Test("A suggested model that is not enabled on the connection is skipped in favor of the active model")
+    func skillSuggestedModelMissingFallsBackToActiveModel() async throws {
+        await MetadataClient.shared.resetForTesting()
+        let provider = TestFactories.makeProvider(
+            kind: .openAI,
+            models: [TestFactories.makeModel(id: "gpt-4o", isDefault: true)]
+        )
+        let appState = AppState(
+            seedDemoData: false,
+            sessionUID: "skill-suggested-\(UUID().uuidString)"
+        )
+        appState.providers = [provider]
+        appState.lastUsedModelRef = LastUsedModelRef(providerID: provider.id, modelID: "gpt-4o")
+        var skill = Skill(name: "Suggested Skill", systemPrompt: "Hi", modelCapabilityHint: "any")
+        skill.suggestedProviderId = ProviderKind.openAI.rawValue
+        skill.suggestedModelId = "not-enabled-model"
+
+        appState.startConversationWithSkill(skill)
+
+        let created = try #require(appState.conversations.last)
+        #expect(created.providerID == provider.id)
+        #expect(created.modelID == "gpt-4o")
+    }
+
     @Test("Skill Reasoning Match Uses Capability Evidence")
     func skillReasoningMatchUsesCapabilityEvidence() async throws {
         await MetadataClient.shared.resetForTesting()
