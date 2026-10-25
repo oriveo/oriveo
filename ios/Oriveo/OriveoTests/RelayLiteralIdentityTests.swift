@@ -28,7 +28,7 @@ private final class RelayLiteralIdentityOfflineProtocol: URLProtocol, @unchecked
 ///
 /// Assertion subjects come from what production entry points actually produce: `Provider` decoding, `ProviderManager` enable / disable / catalog refresh,
 /// `ProviderSelectionSnapshot`, `RelayRuntimeSupport`, `AppState.disableModel` and the parameter store.
-@Suite("Relay literal identity RL2-IDENT", .serialized)
+@Suite("Relay literal identity RL2-IDENT", .serialized, .sharedProcessState)
 @MainActor
 struct RelayLiteralIdentityTests {
     private static var retainedStates: [AppState] = []

@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Oriveo
 
-@Suite("Relay Official Catalog Resolver Tests", .serialized)
+@Suite("Relay Official Catalog Resolver Tests", .serialized, .sharedProcessState)
 struct RelayOfficialCatalogResolverTests {
 
     private func loadFixtureJSON() throws -> String {
@@ -71,6 +71,27 @@ struct RelayOfficialCatalogResolverTests {
         #expect(enriched.capabilities.contains(.reasoning))
         #expect(enriched.reasoningProfile == "openaiReasoning")
         #expect(enriched.webSearchProfile == "openaiWebSearch")
+    }
+
+    @Test("Official matching goes by canonicalModelId first, then by id")
+    func matchesByCanonicalModelIdFirst() async throws {
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(json: loadFixtureJSON())
+
+        let provider = makeRelayProvider(transport: .openaiResponses)
+        let runtime = MetadataClient.shared.syncRelayRuntimeConfig()
+        // The model id differs from the official id: matched by canonicalModelId.
+        var aliased = makeLocalModel(id: "my-gpt")
+        aliased.canonicalModelId = "gpt-5.4"
+        // id and canonicalModelId each hit a different vendor: canonicalModelId wins.
+        var both = makeLocalModel(id: "gpt-5.4")
+        both.canonicalModelId = "claude-sonnet-4.5"
+        // No canonicalModelId: matched by id.
+        let plain = makeLocalModel(id: "gpt-5.4")
+        for (model, expected) in [(aliased, "gpt-5.4"), (both, "claude-sonnet-4.5"), (plain, "gpt-5.4")] {
+            let enriched = RelayOfficialCatalogResolver.enrich(localModel: model, provider: provider, runtimeConfig: runtime)
+            #expect(enriched.canonicalModelId == expected, "\(model.id)")
+        }
     }
 
     @Test("Intersects Envelope For Chat Completions")
@@ -206,7 +227,7 @@ struct RelayOfficialCatalogResolverTests {
             runtimeConfig: runtime
         )
 
-        #expect(enriched.capabilities.contains(.imageGen))
+        #expect(enriched.capabilities.contains(.imageGen), "A manually set imageGen must be kept when the catalog has no match")
         #expect(enriched.capabilities.contains(.text))
     }
 
@@ -235,7 +256,8 @@ struct RelayOfficialCatalogResolverTests {
             runtimeConfig: runtime
         )
 
-        #expect(enriched.capabilities.contains(.imageGen))
+        #expect(enriched.capabilities.contains(.imageGen),
+                "Image generation is a model-level capability; envelope.imageGeneration=false must not block a manual selection from propagating")
     }
 
     @Test("Clears Stale Profiles When Official Metadata Removes Them")

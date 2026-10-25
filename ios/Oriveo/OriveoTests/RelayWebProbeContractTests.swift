@@ -19,7 +19,7 @@ private final class WebProbeSendLog: @unchecked Sendable {
 /// RL2-WEBPROBE: core of the relay web probe, driven by the caseIds in `shared/test-fixtures/relay/web-probe.v1.json`.
 /// Scenarios go through the production `ProviderManager.runRelayWebProbe` -> the production chat builder (merging the locally stored fragment) -> replay by an injected fake upstream ->
 /// the production Strategy parses the evidence; record and override assertions read the production store and the written-back model.
-@Suite("RL2-WEBPROBE - relay web probe", .serialized)
+@Suite("RL2-WEBPROBE - relay web probe", .serialized, .sharedProcessState)
 @MainActor
 struct RelayWebProbeContractTests {
     // MARK: - Fixtures

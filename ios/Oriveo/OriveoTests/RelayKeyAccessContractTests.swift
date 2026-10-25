@@ -6,7 +6,7 @@ import Testing
 ///
 /// Fixture `shared/test-fixtures/relay/key-access.v1.json`: classifyCases drive the pure function,
 /// and two sendCases go through the production `AppState.sendMessage` to assert request count, negative-cache writes, model fields and key status.
-@Suite("Relay multi-key · access-denied classification", .serialized)
+@Suite("Relay multi-key · access-denied classification", .serialized, .sharedProcessState)
 @MainActor
 struct RelayKeyAccessContractTests {
 

@@ -6,7 +6,7 @@ import Testing
 ///
 /// Production entry points (re-verify / lazy verify / capability test / catalog refresh / key operations / replacing the primary key) hit a fake upstream, and the assertions cover the written-back `relayKeys`:
 /// the status is written on the key the request actually used; generation requests only write success / invalid / restricted; the first write on a single key materializes one list entry; drafts and results whose identity has changed are not written.
-@Suite("Relay 2.0 · key status write-back", .serialized)
+@Suite("Relay 2.0 · key status write-back", .serialized, .sharedProcessState)
 @MainActor
 struct RelayKeyStatusWritebackTests {
 

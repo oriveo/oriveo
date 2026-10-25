@@ -100,7 +100,7 @@ private final class RelayProbeFakeServer: URLProtocol, @unchecked Sendable {
 /// Relay 2.0 per-model probe orchestration (`shared/test-fixtures/relay/probe-orchestration.v1.json` and
 /// `gateway-models.v1.json`). The catalog goes through the production `RelayDiscoveryService`, the family lookup through the production `MetadataClient`,
 /// probes go through the production `OpenAIService.pingRelay` against the fake server, and write-back is asserted after a round trip through production Codable.
-@Suite("Relay 2.0 - per-model probe orchestration", .serialized)
+@Suite("Relay 2.0 - per-model probe orchestration", .serialized, .sharedProcessState)
 @MainActor
 struct RelayModelProbeTests {
 

@@ -7,7 +7,7 @@ import Testing
 /// production session byte stream). The fake upstream delivers one event at a time; `stall` = it never sends again
 /// and never ends. Asserts the verdict, whether the connection was cancelled before the stream ended, and the
 /// latest event after which the verdict must be reached.
-@Suite("RL2-WEBPROBE-EARLY · web probe decides as soon as it sees evidence", .serialized)
+@Suite("RL2-WEBPROBE-EARLY · web probe decides as soon as it sees evidence", .serialized, .sharedProcessState)
 @MainActor
 struct RelayWebProbeEarlyStopTests {
     nonisolated private static func loadFixture(_ name: String) throws -> [String: Any] {
@@ -106,10 +106,10 @@ struct RelayWebProbeEarlyStopTests {
         )
         let elapsed = clock.now - started
         guard case let .probed(outcome)? = run else { Issue.record("\(label) should have been probed: \(String(describing: run))"); return }
-        #expect(outcome.result.rawValue == expect["result"] as? String, "\(label) result：\(outcome)")
-        #expect(outcome.reason.rawValue == expect["reason"] as? String, "\(label) reason：\(outcome)")
+        #expect(outcome.result.rawValue == expect["result"] as? String, "\(label) result: \(outcome)")
+        #expect(outcome.reason.rawValue == expect["reason"] as? String, "\(label) reason: \(outcome)")
         for url in expect["urlsInclude"] as? [String] ?? [] {
-            #expect(outcome.evidenceUrls.contains(url), "\(label) urls：\(outcome.evidenceUrls)")
+            #expect(outcome.evidenceUrls.contains(url), "\(label) urls: \(outcome.evidenceUrls)")
         }
 
         // Cancellation reaches the connection asynchronously: give it a moment to land.

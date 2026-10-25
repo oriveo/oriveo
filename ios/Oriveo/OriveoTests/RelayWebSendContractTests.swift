@@ -6,7 +6,7 @@ import Testing
 /// Sends one message through the production `AppState.sendMessage` (builder + first-send rerouting + transport
 /// fallback + resend without the fragment), injects the upstream replies, and asserts the transport and fragment of
 /// every attempt, the reply notice, the records written, and the panel row after sending.
-@Suite("RL2-WEBPROBE-SEND · relay web send", .serialized)
+@Suite("RL2-WEBPROBE-SEND · relay web send", .serialized, .sharedProcessState)
 @MainActor
 struct RelayWebSendContractTests {
     nonisolated private static func loadFixture(_ name: String) throws -> [String: Any] {
@@ -149,6 +149,11 @@ struct RelayWebSendContractTests {
     private static func carries(_ fragment: [String: Any], in body: [String: Any]) -> Bool {
         fragment.allSatisfy { key, value in
             guard let actual = body[key] else { return false }
+            // Array fields (tools) follow the merge rule: the fragment's elements come first, and host tools (such as memory) may follow.
+            if let expected = value as? [Any], let actualArray = actual as? [Any] {
+                guard actualArray.count >= expected.count else { return false }
+                return zip(expected, actualArray).allSatisfy { ($1 as AnyObject).isEqual($0) }
+            }
             return (actual as AnyObject).isEqual(value)
         }
     }
@@ -168,7 +173,12 @@ struct RelayWebSendContractTests {
                 fragment = "template"
             } else {
                 // No web field may be present at all (a leftover that is neither the saved fragment nor the template is wrong too).
-                fragment = template.keys.contains { body[$0] != nil } ? "partial" : nil
+                // For array fields only check whether the fragment's elements got mixed in: host tools alone in tools are not a web leftover.
+                fragment = template.contains { key, value in
+                    guard let actual = body[key] else { return false }
+                    guard let expected = value as? [Any], let actualArray = actual as? [Any] else { return true }
+                    return expected.contains { element in actualArray.contains { ($0 as AnyObject).isEqual(element) } }
+                } ? "partial" : nil
             }
             return Attempt(transport: transport.rawValue, fragment: fragment)
         }
@@ -250,7 +260,7 @@ struct RelayWebSendContractTests {
         let sendFails = expect["sendFails"] as? Bool == true
         #expect(message.state == (sendFails ? .failed : .delivered), "\(label) delivered: \(message.state) \(message.errorDetail ?? "")")
         let notice = state.chatManager.relayWebReplyNotice(messageID: message.id)
-        #expect(notice?.rawValue == expect["replyNotice"] as? String, "\(label) replyNotice：\(String(describing: notice))")
+        #expect(notice?.rawValue == expect["replyNotice"] as? String, "\(label) replyNotice: \(String(describing: notice))")
 
         let writes = expect["recordWrites"] as? [[String: Any]] ?? []
         for transport in [RelayTransport.anthropicMessages, .openaiChatCompletions] {
@@ -258,7 +268,7 @@ struct RelayWebSendContractTests {
                 connectionID: provider.id.uuidString, modelID: model.id, transport: transport.rawValue
             )
             if let write = writes.first(where: { $0["transport"] as? String == transport.rawValue }) {
-                #expect(record?.result.rawValue == write["result"] as? String, "\(label) \(transport.rawValue) result：\(String(describing: record))")
+                #expect(record?.result.rawValue == write["result"] as? String, "\(label) \(transport.rawValue) result: \(String(describing: record))")
                 #expect(record?.source.rawValue == write["source"] as? String, "\(label) \(transport.rawValue) source")
                 #expect(record?.fragmentHash == RelayWebProbe.fragmentHash(try Self.effective(transport, saved: saved)),
                         "\(label) \(transport.rawValue) current hash")

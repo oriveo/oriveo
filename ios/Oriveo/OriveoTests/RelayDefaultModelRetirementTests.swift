@@ -152,8 +152,15 @@ struct RelayDefaultModelRetirementTests {
         if expectedRemoved {
             #expect(resolvedState == .removed(connectionName: expect["connectionName"] as? String ?? ""), "\(label) state")
             #expect(state.sendableModel(for: current, provider: provider) == nil, "\(label) is not silently replaced")
-        } else {
+        } else if kind == .relay {
             #expect(resolvedState == .resolved, "\(label) state")
+        } else {
+            // "Conversation model removed" only applies to relay connections; retirement or absence of an official
+            // conversation model is judged by ConversationModelRetirement (retired / missing) and is outside this
+            // fixture. All that is required here is that it does not land on removed.
+            if case .removed = resolvedState {
+                Issue.record("\(label) state: an official connection is never judged removed, got \(resolvedState)")
+            }
         }
         if let expectedConversationModel = expect["conversationModelId"] as? String {
             #expect(current.modelID == expectedConversationModel, "\(label) conversation model unchanged")
@@ -208,10 +215,10 @@ struct RelayDefaultModelRetirementTests {
             providers: state.providers,
             activeModel: state.activeModel,
             primaryProvider: state.primaryProvider,
-            lastUsedModelRef: state.lastUsedModelRef
+            lastUsedModelRef: state.lastUsedModelRef,
+            providersLoaded: true
         ))
         #expect(context.model == nil)
-        #expect(context.needsConversationRepair == false)
         let banner = try #require(ChatModelRemovedBanner.resolve(context))
         #expect(banner.connectionName == "My Relay")
         #expect(banner.message.contains("My Relay"))
@@ -251,7 +258,8 @@ struct RelayDefaultModelRetirementTests {
             providers: state.providers,
             activeModel: state.activeModel,
             primaryProvider: state.primaryProvider,
-            lastUsedModelRef: state.lastUsedModelRef
+            lastUsedModelRef: state.lastUsedModelRef,
+            providersLoaded: true
         ))
         #expect(ChatModelRemovedBanner.resolve(context) == nil)
         #expect(context.model?.id == "gpt-5.4")

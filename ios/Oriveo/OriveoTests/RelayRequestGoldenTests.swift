@@ -10,7 +10,7 @@ import Testing
 ///
 /// Record: `TEST_RUNNER_ORIVEO_GOLDEN_RECORD=1 bash scripts/ios-test.sh -only-testing:OriveoTests/RelayRequestGoldenTests`;
 /// without that variable each case is compared; a missing file or any differing byte fails.
-@Suite("RL2-MIGRATE-01 relay request golden (iOS)", .serialized)
+@Suite("RL2-MIGRATE-01 relay request golden (iOS)", .serialized, .sharedProcessState)
 struct RelayRequestGoldenTests {
 
     // MARK: - Case list
@@ -222,8 +222,38 @@ struct RelayRequestGoldenTests {
         return request.record(caseId: caseId)
     }
 
-    private static func recordAll(_ cases: CaseFile) async throws -> (records: [Record], relayWriteBack: [String]) {
+    /// Makes the golden environment deterministic, giving the same answer as the Web / Android goldens:
+    /// - official_anthropic: the catalog declares promptCache.policyRef = anthropic.explicit for claude-sonnet-4-5, so the official route still places the breakpoint;
+    /// - no relayRuntimeConfig: the Codex UA uses the built-in fallback version and does not pick up delivered values other tests loaded into MetadataClient.shared.
+    private static func installGoldenMetadata() async throws {
         await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(json: """
+        {
+          "version": 1,
+          "updatedAt": "2026-10-19T00:00:00Z",
+          "profiles": { "reasoning": {}, "webSearch": {}, "imageGen": {} },
+          "providers": {
+            "anthropic": {
+              "displayName": "Anthropic",
+              "defaultModelId": "claude-sonnet-4-5",
+              "validationModelId": "claude-sonnet-4-5",
+              "resolveMap": { "claude-sonnet-4-5": "claude-sonnet-4-5" },
+              "models": {
+                "claude-sonnet-4-5": {
+                  "canonicalModelId": "claude-sonnet-4-5",
+                  "displayName": "Claude Sonnet 4.5",
+                  "capabilities": ["text"],
+                  "promptCache": { "policyRef": "anthropic.explicit" }
+                }
+              }
+            }
+          }
+        }
+        """, metadataETag: "relay-request-golden-\(UUID().uuidString)")
+    }
+
+    private static func recordAll(_ cases: CaseFile) async throws -> (records: [Record], relayWriteBack: [String]) {
+        try await installGoldenMetadata()
         let options = requestOptions(cases)
         var records: [Record] = []
         var writeBack: [String] = []

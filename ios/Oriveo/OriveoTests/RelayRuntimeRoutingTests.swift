@@ -15,7 +15,7 @@ import Testing
 /// 1. Append a case (with a unique id) to `routing-fixtures.json`
 /// 2. Update the pure-func implementations on all three clients together
 /// 3. Land only after all three clients re-run green
-@Suite("Relay runtime routing")
+@Suite("Relay runtime routing", .sharedProcessState)
 struct RelayRuntimeRoutingTests {
 
     // MARK: - Fixture loader
@@ -258,9 +258,14 @@ struct RelayRuntimeRoutingTests {
         #expect(ua.contains("arm64"))
     }
 
-    @Test("UA prefix is codex_cli_rs/0.162.1")
+    // The version is delivered by the server (transportRules.openai_responses.codexClientVersion) and falls back to the built-in value only when absent;
+    // the expectation is taken from the same runtime config instead of hard-coding a version.
+    @Test("UA prefix is codex_cli_rs/<delivered or built-in version>")
     func codexUAVersionPrefix() {
-        #expect(RelayRuntimeSupport.codexCliUserAgent.hasPrefix("codex_cli_rs/0.162.1 "))
+        let delivered = MetadataClient.shared.syncRelayRuntimeConfig()
+            .transportRules[MetadataClient.RelayTransportKey.openaiResponses]?.codexClientVersion
+        let version = RelayRuntimeSupport.resolvedCodexCliVersion(delivered: delivered)
+        #expect(RelayRuntimeSupport.codexCliUserAgent.hasPrefix("codex_cli_rs/\(version) "))
     }
 
     @Test("A valid delivered version -> UA uses the delivered value")
@@ -273,7 +278,7 @@ struct RelayRuntimeRoutingTests {
         "Missing / latest / prerelease / newline-bearing delivered version -> UA uses 0.162.1",
         arguments: [
             nil, "", "latest", "0.170.0-alpha.1", "0.170.0\n", "0.170.0\r\nX-Injected: 1", " 0.170.0",
-            "0.170", "0.170.0.1", "1234567.0.0", "0..1", "０.１７０.０", "v0.170.0",
+            "0.170", "0.170.0.1", "1234567.0.0", "0..1", "\u{FF10}.\u{FF11}\u{FF17}\u{FF10}.\u{FF10}", "v0.170.0",
         ] as [String?]
     )
     func invalidDeliveredCodexVersionFallsBack(delivered: String?) {

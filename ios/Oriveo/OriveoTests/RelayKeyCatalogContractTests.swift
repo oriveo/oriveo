@@ -6,7 +6,7 @@ import Testing
 ///
 /// Fixture `shared/test-fixtures/relay/key-binding.v1.json` catalogCases / shellCases;
 /// production refresh, key replacement and key operation entry points all hit a fake upstream, and the assertions cover request headers and written-back results.
-@Suite("Relay multi-key · catalog and key replacement", .serialized)
+@Suite("Relay multi-key · catalog and key replacement", .serialized, .sharedProcessState)
 @MainActor
 struct RelayKeyCatalogContractTests {
 

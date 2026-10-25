@@ -7,7 +7,7 @@ import Testing
 /// Fixture `shared/test-fixtures/relay/key-binding.v1.json` bindCases / opsCases / readCases / legacyCases,
 /// plus the "local only" entries of `connectionFields` in `portable-config.v1.json` (KEY-SYNC). Models always come in through the production decoder;
 /// KEY-LEGACY runs production decoding + production enabling + production catalog merge, and KEY-SYNC asserts the actual output of the production Firestore write, backup export and local storage.
-@Suite("Relay multi-key · storage and binding", .serialized)
+@Suite("Relay multi-key · storage and binding", .serialized, .sharedProcessState)
 @MainActor
 struct RelayKeyBindingContractTests {
 
@@ -170,7 +170,7 @@ struct RelayKeyBindingContractTests {
             #expect(Self.same(actual[key], expect[key]), "\(key): \(String(describing: actual[key])) ≠ \(String(describing: expect[key]))")
         }
         // Invariant: the primary key entry is stored empty and the primary key value lives in provider.apiKey.
-        if let first = provider.relayKeys?.first { #expect(first.apiKey.isEmpty) }
+        if let first = provider.relayKeys?.first { #expect(!RelayCredentialPolicy.hasStoredKey(first.apiKey)) }
     }
 
     @Test("KEY-OPS-add_key_materializes_list_and_pins_models") func opsAdd() throws { try runOps("add_key_materializes_list_and_pins_models") }
