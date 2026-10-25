@@ -1,0 +1,4708 @@
+{
+  "$comment": "Shared voice engine resolution contract (voice-catalog/v2). decodeCases lock how clients decode the catalog (unknown fields — including the retired v1 price / features / source / acceptedFormats — ignored, unknown transport entries dropped, malformed entries dropped alone); resolveCases lock which engine is actually used after a catalog revision change or a connection change; optionCases lock the engine sheet. catalog \"base\" = the data object of shared/model-contracts/voice_catalog_contract.v2.json (Server handler output); otherwise an inline document. realtimeDecodeCases / realtimeResolveCases / realtimeOptionCases lock the conversation engine (realtime[]) the same way; they decode with decodeRealtimeCatalog and never change the stt / tts groups.",
+  "schema": "oriveo.voice.engine-resolution",
+  "version": 2,
+  "constants": {
+    "knownProviderKinds": [
+      "openAI",
+      "anthropic",
+      "gemini",
+      "openRouter",
+      "deepseek",
+      "grok",
+      "groq",
+      "together",
+      "fireworks",
+      "miniMax",
+      "zhipu",
+      "qwen",
+      "moonshot",
+      "mistral",
+      "siliconFlow",
+      "relay"
+    ],
+    "knownTransports": {
+      "stt": [
+        "openai_transcriptions",
+        "xai_stt",
+        "gemini_transcribe",
+        "dashscope_asr"
+      ],
+      "tts": [
+        "openai_speech",
+        "xai_tts",
+        "gemini_tts",
+        "mistral_speech",
+        "dashscope_tts"
+      ]
+    },
+    "realtimeTransports": [
+      "openai_realtime",
+      "xai_realtime",
+      "gemini_live"
+    ],
+    "authModes": [
+      "apiKey",
+      "subscription"
+    ],
+    "reasons": [
+      "connection_missing",
+      "key_missing",
+      "entry_removed"
+    ]
+  },
+  "rules": {
+    "decode": [
+      "Decode data of GET /api/metadata?view=voice (schemaVersion 2). Optional fields: null ≡ missing; compare decoded typed values, not JSON text. Unknown keys at any level are ignored (no decode failure), including the retired v1 keys price, features, source, acceptedFormats and shutdownAt. A providerKind the client has no enum case for is dropped; constants.knownProviderKinds is the full raw-value set of both clients' ProviderKind enum and each client asserts its enum equals it. Never filter by which kinds have voice entries today. Entries whose transport is unknown are dropped. An entry whose required field has the wrong type (model / path / outputFormat not string, maxBytes / maxDurationSec / maxChars not an integer >= 1, voices not an array) is dropped alone; a voice whose id is not a string is dropped; a tts entry left with no voices is dropped. languageField that is not a string = missing. speedRange (tts, optional) is kept only when min and max are finite numbers with 0 < min <= 1 <= max; otherwise it is missing (the entry stays, without speed control). isDefault that is not true = false; missing isDefault (entry or voice) = false. A missing direction or provider decodes to empty arrays. Malformed structure never fails the document: providers or a provider that is not an object = empty, a direction that is not an array = empty, an entry or voice that is not an object = dropped.",
+      "The decoded view keeps only the keys listed in expected. Every stt entry in the catalog is uploaded as m4a (the catalog lists only m4a-capable dictation entries); there is no upload-format field to check."
+    ],
+    "resolve": [
+      "Order: selection system → system (no notice, keep); connection missing or of another providerKind → connection_missing; authMode != apiKey or no key → key_missing; entry (providerKind, direction, model) absent in the current revision — including an empty direction or a vanished provider — → entry_removed (fall back to system, no silent switch to another model).",
+      "Every fallback sets notice = true (show once on the settings row and once at next use) and persist = system (the stored selection is rewritten to system).",
+      "tts: a selected voice that is not in the entry voices → the entry default voice (isDefault), else the first voice."
+    ],
+    "options": [
+      "Engine sheet: system first; then, in connections order, every connection with authMode apiKey and a key whose providerKind has entries in that direction lists all entries in catalog order. Unusable combinations are not listed (never greyed out)."
+    ],
+    "pending": [
+      "Engine sheet footnote (D-21): in connections order, the distinct providerKinds of connections (any authMode, with or without a key) that have no entry in that direction of the decoded catalog — including kinds the client does not know and providers missing from the catalog. Kinds that do have entries are never listed, even when their connection is unusable. Empty list = no footnote. Only computed when a catalog is available; when the catalog is unavailable (404) or failed to load with no cache, the sheet shows that state instead of this footnote."
+    ],
+    "realtime": [
+      "Conversation engine: realtime[] is decoded separately (decodeCatalog keeps only stt / tts, so the older groups are unchanged). Entry kept when transport ∈ constants.realtimeTransports, model / path are strings, contextWindow is an integer >= 1 and voices is an array; voices with a non-string id are dropped and an entry left with no voices is dropped. maxSessionSec that is not an integer >= 1 is missing (entry stays); inputTranscriptionModel that is not a string is missing, and an openai_realtime / xai_realtime entry without it is dropped (user transcription is off by default there, so the user turns could not be stored; gemini_live needs no model); isDefault not true = false. Same provider-kind and malformed-structure rules as decode.",
+      "Resolve and options use the resolve / options rules with direction realtime: engine system means follow the current chat model (the cascade conversation); a cloud selection falls back to it with the same reasons, notice and persist; a selected voice not in the entry voices → the entry default voice, else the first. The settings row lists exactly the options; the client never hard-codes which providers have a realtime engine."
+    ]
+  },
+  "decodeCases": [
+    {
+      "id": "decode_unknown_fields_ignored",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "revision": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "futureTopLevel": {
+            "a": 1
+          },
+          "providers": {
+            "openAI": {
+              "stt": [
+                {
+                  "model": "gpt-transcribe",
+                  "transport": "openai_transcriptions",
+                  "path": "/v1/audio/transcriptions",
+                  "acceptedFormats": [
+                    "m4a"
+                  ],
+                  "maxBytes": 25000000,
+                  "maxDurationSec": 600,
+                  "price": {
+                    "unit": "per_minute_input",
+                    "usd": 0.0045,
+                    "futurePriceField": true
+                  },
+                  "isDefault": true,
+                  "source": {
+                    "url": "https://example.invalid/doc",
+                    "verifiedAt": "2026-10-16",
+                    "futureSourceField": 1
+                  },
+                  "futureEntryField": "x"
+                },
+                {
+                  "model": "future-model",
+                  "transport": "openai_realtime_v9",
+                  "path": "/v1/audio/transcriptions",
+                  "acceptedFormats": [
+                    "m4a"
+                  ],
+                  "maxBytes": 25000000,
+                  "maxDurationSec": 600,
+                  "price": {
+                    "unit": "per_minute_input",
+                    "usd": 0.0045
+                  },
+                  "isDefault": false,
+                  "source": {
+                    "url": "https://example.invalid/doc",
+                    "verifiedAt": "2026-10-16"
+                  }
+                }
+              ],
+              "tts": [
+                {
+                  "model": "gpt-4o-mini-tts",
+                  "transport": "openai_speech",
+                  "path": "/v1/audio/speech",
+                  "voices": [
+                    {
+                      "id": "marin",
+                      "isDefault": true,
+                      "gender": "f",
+                      "futureVoiceField": [
+                        1
+                      ]
+                    }
+                  ],
+                  "outputFormat": "mp3",
+                  "maxChars": 4096,
+                  "isDefault": true,
+                  "source": {
+                    "url": "https://example.invalid/doc",
+                    "verifiedAt": "2026-10-16"
+                  },
+                  "price": {
+                    "unit": "per_1k_tokens_future",
+                    "usd": 1
+                  },
+                  "speedRange": {
+                    "min": 0.25,
+                    "max": 4,
+                    "futureStep": 0.05
+                  }
+                }
+              ],
+              "futureDirection": [
+                {
+                  "model": "x"
+                }
+              ]
+            }
+          },
+          "features": {
+            "readAloudCloud": true,
+            "dictation": true,
+            "voiceConversation": false,
+            "vadEndSilenceMs": 600,
+            "androidHardwareAecDenylist": [],
+            "futureSwitch": true
+          }
+        }
+      },
+      "expected": {
+        "providers": {
+          "openAI": {
+            "stt": [
+              {
+                "model": "gpt-transcribe",
+                "transport": "openai_transcriptions",
+                "path": "/v1/audio/transcriptions",
+                "maxBytes": 25000000,
+                "maxDurationSec": 600,
+                "isDefault": true
+              }
+            ],
+            "tts": [
+              {
+                "model": "gpt-4o-mini-tts",
+                "transport": "openai_speech",
+                "path": "/v1/audio/speech",
+                "outputFormat": "mp3",
+                "maxChars": 4096,
+                "voices": [
+                  {
+                    "id": "marin",
+                    "isDefault": true
+                  }
+                ],
+                "speedRange": {
+                  "min": 0.25,
+                  "max": 4
+                },
+                "isDefault": true
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "decode_empty_direction_and_missing_provider",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "revision": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "providers": {
+            "openAI": {
+              "stt": [
+                {
+                  "model": "gpt-transcribe",
+                  "transport": "openai_transcriptions",
+                  "path": "/v1/audio/transcriptions",
+                  "maxBytes": 25000000,
+                  "maxDurationSec": 600,
+                  "isDefault": true
+                }
+              ],
+              "tts": []
+            }
+          }
+        }
+      },
+      "expected": {
+        "providers": {
+          "openAI": {
+            "stt": [
+              {
+                "model": "gpt-transcribe",
+                "transport": "openai_transcriptions",
+                "path": "/v1/audio/transcriptions",
+                "maxBytes": 25000000,
+                "maxDurationSec": 600,
+                "isDefault": true
+              }
+            ],
+            "tts": []
+          }
+        }
+      }
+    },
+    {
+      "id": "decode_wrong_types_drop_entry_not_document",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "revision": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "providers": {
+            "openAI": {
+              "stt": [
+                {
+                  "model": "gpt-transcribe",
+                  "transport": "openai_transcriptions",
+                  "path": "/v1/audio/transcriptions",
+                  "maxBytes": 25000000,
+                  "maxDurationSec": 600,
+                  "isDefault": true,
+                  "languageField": 42
+                },
+                {
+                  "model": "bad-bytes",
+                  "transport": "openai_transcriptions",
+                  "path": "/v1/audio/transcriptions",
+                  "maxBytes": "25MB",
+                  "maxDurationSec": 600,
+                  "isDefault": false
+                }
+              ],
+              "tts": [
+                {
+                  "model": "gpt-4o-mini-tts",
+                  "transport": "openai_speech",
+                  "path": "/v1/audio/speech",
+                  "voices": [
+                    {
+                      "id": 7
+                    },
+                    {
+                      "id": "marin",
+                      "isDefault": "yes"
+                    }
+                  ],
+                  "outputFormat": "mp3",
+                  "maxChars": 4096,
+                  "isDefault": true,
+                  "speedRange": {
+                    "min": "0.25",
+                    "max": 4
+                  }
+                },
+                {
+                  "model": "tts-no-voices",
+                  "transport": "openai_speech",
+                  "path": "/v1/audio/speech",
+                  "voices": [],
+                  "outputFormat": "mp3",
+                  "maxChars": 4096,
+                  "isDefault": false
+                },
+                {
+                  "model": "tts-bad-voices",
+                  "transport": "openai_speech",
+                  "path": "/v1/audio/speech",
+                  "voices": [
+                    {
+                      "id": 1
+                    },
+                    {
+                      "name": "x"
+                    }
+                  ],
+                  "outputFormat": "wav",
+                  "maxChars": 200,
+                  "isDefault": false
+                },
+                {
+                  "model": "tts-inverted-speed",
+                  "transport": "openai_speech",
+                  "path": "/v1/audio/speech",
+                  "voices": [
+                    {
+                      "id": "alloy"
+                    }
+                  ],
+                  "outputFormat": "mp3",
+                  "maxChars": 4096,
+                  "speedRange": {
+                    "min": 2,
+                    "max": 0.5
+                  },
+                  "isDefault": false
+                }
+              ]
+            },
+            "futureVendor": {
+              "stt": [
+                {
+                  "model": "future-stt",
+                  "transport": "openai_transcriptions",
+                  "path": "/v1/audio/transcriptions",
+                  "maxBytes": 25000000,
+                  "maxDurationSec": 600,
+                  "isDefault": true
+                }
+              ],
+              "tts": []
+            }
+          }
+        }
+      },
+      "expected": {
+        "providers": {
+          "openAI": {
+            "stt": [
+              {
+                "model": "gpt-transcribe",
+                "transport": "openai_transcriptions",
+                "path": "/v1/audio/transcriptions",
+                "maxBytes": 25000000,
+                "maxDurationSec": 600,
+                "isDefault": true
+              }
+            ],
+            "tts": [
+              {
+                "model": "gpt-4o-mini-tts",
+                "transport": "openai_speech",
+                "path": "/v1/audio/speech",
+                "outputFormat": "mp3",
+                "maxChars": 4096,
+                "voices": [
+                  {
+                    "id": "marin",
+                    "isDefault": false
+                  }
+                ],
+                "isDefault": true
+              },
+              {
+                "model": "tts-inverted-speed",
+                "transport": "openai_speech",
+                "path": "/v1/audio/speech",
+                "outputFormat": "mp3",
+                "maxChars": 4096,
+                "voices": [
+                  {
+                    "id": "alloy",
+                    "isDefault": false
+                  }
+                ],
+                "isDefault": false
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "decode_base_catalog",
+      "input": {
+        "catalog": "base"
+      },
+      "expected": {
+        "providers": {
+          "gemini": {
+            "stt": [
+              {
+                "model": "gemini-3.5-transcribe",
+                "transport": "gemini_transcribe",
+                "path": "/v1beta/interactions",
+                "maxBytes": 14500000,
+                "maxDurationSec": 600,
+                "isDefault": true
+              }
+            ],
+            "tts": [
+              {
+                "model": "gemini-3.8-flash-lite-tts",
+                "transport": "gemini_tts",
+                "path": "/v1beta/interactions",
+                "outputFormat": "wav",
+                "maxChars": 3000,
+                "voices": [
+                  {
+                    "id": "Zephyr",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Puck",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Charon",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Kore",
+                    "isDefault": true
+                  },
+                  {
+                    "id": "Fenrir",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Leda",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Orus",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Aoede",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Callirrhoe",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Autonoe",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Enceladus",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Iapetus",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Umbriel",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Algieba",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Despina",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Erinome",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Algenib",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Rasalgethi",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Laomedeia",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Achernar",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Alnilam",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Schedar",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Gacrux",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Pulcherrima",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Achird",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Zubenelgenubi",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Vindemiatrix",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Sadachbia",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Sadaltager",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Sulafat",
+                    "isDefault": false
+                  }
+                ],
+                "isDefault": false
+              },
+              {
+                "model": "gemini-3.8-flash-tts",
+                "transport": "gemini_tts",
+                "path": "/v1beta/interactions",
+                "outputFormat": "wav",
+                "maxChars": 3000,
+                "voices": [
+                  {
+                    "id": "Zephyr",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Puck",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Charon",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Kore",
+                    "isDefault": true
+                  },
+                  {
+                    "id": "Fenrir",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Leda",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Orus",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Aoede",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Callirrhoe",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Autonoe",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Enceladus",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Iapetus",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Umbriel",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Algieba",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Despina",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Erinome",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Algenib",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Rasalgethi",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Laomedeia",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Achernar",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Alnilam",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Schedar",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Gacrux",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Pulcherrima",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Achird",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Zubenelgenubi",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Vindemiatrix",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Sadachbia",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Sadaltager",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Sulafat",
+                    "isDefault": false
+                  }
+                ],
+                "isDefault": true
+              }
+            ]
+          },
+          "grok": {
+            "stt": [
+              {
+                "model": "grok-voice-transcribe-2.0",
+                "transport": "xai_stt",
+                "path": "/v1/stt",
+                "maxBytes": 500000000,
+                "maxDurationSec": 600,
+                "languageField": "language",
+                "isDefault": true
+              }
+            ],
+            "tts": [
+              {
+                "model": "xai-tts",
+                "transport": "xai_tts",
+                "path": "/v1/tts",
+                "outputFormat": "mp3",
+                "maxChars": 60000,
+                "voices": [
+                  {
+                    "id": "carina",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "zagan",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "helix",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "orion",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "luna",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "iris",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "altair",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "zenith",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "perseus",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "helios",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "lux",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "kepler",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "rigel",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "cosmo",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "celeste",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "ursa",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "sirius",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "lumen",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "castor",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "naksh",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "atlas",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "ara",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "eve",
+                    "isDefault": true
+                  },
+                  {
+                    "id": "leo",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "rex",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "sal",
+                    "isDefault": false
+                  }
+                ],
+                "speedRange": {
+                  "min": 0.7,
+                  "max": 1.5
+                },
+                "isDefault": true
+              }
+            ]
+          },
+          "groq": {
+            "stt": [
+              {
+                "model": "whisper-large-v3-turbo",
+                "transport": "openai_transcriptions",
+                "path": "/openai/v1/audio/transcriptions",
+                "maxBytes": 25000000,
+                "maxDurationSec": 600,
+                "languageField": "language",
+                "isDefault": true
+              }
+            ],
+            "tts": [
+              {
+                "model": "canopylabs/orpheus-v1-english",
+                "transport": "openai_speech",
+                "path": "/openai/v1/audio/speech",
+                "outputFormat": "wav",
+                "maxChars": 200,
+                "voices": [
+                  {
+                    "id": "autumn",
+                    "isDefault": true
+                  },
+                  {
+                    "id": "diana",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "hannah",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "austin",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "daniel",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "troy",
+                    "isDefault": false
+                  }
+                ],
+                "isDefault": true
+              }
+            ]
+          },
+          "mistral": {
+            "stt": [
+              {
+                "model": "voxtral-mini-transcribe-3-0",
+                "transport": "openai_transcriptions",
+                "path": "/v1/audio/transcriptions",
+                "maxBytes": 25000000,
+                "maxDurationSec": 600,
+                "languageField": "language",
+                "isDefault": true
+              }
+            ],
+            "tts": [
+              {
+                "model": "voxtral-mini-tts-3-0",
+                "transport": "mistral_speech",
+                "path": "/v1/audio/speech",
+                "outputFormat": "mp3",
+                "maxChars": 1500,
+                "voices": [
+                  {
+                    "id": "en_paul_neutral",
+                    "isDefault": true
+                  },
+                  {
+                    "id": "en_paul_happy",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "en_paul_cheerful",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "en_paul_excited",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "en_paul_confident",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "en_paul_sad",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "en_paul_frustrated",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "en_paul_angry",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "gb_jane_neutral",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "gb_jane_confident",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "gb_jane_curious",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "gb_jane_confused",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "gb_jane_sarcasm",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "gb_jane_sad",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "gb_jane_shameful",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "gb_jane_jealousy",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "gb_jane_frustrated",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "gb_oliver_neutral",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "gb_oliver_cheerful",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "gb_oliver_excited",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "gb_oliver_confident",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "gb_oliver_curious",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "gb_oliver_sad",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "gb_oliver_angry",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "fr_marie_neutral",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "fr_marie_happy",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "fr_marie_excited",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "fr_marie_curious",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "fr_marie_sad",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "fr_marie_angry",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "voice_478",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "voice_447",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "voice_485",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "voice_484",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "voice_483",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "voice_482",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "voice_481",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "voice_480",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "voice_479",
+                    "isDefault": false
+                  }
+                ],
+                "isDefault": true
+              }
+            ]
+          },
+          "openAI": {
+            "stt": [
+              {
+                "model": "gpt-transcribe",
+                "transport": "openai_transcriptions",
+                "path": "/v1/audio/transcriptions",
+                "maxBytes": 25000000,
+                "maxDurationSec": 600,
+                "languageField": "language",
+                "isDefault": true
+              },
+              {
+                "model": "whisper-1",
+                "transport": "openai_transcriptions",
+                "path": "/v1/audio/transcriptions",
+                "maxBytes": 25000000,
+                "maxDurationSec": 600,
+                "languageField": "language",
+                "isDefault": false
+              }
+            ],
+            "tts": [
+              {
+                "model": "gpt-4o-mini-tts",
+                "transport": "openai_speech",
+                "path": "/v1/audio/speech",
+                "outputFormat": "mp3",
+                "maxChars": 4096,
+                "voices": [
+                  {
+                    "id": "alloy",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "ash",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "ballad",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "coral",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "echo",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "fable",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "onyx",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "nova",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "sage",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "shimmer",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "verse",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "marin",
+                    "isDefault": true
+                  },
+                  {
+                    "id": "cedar",
+                    "isDefault": false
+                  }
+                ],
+                "speedRange": {
+                  "min": 0.25,
+                  "max": 4
+                },
+                "isDefault": true
+              },
+              {
+                "model": "tts-1",
+                "transport": "openai_speech",
+                "path": "/v1/audio/speech",
+                "outputFormat": "mp3",
+                "maxChars": 4096,
+                "voices": [
+                  {
+                    "id": "alloy",
+                    "isDefault": true
+                  },
+                  {
+                    "id": "ash",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "coral",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "echo",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "fable",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "onyx",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "nova",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "sage",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "shimmer",
+                    "isDefault": false
+                  }
+                ],
+                "speedRange": {
+                  "min": 0.25,
+                  "max": 4
+                },
+                "isDefault": false
+              }
+            ]
+          },
+          "qwen": {
+            "stt": [
+              {
+                "model": "qwen-audio-3.0-asr-flash",
+                "transport": "dashscope_asr",
+                "path": "/api/v1/services/aigc/multimodal-generation/generation",
+                "maxBytes": 7000000,
+                "maxDurationSec": 300,
+                "languageField": "language_hints",
+                "isDefault": true
+              }
+            ],
+            "tts": [
+              {
+                "model": "qwen3-tts-flash",
+                "transport": "dashscope_tts",
+                "path": "/api/v1/services/aigc/multimodal-generation/generation",
+                "outputFormat": "wav",
+                "maxChars": 600,
+                "voices": [
+                  {
+                    "id": "Cherry",
+                    "isDefault": true
+                  },
+                  {
+                    "id": "Serena",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Ethan",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Chelsie",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Momo",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Vivian",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Moon",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Maia",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Kai",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Nofish",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Bella",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Jennifer",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Ryan",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Katerina",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Aiden",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Eldric Sage",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Mia",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Mochi",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Bellona",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Vincent",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Bunny",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Neil",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Elias",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Arthur",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Nini",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Seren",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Pip",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Stella",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Bodega",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Sonrisa",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Alek",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Dolce",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Sohee",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Ono Anna",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Lenn",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Emilien",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Andre",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Radio Gol",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Jada",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Dylan",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Li",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Marcus",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Roy",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Peter",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Sunny",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Eric",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Rocky",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Kiki",
+                    "isDefault": false
+                  }
+                ],
+                "isDefault": true
+              }
+            ]
+          },
+          "siliconFlow": {
+            "stt": [
+              {
+                "model": "FunAudioLLM/SenseVoiceSmall",
+                "transport": "openai_transcriptions",
+                "path": "/v1/audio/transcriptions",
+                "maxBytes": 50000000,
+                "maxDurationSec": 3600,
+                "isDefault": true
+              }
+            ],
+            "tts": [
+              {
+                "model": "FunAudioLLM/CosyVoice2-0.5B",
+                "transport": "openai_speech",
+                "path": "/v1/audio/speech",
+                "outputFormat": "mp3",
+                "maxChars": 128000,
+                "voices": [
+                  {
+                    "id": "FunAudioLLM/CosyVoice2-0.5B:alex",
+                    "isDefault": true
+                  },
+                  {
+                    "id": "FunAudioLLM/CosyVoice2-0.5B:anna",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "FunAudioLLM/CosyVoice2-0.5B:bella",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "FunAudioLLM/CosyVoice2-0.5B:benjamin",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "FunAudioLLM/CosyVoice2-0.5B:charles",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "FunAudioLLM/CosyVoice2-0.5B:claire",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "FunAudioLLM/CosyVoice2-0.5B:david",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "FunAudioLLM/CosyVoice2-0.5B:diana",
+                    "isDefault": false
+                  }
+                ],
+                "speedRange": {
+                  "min": 0.25,
+                  "max": 4
+                },
+                "isDefault": true
+              }
+            ]
+          },
+          "together": {
+            "stt": [
+              {
+                "model": "openai/whisper-large-v3",
+                "transport": "openai_transcriptions",
+                "path": "/v1/audio/transcriptions",
+                "maxBytes": 25000000,
+                "maxDurationSec": 600,
+                "languageField": "language",
+                "isDefault": true
+              }
+            ],
+            "tts": [
+              {
+                "model": "canopylabs/orpheus-3b-0.1-ft",
+                "transport": "openai_speech",
+                "path": "/v1/audio/speech",
+                "outputFormat": "mp3",
+                "maxChars": 2000,
+                "voices": [
+                  {
+                    "id": "tara",
+                    "isDefault": true
+                  },
+                  {
+                    "id": "leah",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "jess",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "leo",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "dan",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "mia",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "zac",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "zoe",
+                    "isDefault": false
+                  }
+                ],
+                "isDefault": true
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "decode_malformed_structure_tolerated",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "revision": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+          "providers": {
+            "openAI": {
+              "stt": [
+                null,
+                7,
+                {
+                  "model": "gpt-transcribe",
+                  "transport": "openai_transcriptions",
+                  "path": "/v1/audio/transcriptions",
+                  "maxBytes": 25000000,
+                  "maxDurationSec": 600,
+                  "isDefault": true
+                }
+              ],
+              "tts": {
+                "notAnArray": true
+              }
+            },
+            "grok": null,
+            "groq": {
+              "stt": "x",
+              "tts": [
+                {
+                  "model": "tts-1",
+                  "transport": "openai_speech",
+                  "path": "/v1/audio/speech",
+                  "voices": [
+                    {
+                      "id": "alloy",
+                      "isDefault": true
+                    },
+                    null,
+                    "echo"
+                  ],
+                  "outputFormat": "mp3",
+                  "maxChars": 4096,
+                  "isDefault": true
+                }
+              ]
+            },
+            "siliconFlow": []
+          }
+        }
+      },
+      "expected": {
+        "providers": {
+          "openAI": {
+            "stt": [
+              {
+                "model": "gpt-transcribe",
+                "transport": "openai_transcriptions",
+                "path": "/v1/audio/transcriptions",
+                "maxBytes": 25000000,
+                "maxDurationSec": 600,
+                "isDefault": true
+              }
+            ],
+            "tts": []
+          },
+          "grok": {
+            "stt": [],
+            "tts": []
+          },
+          "groq": {
+            "stt": [],
+            "tts": [
+              {
+                "model": "tts-1",
+                "transport": "openai_speech",
+                "path": "/v1/audio/speech",
+                "outputFormat": "mp3",
+                "maxChars": 4096,
+                "voices": [
+                  {
+                    "id": "alloy",
+                    "isDefault": true
+                  }
+                ],
+                "isDefault": true
+              }
+            ]
+          },
+          "siliconFlow": {
+            "stt": [],
+            "tts": []
+          }
+        }
+      }
+    },
+    {
+      "id": "decode_non_integer_limits_drop_entry",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "revision": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+          "providers": {
+            "openAI": {
+              "stt": [
+                {
+                  "model": "gpt-transcribe",
+                  "transport": "openai_transcriptions",
+                  "path": "/v1/audio/transcriptions",
+                  "maxBytes": 25000000,
+                  "maxDurationSec": 600,
+                  "isDefault": true
+                },
+                {
+                  "model": "fractional-bytes",
+                  "transport": "openai_transcriptions",
+                  "path": "/v1/audio/transcriptions",
+                  "maxBytes": 2.5,
+                  "maxDurationSec": 600,
+                  "isDefault": true
+                },
+                {
+                  "model": "negative-duration",
+                  "transport": "openai_transcriptions",
+                  "path": "/v1/audio/transcriptions",
+                  "maxBytes": 25000000,
+                  "maxDurationSec": -1,
+                  "isDefault": true
+                },
+                {
+                  "model": "zero-duration",
+                  "transport": "openai_transcriptions",
+                  "path": "/v1/audio/transcriptions",
+                  "maxBytes": 25000000,
+                  "maxDurationSec": 0,
+                  "isDefault": true
+                }
+              ],
+              "tts": [
+                {
+                  "model": "tts-1",
+                  "transport": "openai_speech",
+                  "path": "/v1/audio/speech",
+                  "voices": [
+                    {
+                      "id": "alloy"
+                    }
+                  ],
+                  "outputFormat": "mp3",
+                  "maxChars": 4096,
+                  "isDefault": true
+                },
+                {
+                  "model": "fractional-chars",
+                  "transport": "openai_speech",
+                  "path": "/v1/audio/speech",
+                  "voices": [
+                    {
+                      "id": "alloy",
+                      "isDefault": true
+                    },
+                    null,
+                    "echo"
+                  ],
+                  "outputFormat": "mp3",
+                  "maxChars": 4096.5,
+                  "isDefault": true
+                },
+                {
+                  "model": "speed-above-one",
+                  "transport": "openai_speech",
+                  "path": "/v1/audio/speech",
+                  "voices": [
+                    {
+                      "id": "alloy"
+                    }
+                  ],
+                  "outputFormat": "mp3",
+                  "maxChars": 4096,
+                  "isDefault": true,
+                  "speedRange": {
+                    "min": 1.2,
+                    "max": 2
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "expected": {
+        "providers": {
+          "openAI": {
+            "stt": [
+              {
+                "model": "gpt-transcribe",
+                "transport": "openai_transcriptions",
+                "path": "/v1/audio/transcriptions",
+                "maxBytes": 25000000,
+                "maxDurationSec": 600,
+                "isDefault": true
+              }
+            ],
+            "tts": [
+              {
+                "model": "tts-1",
+                "transport": "openai_speech",
+                "path": "/v1/audio/speech",
+                "outputFormat": "mp3",
+                "maxChars": 4096,
+                "voices": [
+                  {
+                    "id": "alloy",
+                    "isDefault": false
+                  }
+                ],
+                "isDefault": true
+              },
+              {
+                "model": "speed-above-one",
+                "transport": "openai_speech",
+                "path": "/v1/audio/speech",
+                "outputFormat": "mp3",
+                "maxChars": 4096,
+                "voices": [
+                  {
+                    "id": "alloy",
+                    "isDefault": false
+                  }
+                ],
+                "isDefault": true
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "decode_any_client_provider_kind_kept",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "revision": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+          "providers": {
+            "qwen": {
+              "stt": [],
+              "tts": [
+                {
+                  "model": "qwen-tts-x",
+                  "transport": "openai_speech",
+                  "path": "/compatible-mode/v1/audio/speech",
+                  "voices": [
+                    {
+                      "id": "Cherry",
+                      "isDefault": true
+                    }
+                  ],
+                  "outputFormat": "mp3",
+                  "maxChars": 600,
+                  "isDefault": true
+                }
+              ]
+            },
+            "notAProviderKind": {
+              "stt": [],
+              "tts": [
+                {
+                  "model": "other-tts",
+                  "transport": "openai_speech",
+                  "path": "/compatible-mode/v1/audio/speech",
+                  "voices": [
+                    {
+                      "id": "Cherry",
+                      "isDefault": true
+                    }
+                  ],
+                  "outputFormat": "mp3",
+                  "maxChars": 600,
+                  "isDefault": true
+                }
+              ]
+            }
+          }
+        }
+      },
+      "expected": {
+        "providers": {
+          "qwen": {
+            "stt": [],
+            "tts": [
+              {
+                "model": "qwen-tts-x",
+                "transport": "openai_speech",
+                "path": "/compatible-mode/v1/audio/speech",
+                "outputFormat": "mp3",
+                "maxChars": 600,
+                "voices": [
+                  {
+                    "id": "Cherry",
+                    "isDefault": true
+                  }
+                ],
+                "isDefault": true
+              }
+            ]
+          }
+        }
+      },
+      "note": "Every providerKind in constants.knownProviderKinds is decoded, not only the kinds that have voice entries today; only kinds outside both clients' enum are dropped. Guards the 2026-10-19 split (iOS decoded any enum kind, Android and the reference only four)."
+    }
+  ],
+  "resolveCases": [
+    {
+      "id": "resolve_stt_cloud_ok",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "revision": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "providers": {
+            "openAI": {
+              "stt": [
+                {
+                  "model": "gpt-transcribe",
+                  "transport": "openai_transcriptions",
+                  "path": "/v1/audio/transcriptions",
+                  "maxBytes": 25000000,
+                  "maxDurationSec": 600,
+                  "isDefault": true
+                }
+              ],
+              "tts": [
+                {
+                  "model": "gpt-4o-mini-tts",
+                  "transport": "openai_speech",
+                  "path": "/v1/audio/speech",
+                  "voices": [
+                    {
+                      "id": "alloy"
+                    },
+                    {
+                      "id": "marin",
+                      "isDefault": true
+                    }
+                  ],
+                  "outputFormat": "mp3",
+                  "maxChars": 4096,
+                  "isDefault": true
+                }
+              ]
+            }
+          }
+        },
+        "direction": "stt",
+        "selection": {
+          "engine": "cloud",
+          "providerKind": "openAI",
+          "connectionId": "c1",
+          "model": "gpt-transcribe"
+        },
+        "connections": [
+          {
+            "id": "c1",
+            "providerKind": "openAI",
+            "authMode": "apiKey",
+            "hasKey": true
+          }
+        ]
+      },
+      "expected": {
+        "engine": "cloud",
+        "providerKind": "openAI",
+        "connectionId": "c1",
+        "model": "gpt-transcribe"
+      }
+    },
+    {
+      "id": "resolve_stt_entry_removed_next_revision",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "revision": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "providers": {
+            "openAI": {
+              "stt": [
+                {
+                  "model": "gpt-transcribe-2",
+                  "transport": "openai_transcriptions",
+                  "path": "/v1/audio/transcriptions",
+                  "maxBytes": 25000000,
+                  "maxDurationSec": 600,
+                  "isDefault": true
+                }
+              ],
+              "tts": [
+                {
+                  "model": "gpt-4o-mini-tts",
+                  "transport": "openai_speech",
+                  "path": "/v1/audio/speech",
+                  "voices": [
+                    {
+                      "id": "alloy"
+                    },
+                    {
+                      "id": "marin",
+                      "isDefault": true
+                    }
+                  ],
+                  "outputFormat": "mp3",
+                  "maxChars": 4096,
+                  "isDefault": true
+                }
+              ]
+            }
+          }
+        },
+        "direction": "stt",
+        "selection": {
+          "engine": "cloud",
+          "providerKind": "openAI",
+          "connectionId": "c1",
+          "model": "gpt-transcribe"
+        },
+        "connections": [
+          {
+            "id": "c1",
+            "providerKind": "openAI",
+            "authMode": "apiKey",
+            "hasKey": true
+          }
+        ]
+      },
+      "expected": {
+        "engine": "system",
+        "reason": "entry_removed",
+        "notice": true,
+        "persist": "system"
+      }
+    },
+    {
+      "id": "resolve_tts_direction_emptied_next_revision",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "revision": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "providers": {
+            "openAI": {
+              "stt": [
+                {
+                  "model": "gpt-transcribe",
+                  "transport": "openai_transcriptions",
+                  "path": "/v1/audio/transcriptions",
+                  "maxBytes": 25000000,
+                  "maxDurationSec": 600,
+                  "isDefault": true
+                }
+              ],
+              "tts": []
+            }
+          }
+        },
+        "direction": "tts",
+        "selection": {
+          "engine": "cloud",
+          "providerKind": "openAI",
+          "connectionId": "c1",
+          "model": "gpt-4o-mini-tts",
+          "voice": "alloy"
+        },
+        "connections": [
+          {
+            "id": "c1",
+            "providerKind": "openAI",
+            "authMode": "apiKey",
+            "hasKey": true
+          }
+        ]
+      },
+      "expected": {
+        "engine": "system",
+        "reason": "entry_removed",
+        "notice": true,
+        "persist": "system"
+      }
+    },
+    {
+      "id": "resolve_provider_vanished_next_revision",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "revision": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "providers": {}
+        },
+        "direction": "stt",
+        "selection": {
+          "engine": "cloud",
+          "providerKind": "openAI",
+          "connectionId": "c1",
+          "model": "gpt-transcribe"
+        },
+        "connections": [
+          {
+            "id": "c1",
+            "providerKind": "openAI",
+            "authMode": "apiKey",
+            "hasKey": true
+          }
+        ]
+      },
+      "expected": {
+        "engine": "system",
+        "reason": "entry_removed",
+        "notice": true,
+        "persist": "system"
+      }
+    },
+    {
+      "id": "resolve_tts_voice_missing_uses_default",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "revision": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "providers": {
+            "openAI": {
+              "stt": [
+                {
+                  "model": "gpt-transcribe",
+                  "transport": "openai_transcriptions",
+                  "path": "/v1/audio/transcriptions",
+                  "maxBytes": 25000000,
+                  "maxDurationSec": 600,
+                  "isDefault": true
+                }
+              ],
+              "tts": [
+                {
+                  "model": "gpt-4o-mini-tts",
+                  "transport": "openai_speech",
+                  "path": "/v1/audio/speech",
+                  "voices": [
+                    {
+                      "id": "alloy"
+                    },
+                    {
+                      "id": "marin",
+                      "isDefault": true
+                    }
+                  ],
+                  "outputFormat": "mp3",
+                  "maxChars": 4096,
+                  "isDefault": true
+                }
+              ]
+            }
+          }
+        },
+        "direction": "tts",
+        "selection": {
+          "engine": "cloud",
+          "providerKind": "openAI",
+          "connectionId": "c1",
+          "model": "gpt-4o-mini-tts",
+          "voice": "retired-voice"
+        },
+        "connections": [
+          {
+            "id": "c1",
+            "providerKind": "openAI",
+            "authMode": "apiKey",
+            "hasKey": true
+          }
+        ]
+      },
+      "expected": {
+        "engine": "cloud",
+        "providerKind": "openAI",
+        "connectionId": "c1",
+        "model": "gpt-4o-mini-tts",
+        "voice": "marin"
+      }
+    },
+    {
+      "id": "resolve_tts_voice_kept",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "revision": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "providers": {
+            "openAI": {
+              "stt": [
+                {
+                  "model": "gpt-transcribe",
+                  "transport": "openai_transcriptions",
+                  "path": "/v1/audio/transcriptions",
+                  "maxBytes": 25000000,
+                  "maxDurationSec": 600,
+                  "isDefault": true
+                }
+              ],
+              "tts": [
+                {
+                  "model": "gpt-4o-mini-tts",
+                  "transport": "openai_speech",
+                  "path": "/v1/audio/speech",
+                  "voices": [
+                    {
+                      "id": "alloy"
+                    },
+                    {
+                      "id": "marin",
+                      "isDefault": true
+                    }
+                  ],
+                  "outputFormat": "mp3",
+                  "maxChars": 4096,
+                  "isDefault": true
+                }
+              ]
+            }
+          }
+        },
+        "direction": "tts",
+        "selection": {
+          "engine": "cloud",
+          "providerKind": "openAI",
+          "connectionId": "c1",
+          "model": "gpt-4o-mini-tts",
+          "voice": "alloy"
+        },
+        "connections": [
+          {
+            "id": "c1",
+            "providerKind": "openAI",
+            "authMode": "apiKey",
+            "hasKey": true
+          }
+        ]
+      },
+      "expected": {
+        "engine": "cloud",
+        "providerKind": "openAI",
+        "connectionId": "c1",
+        "model": "gpt-4o-mini-tts",
+        "voice": "alloy"
+      }
+    },
+    {
+      "id": "resolve_system_selection",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "revision": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "providers": {
+            "openAI": {
+              "stt": [
+                {
+                  "model": "gpt-transcribe",
+                  "transport": "openai_transcriptions",
+                  "path": "/v1/audio/transcriptions",
+                  "maxBytes": 25000000,
+                  "maxDurationSec": 600,
+                  "isDefault": true
+                }
+              ],
+              "tts": [
+                {
+                  "model": "gpt-4o-mini-tts",
+                  "transport": "openai_speech",
+                  "path": "/v1/audio/speech",
+                  "voices": [
+                    {
+                      "id": "alloy"
+                    },
+                    {
+                      "id": "marin",
+                      "isDefault": true
+                    }
+                  ],
+                  "outputFormat": "mp3",
+                  "maxChars": 4096,
+                  "isDefault": true
+                }
+              ]
+            }
+          }
+        },
+        "direction": "tts",
+        "selection": {
+          "engine": "system"
+        },
+        "connections": [
+          {
+            "id": "c1",
+            "providerKind": "openAI",
+            "authMode": "apiKey",
+            "hasKey": true
+          }
+        ]
+      },
+      "expected": {
+        "engine": "system",
+        "notice": false,
+        "persist": "keep"
+      }
+    },
+    {
+      "id": "resolve_connection_deleted",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "revision": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "providers": {
+            "openAI": {
+              "stt": [
+                {
+                  "model": "gpt-transcribe",
+                  "transport": "openai_transcriptions",
+                  "path": "/v1/audio/transcriptions",
+                  "maxBytes": 25000000,
+                  "maxDurationSec": 600,
+                  "isDefault": true
+                }
+              ],
+              "tts": [
+                {
+                  "model": "gpt-4o-mini-tts",
+                  "transport": "openai_speech",
+                  "path": "/v1/audio/speech",
+                  "voices": [
+                    {
+                      "id": "alloy"
+                    },
+                    {
+                      "id": "marin",
+                      "isDefault": true
+                    }
+                  ],
+                  "outputFormat": "mp3",
+                  "maxChars": 4096,
+                  "isDefault": true
+                }
+              ]
+            }
+          }
+        },
+        "direction": "stt",
+        "selection": {
+          "engine": "cloud",
+          "providerKind": "openAI",
+          "connectionId": "c1",
+          "model": "gpt-transcribe"
+        },
+        "connections": []
+      },
+      "expected": {
+        "engine": "system",
+        "reason": "connection_missing",
+        "notice": true,
+        "persist": "system"
+      }
+    },
+    {
+      "id": "resolve_connection_subscription",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "revision": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "providers": {
+            "openAI": {
+              "stt": [
+                {
+                  "model": "gpt-transcribe",
+                  "transport": "openai_transcriptions",
+                  "path": "/v1/audio/transcriptions",
+                  "maxBytes": 25000000,
+                  "maxDurationSec": 600,
+                  "isDefault": true
+                }
+              ],
+              "tts": [
+                {
+                  "model": "gpt-4o-mini-tts",
+                  "transport": "openai_speech",
+                  "path": "/v1/audio/speech",
+                  "voices": [
+                    {
+                      "id": "alloy"
+                    },
+                    {
+                      "id": "marin",
+                      "isDefault": true
+                    }
+                  ],
+                  "outputFormat": "mp3",
+                  "maxChars": 4096,
+                  "isDefault": true
+                }
+              ]
+            }
+          }
+        },
+        "direction": "tts",
+        "selection": {
+          "engine": "cloud",
+          "providerKind": "openAI",
+          "connectionId": "c1",
+          "model": "gpt-4o-mini-tts",
+          "voice": "alloy"
+        },
+        "connections": [
+          {
+            "id": "c1",
+            "providerKind": "openAI",
+            "authMode": "subscription",
+            "hasKey": true
+          }
+        ]
+      },
+      "expected": {
+        "engine": "system",
+        "reason": "key_missing",
+        "notice": true,
+        "persist": "system"
+      }
+    },
+    {
+      "id": "resolve_key_cleared",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "revision": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "providers": {
+            "openAI": {
+              "stt": [
+                {
+                  "model": "gpt-transcribe",
+                  "transport": "openai_transcriptions",
+                  "path": "/v1/audio/transcriptions",
+                  "maxBytes": 25000000,
+                  "maxDurationSec": 600,
+                  "isDefault": true
+                }
+              ],
+              "tts": [
+                {
+                  "model": "gpt-4o-mini-tts",
+                  "transport": "openai_speech",
+                  "path": "/v1/audio/speech",
+                  "voices": [
+                    {
+                      "id": "alloy"
+                    },
+                    {
+                      "id": "marin",
+                      "isDefault": true
+                    }
+                  ],
+                  "outputFormat": "mp3",
+                  "maxChars": 4096,
+                  "isDefault": true
+                }
+              ]
+            }
+          }
+        },
+        "direction": "stt",
+        "selection": {
+          "engine": "cloud",
+          "providerKind": "openAI",
+          "connectionId": "c1",
+          "model": "gpt-transcribe"
+        },
+        "connections": [
+          {
+            "id": "c1",
+            "providerKind": "openAI",
+            "authMode": "apiKey",
+            "hasKey": false
+          }
+        ]
+      },
+      "expected": {
+        "engine": "system",
+        "reason": "key_missing",
+        "notice": true,
+        "persist": "system"
+      }
+    },
+    {
+      "id": "resolve_base_xai_tts_default_voice",
+      "input": {
+        "catalog": "base",
+        "direction": "tts",
+        "selection": {
+          "engine": "cloud",
+          "providerKind": "grok",
+          "connectionId": "g1",
+          "model": "xai-tts"
+        },
+        "connections": [
+          {
+            "id": "g1",
+            "providerKind": "grok",
+            "authMode": "apiKey",
+            "hasKey": true
+          }
+        ]
+      },
+      "expected": {
+        "engine": "cloud",
+        "providerKind": "grok",
+        "connectionId": "g1",
+        "model": "xai-tts",
+        "voice": "eve"
+      }
+    },
+    {
+      "id": "resolve_unknown_transport_entry_removed",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "revision": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "futureTopLevel": {
+            "a": 1
+          },
+          "providers": {
+            "openAI": {
+              "stt": [
+                {
+                  "model": "gpt-transcribe",
+                  "transport": "openai_transcriptions",
+                  "path": "/v1/audio/transcriptions",
+                  "maxBytes": 25000000,
+                  "maxDurationSec": 600,
+                  "isDefault": true,
+                  "futureEntryField": "x"
+                },
+                {
+                  "model": "future-model",
+                  "transport": "openai_realtime_v9",
+                  "path": "/v1/audio/transcriptions",
+                  "maxBytes": 25000000,
+                  "maxDurationSec": 600,
+                  "isDefault": false
+                }
+              ],
+              "tts": [
+                {
+                  "model": "gpt-4o-mini-tts",
+                  "transport": "openai_speech",
+                  "path": "/v1/audio/speech",
+                  "voices": [
+                    {
+                      "id": "marin",
+                      "isDefault": true,
+                      "gender": "f",
+                      "futureVoiceField": [
+                        1
+                      ]
+                    }
+                  ],
+                  "outputFormat": "mp3",
+                  "maxChars": 4096,
+                  "isDefault": true
+                }
+              ],
+              "futureDirection": [
+                {
+                  "model": "x"
+                }
+              ]
+            }
+          }
+        },
+        "direction": "stt",
+        "selection": {
+          "engine": "cloud",
+          "providerKind": "openAI",
+          "connectionId": "c1",
+          "model": "future-model"
+        },
+        "connections": [
+          {
+            "id": "c1",
+            "providerKind": "openAI",
+            "authMode": "apiKey",
+            "hasKey": true
+          }
+        ]
+      },
+      "expected": {
+        "engine": "system",
+        "reason": "entry_removed",
+        "notice": true,
+        "persist": "system"
+      }
+    },
+    {
+      "id": "resolve_base_deepseek_stt_unlisted",
+      "input": {
+        "catalog": "base",
+        "direction": "stt",
+        "selection": {
+          "engine": "cloud",
+          "providerKind": "deepseek",
+          "connectionId": "d1",
+          "model": "deepseek-transcribe"
+        },
+        "connections": [
+          {
+            "id": "d1",
+            "providerKind": "deepseek",
+            "authMode": "apiKey",
+            "hasKey": true
+          }
+        ]
+      },
+      "expected": {
+        "engine": "system",
+        "reason": "entry_removed",
+        "notice": true,
+        "persist": "system"
+      }
+    },
+    {
+      "id": "resolve_base_groq_tts_wav_default_voice",
+      "input": {
+        "catalog": "base",
+        "direction": "tts",
+        "selection": {
+          "engine": "cloud",
+          "providerKind": "groq",
+          "connectionId": "q1",
+          "model": "canopylabs/orpheus-v1-english",
+          "voice": "no-such-voice"
+        },
+        "connections": [
+          {
+            "id": "q1",
+            "providerKind": "groq",
+            "authMode": "apiKey",
+            "hasKey": true
+          }
+        ]
+      },
+      "expected": {
+        "engine": "cloud",
+        "providerKind": "groq",
+        "connectionId": "q1",
+        "model": "canopylabs/orpheus-v1-english",
+        "voice": "autumn"
+      }
+    }
+  ],
+  "optionCases": [
+    {
+      "id": "options_stt_base_all_connections",
+      "input": {
+        "catalog": "base",
+        "direction": "stt",
+        "connections": [
+          {
+            "id": "g1",
+            "providerKind": "grok",
+            "authMode": "apiKey",
+            "hasKey": true
+          },
+          {
+            "id": "s1",
+            "providerKind": "siliconFlow",
+            "authMode": "apiKey",
+            "hasKey": true
+          },
+          {
+            "id": "o1",
+            "providerKind": "openAI",
+            "authMode": "apiKey",
+            "hasKey": true
+          },
+          {
+            "id": "q1",
+            "providerKind": "groq",
+            "authMode": "apiKey",
+            "hasKey": false
+          }
+        ]
+      },
+      "expected": [
+        {
+          "engine": "system"
+        },
+        {
+          "engine": "cloud",
+          "providerKind": "grok",
+          "connectionId": "g1",
+          "model": "grok-voice-transcribe-2.0",
+          "isDefault": true
+        },
+        {
+          "engine": "cloud",
+          "providerKind": "siliconFlow",
+          "connectionId": "s1",
+          "model": "FunAudioLLM/SenseVoiceSmall",
+          "isDefault": true
+        },
+        {
+          "engine": "cloud",
+          "providerKind": "openAI",
+          "connectionId": "o1",
+          "model": "gpt-transcribe",
+          "isDefault": true
+        },
+        {
+          "engine": "cloud",
+          "providerKind": "openAI",
+          "connectionId": "o1",
+          "model": "whisper-1",
+          "isDefault": false
+        }
+      ]
+    },
+    {
+      "id": "options_tts_base_subscription_hidden",
+      "input": {
+        "catalog": "base",
+        "direction": "tts",
+        "connections": [
+          {
+            "id": "o1",
+            "providerKind": "openAI",
+            "authMode": "subscription",
+            "hasKey": true
+          },
+          {
+            "id": "g1",
+            "providerKind": "grok",
+            "authMode": "apiKey",
+            "hasKey": true
+          },
+          {
+            "id": "q1",
+            "providerKind": "groq",
+            "authMode": "apiKey",
+            "hasKey": true
+          }
+        ]
+      },
+      "expected": [
+        {
+          "engine": "system"
+        },
+        {
+          "engine": "cloud",
+          "providerKind": "grok",
+          "connectionId": "g1",
+          "model": "xai-tts",
+          "isDefault": true
+        },
+        {
+          "engine": "cloud",
+          "providerKind": "groq",
+          "connectionId": "q1",
+          "model": "canopylabs/orpheus-v1-english",
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "id": "options_two_connections_same_provider",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "revision": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "providers": {
+            "openAI": {
+              "stt": [
+                {
+                  "model": "gpt-transcribe",
+                  "transport": "openai_transcriptions",
+                  "path": "/v1/audio/transcriptions",
+                  "maxBytes": 25000000,
+                  "maxDurationSec": 600,
+                  "isDefault": true
+                }
+              ],
+              "tts": [
+                {
+                  "model": "gpt-4o-mini-tts",
+                  "transport": "openai_speech",
+                  "path": "/v1/audio/speech",
+                  "voices": [
+                    {
+                      "id": "alloy"
+                    },
+                    {
+                      "id": "marin",
+                      "isDefault": true
+                    }
+                  ],
+                  "outputFormat": "mp3",
+                  "maxChars": 4096,
+                  "isDefault": true
+                }
+              ]
+            }
+          }
+        },
+        "direction": "tts",
+        "connections": [
+          {
+            "id": "a",
+            "providerKind": "openAI",
+            "authMode": "apiKey",
+            "hasKey": true
+          },
+          {
+            "id": "b",
+            "providerKind": "openAI",
+            "authMode": "apiKey",
+            "hasKey": true
+          }
+        ]
+      },
+      "expected": [
+        {
+          "engine": "system"
+        },
+        {
+          "engine": "cloud",
+          "providerKind": "openAI",
+          "connectionId": "a",
+          "model": "gpt-4o-mini-tts",
+          "isDefault": true
+        },
+        {
+          "engine": "cloud",
+          "providerKind": "openAI",
+          "connectionId": "b",
+          "model": "gpt-4o-mini-tts",
+          "isDefault": true
+        }
+      ]
+    }
+  ],
+  "pendingCases": [
+    {
+      "id": "pending_stt_base_deepseek_moonshot",
+      "input": {
+        "catalog": "base",
+        "direction": "stt",
+        "connections": [
+          {
+            "id": "d1",
+            "providerKind": "deepseek",
+            "authMode": "apiKey",
+            "hasKey": true
+          },
+          {
+            "id": "o1",
+            "providerKind": "openAI",
+            "authMode": "apiKey",
+            "hasKey": true
+          },
+          {
+            "id": "k1",
+            "providerKind": "moonshot",
+            "authMode": "apiKey",
+            "hasKey": false
+          },
+          {
+            "id": "d2",
+            "providerKind": "deepseek",
+            "authMode": "subscription",
+            "hasKey": true
+          }
+        ]
+      },
+      "expected": [
+        "deepseek",
+        "moonshot"
+      ]
+    },
+    {
+      "id": "pending_stt_known_kind_empty_direction",
+      "input": {
+        "catalog": "base",
+        "direction": "stt",
+        "connections": [
+          {
+            "id": "d1",
+            "providerKind": "deepseek",
+            "authMode": "apiKey",
+            "hasKey": true
+          },
+          {
+            "id": "o1",
+            "providerKind": "openAI",
+            "authMode": "subscription",
+            "hasKey": true
+          }
+        ]
+      },
+      "expected": [
+        "deepseek"
+      ]
+    },
+    {
+      "id": "pending_none_when_all_listed",
+      "input": {
+        "catalog": "base",
+        "direction": "stt",
+        "connections": [
+          {
+            "id": "o1",
+            "providerKind": "openAI",
+            "authMode": "apiKey",
+            "hasKey": true
+          }
+        ]
+      },
+      "expected": []
+    }
+  ],
+  "realtimeDecodeCases": [
+    {
+      "id": "realtime_decode_base_catalog",
+      "input": {
+        "catalog": "base"
+      },
+      "expected": {
+        "providers": {
+          "gemini": {
+            "realtime": [
+              {
+                "model": "gemini-3.8-live",
+                "transport": "gemini_live",
+                "path": "/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent",
+                "contextWindow": 131072,
+                "voices": [
+                  {
+                    "id": "Zephyr",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Puck",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Charon",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Kore",
+                    "isDefault": true
+                  },
+                  {
+                    "id": "Fenrir",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Leda",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Orus",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Aoede",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Callirrhoe",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Autonoe",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Enceladus",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Iapetus",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Umbriel",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Algieba",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Despina",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Erinome",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Algenib",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Rasalgethi",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Laomedeia",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Achernar",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Alnilam",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Schedar",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Gacrux",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Pulcherrima",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Achird",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Zubenelgenubi",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Vindemiatrix",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Sadachbia",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Sadaltager",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "Sulafat",
+                    "isDefault": false
+                  }
+                ],
+                "isDefault": true
+              }
+            ]
+          },
+          "grok": {
+            "realtime": []
+          },
+          "groq": {
+            "realtime": []
+          },
+          "mistral": {
+            "realtime": []
+          },
+          "openAI": {
+            "realtime": [
+              {
+                "model": "gpt-realtime-2.1",
+                "transport": "openai_realtime",
+                "path": "/v1/realtime",
+                "contextWindow": 128000,
+                "voices": [
+                  {
+                    "id": "alloy",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "ash",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "ballad",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "coral",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "echo",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "sage",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "shimmer",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "verse",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "marin",
+                    "isDefault": true
+                  },
+                  {
+                    "id": "cedar",
+                    "isDefault": false
+                  }
+                ],
+                "maxSessionSec": 3600,
+                "inputTranscriptionModel": "gpt-4o-mini-transcribe",
+                "isDefault": true
+              },
+              {
+                "model": "gpt-realtime-2.1-mini",
+                "transport": "openai_realtime",
+                "path": "/v1/realtime",
+                "contextWindow": 128000,
+                "voices": [
+                  {
+                    "id": "alloy",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "ash",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "ballad",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "coral",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "echo",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "sage",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "shimmer",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "verse",
+                    "isDefault": false
+                  },
+                  {
+                    "id": "marin",
+                    "isDefault": true
+                  },
+                  {
+                    "id": "cedar",
+                    "isDefault": false
+                  }
+                ],
+                "maxSessionSec": 3600,
+                "inputTranscriptionModel": "gpt-4o-mini-transcribe",
+                "isDefault": false
+              }
+            ]
+          },
+          "qwen": {
+            "realtime": []
+          },
+          "siliconFlow": {
+            "realtime": []
+          },
+          "together": {
+            "realtime": []
+          }
+        }
+      }
+    },
+    {
+      "id": "realtime_decode_unknown_transport_and_webrtc_name_dropped",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "providers": {
+            "openAI": {
+              "realtime": [
+                {
+                  "model": "a",
+                  "transport": "openai_realtime_webrtc",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t"
+                },
+                {
+                  "model": "b",
+                  "transport": "qwen_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t"
+                },
+                {
+                  "model": "c",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "expected": {
+        "providers": {
+          "openAI": {
+            "realtime": [
+              {
+                "model": "c",
+                "transport": "openai_realtime",
+                "path": "/v1/realtime",
+                "contextWindow": 128000,
+                "voices": [
+                  {
+                    "id": "v1",
+                    "isDefault": true
+                  },
+                  {
+                    "id": "v2",
+                    "isDefault": false
+                  }
+                ],
+                "inputTranscriptionModel": "t",
+                "isDefault": false
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "realtime_decode_wrong_types_drop_entry",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "providers": {
+            "openAI": {
+              "realtime": [
+                {
+                  "model": 1,
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t"
+                },
+                {
+                  "model": "a",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 0,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t"
+                },
+                {
+                  "model": "b",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 1.5,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t"
+                },
+                {
+                  "model": "c",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": "marin",
+                  "inputTranscriptionModel": "t"
+                },
+                {
+                  "model": "d",
+                  "transport": "openai_realtime",
+                  "path": null,
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t"
+                },
+                {
+                  "model": "ok",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "expected": {
+        "providers": {
+          "openAI": {
+            "realtime": [
+              {
+                "model": "ok",
+                "transport": "openai_realtime",
+                "path": "/v1/realtime",
+                "contextWindow": 128000,
+                "voices": [
+                  {
+                    "id": "v1",
+                    "isDefault": true
+                  },
+                  {
+                    "id": "v2",
+                    "isDefault": false
+                  }
+                ],
+                "inputTranscriptionModel": "t",
+                "isDefault": false
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "realtime_decode_entry_without_voices_dropped",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "providers": {
+            "gemini": {
+              "realtime": [
+                {
+                  "model": "g",
+                  "transport": "gemini_live",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": 3
+                    }
+                  ],
+                  "inputTranscriptionModel": "t"
+                },
+                {
+                  "model": "h",
+                  "transport": "gemini_live",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [],
+                  "inputTranscriptionModel": "t"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "expected": {
+        "providers": {
+          "gemini": {
+            "realtime": []
+          }
+        }
+      }
+    },
+    {
+      "id": "realtime_decode_optional_fields",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "providers": {
+            "openAI": {
+              "realtime": [
+                {
+                  "model": "a",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t",
+                  "maxSessionSec": 3600
+                },
+                {
+                  "model": "b",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t",
+                  "maxSessionSec": 0
+                },
+                {
+                  "model": "c",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t",
+                  "maxSessionSec": "60",
+                  "isDefault": "yes"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "expected": {
+        "providers": {
+          "openAI": {
+            "realtime": [
+              {
+                "model": "a",
+                "transport": "openai_realtime",
+                "path": "/v1/realtime",
+                "contextWindow": 128000,
+                "voices": [
+                  {
+                    "id": "v1",
+                    "isDefault": true
+                  },
+                  {
+                    "id": "v2",
+                    "isDefault": false
+                  }
+                ],
+                "maxSessionSec": 3600,
+                "inputTranscriptionModel": "t",
+                "isDefault": false
+              },
+              {
+                "model": "b",
+                "transport": "openai_realtime",
+                "path": "/v1/realtime",
+                "contextWindow": 128000,
+                "voices": [
+                  {
+                    "id": "v1",
+                    "isDefault": true
+                  },
+                  {
+                    "id": "v2",
+                    "isDefault": false
+                  }
+                ],
+                "inputTranscriptionModel": "t",
+                "isDefault": false
+              },
+              {
+                "model": "c",
+                "transport": "openai_realtime",
+                "path": "/v1/realtime",
+                "contextWindow": 128000,
+                "voices": [
+                  {
+                    "id": "v1",
+                    "isDefault": true
+                  },
+                  {
+                    "id": "v2",
+                    "isDefault": false
+                  }
+                ],
+                "inputTranscriptionModel": "t",
+                "isDefault": false
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "realtime_decode_ga_entry_without_transcription_model_dropped",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "providers": {
+            "openAI": {
+              "realtime": [
+                {
+                  "model": "a",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ]
+                },
+                {
+                  "model": "b",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": 5
+                },
+                {
+                  "model": "ok",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t"
+                }
+              ]
+            },
+            "grok": {
+              "realtime": [
+                {
+                  "model": "x",
+                  "transport": "xai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ]
+                }
+              ]
+            },
+            "gemini": {
+              "realtime": [
+                {
+                  "model": "g",
+                  "transport": "gemini_live",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "expected": {
+        "providers": {
+          "openAI": {
+            "realtime": [
+              {
+                "model": "ok",
+                "transport": "openai_realtime",
+                "path": "/v1/realtime",
+                "contextWindow": 128000,
+                "voices": [
+                  {
+                    "id": "v1",
+                    "isDefault": true
+                  },
+                  {
+                    "id": "v2",
+                    "isDefault": false
+                  }
+                ],
+                "inputTranscriptionModel": "t",
+                "isDefault": false
+              }
+            ]
+          },
+          "grok": {
+            "realtime": []
+          },
+          "gemini": {
+            "realtime": [
+              {
+                "model": "g",
+                "transport": "gemini_live",
+                "path": "/v1/realtime",
+                "contextWindow": 128000,
+                "voices": [
+                  {
+                    "id": "v1",
+                    "isDefault": true
+                  },
+                  {
+                    "id": "v2",
+                    "isDefault": false
+                  }
+                ],
+                "isDefault": false
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "realtime_decode_missing_direction_is_empty",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "providers": {
+            "openAI": {
+              "stt": []
+            },
+            "grok": {
+              "realtime": "x"
+            },
+            "unknownKind": {
+              "realtime": [
+                {
+                  "model": "m",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "expected": {
+        "providers": {
+          "openAI": {
+            "realtime": []
+          },
+          "grok": {
+            "realtime": []
+          }
+        }
+      }
+    }
+  ],
+  "realtimeResolveCases": [
+    {
+      "id": "realtime_resolve_follow_model_default",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "providers": {
+            "openAI": {
+              "realtime": [
+                {
+                  "model": "r1",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t",
+                  "isDefault": true
+                },
+                {
+                  "model": "r2",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t"
+                }
+              ]
+            },
+            "gemini": {
+              "realtime": [
+                {
+                  "model": "g1",
+                  "transport": "gemini_live",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "Kore",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "Puck"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t"
+                }
+              ]
+            }
+          }
+        },
+        "direction": "realtime",
+        "selection": {
+          "engine": "system"
+        },
+        "connections": [
+          {
+            "id": "c1",
+            "providerKind": "openAI",
+            "authMode": "apiKey",
+            "hasKey": true
+          }
+        ]
+      },
+      "expected": {
+        "engine": "system",
+        "notice": false,
+        "persist": "keep"
+      }
+    },
+    {
+      "id": "realtime_resolve_cloud_ok_keeps_voice",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "providers": {
+            "openAI": {
+              "realtime": [
+                {
+                  "model": "r1",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t",
+                  "isDefault": true
+                },
+                {
+                  "model": "r2",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t"
+                }
+              ]
+            },
+            "gemini": {
+              "realtime": [
+                {
+                  "model": "g1",
+                  "transport": "gemini_live",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "Kore",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "Puck"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t"
+                }
+              ]
+            }
+          }
+        },
+        "direction": "realtime",
+        "selection": {
+          "engine": "cloud",
+          "providerKind": "openAI",
+          "connectionId": "c1",
+          "model": "r1",
+          "voice": "v2"
+        },
+        "connections": [
+          {
+            "id": "c1",
+            "providerKind": "openAI",
+            "authMode": "apiKey",
+            "hasKey": true
+          }
+        ]
+      },
+      "expected": {
+        "engine": "cloud",
+        "providerKind": "openAI",
+        "connectionId": "c1",
+        "model": "r1",
+        "voice": "v2"
+      }
+    },
+    {
+      "id": "realtime_resolve_voice_missing_uses_default",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "providers": {
+            "openAI": {
+              "realtime": [
+                {
+                  "model": "r1",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t",
+                  "isDefault": true
+                },
+                {
+                  "model": "r2",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t"
+                }
+              ]
+            },
+            "gemini": {
+              "realtime": [
+                {
+                  "model": "g1",
+                  "transport": "gemini_live",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "Kore",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "Puck"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t"
+                }
+              ]
+            }
+          }
+        },
+        "direction": "realtime",
+        "selection": {
+          "engine": "cloud",
+          "providerKind": "openAI",
+          "connectionId": "c1",
+          "model": "r1",
+          "voice": "gone"
+        },
+        "connections": [
+          {
+            "id": "c1",
+            "providerKind": "openAI",
+            "authMode": "apiKey",
+            "hasKey": true
+          }
+        ]
+      },
+      "expected": {
+        "engine": "cloud",
+        "providerKind": "openAI",
+        "connectionId": "c1",
+        "model": "r1",
+        "voice": "v1"
+      }
+    },
+    {
+      "id": "realtime_resolve_entry_removed_falls_back_to_follow_model",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "providers": {
+            "openAI": {
+              "realtime": [
+                {
+                  "model": "r2",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t"
+                }
+              ]
+            },
+            "gemini": {
+              "realtime": []
+            }
+          }
+        },
+        "direction": "realtime",
+        "selection": {
+          "engine": "cloud",
+          "providerKind": "openAI",
+          "connectionId": "c1",
+          "model": "r1",
+          "voice": "v2"
+        },
+        "connections": [
+          {
+            "id": "c1",
+            "providerKind": "openAI",
+            "authMode": "apiKey",
+            "hasKey": true
+          }
+        ]
+      },
+      "expected": {
+        "engine": "system",
+        "reason": "entry_removed",
+        "notice": true,
+        "persist": "system"
+      }
+    },
+    {
+      "id": "realtime_resolve_direction_emptied",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "providers": {
+            "openAI": {
+              "realtime": [
+                {
+                  "model": "r2",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t"
+                }
+              ]
+            },
+            "gemini": {
+              "realtime": []
+            }
+          }
+        },
+        "direction": "realtime",
+        "selection": {
+          "engine": "cloud",
+          "providerKind": "gemini",
+          "connectionId": "g",
+          "model": "g1",
+          "voice": "Kore"
+        },
+        "connections": [
+          {
+            "id": "g",
+            "providerKind": "gemini",
+            "authMode": "apiKey",
+            "hasKey": true
+          }
+        ]
+      },
+      "expected": {
+        "engine": "system",
+        "reason": "entry_removed",
+        "notice": true,
+        "persist": "system"
+      }
+    },
+    {
+      "id": "realtime_resolve_connection_deleted",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "providers": {
+            "openAI": {
+              "realtime": [
+                {
+                  "model": "r1",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t",
+                  "isDefault": true
+                },
+                {
+                  "model": "r2",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t"
+                }
+              ]
+            },
+            "gemini": {
+              "realtime": [
+                {
+                  "model": "g1",
+                  "transport": "gemini_live",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "Kore",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "Puck"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t"
+                }
+              ]
+            }
+          }
+        },
+        "direction": "realtime",
+        "selection": {
+          "engine": "cloud",
+          "providerKind": "openAI",
+          "connectionId": "c1",
+          "model": "r1",
+          "voice": "v2"
+        },
+        "connections": []
+      },
+      "expected": {
+        "engine": "system",
+        "reason": "connection_missing",
+        "notice": true,
+        "persist": "system"
+      }
+    },
+    {
+      "id": "realtime_resolve_subscription_connection_key_missing",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "providers": {
+            "openAI": {
+              "realtime": [
+                {
+                  "model": "r1",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t",
+                  "isDefault": true
+                },
+                {
+                  "model": "r2",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t"
+                }
+              ]
+            },
+            "gemini": {
+              "realtime": [
+                {
+                  "model": "g1",
+                  "transport": "gemini_live",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "Kore",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "Puck"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t"
+                }
+              ]
+            }
+          }
+        },
+        "direction": "realtime",
+        "selection": {
+          "engine": "cloud",
+          "providerKind": "openAI",
+          "connectionId": "c1",
+          "model": "r1",
+          "voice": "v2"
+        },
+        "connections": [
+          {
+            "id": "c1",
+            "providerKind": "openAI",
+            "authMode": "subscription",
+            "hasKey": false
+          }
+        ]
+      },
+      "expected": {
+        "engine": "system",
+        "reason": "key_missing",
+        "notice": true,
+        "persist": "system"
+      }
+    },
+    {
+      "id": "realtime_resolve_key_cleared",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "providers": {
+            "openAI": {
+              "realtime": [
+                {
+                  "model": "r1",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t",
+                  "isDefault": true
+                },
+                {
+                  "model": "r2",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t"
+                }
+              ]
+            },
+            "gemini": {
+              "realtime": [
+                {
+                  "model": "g1",
+                  "transport": "gemini_live",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "Kore",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "Puck"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t"
+                }
+              ]
+            }
+          }
+        },
+        "direction": "realtime",
+        "selection": {
+          "engine": "cloud",
+          "providerKind": "openAI",
+          "connectionId": "c1",
+          "model": "r1",
+          "voice": "v2"
+        },
+        "connections": [
+          {
+            "id": "c1",
+            "providerKind": "openAI",
+            "authMode": "apiKey",
+            "hasKey": false
+          }
+        ]
+      },
+      "expected": {
+        "engine": "system",
+        "reason": "key_missing",
+        "notice": true,
+        "persist": "system"
+      }
+    },
+    {
+      "id": "realtime_resolve_base_gemini_live_default_voice",
+      "input": {
+        "catalog": "base",
+        "direction": "realtime",
+        "selection": {
+          "engine": "cloud",
+          "providerKind": "gemini",
+          "connectionId": "g",
+          "model": "gemini-3.8-live",
+          "voice": null
+        },
+        "connections": [
+          {
+            "id": "g",
+            "providerKind": "gemini",
+            "authMode": "apiKey",
+            "hasKey": true
+          }
+        ]
+      },
+      "expected": {
+        "engine": "cloud",
+        "providerKind": "gemini",
+        "connectionId": "g",
+        "model": "gemini-3.8-live",
+        "voice": "Kore"
+      }
+    }
+  ],
+  "realtimeOptionCases": [
+    {
+      "id": "realtime_options_base_api_key_connections",
+      "input": {
+        "catalog": "base",
+        "direction": "realtime",
+        "connections": [
+          {
+            "id": "c1",
+            "providerKind": "openAI",
+            "authMode": "apiKey",
+            "hasKey": true
+          },
+          {
+            "id": "g",
+            "providerKind": "gemini",
+            "authMode": "apiKey",
+            "hasKey": true
+          },
+          {
+            "id": "x",
+            "providerKind": "grok",
+            "authMode": "apiKey",
+            "hasKey": true
+          },
+          {
+            "id": "q",
+            "providerKind": "qwen",
+            "authMode": "apiKey",
+            "hasKey": true
+          }
+        ]
+      },
+      "expected": [
+        {
+          "engine": "system"
+        },
+        {
+          "engine": "cloud",
+          "providerKind": "openAI",
+          "connectionId": "c1",
+          "model": "gpt-realtime-2.1",
+          "isDefault": true
+        },
+        {
+          "engine": "cloud",
+          "providerKind": "openAI",
+          "connectionId": "c1",
+          "model": "gpt-realtime-2.1-mini",
+          "isDefault": false
+        },
+        {
+          "engine": "cloud",
+          "providerKind": "gemini",
+          "connectionId": "g",
+          "model": "gemini-3.8-live",
+          "isDefault": true
+        }
+      ]
+    },
+    {
+      "id": "realtime_options_subscription_and_keyless_hidden",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "providers": {
+            "openAI": {
+              "realtime": [
+                {
+                  "model": "r1",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t",
+                  "isDefault": true
+                },
+                {
+                  "model": "r2",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t"
+                }
+              ]
+            },
+            "gemini": {
+              "realtime": [
+                {
+                  "model": "g1",
+                  "transport": "gemini_live",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "Kore",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "Puck"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t"
+                }
+              ]
+            }
+          }
+        },
+        "direction": "realtime",
+        "connections": [
+          {
+            "id": "c1",
+            "providerKind": "openAI",
+            "authMode": "subscription",
+            "hasKey": true
+          },
+          {
+            "id": "g",
+            "providerKind": "gemini",
+            "authMode": "apiKey",
+            "hasKey": false
+          }
+        ]
+      },
+      "expected": [
+        {
+          "engine": "system"
+        }
+      ]
+    },
+    {
+      "id": "realtime_options_two_connections_same_provider",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "providers": {
+            "openAI": {
+              "realtime": [
+                {
+                  "model": "r1",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t",
+                  "isDefault": true
+                },
+                {
+                  "model": "r2",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t"
+                }
+              ]
+            },
+            "gemini": {
+              "realtime": [
+                {
+                  "model": "g1",
+                  "transport": "gemini_live",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "Kore",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "Puck"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t"
+                }
+              ]
+            }
+          }
+        },
+        "direction": "realtime",
+        "connections": [
+          {
+            "id": "c1",
+            "providerKind": "openAI",
+            "authMode": "apiKey",
+            "hasKey": true
+          },
+          {
+            "id": "c2",
+            "providerKind": "openAI",
+            "authMode": "apiKey",
+            "hasKey": true
+          }
+        ]
+      },
+      "expected": [
+        {
+          "engine": "system"
+        },
+        {
+          "engine": "cloud",
+          "providerKind": "openAI",
+          "connectionId": "c1",
+          "model": "r1",
+          "isDefault": true
+        },
+        {
+          "engine": "cloud",
+          "providerKind": "openAI",
+          "connectionId": "c1",
+          "model": "r2",
+          "isDefault": false
+        },
+        {
+          "engine": "cloud",
+          "providerKind": "openAI",
+          "connectionId": "c2",
+          "model": "r1",
+          "isDefault": true
+        },
+        {
+          "engine": "cloud",
+          "providerKind": "openAI",
+          "connectionId": "c2",
+          "model": "r2",
+          "isDefault": false
+        }
+      ]
+    },
+    {
+      "id": "realtime_options_no_connection_only_follow_model",
+      "input": {
+        "catalog": {
+          "schemaVersion": 2,
+          "providers": {
+            "openAI": {
+              "realtime": [
+                {
+                  "model": "r1",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t",
+                  "isDefault": true
+                },
+                {
+                  "model": "r2",
+                  "transport": "openai_realtime",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "v1",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "v2"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t"
+                }
+              ]
+            },
+            "gemini": {
+              "realtime": [
+                {
+                  "model": "g1",
+                  "transport": "gemini_live",
+                  "path": "/v1/realtime",
+                  "contextWindow": 128000,
+                  "voices": [
+                    {
+                      "id": "Kore",
+                      "isDefault": true
+                    },
+                    {
+                      "id": "Puck"
+                    }
+                  ],
+                  "inputTranscriptionModel": "t"
+                }
+              ]
+            }
+          }
+        },
+        "direction": "realtime",
+        "connections": []
+      },
+      "expected": [
+        {
+          "engine": "system"
+        }
+      ]
+    }
+  ]
+}
