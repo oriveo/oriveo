@@ -101,11 +101,11 @@ struct AssistantMessageView: View {
                 if showMetadata {
                     HStack(spacing: 6) {
                         Text(effectiveProviderName)
-                        Text("•")
+                        Text("·")
                         Text(effectiveModelName)
 
                         if message.estimatedCost > 0 && message.state == .delivered {
-                            Text("•")
+                            Text("·")
                             Text(message.estimatedCostText)
                         }
 

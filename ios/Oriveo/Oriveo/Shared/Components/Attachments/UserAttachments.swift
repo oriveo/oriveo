@@ -7,6 +7,10 @@ enum UserImageAttachmentLayout {
     case hero
     case grid
     case compact
+
+    nonisolated static let gridSide: CGFloat = 128
+    nonisolated static let compactSide: CGFloat = 96
+    nonisolated static let imageSpacing: CGFloat = 6
 }
 
 struct HeroCornerRadii: Equatable {
@@ -14,6 +18,13 @@ struct HeroCornerRadii: Equatable {
     let topTrailing: CGFloat
     let bottomLeading: CGFloat
     let bottomTrailing: CGFloat
+}
+
+enum UserFileAttachmentLayout {
+    nonisolated static let rowSpacing: CGFloat = 8
+    nonisolated static let fileNameFontSize: CGFloat = 11
+    nonisolated static let verticalPadding: CGFloat = 4
+    nonisolated static let chipHeight: CGFloat = 13 + verticalPadding * 2
 }
 
 struct UserAttachmentsGroup: View {
@@ -25,12 +36,12 @@ struct UserAttachmentsGroup: View {
         let images = attachments.filter { $0.kind == .image }
         let files  = attachments.filter { $0.kind != .image }
 
-        VStack(alignment: .trailing, spacing: OriveoTheme.Spacing.sm) {
+        VStack(alignment: .trailing, spacing: UserFileAttachmentLayout.rowSpacing) {
             if !images.isEmpty {
                 imagesContent(images)
             }
             if !files.isEmpty {
-                HStack(spacing: 6) {
+                HStack(spacing: UserImageAttachmentLayout.imageSpacing) {
                     ForEach(files) { UserFileAttachment(attachment: $0) }
                 }
             }
@@ -58,7 +69,7 @@ struct UserAttachmentsGroup: View {
                 galleryIndex: 0
             )
         case 2:
-            HStack(spacing: 6) {
+            HStack(spacing: UserImageAttachmentLayout.imageSpacing) {
                 ForEach(Array(images.enumerated()), id: \.offset) { idx, att in
                     UserImageAttachment(
                         attachment: att,
@@ -69,7 +80,7 @@ struct UserAttachmentsGroup: View {
                 }
             }
         case 3:
-            HStack(spacing: 6) {
+            HStack(spacing: UserImageAttachmentLayout.imageSpacing) {
                 ForEach(Array(images.enumerated()), id: \.offset) { idx, att in
                     UserImageAttachment(
                         attachment: att,
@@ -88,12 +99,12 @@ struct UserAttachmentsGroup: View {
     private func twoByTwoGrid(images: [Attachment]) -> some View {
         let firstFour = Array(images.prefix(4))
         let remaining = images.count - 4
-        VStack(spacing: 6) {
-            HStack(spacing: 6) {
+        VStack(spacing: UserImageAttachmentLayout.imageSpacing) {
+            HStack(spacing: UserImageAttachmentLayout.imageSpacing) {
                 UserImageAttachment(attachment: firstFour[0], layout: .grid, galleryImages: images, galleryIndex: 0)
                 UserImageAttachment(attachment: firstFour[1], layout: .grid, galleryImages: images, galleryIndex: 1)
             }
-            HStack(spacing: 6) {
+            HStack(spacing: UserImageAttachmentLayout.imageSpacing) {
                 UserImageAttachment(attachment: firstFour[2], layout: .grid, galleryImages: images, galleryIndex: 2)
                 if remaining > 0 {
                     UserImageAttachment(
@@ -235,14 +246,14 @@ struct UserImageAttachment: View {
                 partitionUID: AppSessionStore.activeUID,
                 placeholderColor: .white.opacity(0.18)
             )
-                .frame(width: 128, height: 128)
+                .frame(width: UserImageAttachmentLayout.gridSide, height: UserImageAttachmentLayout.gridSide)
         case .compact:
             ThumbnailImageView(
                 attachment: attachment,
                 partitionUID: AppSessionStore.activeUID,
                 placeholderColor: .white.opacity(0.18)
             )
-                .frame(width: 96, height: 96)
+                .frame(width: UserImageAttachmentLayout.compactSide, height: UserImageAttachmentLayout.compactSide)
         }
     }
 }
@@ -278,12 +289,12 @@ struct UserFileAttachment: View {
                         .font(.system(size: 12))
                 }
                 Text(attachment.fileName)
-                    .font(.system(size: 11))
+                    .font(.system(size: UserFileAttachmentLayout.fileNameFontSize))
                     .lineLimit(1)
             }
             .foregroundStyle(.white.opacity(isUnavailable ? 0.5 : 0.85))
             .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .padding(.vertical, UserFileAttachmentLayout.verticalPadding)
             .background(
                 Capsule(style: .continuous)
                     .fill(.white.opacity(isUnavailable ? 0.08 : 0.18))
