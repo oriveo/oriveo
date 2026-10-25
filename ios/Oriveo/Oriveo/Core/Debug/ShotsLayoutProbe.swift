@@ -1,6 +1,11 @@
 #if DEBUG
 import UIKit
 
+extension Notification.Name {
+    /// Posted by the screenshot flow to focus the chat composer.
+    static let oriveoDebugFocusComposer = Notification.Name("OriveoDebugFocusComposer")
+}
+
 /// Layout probe for the screenshot tool `scripts/shots.sh` (DEBUG only).
 ///
 /// When launched with `-SHOTS_PROBE`, after `-AUTO_OPEN_PAGE` has laid out the page it polls the accessibility tree and counts as "ready" only after 1.5 seconds without change,
@@ -214,7 +219,7 @@ enum ShotsLayoutProbe {
 
     /// SwiftUI's Text does not expose its layout result, so we can only estimate: infer the font size and line count from the frame height, then measure how many lines the full text needs.
     /// Only judge truncation when "no candidate font size fits"; better to miss than to misreport. The result is marked truncated, and the rule side treats it as "suspected".
-    private static func estimateTruncated(_ text: String, in frame: CGRect) -> Bool? {
+    static func estimateTruncated(_ text: String, in frame: CGRect) -> Bool? {
         guard !text.isEmpty, frame.width > 4 else { return nil }
         let sizes: [CGFloat] = [11, 12, 13, 15, 16, 17, 20, 22, 28, 34]
         var verdicts: [Bool] = []
@@ -224,17 +229,30 @@ enum ShotsLayoutProbe {
                 let lines = frame.height / font.lineHeight
                 let rounded = lines.rounded()
                 guard rounded >= 1, abs(lines - rounded) < 0.15 else { continue }
-                let needed = (text as NSString).boundingRect(
-                    with: CGSize(width: frame.width + 1, height: .greatestFiniteMagnitude),
-                    options: [.usesLineFragmentOrigin],
-                    attributes: [.font: font],
-                    context: nil
-                ).height / font.lineHeight
-                verdicts.append(needed.rounded() > rounded)
+                let wholeLines = lineCount(text, font: font, width: frame.width + 1)
+                // A merged element's label is the system's join of separate lines, using the ideographic comma
+                // (U+3001) or ", "; each segment lays out on its own line, so measure per segment and sum.
+                let segments = text.components(separatedBy: "\u{3001}")
+                    .flatMap { $0.components(separatedBy: ", ") }
+                    .flatMap { $0.components(separatedBy: "\n") }
+                let segmentLines = segments.count > 1
+                    ? segments.reduce(0) { $0 + lineCount($1, font: font, width: frame.width + 1) }
+                    : wholeLines
+                verdicts.append(min(wholeLines, segmentLines) > rounded)
             }
         }
         guard !verdicts.isEmpty else { return nil }
         return verdicts.allSatisfy { $0 }
+    }
+
+    private static func lineCount(_ text: String, font: UIFont, width: CGFloat) -> CGFloat {
+        guard !text.isEmpty else { return 0 }
+        return ((text as NSString).boundingRect(
+            with: CGSize(width: width, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin],
+            attributes: [.font: font],
+            context: nil
+        ).height / font.lineHeight).rounded()
     }
 
     // MARK: - Wide-screen layout
