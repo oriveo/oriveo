@@ -11,6 +11,7 @@ private struct MemoryProposeFixture: Decodable {
         let id: String
         let context: MemoryProposeContext
         let priorInTurn: Int
+        let priorInstructInTurn: Int
         let arguments: String
         let expected: MemoryProposeDecision
     }
@@ -36,7 +37,24 @@ private struct MemoryProposeFixture: Decodable {
 
     struct Constants: Decodable {
         let maxProposalsPerTurn: Int
+        let maxInstructPerTurn: Int
     }
+
+    struct InstructBarCase: Decodable {
+        struct Expected: Decodable {
+            let show: Bool
+        }
+
+        let id: String
+        let sentence: String
+        let instructions: String
+        let ignoreCount: Int
+        let expected: Expected
+    }
+
+    let scopes: [String]
+    let skipReasons: [String]
+    let instructBarCases: [InstructBarCase]
 
     let toolResult: String
     let constants: Constants
@@ -54,7 +72,7 @@ private struct ToolUnsupportedFixture: Decodable {
     let cases: [Case]
 }
 
-private let fixtureName = "memory-propose.v2.json"
+private let fixtureName = "memory-propose.v3.json"
 
 private func scalars(_ value: String?) -> [Unicode.Scalar]? {
     value.map { Array($0.unicodeScalars) }
@@ -107,6 +125,8 @@ struct ContextContractMemoryProposeTests {
         #expect(scalars(MemoryPropose.toolResult) == scalars(fixture.toolResult))
         #expect(Data(MemoryPropose.toolResult.utf8) == Data(fixture.toolResult.utf8))
         #expect(MemoryPropose.maxProposalsPerTurn == fixture.constants.maxProposalsPerTurn)
+        #expect(MemoryPropose.maxInstructPerTurn == fixture.constants.maxInstructPerTurn)
+        #expect(MemoryProposeSkipReason.allCases.map(\.rawValue).sorted() == fixture.skipReasons.sorted())
     }
 
     @Test("proposeCases")
@@ -116,16 +136,32 @@ struct ContextContractMemoryProposeTests {
         #expect(raw.count == fixture.proposeCases.count)
         var failures: [String] = []
         for (item, expectedTree) in zip(fixture.proposeCases, raw) {
-            let actual = MemoryPropose.propose(item.arguments, context: item.context, priorInTurn: item.priorInTurn)
+            let actual = MemoryPropose.propose(
+                item.arguments, context: item.context, priorInTurn: item.priorInTurn,
+                priorInstructInTurn: item.priorInstructInTurn
+            )
             let tree = try encodedTree(actual)
             let matches = actual == item.expected
                 && tree.isEqual(expectedTree as? NSObject)
                 && scalars(actual.candidate?.content) == scalars(item.expected.candidate?.content)
+                && scalars(actual.sentence) == scalars(item.expected.sentence)
             if !matches {
                 failures.append("\(item.id): got \(actual.action.rawValue) \(actual.reason?.rawValue ?? "-") \(tree)")
             }
         }
         #expect(failures.isEmpty, "\(failures.count) failed:\n\(failures.joined(separator: "\n"))")
+    }
+
+    @Test("instructBarCases")
+    func instructBarCases() {
+        #expect(!fixture.instructBarCases.isEmpty)
+        let failures = fixture.instructBarCases.compactMap { item -> String? in
+            let actual = MemoryPropose.instructionBarShows(
+                sentence: item.sentence, instructions: item.instructions, ignoreCount: item.ignoreCount
+            )
+            return actual == item.expected.show ? nil : "\(item.id): got \(actual)"
+        }
+        #expect(failures.isEmpty, "\(failures.joined(separator: "\n"))")
     }
 
     @Test("modeCases")

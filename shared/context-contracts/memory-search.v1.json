@@ -1,5 +1,5 @@
 {
-  "$comment": "Host tool search_memory. The model writes keywords; the host ranks active L3 items with the memory-recall.v1 index and scoring under the looser gate below, skipping ids already in this turn's [D] recall or returned by an earlier search, and answers with an <oriveo-recall> envelope fitted to recallMax. Automatic [D] recall (memory-recall.v1) is unchanged and runs whether or not the tool is attached. Wiring reuses the propose_memory tail leg (memory-propose.v2 algorithm); see legRules.",
+  "$comment": "Host tool search_memory. The model writes keywords; the host ranks active L3 items with the memory-recall.v1 index and scoring under the looser gate below, skipping ids already in this turn's [D] recall or returned by an earlier search, and answers with an <oriveo-recall> envelope fitted to recallMax. Automatic [D] recall (memory-recall.v1) is unchanged and runs whether or not the tool is attached. Wiring reuses the propose_memory tail leg (memory-propose.v3 algorithm); see legRules.",
   "schema": "oriveo.context.memory-search",
   "version": 1,
   "dependsOn": [
@@ -141,10 +141,10 @@
   ],
   "legRules": [
     "1 Attach order: request tools as today (server tools, MCP / library), then propose_memory when its mode is tool, then search_memory when this mode is tool. tool_choice stays auto on the first leg.",
-    "2 First leg ends with tool calls that are only propose_memory and/or search_memory: the host runs every call in order (propose → its fixed toolResult; search → rule 4 text), then sends at most one tail leg exactly as memory-propose.v2 does (assistant tool calls + one tool_result per call, tool_choice none). A search_memory call inside the tail leg is not run.",
+    "2 First leg ends with tool calls that are only propose_memory and/or search_memory: the host runs every call in order (propose → its fixed toolResult; search → rule 4 text), then sends at most one tail leg exactly as memory-propose.v3 does (assistant tool calls + one tool_result per call, tool_choice none). A search_memory call inside the tail leg is not run.",
     "3 Thinking model without continuation state: first-leg text non-empty → finish with it (search results are not used); empty → resend the original request once without client tools and with the search hits appended after the automatic entries in [D] recall (same recallMax fitting), keeping candidates and not marking the connection degraded.",
     "4 Inside an MCP / library tool loop search_memory is one more registry tool: it takes a step (counts toward maxSteps) and is not a retrieval for the zero-retrieval first-leg rule; the loop body is unchanged.",
-    "5 The call and its result are not shown as a tool step, not stored in history or step records and not resent next turn (as propose_memory). Rejection and degrade follow memory-propose.v2 degradeCases: the same degraded set disables both tools.",
+    "5 The call and its result are not shown as a tool step, not stored in history or step records and not resent next turn (as propose_memory). Rejection and degrade follow memory-propose.v3 degradeCases: the same degraded set disables both tools.",
     "memoryIds of the turn take search ids only when that tool_result actually reached the model: a tail leg (or a loop step) sent it, or a thinking resend kept the entries in [D] (then the resend plan's own memoryIds count). A first leg that ends with text and gets no tail leg adds no search ids, even though the search ran. excludeIds may include the plan's L2 ids: they are never in the L3 index, so the result is the same."
   ],
   "searchCases": [

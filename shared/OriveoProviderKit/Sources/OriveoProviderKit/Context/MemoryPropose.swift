@@ -12,6 +12,8 @@ public enum MemoryProposeSkipReason: String, Codable, Hashable, Sendable, CaseIt
     case secret
     case special
     case conversationInstruction = "conversation_instruction"
+    case conversationNotInstruction = "conversation_not_instruction"
+    case instructLimit = "instruct_limit"
     case turnLimit = "turn_limit"
     case duplicateActive = "duplicate_active"
     case exists
@@ -19,20 +21,30 @@ public enum MemoryProposeSkipReason: String, Codable, Hashable, Sendable, CaseIt
     case rejectedRecently = "rejected_recently"
 }
 
-/// Outcome of one propose_memory call: create carries a candidate, skip carries a reason.
+/// Outcome action of a propose: create yields a memory candidate, instruct yields a "set as conversation instruction" suggestion, skip skips.
+public enum MemoryProposeAction: String, Codable, Hashable, Sendable {
+    case create
+    case skip
+    case instruct
+}
+
+/// Outcome of one propose_memory call: create carries the candidate, instruct carries the sentence, skip carries the reason.
 public struct MemoryProposeDecision: Codable, Hashable, Sendable {
-    public var action: MemoryCandidateAction
+    public var action: MemoryProposeAction
     public var reason: MemoryProposeSkipReason?
     public var candidate: MemoryCandidate?
+    /// Present only for instruct: sourceQuote with leading and trailing White_Space removed (not normalized).
+    public var sentence: String?
 
-    public init(action: MemoryCandidateAction, reason: MemoryProposeSkipReason?, candidate: MemoryCandidate?) {
+    public init(action: MemoryProposeAction, reason: MemoryProposeSkipReason?, candidate: MemoryCandidate?, sentence: String? = nil) {
         self.action = action
         self.reason = reason
         self.candidate = candidate
+        self.sentence = sentence
     }
 
     private enum CodingKeys: String, CodingKey {
-        case action, reason, candidate
+        case action, reason, candidate, sentence
     }
 
     /// null is written as null, with the same key order as the fixture.
@@ -41,6 +53,7 @@ public struct MemoryProposeDecision: Codable, Hashable, Sendable {
         try container.encode(action, forKey: .action)
         try container.encode(reason, forKey: .reason)
         try container.encode(candidate, forKey: .candidate)
+        try container.encodeIfPresent(sentence, forKey: .sentence)
     }
 }
 
@@ -136,7 +149,10 @@ public enum MemoryPropose {
     /// Maximum number of propose calls handled per turn (fixture constants.maxProposalsPerTurn).
     public static let maxProposalsPerTurn = 3
 
-    /// The tool_result returned to the model for every call (identical for any outcome).
+    /// At most one instruct per turn (fixture constants.maxInstructPerTurn).
+    public static let maxInstructPerTurn = 1
+
+    /// The tool_result returned to the model for every call (identical for every outcome).
     public static let toolResult =
         "Recorded as a suggestion; the user will decide whether to save it. Continue your reply. Do not ask about it or say it was saved."
 
@@ -146,7 +162,7 @@ public enum MemoryPropose {
           "type": "function",
           "function": {
             "name": "propose_memory",
-            "description": "Propose one long-term memory for the user to confirm. Call it only when the user's own message in this turn asks you to remember something for future conversations, or states a lasting fact or preference about themselves, or a decision or event they will want to look up later, that they clearly want kept beyond this conversation. One atomic statement per call, keeping the user's meaning and language; never record your own inference. Do not call it for: instructions such as 'from now on' or 'going forward' unless the user says they apply to all or future chats (those stay in this conversation); reminders and to-dos; questions, including 'can you remember...'; corrections or statements that something is no longer true; quoted, hypothetical or role-play text; anything containing passwords, keys, codes, payment or ID details, health, sexuality, religion, politics, ethnicity, criminal record or immigration status. Nothing is saved until the user confirms. After calling, continue your reply normally and do not mention the proposal.",
+            "description": "Propose one long-term memory for the user to confirm, or one standing instruction for this conversation. Call it when the user's own message in this turn asks you to remember something for future conversations, or states a lasting fact or preference about themselves, or a decision or event they will want to look up later, that they clearly want kept beyond this conversation. Also call it when the user asks you to keep answering in a certain way for the rest of this conversation (from now on, going forward, always, never, every time...): set scope to conversation and kind to instruction. One atomic statement per call, keeping the user's meaning and language; never record your own inference. Do not call it for: reminders and to-dos; questions, including 'can you remember...'; corrections or statements that something is no longer true; quoted, hypothetical or role-play text; anything containing passwords, keys, codes, payment or ID details, health, sexuality, religion, politics, ethnicity, criminal record or immigration status. Nothing is saved until the user confirms. After calling, continue your reply normally and do not mention the proposal.",
             "parameters": {
               "type": "object",
               "properties": {
@@ -173,9 +189,10 @@ public enum MemoryPropose {
                   "enum": [
                     "global",
                     "folder",
-                    "unspecified"
+                    "unspecified",
+                    "conversation"
                   ],
-                  "description": "global: the user said it applies to all chats; folder: the user said it applies to this project or folder; unspecified: the user named no scope."
+                  "description": "global: the user said it applies to all chats; folder: the user said it applies to this project or folder; unspecified: the user named no scope; conversation: a way of answering the user wants kept for the rest of this conversation only (use kind instruction)."
                 },
                 "sourceQuote": {
                   "type": "string",
@@ -199,7 +216,10 @@ public enum MemoryPropose {
         "global": .global, "folder": .folder, "unspecified": .unspecified,
     ]
 
-    /// memory-intent.v1 kinds + episodicKinds (v2).
+    /// The fixture scope that takes the instruct branch.
+    private static let conversationScope = "conversation"
+
+    /// memory-intent.v1 kinds plus episodicKinds.
     private static let kinds: Set<MemoryKind> = [.instruction, .project, .goal, .preference, .identity, .fact, .decision, .event]
 
     // MARK: Rule 1
@@ -215,7 +235,12 @@ public enum MemoryPropose {
     // MARK: Rule 4
 
     /// One propose_memory call -> candidate decision. priorInTurn = the number of propose calls earlier in this turn (regardless of outcome).
-    public static func propose(_ arguments: String, context: MemoryProposeContext, priorInTurn: Int) -> MemoryProposeDecision {
+    public static func propose(
+        _ arguments: String,
+        context: MemoryProposeContext,
+        priorInTurn: Int,
+        priorInstructInTurn: Int = 0
+    ) -> MemoryProposeDecision {
         if priorInTurn >= maxProposalsPerTurn { return skip(.turnLimit) }
         guard let object = (try? JSONSerialization.jsonObject(with: Data(arguments.utf8))) as? [String: Any],
               let proposition = object["proposition"] as? String,
@@ -223,7 +248,7 @@ public enum MemoryPropose {
               let kindRaw = object["kind"] as? String,
               let kind = MemoryKind(rawValue: kindRaw), kinds.contains(kind),
               let scopeRaw = object["scope"] as? String,
-              let scope = scopes[scopeRaw] else {
+              scopeRaw == conversationScope || scopes[scopeRaw] != nil else {
             return skip(.invalidArguments)
         }
         let content = DirectiveDetector.trim(proposition.unicodeScalars.map(\.value))
@@ -236,7 +261,14 @@ public enum MemoryPropose {
         let sensitivities = [context.userText, contentText, sourceQuote].map { MemoryIntent.classify($0).sensitive }
         if sensitivities.contains(.secret) { return skip(.secret) }
         if sensitivities[1] == .special || sensitivities[2] == .special { return skip(.special) }
-        // A conversation-scoped directive belongs to the "set as this conversation's instruction" path and does not produce a memory item.
+        // Instruct branch: a conversation-scoped directive yields only the "set as conversation instruction" bar and never a memory candidate.
+        guard let scope = scopes[scopeRaw] else {
+            if kind != .instruction { return skip(.conversationNotInstruction) }
+            if priorInstructInTurn >= maxInstructPerTurn { return skip(.instructLimit) }
+            let sentence = DirectiveDetector.string(DirectiveDetector.trim(sourceQuote.unicodeScalars.map(\.value)))
+            return MemoryProposeDecision(action: .instruct, reason: nil, candidate: nil, sentence: sentence)
+        }
+        // A convention scoped to this conversation belongs to the "set as conversation instruction" bar, not to a memory bar.
         let v1 = MemoryIntent.classify(context.userText)
         if v1.suggestion == .conversationInstruction || v1.blocked == .conversationScope { return skip(.conversationInstruction) }
         let classification = MemoryIntent.Classification(
@@ -246,7 +278,7 @@ public enum MemoryPropose {
         let decision = MemoryIntent.makeCandidate(classification, context: context.candidateContext)
         switch decision.reason {
         case nil:
-            return MemoryProposeDecision(action: decision.action, reason: nil, candidate: decision.candidate)
+            return MemoryProposeDecision(action: decision.action == .create ? .create : .skip, reason: nil, candidate: decision.candidate)
         case .duplicateActive: return skip(.duplicateActive)
         case .exists: return skip(.exists)
         case .duplicatePending: return skip(.duplicatePending)
@@ -257,9 +289,25 @@ public enum MemoryPropose {
         }
     }
 
+    // MARK: Rule 5 (instruction bar)
+
+    /// After this many consecutive ignores, the "set as conversation instruction" bar is no longer shown in this conversation.
+    public static let instructionBarIgnoreLimit = 3
+
+    /// Whether the "set as conversation instruction" bar is shown (fixture instructBarCases; shared by the lexical bar and instruct): ignore count < 3,
+    /// the sentence is not a substring (by code point) of the existing instructions, and the appended text (instructions + \n + sentence) stays within maxCodePoints.
+    public static func instructionBarShows(sentence: String, instructions: String, ignoreCount: Int) -> Bool {
+        let needle = sentence.unicodeScalars.map(\.value)
+        guard ignoreCount < instructionBarIgnoreLimit, !needle.isEmpty else { return false }
+        if contains(instructions.unicodeScalars.map(\.value), needle) { return false }
+        let existing = instructions.unicodeScalars.count
+        let appended = existing == 0 ? needle.count : existing + 1 + needle.count
+        return appended <= ConversationInstructions.maxCodePoints
+    }
+
     // MARK: Rule 6
 
-    /// Whether to downgrade after a request carrying the propose tool is rejected: the rejection matches the tool-unsupported criterion, it is the first leg, no text was emitted, and no structured tool_calls were seen.
+    /// Whether to degrade after a request carrying the propose tool is rejected: the rejection matches the tool-unsupported criteria, it is the first leg, no text was streamed, and no structured tool_calls were seen.
     public static func degrade(
         rejectionMatches: Bool,
         legIndex: Int,
