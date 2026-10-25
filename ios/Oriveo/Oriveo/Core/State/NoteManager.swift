@@ -65,6 +65,23 @@ final class NoteManager {
         (try? makeStore().fetchNote(id: id)) ?? nil
     }
 
+    /// Read-only resolver for pinned note content snapshots: the main thread only grabs the store handle and
+    /// the fallback title, and the database read happens on the caller's thread (which may be off-main).
+    /// Same rules as AppState.resolvePinnedNoteSnapshots: follows the order of `ids`, skips deleted or
+    /// missing notes.
+    func pinnedNoteSnapshotReader(ids: [UUID]) -> @Sendable () -> [ChatRequestPinnedNoteSnapshot] {
+        guard !ids.isEmpty, let store = try? makeStore() else { return { [] } }
+        let untitled = L10n.tr("Untitled note", table: .notes)
+        return {
+            ids.compactMap { id in
+                guard let note = (try? store.fetchNote(id: id)) ?? nil, note.deletedAt == nil else { return nil }
+                return ChatRequestPinnedNoteSnapshot(
+                    id: id, title: NoteText.displayTitle(note.title, untitled: untitled), body: note.body
+                )
+            }
+        }
+    }
+
     func noteDetail(id: UUID) async -> Note? {
         guard let store = try? makeStore() else { return nil }
         return (try? await store.fetchNoteAsync(id: id)) ?? nil
@@ -223,6 +240,14 @@ final class NoteManager {
     @discardableResult
     func updateTags(id: UUID, tags: [String]) -> Note? {
         mutate(id: id) { $0.tags = tags }
+    }
+
+    @discardableResult
+    func updateUserNote(id: UUID, userNote: String?) -> Note? {
+        mutate(id: id) { note in
+            let trimmed = userNote?.trimmingCharacters(in: .whitespacesAndNewlines)
+            note.userNote = (trimmed?.isEmpty ?? true) ? nil : trimmed
+        }
     }
 
     @discardableResult
