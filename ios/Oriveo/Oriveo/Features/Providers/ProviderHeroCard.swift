@@ -34,7 +34,7 @@ struct ProviderHeroCard: View {
            provider.enabledModelCount != provider.availableModelCount {
             return String(format: L10n.tr("%lld added models"), Int64(provider.enabledModelCount))
         }
-        return String(format: L10n.tr("%lld models"), Int64(provider.availableModelCount))
+        return L10n.format(L10n.tr("%lld models"), Int64(provider.availableModelCount))
     }
 
     private var syncRelativeText: String {
@@ -241,7 +241,7 @@ struct ProviderHeroCard: View {
 
     private var subInfoText: String {
         guard let date = provider.lastCheckedAt else { return modelsText }
-        return modelsText + "  •  " + relativeTimeText(from: date)
+        return modelsText + "  ·  " + relativeTimeText(from: date)
     }
 
     private var primaryModelName: String? {
