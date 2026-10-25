@@ -15,6 +15,32 @@ enum RelayTruthAdapter: CapabilityTruthAdapter {
         }
     }
 
+    /// Thinking fact = the connection's declaration for this model contains reasoning.
+    static func thinking(_ source: CapabilityDisplaySource) -> Bool {
+        source.model.capabilities.contains(.reasoning)
+    }
+
+    /// The connection's evidence for vision (excluding the wire envelope): override value > local engine declaration > model list declaration (only becomes unknown) > nil.
+    /// Shared by the input-key synthesized verdict and the negative-cache write criterion.
+    static func visionEvidence(model: AIModel, consumesEngineDeclaration: Bool) -> CapabilityEvidenceFacade.Support? {
+        if let overridden = model.relayCapabilityOverrides?.image { return overridden ? .supported : .unsupported }
+        if consumesEngineDeclaration, let declared = model.engineDeclaration?.image {
+            return declared ? .supported : .unsupported
+        }
+        return listDeclaresVision(model) ? .unknown : nil
+    }
+
+    /// The last Relay declaration level of the outbound tool gate (`ToolCallCapabilityPolicy.catalogVerdict`): toolCall on the model list.
+    /// Override values, the negative cache and the local engine declaration are judged first by the policy; nil = no declaration.
+    static func toolCallDeclaration(_ model: AIModel) -> Bool? {
+        model.toolCall
+    }
+
+    /// The relay model list declares vision: only a signal, not evidence of support.
+    static func listDeclaresVision(_ model: AIModel) -> Bool {
+        model.capabilities.contains(.image)
+    }
+
     private static func declarationCandidate(
         key: String,
         providerKind: ProviderKind,
@@ -52,12 +78,11 @@ enum RelayTruthAdapter: CapabilityTruthAdapter {
                 case .silent?, nil: support = .unknown
                 }
             }
-        case "vision_input":
+        case CapabilityEvidenceFacade.visionInputKey:
             if !envelopeCapabilities.contains(.image) { support = .unsupported }
-            else if let overridden = overrides?.image { support = overridden ? .supported : .unsupported }
-            else if let declared = engineDeclaration?.image { support = declared ? .supported : .unsupported }
-            else if model.capabilities.contains(.image) { support = .unknown }
-            else { return nil }
+            else if let evidence = visionEvidence(model: model, consumesEngineDeclaration: relay.consumesEngineDeclaration) {
+                support = evidence
+            } else { return nil }
         default:
             guard key.hasPrefix("reasoning_level/") else { return nil }
             let rawLevel = String(key.dropFirst("reasoning_level/".count))

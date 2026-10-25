@@ -1,0 +1,106 @@
+{
+  "$comment": "Narrow upstream rejection signatures. Only signatures quoted verbatim by official documentation or reproduced from a recorded sample are listed; anything else is shown to the user as the raw error and never inferred. Matching: status equals httpStatus; errorCode, when present, equals error.type or error.code; messagePattern is a case-insensitive regex (no lookbehind, portable to Swift/Kotlin/JS/Rust) tested against error.message. byWireFamily entries apply only when the request carried a part of that wire family; byProtocol entries apply to any request of that protocol. First match wins in file order. candidates are not signatures: they need a recorded sample before they move into a group.",
+  "contractId": "rejection-signatures",
+  "version": 1,
+  "reviewedAt": "2026-10-19",
+  "byWireFamily": {
+    "openai_chat.image_url": [
+      {
+        "signatureId": "dashscope.unexpected_item_type",
+        "httpStatus": 400,
+        "messagePattern": "Unexpected item type in content",
+        "kind": "input_rejected",
+        "capabilityKey": "vision_input",
+        "sourceRef": "https://www.alibabacloud.com/help/en/model-studio/error-code"
+      },
+      {
+        "signatureId": "dashscope.content_must_be_string",
+        "httpStatus": 400,
+        "messagePattern": "^input content must be a string",
+        "kind": "input_rejected",
+        "capabilityKey": "vision_input",
+        "sourceRef": "https://www.alibabacloud.com/help/en/model-studio/error-code"
+      }
+    ]
+  },
+  "byProtocol": {
+    "anthropic": [
+      {
+        "signatureId": "anthropic.thinking_type_not_supported",
+        "httpStatus": 400,
+        "errorCode": "invalid_request_error",
+        "messagePattern": "\"thinking\\.type\\.(enabled|disabled)\" is not supported for this model",
+        "kind": "param_rejected",
+        "parameter": "thinking",
+        "sourceRef": "https://platform.claude.com/docs/en/api/errors"
+      },
+      {
+        "signatureId": "anthropic.adaptive_thinking_not_supported",
+        "httpStatus": 400,
+        "errorCode": "invalid_request_error",
+        "messagePattern": "^adaptive thinking is not supported on this model",
+        "kind": "param_rejected",
+        "parameter": "thinking",
+        "sourceRef": "https://platform.claude.com/docs/en/api/errors"
+      },
+      {
+        "signatureId": "anthropic.tool_type_not_supported",
+        "httpStatus": 400,
+        "errorCode": "invalid_request_error",
+        "messagePattern": "does not support tool types:",
+        "kind": "param_rejected",
+        "parameter": "tools",
+        "sourceRef": "https://platform.claude.com/docs/en/api/errors"
+      }
+    ],
+    "openai_chat": [
+      {
+        "signatureId": "dashscope.enable_search_not_supported",
+        "httpStatus": 400,
+        "messagePattern": "does not support enable_search",
+        "kind": "param_rejected",
+        "parameter": "enable_search",
+        "sourceRef": "https://www.alibabacloud.com/help/en/model-studio/error-code"
+      },
+      {
+        "signatureId": "dashscope.tool_call_not_supported",
+        "httpStatus": 400,
+        "messagePattern": "^The tool call is not supported",
+        "kind": "param_rejected",
+        "parameter": "tools",
+        "sourceRef": "https://www.alibabacloud.com/help/en/model-studio/error-code"
+      }
+    ]
+  },
+  "candidates": [
+    { "id": "openai.image_url_only_certain_models", "protocol": "openai_chat", "wireFamily": "openai_chat.image_url", "httpStatus": 400, "messagePattern": "image_url is only supported by certain models", "kind": "input_rejected", "seenIn": "https://community.openai.com/t/966851", "status": "needs_recorded_sample" },
+    { "id": "openai.unsupported_parameter", "protocol": "openai_chat", "httpStatus": 400, "errorCode": "unsupported_parameter", "messagePattern": "^Unsupported parameter: '[a-z_.]+' is not supported with this model", "kind": "param_rejected", "seenIn": "https://community.openai.com/t/1140846", "status": "needs_recorded_sample" },
+    { "id": "openai.unsupported_value", "protocol": "openai_chat", "httpStatus": 400, "errorCode": "unsupported_value", "messagePattern": "^Unsupported value: '[a-z_.]+' does not support .+ with this model", "kind": "param_rejected", "seenIn": "https://community.openai.com/t/1337957", "status": "needs_recorded_sample" },
+    { "id": "deepseek.unknown_variant_image_url", "protocol": "openai_chat", "wireFamily": "openai_chat.image_url", "httpStatus": 400, "messagePattern": "unknown variant .?image_url.?, expected .?text", "kind": "input_rejected", "seenIn": "https://github.com/NousResearch/hermes-agent (agent/message_sanitization.py)", "status": "needs_recorded_sample" },
+    { "id": "openrouter.no_endpoints_image_input", "protocol": "openai_chat", "wireFamily": "openai_chat.image_url", "httpStatus": 404, "messagePattern": "No endpoints found that support image input", "kind": "input_rejected", "seenIn": "https://github.com/openclaw/openclaw (src/agents/failover)", "status": "needs_recorded_sample" }
+  ],
+  "notFound": [
+    "openai_responses input_image / input_file: no official rejection text (checked 2026-10-19)",
+    "anthropic image / document blocks on a model without vision: no official rejection text (https://platform.claude.com/docs/en/api/errors, 2026-10-19)",
+    "gemini inline_data / file_data: only a generic 400 INVALID_ARGUMENT is documented (https://ai.google.dev/gemini-api/docs/api-errors, 2026-10-19); status + code alone would misfire",
+    "openai_chat / openai_responses temperature / top_p on reasoning models: no official rejection text; error-codes page lists only service_tier for 400 (https://developers.openai.com/api/docs/guides/error-codes, /guides/reasoning, 2026-10-21); body shape of openai.unsupported_parameter is corroborated only by a third-party fixture (vercel/ai packages/openai/src/chat/__fixtures__/reasoning-model-legacy-parameter-error.json), so it stays a candidate",
+    "openai_chat response_format json_schema on an unsupported model: no official rejection text (https://developers.openai.com/api/docs/guides/structured-outputs, 2026-10-21)",
+    "openai_chat file / video_url content parts on an unsupported model: no official rejection text; docs only say Chat Completions accepts PDF as file parts (https://developers.openai.com/api/docs/guides/pdf-files, 2026-10-21)",
+    "anthropic temperature / top_p / top_k on models after Opus 4.6: docs state a 400 but give no message text (https://platform.claude.com/docs/en/api/messages/create, 2026-10-21); status + type alone would misfire",
+    "gemini temperature / top_p / top_k on Gemini 4 and 3.6+: currently ignored, 400 only announced for a future release (https://ai.google.dev/gemini-api/docs/troubleshooting, 2026-10-21)",
+    "deepseek image / file / sampling parameters: only generic 400 / 422 descriptions (https://api-docs.deepseek.com/quick_start/error_codes, 2026-10-21)",
+    "qwen (DashScope) parameter range and file format errors are documented but mean a bad value or format, not a missing capability; not mapped to param_rejected / input_rejected (https://www.alibabacloud.com/help/en/model-studio/error-code, 2026-10-21)"
+  ],
+  "cases": [
+    { "id": "dashscope_text_model_gets_image", "protocol": "openai_chat", "wireFamily": "openai_chat.image_url", "response": { "status": 400, "body": { "error": { "code": "invalid_parameter_error", "message": "The provided messages input is invalid. The error info is [Unexpected item type in content]" } } }, "expect": { "signatureId": "dashscope.unexpected_item_type" } },
+    { "id": "dashscope_content_not_string", "protocol": "openai_chat", "wireFamily": "openai_chat.image_url", "response": { "status": 400, "body": { "error": { "code": "invalid_parameter_error", "message": "input content must be a string." } } }, "expect": { "signatureId": "dashscope.content_must_be_string" } },
+    { "id": "anthropic_thinking_enabled_rejected", "protocol": "anthropic", "response": { "status": 400, "body": { "type": "error", "error": { "type": "invalid_request_error", "message": "\"thinking.type.enabled\" is not supported for this model. Use \"thinking.type.adaptive\" and \"output_config.effort\" to control thinking behavior." } } }, "expect": { "signatureId": "anthropic.thinking_type_not_supported" } },
+    { "id": "anthropic_adaptive_rejected", "protocol": "anthropic", "response": { "status": 400, "body": { "type": "error", "error": { "type": "invalid_request_error", "message": "adaptive thinking is not supported on this model" } } }, "expect": { "signatureId": "anthropic.adaptive_thinking_not_supported" } },
+    { "id": "anthropic_same_text_wrong_type_no_match", "protocol": "anthropic", "response": { "status": 400, "body": { "type": "error", "error": { "type": "api_error", "message": "adaptive thinking is not supported on this model" } } }, "expect": { "signatureId": null } },
+    { "id": "dashscope_enable_search_rejected", "protocol": "openai_chat", "response": { "status": 400, "body": { "error": { "code": "invalid_parameter_error", "message": "This model does not support enable_search." } } }, "expect": { "signatureId": "dashscope.enable_search_not_supported" } },
+    { "id": "generic_400_not_matched", "protocol": "openai_chat", "wireFamily": "openai_chat.image_url", "response": { "status": 400, "body": { "error": { "type": "invalid_request_error", "message": "Invalid image." } } }, "expect": { "signatureId": null } },
+    { "id": "candidate_text_is_not_a_signature", "protocol": "openai_chat", "wireFamily": "openai_chat.image_url", "response": { "status": 400, "body": { "error": { "type": "invalid_request_error", "message": "Invalid content type. image_url is only supported by certain models." } } }, "expect": { "signatureId": null } },
+    { "id": "status_mismatch_not_matched", "protocol": "openai_chat", "wireFamily": "openai_chat.image_url", "response": { "status": 500, "body": { "error": { "message": "Unexpected item type in content" } } }, "expect": { "signatureId": null } },
+    { "id": "rate_limit_not_matched", "protocol": "anthropic", "response": { "status": 429, "body": { "type": "error", "error": { "type": "rate_limit_error", "message": "Number of request tokens has exceeded your per-minute rate limit" } } }, "expect": { "signatureId": null } }
+  ]
+}
