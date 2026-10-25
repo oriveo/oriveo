@@ -917,8 +917,8 @@ struct ModelPickerPricePresentation: Equatable {
                 output = nil
                 fallback = L10n.tr("Free")
             } else {
-                input = model.promptPrice.flatMap(Self.formatPerMillion)
-                output = model.completionPrice.flatMap(Self.formatPerMillion)
+                input = model.promptPrice.flatMap { Self.formatPerMillion($0, currencyCode: model.priceCurrencyCode) }
+                output = model.completionPrice.flatMap { Self.formatPerMillion($0, currencyCode: model.priceCurrencyCode) }
                 fallback = nil
             }
         } else {
@@ -929,9 +929,10 @@ struct ModelPickerPricePresentation: Equatable {
         }
     }
 
-    private static func formatPerMillion(_ perTokenPrice: Double) -> String? {
+    private static func formatPerMillion(_ perTokenPrice: Double, currencyCode: String?) -> String? {
         guard perTokenPrice >= 0 else { return nil }
-        return perTokenPrice == 0 ? "$0/M" : CostFormatter.formatPerMillion(perTokenPrice)
+        if CostCalculator.normalizedCurrency(currencyCode) == CostCalculator.usd, perTokenPrice == 0 { return "$0/M" }
+        return CostFormatter.formatPerMillion(perTokenPrice, currencyCode: currencyCode, locale: AppLocalization.currentLocale)
     }
 }
 
