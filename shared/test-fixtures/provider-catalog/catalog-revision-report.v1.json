@@ -1,0 +1,13 @@
+{
+  "$comment": "Per-provider catalog revision handling and what gets reported (complements metadata_payload.v2.cases.json revisionCases, which only cover the index path). Same rules on the catalog path as on the index path: a cache without a revision (0 = bundled snapshot or schema 1) accepts any response body, including revision 0; a lower revision than the cached one is refused and reported once as revision_regressed; an equal revision is 'unchanged' (keep data, refresh ETag atomically - also when the revision then turns out to differ from the index; expect.etag = 'refreshed'). When the index already announces the cached revision, no catalog request is sent at all (not even a conditional one), so nothing can be refreshed: expect.requestSent = false, expect.etag = 'unchanged'; tests must announce the revision truthfully instead of hiding it from the index or faking the stored revision to force a request. If the unchanged catalog's revision still differs from what the index announced, refetch the index once; if they still differ, report once as revision_mismatch (one report per provider per sync, never catalog_revision). Each end names its tests CATALOG_REVISION_REPORT_<id> (Web: it('CATALOG-REVISION-REPORT-<id> ...')).",
+  "v": 1,
+  "pendingUntil": { "web": "P5·U2", "android": "P5·U3", "ios": "P5·U4", "desktop": "P5·U5" },
+  "cases": [
+    { "id": "catalog_zero_then_zero_accepts", "cachedCatalogRevision": 0, "indexAnnounces": 0, "responseRevision": 0, "indexAfterRefetch": null, "expect": { "outcome": "accept", "report": null } },
+    { "id": "catalog_regressed_refused", "cachedCatalogRevision": 5, "indexAnnounces": 6, "responseRevision": 4, "indexAfterRefetch": null, "expect": { "outcome": "reject", "report": "revision_regressed" } },
+    { "id": "catalog_equal_matches_index_unchanged", "cachedCatalogRevision": 5, "indexAnnounces": 5, "responseRevision": null, "indexAfterRefetch": null, "expect": { "requestSent": false, "etag": "unchanged", "outcome": "unchanged", "report": null } },
+    { "id": "catalog_equal_index_newer_then_settles", "cachedCatalogRevision": 5, "indexAnnounces": 6, "responseRevision": 5, "indexAfterRefetch": 5, "expect": { "etag": "refreshed", "outcome": "unchanged", "report": null } },
+    { "id": "catalog_equal_index_still_newer_reports_once", "cachedCatalogRevision": 5, "indexAnnounces": 6, "responseRevision": 5, "indexAfterRefetch": 6, "expect": { "etag": "refreshed", "outcome": "unchanged", "report": "revision_mismatch", "reports": 1 } },
+    { "id": "catalog_newer_accepts", "cachedCatalogRevision": 5, "indexAnnounces": 6, "responseRevision": 6, "indexAfterRefetch": null, "expect": { "outcome": "accept", "report": null } }
+  ]
+}

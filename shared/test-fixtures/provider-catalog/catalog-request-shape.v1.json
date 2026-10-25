@@ -1,0 +1,70 @@
+{
+  "$comment": "Request shape of the split metadata views. Cloudflare caches view=index and each view=catalog&provider=<kind> as independent URLs (public, max-age=300, stale-while-revalidate=600), so one edge can serve a new index next to an old catalog for up to ~15 minutes, and refetching the same index URL hits the same stale copy. Fix: (1) every catalog request carries rev=<the catalogRevision that the index the client is acting on announces for that provider> - the URL becomes content-addressed, a new revision is always an edge miss; when the index announces no catalogRevision for that provider the rev parameter is omitted (old shape). (2) the single index refetch performed after a revision mismatch carries fresh=<one-time value>, so it reaches the origin; the regular index fetch never carries fresh. The server ignores both parameters (same body and ETag as without them). Parameter values are URL-encoded ('sha256:' -> 'sha256%3A' is fine, servers decode). Each end names its tests CATALOG_REQUEST_SHAPE_<id> (Web: it('CATALOG-REQUEST-SHAPE-<id> ...')). Case catalog_request_without_announced_revision_omits_rev: ends that never request a catalog for a provider the index does not announce (Android syncCatalogsLocked, Web ensureCatalog) assert it at the URL-builder / transport layer (rev=null -> no rev parameter); that is conformant.",
+  "v": 1,
+  "params": {
+    "catalogRevision": "rev",
+    "cacheBust": "fresh"
+  },
+  "cases": [
+    {
+      "id": "catalog_request_carries_index_revision",
+      "indexAnnounces": {
+        "openAI": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "expect": {
+        "catalogRequest": {
+          "provider": "openAI",
+          "rev": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "fresh": null
+        }
+      }
+    },
+    {
+      "id": "catalog_request_without_announced_revision_omits_rev",
+      "indexAnnounces": {
+        "openAI": null
+      },
+      "expect": {
+        "catalogRequest": {
+          "provider": "openAI",
+          "rev": null,
+          "fresh": null
+        }
+      }
+    },
+    {
+      "id": "regular_index_fetch_has_no_cache_bust",
+      "expect": {
+        "indexRequest": {
+          "fresh": null
+        }
+      }
+    },
+    {
+      "id": "mismatch_refetch_bypasses_edge_then_catalog_uses_new_revision",
+      "indexAnnounces": {
+        "openAI": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "firstCatalogResponseRevision": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "indexAfterRefetch": {
+        "openAI": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+      },
+      "expect": {
+        "firstCatalogRequest": {
+          "provider": "openAI",
+          "rev": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "fresh": null
+        },
+        "indexRefetch": {
+          "fresh": "non-empty"
+        },
+        "secondCatalogRequest": {
+          "provider": "openAI",
+          "rev": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+        },
+        "outcome": "accept",
+        "report": null
+      }
+    }
+  ]
+}
