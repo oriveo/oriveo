@@ -1,6 +1,7 @@
 import Foundation
 
-/// Persistent-directive detection result: when isDirective is false, span / kind / scope are all nil.
+/// Result of standing-directive detection: when isDirective is false, span / kind / scope / lang are all nil.
+/// lang = among the languages in which the matched sentence qualifies, the first in lexicon key order that belongs to suggestionLanguages, or the first in key order when none does.
 public struct DirectiveDetection: Sendable, Equatable {
     public enum Kind: String, Sendable { case language, format, style, other }
     public enum Scope: String, Sendable { case conversation, global }
@@ -9,12 +10,19 @@ public struct DirectiveDetection: Sendable, Equatable {
     public var span: String?
     public var kind: Kind?
     public var scope: Scope?
+    public var lang: String?
 
-    public init(isDirective: Bool, span: String? = nil, kind: Kind? = nil, scope: Scope? = nil) {
+    public init(isDirective: Bool, span: String? = nil, kind: Kind? = nil, scope: Scope? = nil, lang: String? = nil) {
         self.isDirective = isDirective
         self.span = span
         self.kind = kind
         self.scope = scope
+        self.lang = lang
+    }
+
+    /// On the no-tool path (propose mode fallback / none), the lexical suggestion bar appears only when lang is in suggestionLanguages.
+    public var isSuggestionLanguage: Bool {
+        isDirective && lang.map(DirectiveDetector.suggestionLanguages.contains) == true
     }
 
     public static let none = DirectiveDetection(isDirective: false)
@@ -26,17 +34,23 @@ public struct DirectiveDetection: Sendable, Equatable {
 public enum DirectiveDetector {
     typealias Scalars = [UInt32]
 
+    /// Fixture suggestionLanguages: the languages for which the lexical suggestion bar is allowed.
+    public static let suggestionLanguages: Set<String> = Set(DirectiveLexicon.suggestionLanguages)
+
     public static func detect(_ text: String) -> DirectiveDetection {
         for sentence in sentences(text) where !isQuestion(sentence.masked) {
             let words = SentenceForms(sentence.masked)
-            for language in lexicon where isDirective(words, language) {
-                return DirectiveDetection(
-                    isDirective: true,
-                    span: string(sentence.span),
-                    kind: kind(words),
-                    scope: matchesAny(words, \.globalMarkers) ? .global : .conversation
-                )
-            }
+            // lang: the first language (in lexicon key order) in which the sentence qualifies and that is in suggestionLanguages; the first one when none is.
+            let qualifying = lexicon.filter { isDirective(words, $0) }
+            guard let first = qualifying.first else { continue }
+            let lang = qualifying.first { suggestionLanguages.contains($0.code) }?.code ?? first.code
+            return DirectiveDetection(
+                isDirective: true,
+                span: string(sentence.span),
+                kind: kind(words),
+                scope: matchesAny(words, \.globalMarkers) ? .global : .conversation,
+                lang: lang
+            )
         }
         return .none
     }
@@ -68,7 +82,8 @@ public enum DirectiveDetector {
     // MARK: Decision
 
     private static func isDirective(_ words: SentenceForms, _ language: PreparedLanguage) -> Bool {
-        (matches(words, language.markers, mode: language.mode) || matches(words, language.globalMarkers, mode: language.mode))
+        (matches(words, language.markers, mode: language.mode) || matches(words, language.globalMarkers, mode: language.mode)
+            || nearMatches(words, language))
             && matches(words, language.verbs, mode: language.mode)
             && !matches(words, language.vetoes, mode: language.mode)
             && passesStarts(words, language)
@@ -96,6 +111,51 @@ public enum DirectiveDetector {
                 return words.wordformContains(term.leadingWord)
             }
         }
+    }
+
+    /// Near-marker pairing: over tokens (code points of norm() in substring mode, words of wordform() in word / prefix mode), some a term ends at e and
+    /// some b term starts at s with e <= s <= e + within. Mark the end positions of a and the start positions of b per token, then scan once linearly.
+    static func nearMatches(_ words: SentenceForms, _ language: PreparedLanguage) -> Bool {
+        guard !language.nearMarkers.isEmpty else { return false }
+        let tokens = tokenize(language.mode == .substring ? words.norm : words.wordform, mode: language.mode)
+        return language.nearMarkers.contains { near in
+            let ends = marks(tokens, near.a, mode: language.mode, atEnd: true)
+            let starts = marks(tokens, near.b, mode: language.mode, atEnd: false)
+            var lastEnd = -1
+            for index in 0...tokens.count {
+                if ends[index] { lastEnd = index }
+                if starts[index], lastEnd >= 0, index - lastEnd <= near.within { return true }
+            }
+            return false
+        }
+    }
+
+    /// One token per code point in substring mode; words split on spaces in word / prefix mode.
+    static func tokenize(_ text: Scalars, mode: DirectiveLexicon.Mode) -> [Scalars] {
+        if mode == .substring { return text.map { [$0] } }
+        return text.split(separator: 0x20, omittingEmptySubsequences: true).map(Array.init)
+    }
+
+    private static func marks(_ tokens: [Scalars], _ terms: [[Scalars]], mode: DirectiveLexicon.Mode, atEnd: Bool) -> [Bool] {
+        var out = [Bool](repeating: false, count: tokens.count + 1)
+        for term in terms where !term.isEmpty && term.count <= tokens.count {
+            for start in 0...(tokens.count - term.count) {
+                var matched = true
+                for offset in term.indices {
+                    let token = tokens[start + offset]
+                    let piece = term[offset]
+                    let hit = mode == .prefix && offset == term.count - 1
+                        ? hasPrefix(token, piece)
+                        : token == piece
+                    if !hit {
+                        matched = false
+                        break
+                    }
+                }
+                if matched { out[atEnd ? start + term.count : start] = true }
+            }
+        }
+        return out
     }
 
     static func passesStarts(_ words: SentenceForms, _ language: PreparedLanguage) -> Bool {
@@ -263,9 +323,18 @@ public enum DirectiveDetector {
         }
     }
 
+    /// Near markers, with terms already split into tokens by this language's mode.
+    struct PreparedNear {
+        let a: [[Scalars]]
+        let b: [[Scalars]]
+        let within: Int
+    }
+
     struct PreparedLanguage {
+        let code: String
         let mode: DirectiveLexicon.Mode
         let markers: [Term]
+        let nearMarkers: [PreparedNear]
         let globalMarkers: [Term]
         let verbs: [Term]
         let starts: [Term]
@@ -278,8 +347,15 @@ public enum DirectiveDetector {
         let imageStyleWords: [Term]
 
         init(_ source: DirectiveLexicon.Language) {
+            code = source.code
             mode = source.mode
             markers = source.markers.map(Term.init)
+            let mode = source.mode
+            func tokens(_ text: String) -> [Scalars] {
+                let term = Term(text)
+                return DirectiveDetector.tokenize(mode == .substring ? term.norm : Array(term.leadingWord.dropFirst()), mode: mode)
+            }
+            nearMarkers = source.nearMarkers.map { PreparedNear(a: $0.a.map(tokens), b: $0.b.map(tokens), within: $0.within) }
             globalMarkers = source.globalMarkers.map(Term.init)
             verbs = source.verbs.map(Term.init)
             starts = source.starts.map(Term.init)
@@ -350,7 +426,7 @@ public enum DirectiveDetector {
     private static let sentenceEnders = Set(DirectiveLexicon.sentenceEnders.flatMap { $0.unicodeScalars.map(\.value) })
     private static let questionEnders = Set(DirectiveLexicon.questionEnders.flatMap { $0.unicodeScalars.map(\.value) })
     private static let questionStarters = Set(DirectiveLexicon.questionStarters.flatMap { $0.unicodeScalars.map(\.value) })
-    /// Characters ("。", "！", "!", ".") stripped from the end of a sentence before judging whether it is a question
+    /// Trailing sentence-ending punctuation (ideographic full stop, fullwidth exclamation mark, ! and .) stripped before the question check.
     private static let questionTrailers: Set<UInt32> = [0x3002, 0xFF01, 0x21, 0x2E]
     private static let quotePairs: [(opener: UInt32, closer: UInt32)] = DirectiveLexicon.quotePairs.compactMap { pair in
         guard pair.count == 2,

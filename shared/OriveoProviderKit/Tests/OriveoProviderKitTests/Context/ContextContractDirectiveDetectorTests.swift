@@ -48,8 +48,10 @@ struct ContextContractDirectiveDetectorTests {
                 && scalars(actual.span) == scalars(expected["span"] as? String)
                 && actual.kind?.rawValue == expected["kind"] as? String
                 && actual.scope?.rawValue == expected["scope"] as? String
+                && expected.keys.contains("lang")
+                && actual.lang == expected["lang"] as? String
             if !matches {
-                failures.append("\(id): got \(actual.isDirective) \(actual.span ?? "-") \(actual.kind?.rawValue ?? "-") \(actual.scope?.rawValue ?? "-")")
+                failures.append("\(id): got \(actual.isDirective) \(actual.span ?? "-") \(actual.kind?.rawValue ?? "-") \(actual.scope?.rawValue ?? "-") \(actual.lang ?? "-")")
             }
         }
         #expect(failures.isEmpty, "\(failures.count) failed: \(failures.prefix(40).joined(separator: "\n"))")
@@ -96,6 +98,17 @@ struct ContextContractDirectiveDetectorTests {
             for (name, table) in tables {
                 #expect(scalarLists(table) == scalarLists(entry[name] as? [String]), "\(language.code).\(name)")
             }
+            let near = (entry["nearMarkers"] as? [[String: Any]] ?? []).map { item in
+                DirectiveLexicon.NearMarker(
+                    a: item["a"] as? [String] ?? [], b: item["b"] as? [String] ?? [], within: item["within"] as? Int ?? -1
+                )
+            }
+            #expect(near.count == language.nearMarkers.count, "\(language.code).nearMarkers")
+            for (mine, theirs) in zip(language.nearMarkers, near) {
+                #expect(scalarLists(mine.a) == scalarLists(theirs.a), "\(language.code).nearMarkers.a")
+                #expect(scalarLists(mine.b) == scalarLists(theirs.b), "\(language.code).nearMarkers.b")
+                #expect(mine.within == theirs.within, "\(language.code).nearMarkers.within")
+            }
         }
     }
 
@@ -104,6 +117,8 @@ struct ContextContractDirectiveDetectorTests {
         let root = contract.root
         #expect(DirectiveLexicon.maxScanCodePoints == root["maxScanCodePoints"] as? Int)
         #expect(DirectiveLexicon.imageStylePrefixMax == root["imageStylePrefixMax"] as? Int)
+        #expect(DirectiveDetector.suggestionLanguages == Set(root["suggestionLanguages"] as? [String] ?? []))
+        #expect(DirectiveLexicon.suggestionLanguages == root["suggestionLanguages"] as? [String])
         #expect(scalarLists(DirectiveLexicon.sentenceEnders) == scalarLists(root["sentenceEnders"] as? [String]))
         #expect(scalarLists(DirectiveLexicon.questionEnders) == scalarLists(root["questionEnders"] as? [String]))
         #expect(scalarLists(DirectiveLexicon.questionStarters) == scalarLists(root["questionStarters"] as? [String]))
