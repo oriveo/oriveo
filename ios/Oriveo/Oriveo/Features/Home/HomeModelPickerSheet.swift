@@ -1571,9 +1571,15 @@ struct InlineModelCatalogView: View {
     }
 
     var body: some View {
+        let showsSearchField = !groups.isEmpty || !searchText.isEmpty
+        // Spacing below the search field; the content sits flush at the top when there is no field.
+        let gapBelowSearch = showsSearchField ? OriveoTheme.Spacing.lg : 0
         ScrollView {
-            VStack(alignment: .leading, spacing: OriveoTheme.Spacing.lg) {
-                if !groups.isEmpty || !searchText.isEmpty {
+            // The only lazy layer on this page: the catalog group list emits group headers and rows as siblings and
+            // no longer brings its own LazyVStack, since lazy allocation of nested lazy stacks races on iOS 26.
+            // Spacing is 0 so rows sit flush; block spacing is given explicitly.
+            LazyVStack(alignment: .leading, spacing: 0) {
+                if showsSearchField {
                     HStack(spacing: OriveoTheme.Spacing.sm) {
                         Image(systemName: "magnifyingglass")
                             .foregroundStyle(OriveoTheme.Palette.textSecondary)
@@ -1604,6 +1610,7 @@ struct InlineModelCatalogView: View {
                 if projectedRequest != projectionRequest && !showsPreviousProjectionWhileRefreshing {
                     ProgressView()
                         .frame(maxWidth: .infinity, minHeight: 96)
+                        .padding(.top, gapBelowSearch)
                 } else if groups.isEmpty {
                     OriveoCard {
                         Text(searchText.isEmpty ? L10n.tr("All models are already enabled", table: .home) : L10n.tr("No matching models found"))
@@ -1612,6 +1619,7 @@ struct InlineModelCatalogView: View {
                             .frame(maxWidth: .infinity, alignment: .center)
                             .padding(.vertical, OriveoTheme.Spacing.xl)
                     }
+                    .padding(.top, gapBelowSearch)
                 } else if let provider {
                     ProviderCatalogGroupList(
                         provider: provider,
@@ -1620,6 +1628,7 @@ struct InlineModelCatalogView: View {
                         searchText: searchText,
                         expandedGroupIDs: expandedGroupIDs,
                         coordinateSpaceName: nil,
+                        leadingSpacing: gapBelowSearch,
                         onToggleGroup: toggleGroup,
                         onAddModel: { model, _ in
                             ModelEnableFeedback.announce(
@@ -1633,8 +1642,12 @@ struct InlineModelCatalogView: View {
                     )
                 }
             }
+            .providerPanelGroupSurfaces()
             .padding(OriveoTheme.Spacing.xl)
         }
+        // The search field is a child of the lazy stack, so scrolling it out of the buffer recycles it and drops
+        // focus; like the system Settings search, scrolling dismisses the keyboard.
+        .scrollDismissesKeyboard(.immediately)
         .oriveoScreenBackground()
         .navigationTitle(L10n.tr("Add Models"))
         .navigationBarTitleDisplayMode(.inline)
