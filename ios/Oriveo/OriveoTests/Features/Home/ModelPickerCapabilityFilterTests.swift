@@ -8,7 +8,7 @@ import Testing
 /// user sees "83 can think", the list must contain exactly 83 rows showing the thinking badge.
 /// Writing the rule twice - once for the chip and once for the row - is the failure mode this
 /// guards against.
-@Suite("Model picker capability filter", .serialized)
+@Suite("Model picker capability filter", .serialized, .sharedProcessState)
 @MainActor
 struct ModelPickerCapabilityFilterTests {
     @Test("Counts Match Badges Model By Model")
@@ -132,6 +132,64 @@ struct ModelPickerCapabilityFilterTests {
         await MetadataClient.shared.resetForTesting()
     }
 
+    // MARK: - Image / file / video badges read the projection's visible flag
+
+    @Test("an official model with unknown vision shows no badge; only auto + a wire family implemented here does; an unimplemented family does not")
+    func imageBadgeFollowsInputProjection() async throws {
+        try await Self.loadInputFixture()
+        let provider = TestFactories.makeProvider(id: UUID(), kind: .openAI)
+        let unknown = TestFactories.makeModel(id: "in-image-unknown", capabilities: [.text, .image])
+        let missing = TestFactories.makeModel(id: "in-image-missing", capabilities: [.text, .image])
+        let auto = TestFactories.makeModel(id: "in-image-auto", capabilities: [.text, .image])
+        let unimplemented = TestFactories.makeModel(id: "in-image-unimplemented", capabilities: [.text, .image])
+
+        let autoProjection = ModelCapabilityEvidencePresentation(provider: provider, model: auto)
+            .projection.inputProjection(for: CapabilityEvidenceFacade.visionInputKey)
+        #expect(autoProjection?.visible == true, "precondition: the production projection for auto + openai_responses.input_image is visible")
+        #expect(ModelPickerCapabilityFilter.visibleCapabilities(model: auto, provider: provider).contains(.image))
+
+        for model in [unknown, missing, unimplemented] {
+            #expect(
+                !ModelPickerCapabilityFilter.visibleCapabilities(model: model, provider: provider).contains(.image),
+                "\(model.id)'s vision projection is not visible, so the image badge must stay off"
+            )
+        }
+        await MetadataClient.shared.resetForTesting()
+    }
+
+    @Test("the file and video badges are no longer always shown; they follow the projection's visible flag")
+    func fileAndVideoBadgesFollowInputProjection() async throws {
+        try await Self.loadInputFixture()
+        let provider = TestFactories.makeProvider(id: UUID(), kind: .openAI)
+        let auto = TestFactories.makeModel(id: "in-media-auto", capabilities: [.text, .file, .video])
+        let unknown = TestFactories.makeModel(id: "in-media-unknown", capabilities: [.text, .file, .video])
+
+        let autoBadges = ModelPickerCapabilityFilter.visibleCapabilities(model: auto, provider: provider)
+        #expect(autoBadges.contains(.file), "file_input auto + openai_responses.input_file should show the file badge")
+        // video_input auto + the wire family implemented here, openai_chat.video_url -> visible.
+        #expect(autoBadges.contains(.video))
+
+        let unknownBadges = ModelPickerCapabilityFilter.visibleCapabilities(model: unknown, provider: provider)
+        #expect(!unknownBadges.contains(.file), "a missing file_input key means unknown, so the file badge must stay off")
+        #expect(!unknownBadges.contains(.video), "video_input unknown must not show the video badge")
+        await MetadataClient.shared.resetForTesting()
+    }
+
+    @Test("a Qwen model whose capabilities include web while the web control is unknown: no web badge, the same result as the control")
+    func qwenWebBadgeMatchesControl() async throws {
+        try await Self.loadInputFixture()
+        let provider = TestFactories.makeProvider(id: UUID(), kind: .qwen)
+        let model = TestFactories.makeModel(id: "qwen-web-unknown", capabilities: [.text, .web])
+        #expect(model.capabilities.contains(.web), "precondition: the model declares web bare")
+
+        let control = CapabilityControlResolution.resolve(provider: provider, model: model, capability: "web")
+        #expect(!control.isAvailable, "precondition: an unknown web control is unavailable")
+        let badges = ModelPickerCapabilityFilter.visibleCapabilities(model: model, provider: provider)
+        #expect(badges.contains(.web) == control.isAvailable)
+        #expect(!ModelPickerCapabilityFilter.matches(model: model, provider: provider, capability: .web))
+        await MetadataClient.shared.resetForTesting()
+    }
+
     @Test("Picker Consumes The Shared Filter")
     func pickerConsumesTheSharedFilter() throws {
         let sheet = try Self.source([
@@ -197,6 +255,24 @@ struct ModelPickerCapabilityFilterTests {
                 )
             )
         )
+        var crowdedControlsObject = CapabilityRuntimeFixtures.controls(
+            .init(capability: "web", recipeRef: "openai.responses.web.v1"),
+            .init(
+                capability: "reasoning",
+                recipeRef: "openai.responses.reasoning.v1",
+                availableIntents: try CapabilityRuntimeFixtures.reasoningIntents(
+                    ofRecipe: "openai.responses.reasoning.v1"
+                )
+            )
+        )
+        // The image / file badges only trust the projection's visible flag: give auto + a wire family implemented here explicitly, or this row would not really be crowded enough to be truncated.
+        crowdedControlsObject[CapabilityEvidenceFacade.visionInputKey] =
+            ["state": "auto_available", "wireFamily": "openai_responses.input_image"]
+        crowdedControlsObject[CapabilityEvidenceFacade.fileInputKey] =
+            ["state": "auto_available", "wireFamily": "openai_responses.input_file"]
+        let crowdedControls = String(decoding: try JSONSerialization.data(
+            withJSONObject: crowdedControlsObject, options: [.sortedKeys]
+        ), as: UTF8.self)
         try await MetadataClient.shared.loadForTesting(json: """
         {
           "version": 1,
@@ -224,13 +300,55 @@ struct ModelPickerCapabilityFilterTests {
               "m-crowded": {"canonicalModelId":"m-crowded","transport":"openai_responses",
                 "capabilities":["text","image","file","web","reasoning"],
                 "profiles":{"webSearch":"web-profile","reasoning":"reasoning-profile"},
-                "capabilityControls":\(bothControls)},
+                "capabilityControls":\(crowdedControls)},
               "m-claims-web": {"canonicalModelId":"m-claims-web","transport":"openai_responses",
                 "capabilities":["text","web"]}
             }
           }}
         }
         """, metadataETag: "model-picker-filter-fixture")
+    }
+
+    /// Fixture for the three input keys and the Qwen web case: each model carries only the controls it tests.
+    private static func loadInputFixture() async throws {
+        await MetadataClient.shared.resetForTesting()
+        let runtime = try CapabilityRuntimeFixtures.runtimeEnvelopeJSON()
+        func model(_ id: String, transport: String, capabilities: String, controls: String) -> String {
+            """
+            "\(id)": {"canonicalModelId":"\(id)","transport":"\(transport)",
+              "capabilities":\(capabilities),"capabilityControls":{\(controls)}}
+            """
+        }
+        let openAIModels = [
+            model("in-image-unknown", transport: "openai_responses", capabilities: #"["text","image"]"#,
+                  controls: #""vision_input":{"state":"unknown"}"#),
+            model("in-image-missing", transport: "openai_responses", capabilities: #"["text","image"]"#,
+                  controls: ""),
+            model("in-image-auto", transport: "openai_responses", capabilities: #"["text","image"]"#,
+                  controls: #""vision_input":{"state":"auto_available","wireFamily":"openai_responses.input_image"}"#),
+            model("in-image-unimplemented", transport: "openai_responses", capabilities: #"["text","image"]"#,
+                  controls: #""vision_input":{"state":"auto_available","wireFamily":"bedrock.image"}"#),
+            model("in-media-auto", transport: "openai_responses", capabilities: #"["text","file","video"]"#,
+                  controls: #""file_input":{"state":"auto_available","wireFamily":"openai_responses.input_file"},"video_input":{"state":"auto_available","wireFamily":"openai_chat.video_url"}"#),
+            model("in-media-unknown", transport: "openai_responses", capabilities: #"["text","file","video"]"#,
+                  controls: #""video_input":{"state":"unknown"}"#),
+        ]
+        let openAIIDs = ["in-image-unknown", "in-image-missing", "in-image-auto", "in-image-unimplemented",
+                         "in-media-auto", "in-media-unknown"]
+        let resolveMap = openAIIDs.map { "\"\($0)\":\"\($0)\"" }.joined(separator: ",")
+        try await MetadataClient.shared.loadForTesting(json: """
+        {
+          "version": 1,
+          "capabilityRuntime": \(runtime),
+          "providers": {
+            "openAI": {"resolveMap": {\(resolveMap)}, "models": {\(openAIModels.joined(separator: ","))}},
+            "qwen": {"resolveMap": {"qwen-web-unknown":"qwen-web-unknown"}, "models": {\(
+              model("qwen-web-unknown", transport: "openai_chat", capabilities: #"["text","web"]"#,
+                    controls: #""web":{"state":"unknown"}"#)
+            )}}
+          }
+        }
+        """, metadataETag: "model-picker-input-fixture")
     }
 
     private static func source(_ components: [String]) throws -> String {

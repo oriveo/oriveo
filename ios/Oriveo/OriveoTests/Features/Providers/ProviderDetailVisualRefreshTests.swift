@@ -5,6 +5,8 @@ import Testing
 @Suite("ProviderDetail visual refresh")
 struct ProviderDetailVisualRefreshTests {
 
+    @MainActor
+
     @Test("Detail View Uses Refreshed Visual Structure")
     func detailViewUsesRefreshedVisualStructure() throws {
         let detailSource = try String(contentsOf: providerSourceURL("ProviderDetailView.swift"), encoding: .utf8)
@@ -29,6 +31,64 @@ struct ProviderDetailVisualRefreshTests {
         #expect(detailSource.contains("ProviderConnectionIssueRecoveryCard"))
         #expect(detailSource.contains("onUpdateAPIKey"))
         #expect(detailSource.contains("onRetryConnection"))
+        // Enabled models are an iOS Settings style grouped panel: a single panel plus dividers between rows,
+        // with no per-row shadow (shadow is the main cause of jank on iOS) and a background tint rather than a scale for the highlighted row.
+        // Check the real structure rather than source text: the flattened slices (enabled-section rows, catalog group headers and rows) only report
+        // the whole-card bounds and their concrete type strings must carry no shadow; the host lazy container draws the whole-card background once per group.
+        let models = (0..<4).map { index in
+            TestFactories.makeModel(
+                id: "visual-slice-\(index)",
+                name: "Visual Slice \(index)",
+                groupKey: "vendor-0",
+                groupName: "Vendor 0"
+            )
+        }
+        let enabledSection = ProviderEnabledModelsSection(
+            provider: TestFactories.makeProvider(kind: .openRouter, models: models),
+            highlightedModelID: nil,
+            coordinateSpaceName: "visual-slice",
+            enabledModelsFrameBox: ProviderDetailFrameBox(),
+            onSetDefault: { _ in },
+            onChat: { _ in },
+            onRemove: { _ in }
+        )
+        let catalogList = ProviderCatalogGroupList(
+            provider: TestFactories.makeProvider(kind: .openRouter, models: [], catalogModels: models),
+            capabilityEvidenceRevision: 0,
+            groups: [ProviderCatalogGroup(id: "vendor-0", title: "Vendor 0", models: models)],
+            searchText: "",
+            expandedGroupIDs: ["vendor-0"],
+            coordinateSpaceName: nil,
+            onToggleGroup: { _ in },
+            onAddModel: { _, _ in }
+        )
+        // Only the last ForEach of peer rows in the enabled section's body is taken.
+        let enabledBodyType = String(describing: type(of: enabledSection.body))
+        let enabledSliceMarker = "ForEach<Array<(offset: Int, element: AIModel)>"
+        let enabledSliceRange = try #require(enabledBodyType.range(of: enabledSliceMarker, options: .backwards))
+        let enabledSliceType = String(enabledBodyType[enabledSliceRange.lowerBound...])
+        #expect(enabledSliceType.contains("EquatableView<ProviderEnabledModelRow>, _ClipEffect<ProviderPanelSliceShape>"))
+        for sliceBodyType in [
+            enabledSliceType,
+            String(describing: type(of: catalogList.body)),
+        ] {
+            #expect(!sliceBodyType.contains("ShadowEffect"), "\(sliceBodyType)")
+            #expect(sliceBodyType.contains("ProviderPanelGroupBoundsKey"), "\(sliceBodyType)")
+        }
+        // Exactly one group background layer: the drawing is defined only in ProviderModelShared, and each host lazy container (detail page / home "Add model") attaches it once.
+        let sharedSource = try String(contentsOf: providerSourceURL("ProviderModelShared.swift"), encoding: .utf8)
+        let homePickerSource = try String(
+            contentsOf: providerSourceURL("ProviderDetailView.swift")
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("Home")
+                .appendingPathComponent("HomeModelPickerSheet.swift"),
+            encoding: .utf8
+        )
+        #expect(sharedSource.components(separatedBy: "backgroundPreferenceValue(ProviderPanelGroupBoundsKey.self").count == 2)
+        #expect(detailSource.components(separatedBy: ".providerPanelGroupSurfaces()").count == 2)
+        #expect(homePickerSource.components(separatedBy: ".providerPanelGroupSurfaces()").count == 2)
+        #expect(!enabledModelsSource.contains("providerPanelGroupSurfaces"))
         #expect(enabledModelsSource.contains("ProviderEnabledModelRow"))
         #expect(enabledModelsSource.contains("groupedModelsPanel"))
         #expect(enabledModelsSource.contains("rowBackgroundTint"))

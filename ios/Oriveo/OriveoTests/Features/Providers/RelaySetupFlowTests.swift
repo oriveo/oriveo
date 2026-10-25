@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Testing
 @testable import Oriveo
 
@@ -451,6 +452,27 @@ struct RelaySetupFlowTests {
         // their primary button from this action bar. Manual setup no longer has an in-between state with no button because no type is chosen yet (the type-card page is gone).
         #expect(!RelaySetupView.showsRelaySaveBar(method: .local))
         #expect(RelaySetupView.showsRelaySaveBar(method: .relay))
+    }
+
+    @Test("on step 2 the footer does not move up with the keyboard when manual add pops up, so it never overlaps list rows; step 1 and manual setup still avoid the keyboard")
+    @MainActor
+    func relayModelsStepFooterIgnoresKeyboard() throws {
+        let setup = try String(
+            contentsOf: projectRoot.appendingPathComponent("Oriveo/Features/Providers/RelaySetupView.swift"),
+            encoding: .utf8
+        )
+        // The footer is a safeAreaInset of the scroll area: on step 2 the whole block ignores the keyboard safe area, so the layout behind the alert stays as it was.
+        #expect(setup.contains(".ignoresSafeArea(.keyboard, edges: Self.keyboardIgnoredEdges("))
+        // Only step 2 ignores the keyboard; the inputs on step 1 and in manual setup still have to be lifted above it.
+        #expect(RelaySetupView.keyboardIgnoredEdges(showsManualSetup: false, step: .models) == .bottom)
+        #expect(RelaySetupView.keyboardIgnoredEdges(showsManualSetup: false, step: .connection) == [])
+        #expect(RelaySetupView.keyboardIgnoredEdges(showsManualSetup: true, step: .models) == [])
+        // The alert's text field is still focused by the system alert when it opens: the view adds no focus handling of its own.
+        let steps = try String(
+            contentsOf: projectRoot.appendingPathComponent("Oriveo/Features/Providers/RelaySetupStepViews.swift"),
+            encoding: .utf8
+        )
+        #expect(steps.contains(".alert(L10n.tr(RelaySetupModelsBoard.addManualKey, table: .providers), isPresented: $showsManualAdd) {\n            TextField("))
     }
 
     @Test("Provider Setup Has No Search And Uses Two Custom Entries")

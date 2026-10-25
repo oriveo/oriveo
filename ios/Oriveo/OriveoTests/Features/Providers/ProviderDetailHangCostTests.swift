@@ -58,7 +58,7 @@ func pumpMainRunLoop(_ seconds: TimeInterval) {
 /// magnitude); assertions only pin machine-independent call counts. Before the fix, 150 enabled rows
 /// took over a second to appear on a simulator, and every providers write recomputed every row.
 @MainActor
-@Suite("Provider detail hang cost", .serialized)
+@Suite("Provider detail hang cost", .serialized, .sharedProcessState)
 struct ProviderDetailHangCostTests {
     private static let catalogCount = 777
     private static let groupCount = 20
@@ -117,6 +117,7 @@ struct ProviderDetailHangCostTests {
         let appearRowBodies: Int
         let invalidationRowBodies: Int
         let presentations: Int
+        let resolves: Int
         let systemLanguageResolves: Int
         let appearLogoInferences: Int
         let invalidationLogoInferences: Int
@@ -145,6 +146,7 @@ struct ProviderDetailHangCostTests {
         state.providers = [provider]
 
         ModelCapabilityEvidencePresentation.resetConstructionCountsForTesting()
+        MetadataClient.debugResolveCatalogModelCount = 0
         AppLanguage.debugSystemPreferredResolveCount = 0
         ProviderEnabledModelRow.debugBodyEvaluationCount = 0
 
@@ -183,6 +185,7 @@ struct ProviderDetailHangCostTests {
             appearRowBodies: appearRowBodies,
             invalidationRowBodies: invalidationRowBodies,
             presentations: totalPresentations(catalog, kind: provider.kind),
+            resolves: MetadataClient.debugResolveCatalogModelCount,
             systemLanguageResolves: AppLanguage.debugSystemPreferredResolveCount,
             appearLogoInferences: appearLogoInferences,
             invalidationLogoInferences: ProviderLogoResolver.computationCountForTesting(providerID: provider.id) - appearLogoInferences
@@ -192,6 +195,7 @@ struct ProviderDetailHangCostTests {
           first appearance: max stall \(String(format: "%.0f", appearMaxStall * 1000))ms, >16ms total \(String(format: "%.0f", appearJank * 1000))ms, enabled row bodies \(appearRowBodies) (of \(provider.models.count) rows)
           5 providers writes: max stall \(String(format: "%.0f", sample.invalidationMaxStall * 1000))ms, >16ms total \(String(format: "%.0f", sample.invalidationJank * 1000))ms, row bodies \(invalidationRowBodies)
           capability presentations built = \(sample.presentations)
+          resolveCatalogModel = \(sample.resolves)
           system language re-resolved = \(sample.systemLanguageResolves)
           relay logo inferences: first appearance \(sample.appearLogoInferences), writes \(sample.invalidationLogoInferences)
         """)

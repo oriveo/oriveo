@@ -4,7 +4,7 @@ import Testing
 
 /// The "Add relay > Manual setup" page (board ManualSetup).
 /// Layout assertions run against the production row models; validation and persistence assertions run the production flow, with only the network replaced by an injected ping stub.
-@Suite("Manual setup board: BOARD-MANUAL", .serialized)
+@Suite("Manual setup board: BOARD-MANUAL", .serialized, .sharedProcessState)
 @MainActor
 struct RelayManualSetupBoardTests {
     private typealias Board = RelayManualSetupBoardModel

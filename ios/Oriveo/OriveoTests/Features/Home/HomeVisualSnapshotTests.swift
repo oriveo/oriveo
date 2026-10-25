@@ -17,6 +17,7 @@ import UIKit
 @Suite(
     "Home visual snapshots",
     .serialized,
+    .sharedProcessState,
     .enabled(if: ProcessInfo.processInfo.environment["ORIVEO_HOME_SNAPSHOT_DIR"] != nil)
 )
 @MainActor

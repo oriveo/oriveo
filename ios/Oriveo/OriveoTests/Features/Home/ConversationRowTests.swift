@@ -3,7 +3,7 @@ import Testing
 import UIKit
 @testable import Oriveo
 
-@Suite("ConversationRow", .serialized)
+@Suite("ConversationRow", .serialized, .sharedProcessState)
 @MainActor
 struct ConversationRowTests {
     init() throws {

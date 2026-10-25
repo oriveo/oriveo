@@ -4,7 +4,7 @@ import Testing
 
 /// Relay keys page (contract card A4): the rows, status words, action sheet, explanation card and input sheets of the board model `RelayKeysBoardModel`;
 /// every operation goes through the production `ProviderManager.applyRelayKeyOperation`, and assertions read the provider after write-back.
-@Suite("Relay 2.0 · keys page", .serialized)
+@Suite("Relay 2.0 · keys page", .serialized, .sharedProcessState)
 @MainActor
 struct RelayKeysBoardTests {
     typealias Board = RelayKeysBoardModel

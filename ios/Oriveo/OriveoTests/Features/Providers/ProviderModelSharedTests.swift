@@ -19,7 +19,7 @@ nonisolated private final class ProjectionExecutionRecorder: @unchecked Sendable
     }
 }
 
-@Suite("ProviderModelShared - Metadata Authoritative Grouping", .serialized)
+@Suite("ProviderModelShared - Metadata Authoritative Grouping", .serialized, .sharedProcessState)
 struct ProviderModelSharedTests {
 
     @Test("Catalog Projection Runs Off Main And Memoizes Snapshot")
