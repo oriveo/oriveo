@@ -11,10 +11,10 @@ nonisolated enum AttachmentRouter {
     private static let scannedPdfCode = "scanned_pdf"
 
     static func maxNativeBytes(for provider: ProviderKind) -> Int {
-        switch provider {
-        case .openAI: return 30 * 1024 * 1024
-        case .anthropic: return 30 * 1024 * 1024
-        case .gemini: return 20 * 1024 * 1024
+        switch provider { // capability-lint-allow R2: per-file byte limits are wire constants, not capability conclusions
+        case .openAI: return 30 * 1024 * 1024 // capability-lint-allow R2: per-file byte limits are wire constants, not capability conclusions
+        case .anthropic: return 30 * 1024 * 1024 // capability-lint-allow R2: per-file byte limits are wire constants, not capability conclusions
+        case .gemini: return 20 * 1024 * 1024 // capability-lint-allow R2: per-file byte limits are wire constants, not capability conclusions
         default: return 30 * 1024 * 1024
         }
     }

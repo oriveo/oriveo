@@ -238,9 +238,9 @@ enum AttachmentTransport: Hashable {
             return .init(provider: .openRouter, wrapper: .xmlV1, supportsNativeFiles: true, nativeFiles: NativeFileUploadSwitch.openRouterToolLoop)
         case .toolLoop(let provider):
             // The tool leg also goes out over that provider's Chat route: when that route sends text only, images get the same placeholder it declares.
-            let chatRoute: AttachmentTransport? = switch provider {
-            case .deepseek: .deepSeekChat
-            case .miniMax: .miniMaxChat
+            let chatRoute: AttachmentTransport? = switch provider { // capability-lint-allow R2: AttachmentTransport.profile is a wire profile table without model context; tool-leg message conversion sends no images by wire shape
+            case .deepseek: .deepSeekChat // capability-lint-allow R2: AttachmentTransport.profile is a wire profile table without model context; tool-leg message conversion sends no images by wire shape
+            case .miniMax: .miniMaxChat // capability-lint-allow R2: AttachmentTransport.profile is a wire profile table without model context; tool-leg message conversion sends no images by wire shape
             default: nil
             }
             return .init(
