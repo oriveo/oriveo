@@ -172,6 +172,7 @@ struct SkillsListView: View {
             }
             .accessibilityLabel(L10n.tr("New Skill", table: .skills))
         }
+        .frame(minHeight: OriveoBackButton.hitSize)
     }
 
     private func navToneButton(systemName: String, tint: Color, action: @escaping () -> Void) -> some View {

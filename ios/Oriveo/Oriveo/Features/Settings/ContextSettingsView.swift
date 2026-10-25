@@ -221,6 +221,8 @@ struct ContextSettingsView: View {
         }
         // The route hides the system navigation bar (oriveoNavigationChrome), so the page draws its own bar.
         .safeAreaInset(edge: .top, spacing: 0) { topBar }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("context_settings_screen")
         .oriveoScreenBackground()
         .onAppear {
             customText = String(ContextDefaultCapSetting.presentation(in: appState).customPrefill)
@@ -276,6 +278,7 @@ struct ContextSettingsView: View {
                 OriveoBackButton {
                     appState.pop()
                 }
+                .accessibilityIdentifier("settings_context_back_button")
                 .padding(.leading, -OriveoBackButton.edgeInset)
                 Spacer(minLength: 0)
             }
@@ -377,7 +380,7 @@ struct ContextSettingsView: View {
     }
 
     private func option(title: String, hint: String?, selected: Bool) -> some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .center, spacing: 12) {
             Image(systemName: selected ? "checkmark.circle.fill" : "circle")
                 .font(.system(size: 22))
                 .foregroundStyle(selected ? OriveoTheme.Palette.primary : OriveoTheme.Palette.borderStrong)

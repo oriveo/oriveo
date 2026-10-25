@@ -75,8 +75,12 @@ enum NoteText {
     }
 
     static func displayTitle(_ raw: String) -> String {
+        displayTitle(raw, untitled: L10n.tr("Untitled note", table: .notes))
+    }
+
+    nonisolated static func displayTitle(_ raw: String, untitled: String) -> String {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? L10n.tr("Untitled note", table: .notes) : trimmed
+        return trimmed.isEmpty ? untitled : trimmed
     }
 
     static func preview(from body: String, userNote: String? = nil, limit: Int = 280) -> String {
