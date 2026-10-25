@@ -39,6 +39,7 @@ struct BackupView: View {
             Color.clear
                 .frame(width: OriveoBackButton.hitSize - OriveoBackButton.edgeInset, height: 32)
         }
+        .frame(minHeight: OriveoBackButton.hitSize)
     }
 }
 

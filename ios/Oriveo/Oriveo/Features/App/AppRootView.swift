@@ -91,6 +91,7 @@ struct AppRootView: View {
                 "path": manager.path.map { String(describing: $0) },
                 "chatDetail": String(describing: manager.chatDetail),
                 "providersDetail": String(describing: manager.providersDetail),
+                "settingsDetail": String(describing: manager.settingsDetail),
                 "notesDetail": String(describing: manager.notesDetail),
             ]
         }
@@ -650,7 +651,7 @@ private struct MainTabView: View {
             }
 
             Tab(AppTab.settings.title, image: Self.icon(for: .settings, selected: navigation.selectedTab), value: AppTab.settings) {
-                SettingsView()
+                settingsTabContent
             }
         }
         // The selected icon and label take the current tab's colour (Home violet / Providers teal /
@@ -719,6 +720,37 @@ private struct MainTabView: View {
         } else if let provider = appState.providers.first {
             ProviderDetailView(providerID: provider.id)
                 .id(provider.id)
+        } else {
+            OriveoTheme.Palette.backgroundBase
+        }
+    }
+
+    /// Two columns on a wide screen: the sidebar is the settings list, the detail column the settings page
+    /// opened from it (`settingsDetail`). At compact width it stays one column and the page is pushed full
+    /// screen on the outer NavigationStack.
+    @ViewBuilder
+    private var settingsTabContent: some View {
+        if navigation.isRegularWidth {
+            TabSplitLayout {
+                SettingsView()
+                    .splitColumnTopTabBarClearance()
+            } detail: {
+                SplitDetailColumn {
+                    settingsDetailContent
+                }
+            }
+        } else {
+            SettingsView()
+        }
+    }
+
+    /// The Settings right column: the selected page if there is one, otherwise an empty backdrop.
+    /// `.id` rebuilds the page when the selection changes instead of reusing the previous page's private state.
+    @ViewBuilder
+    private var settingsDetailContent: some View {
+        if let route = navigation.settingsDetail {
+            AppRouteDestination(route: route)
+                .id(route)
         } else {
             OriveoTheme.Palette.backgroundBase
         }
