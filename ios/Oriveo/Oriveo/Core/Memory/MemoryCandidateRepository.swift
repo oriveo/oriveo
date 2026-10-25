@@ -11,6 +11,18 @@ nonisolated struct MemoryCandidateFailure: Error, Equatable {
     let error: MemoryCandidateTransitionError
 }
 
+/// The outcome of one propose_memory call for the host: a new candidate, an instruction suggestion for this conversation (instruct), or nothing.
+nonisolated enum ProposeMemoryResult: Sendable, Equatable {
+    case candidate(MemoryCandidate)
+    case instruct(sentence: String)
+    case none
+
+    var candidate: MemoryCandidate? {
+        if case let .candidate(candidate) = self { return candidate }
+        return nil
+    }
+}
+
 /// Reads and writes the memory_candidate table: one row per candidate, with the payload holding the whole MemoryCandidate JSON.
 nonisolated final class MemoryCandidateStore: Sendable {
     static let table = "memory_candidate"
@@ -70,16 +82,18 @@ nonisolated final class MemoryCandidateStore: Sendable {
     }
 
     /// Sweeps first, then generates a candidate from a single propose_memory call (MemoryPropose.propose); written only on create, within one transaction.
+    /// instruct writes nothing to the database and only hands the sentence back to the caller, which shows the "set as this conversation's instruction" bar.
     func propose(
         _ arguments: String,
         priorInTurn: Int,
+        priorInstructInTurn: Int = 0,
         userText: String,
         conversationId: String,
         folderId: String?,
         messageId: String,
         activeContents: [String],
         nowMs: Int64
-    ) throws -> MemoryCandidate? {
+    ) throws -> ProposeMemoryResult {
         try dbPool.write { db in
             let records = try Self.sweep(db, activeContents: activeContents, nowMs: nowMs)
             let context = MemoryProposeContext(
@@ -91,9 +105,18 @@ nonisolated final class MemoryCandidateStore: Sendable {
                 records: records,
                 userText: userText
             )
-            let decision = MemoryPropose.propose(arguments, context: context, priorInTurn: priorInTurn)
-            guard decision.action == .create, let candidate = decision.candidate else { return nil }
-            return try Self.write(candidate, replace: false, in: db) ? candidate : nil
+            let decision = MemoryPropose.propose(
+                arguments, context: context, priorInTurn: priorInTurn, priorInstructInTurn: priorInstructInTurn
+            )
+            switch decision.action {
+            case .instruct:
+                return decision.sentence.map { .instruct(sentence: $0) } ?? .none
+            case .create:
+                guard let candidate = decision.candidate else { return .none }
+                return try Self.write(candidate, replace: false, in: db) ? .candidate(candidate) : .none
+            case .skip:
+                return .none
+            }
         }
     }
 
@@ -271,24 +294,27 @@ final class MemoryCandidateRepository {
         }.value
     }
 
-    /// A model's propose_memory call -> a new candidate or nil (stored the same way as generate; only create writes, every other outcome writes nothing).
-    /// Whether to go through the tool is decided by the caller from MemoryPropose.mode, so useMemory / the auto-suggestion switch are not checked here; bad arguments also just return nil.
-    /// userText = the body of the user message newly sent this turn; priorInTurn = the number of propose calls earlier in this turn (whatever their outcome).
+    /// A model's propose_memory call -> a new candidate, an instruction suggestion, or nothing (stored the same way as generate; only create writes, every other outcome writes nothing).
+    /// Whether to go through the tool is decided by the caller from MemoryPropose.mode, so useMemory / the auto-suggestion switch are not checked here; bad arguments also just return none.
+    /// userText = the body of the user message newly sent this turn; priorInTurn = the number of propose calls earlier in this turn (whatever their outcome);
+    /// priorInstructInTurn = the number of earlier calls in this turn whose outcome was instruct.
     func propose(
         argumentsJSON: String,
         priorInTurn: Int,
+        priorInstructInTurn: Int = 0,
         userText: String,
         messageId: String,
         conversationId: String,
         folderId: String?,
         nowMs: Int64
-    ) async throws -> MemoryCandidate? {
+    ) async throws -> ProposeMemoryResult {
         let store = store
         let itemStore = items.store
         return try await Task.detached(priority: .utility) {
             try store.propose(
                 argumentsJSON,
                 priorInTurn: priorInTurn,
+                priorInstructInTurn: priorInstructInTurn,
                 userText: userText,
                 conversationId: conversationId,
                 folderId: folderId,

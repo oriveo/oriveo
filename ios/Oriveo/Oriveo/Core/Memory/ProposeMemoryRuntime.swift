@@ -109,6 +109,8 @@ struct ProposeMemoryTurnContext {
     let folderID: String?
     /// A propose call created a candidate; the controller keeps only the first one of the turn as the bar.
     let onCandidate: (MemoryCandidate, _ assistantMessageID: UUID) -> Void
+    /// A propose call returned instruct (propose-v3): offer the sentence as the instruction bar under the user message.
+    var onInstruct: (_ sentence: String, _ userMessageID: UUID) -> Void = { _, _ in }
     /// The tool-carrying first leg was deterministically rejected: this turn runs the fallback path.
     let onDegraded: (_ userMessageID: UUID, _ assistantMessageID: UUID) -> Void
 }
@@ -136,6 +138,8 @@ struct ProposeMemoryTurn {
     var pendingCalls: [ProviderToolCall] = []
     /// propose calls of this turn so far, whatever their outcome (priorInTurn).
     var callCount = 0
+    /// propose calls of this turn whose outcome was instruct (priorInstructInTurn).
+    var instructCount = 0
 
     init(context: ProposeMemoryTurnContext?, userMessageID: UUID, search: MemorySearchSession? = nil) {
         self.context = context
@@ -153,7 +157,7 @@ struct ProposeMemoryTurn {
 
 /// Arguments of a held `completeStreamingMessage(state: .delivered)`.
 struct ProposeMemoryDeferredDelivery {
-    var estimatedCost: Double?
+    var estimatedCost: DeliveredCost?
     var attachments: [Attachment]?
     var servedModelID: String?
     var reasoningText: String?

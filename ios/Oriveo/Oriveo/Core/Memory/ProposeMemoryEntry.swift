@@ -39,6 +39,8 @@ final class ProposeMemoryLoopSink {
     let conversationID: UUID
     /// propose calls of this turn so far, whatever their outcome.
     private(set) var callCount = 0
+    /// propose calls of this turn whose outcome was instruct.
+    private(set) var instructCount = 0
 
     init(context: ProposeMemoryTurnContext, userMessageID: UUID, assistantMessageID: UUID, conversationID: UUID) {
         self.context = context
@@ -51,16 +53,23 @@ final class ProposeMemoryLoopSink {
         let prior = callCount
         callCount += 1
         do {
-            let candidate = try await context.repository.propose(
+            let result = try await context.repository.propose(
                 argumentsJSON: argumentsJSON,
                 priorInTurn: prior,
+                priorInstructInTurn: instructCount,
                 userText: context.userText,
                 messageId: userMessageID.uuidString,
                 conversationId: conversationID.uuidString,
                 folderId: context.folderID,
                 nowMs: Int64(Date().timeIntervalSince1970 * 1000)
             )
-            if let candidate { context.onCandidate(candidate, assistantMessageID) }
+            switch result {
+            case let .candidate(candidate): context.onCandidate(candidate, assistantMessageID)
+            case let .instruct(sentence):
+                instructCount += 1
+                context.onInstruct(sentence, userMessageID)
+            case .none: break
+            }
         } catch {
             #if DEBUG
             print("[ProposeMemory] loop propose failed: \(error)")
