@@ -2400,9 +2400,7 @@
         "directMaxDocuments": 12,
         "directContextMaxChars": 60000,
         "serverResearchEnabled": true,
-        "serverResearchProviderDenylist": [
-          "oriveoFree"
-        ],
+        "serverResearchProviderDenylist": [],
         "serverResearchMaxDocuments": 5
       },
       "mcpRuntimeConfig": {
@@ -5870,9 +5868,7 @@
         "directMaxDocuments": 12,
         "directContextMaxChars": 60000,
         "serverResearchEnabled": true,
-        "serverResearchProviderDenylist": [
-          "oriveoFree"
-        ],
+        "serverResearchProviderDenylist": [],
         "serverResearchMaxDocuments": 5
       },
       "mcpRuntimeConfig": {
@@ -11513,9 +11509,7 @@
           "directMaxDocuments": 12,
           "directContextMaxChars": 60000,
           "serverResearchEnabled": true,
-          "serverResearchProviderDenylist": [
-            "oriveoFree"
-          ],
+          "serverResearchProviderDenylist": [],
           "serverResearchMaxDocuments": 5
         },
         "mcpRuntimeConfig": {
@@ -22225,9 +22219,7 @@
           "directMaxDocuments": 12,
           "directContextMaxChars": 60000,
           "serverResearchEnabled": true,
-          "serverResearchProviderDenylist": [
-            "oriveoFree"
-          ],
+          "serverResearchProviderDenylist": [],
           "serverResearchMaxDocuments": 5
         },
         "mcpRuntimeConfig": {
