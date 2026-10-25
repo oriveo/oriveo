@@ -146,6 +146,8 @@ struct ChatMessageList: View, Equatable {
     let conversationID: UUID?
     let isSendingMessage: Bool
     let capabilitySelection: ChatCapabilitySelection
+    /// Vision input projection of the current model: when it changes the rows are rebuilt (the "not sent to this model" caption on user bubbles with images).
+    var currentVisionInput: CapabilityEvidenceFacade.InputCapabilityProjection? = nil
     let bottomOverlayInset: CGFloat
     let scrollButtonBottomInset: CGFloat
     let windowLoader: MessageWindowLoader
@@ -245,7 +247,8 @@ struct ChatMessageList: View, Equatable {
             replyNotices: appState.chatManager.relayWebReplyNotices,
             compactionSeparator: compactionSeparator,
             directiveSuggestionMessageID: directiveSuggestionMessageID,
-            memorySuggestion: memorySuggestionBar
+            memorySuggestion: memorySuggestionBar,
+            currentVisionInput: currentVisionInput
         )
     }
 
@@ -291,13 +294,20 @@ struct ChatMessageList: View, Equatable {
             retryCapabilitySelection: capabilitySelection,
             compactionSeparator: compactionSeparator,
             directiveSuggestionMessageID: directiveSuggestionMessageID,
-            memorySuggestion: memorySuggestionBar
+            memorySuggestion: memorySuggestionBar,
+            currentVisionInput: currentVisionInput
         )
     }
 
     #if DEBUG
     nonisolated(unsafe) static var bodyEvaluationCount = 0
-    static func resetBodyEvaluationCount() { bodyEvaluationCount = 0 }
+    /// When non-nil, only this conversation's body evaluations are counted: the counter is a process-wide static, so instances mounted by other tests
+    /// (indirectly through AppRootView and the like, or late renders) must not be counted.
+    nonisolated(unsafe) static var bodyCountConversationID: UUID?
+    static func resetBodyEvaluationCount(countingOnly conversationID: UUID? = nil) {
+        bodyEvaluationCount = 0
+        bodyCountConversationID = conversationID
+    }
     #endif
 
     static func == (lhs: ChatMessageList, rhs: ChatMessageList) -> Bool {
@@ -308,13 +318,18 @@ struct ChatMessageList: View, Equatable {
             && lhs.projection.loadState == rhs.projection.loadState
             && lhs.isSendingMessage == rhs.isSendingMessage
             && lhs.capabilitySelection == rhs.capabilitySelection
+            && lhs.currentVisionInput == rhs.currentVisionInput
             && lhs.windowLoader.hasMoreAbove == rhs.windowLoader.hasMoreAbove
             && lhs.windowLoader.hasMoreBelow == rhs.windowLoader.hasMoreBelow
     }
 
     var body: some View {
         #if DEBUG
-        let _ = { Self.bodyEvaluationCount += 1 }()
+        let _ = {
+            if Self.bodyCountConversationID == nil || Self.bodyCountConversationID == conversationID {
+                Self.bodyEvaluationCount += 1
+            }
+        }()
         #endif
         let canReplaceCurrentNote = ChatNoteReferences.canReplaceCurrentNote(
             returnToNoteID: appState.activeReturnToNoteID,
@@ -533,6 +548,9 @@ struct ChatMessageList: View, Equatable {
             refreshCachedRows()
         }
         .onChange(of: directiveSuggestionMessageID) { _, _ in
+            refreshCachedRows()
+        }
+        .onChange(of: currentVisionInput) { _, _ in
             refreshCachedRows()
         }
         .onChange(of: memorySuggestionBar) { _, _ in
@@ -834,7 +852,8 @@ struct ChatMessageList: View, Equatable {
             replyNotices: appState.chatManager.relayWebReplyNotices,
             compactionSeparator: compactionSeparator,
             directiveSuggestionMessageID: directiveSuggestionMessageID,
-            memorySuggestion: memorySuggestionBar
+            memorySuggestion: memorySuggestionBar,
+            currentVisionInput: currentVisionInput
         )
     }
 

@@ -8,35 +8,40 @@ struct ChatAttachmentPicker {
         case imported(Attachment)
         case oversized
         case unsupported
+        /// The format itself is supported, but the current entry does not accept this medium (video / native file); the caller writes the entry reason as the hint.
+        case mediumUnavailable(AttachmentKind)
         case extractionFailed(reason: ExtractionErrorCode, fileName: String)
     }
 
     struct ImportContext: Sendable {
-        let attachmentSupport: RelayRuntimeSupport.AttachmentSupport
+        /// The entry result comes only from the facade: the three-key projection editable + textFileInline.
+        let entry: CapabilityEvidenceFacade.AttachmentImportEntry
 
-        init(provider: Provider?, model: AIModel?) {
-            guard let provider else {
-                attachmentSupport = (image: false, video: false, nativeFile: false, textFileInline: false)
+        /// - Parameter partitionID: used to build the projection identity; when nil, non-Relay shapes have no projection and the three keys are treated as off.
+        init(provider: Provider?, model: AIModel?, partitionID: String? = nil) {
+            guard let provider, let model else {
+                entry = .closed
                 return
             }
-
-            if provider.kind == .relay,
-               let runtime = RelayRuntimeSupport.attachmentSupport(
-                for: provider,
-                model: model,
-                runtimeConfig: MetadataClient.shared.syncRelayRuntimeConfig()
-               ) {
-                attachmentSupport = runtime
-            } else {
-                attachmentSupport = provider.kind.attachmentSupport
+            let identity = partitionID.flatMap {
+                ChatView.capabilityEvidenceIdentity(provider: provider, model: model, partitionID: $0)
             }
-        }
-
-        init(providerKind: ProviderKind?) {
-            attachmentSupport = providerKind?.attachmentSupport ?? (image: false, video: false, nativeFile: false, textFileInline: false)
+            let projection = CapabilityEvidenceProductionAdapter.capabilityProjection(
+                provider: provider,
+                model: model,
+                identity: identity,
+                keys: Set(CapabilityEvidenceFacade.inputCapabilityKeys)
+            )
+            entry = CapabilityEvidenceFacade.attachmentImportEntry(
+                provider: provider, model: model, projection: projection,
+                relayInputEnvelope: {
+                    RelayRuntimeSupport.inputEnvelope(
+                        transport: $0, runtimeConfig: MetadataClient.shared.syncRelayRuntimeConfig()
+                    )
+                }
+            )
         }
     }
-
 
     @ViewBuilder
     static func attachmentThumbnail(
@@ -357,10 +362,6 @@ struct ChatAttachmentPicker {
     }
 
 
-    static func processFileURL(_ url: URL, providerKind: ProviderKind?) async -> ImportResult {
-        await processFileURL(url, importContext: ImportContext(providerKind: providerKind))
-    }
-
     static func processFileURL(
         _ url: URL,
         importContext: ImportContext,
@@ -445,7 +446,7 @@ struct ChatAttachmentPicker {
             }
         }
 
-        let support = importContext.attachmentSupport
+        let support = importContext.entry
 
         let mimeType = ChatAttachmentImportPolicy.resolveMimeType(
             fileName: fileName,
@@ -453,7 +454,7 @@ struct ChatAttachmentPicker {
         )
 
         if mimeType.hasPrefix("video/") {
-            guard support.video else { return .unsupported }
+            guard support.video else { return .mediumUnavailable(.video) }
             let base64 = autoreleasepool { data.base64EncodedString() }
             return .imported(Attachment(
                 id: UUID(), kind: .video, fileName: fileName,
@@ -462,7 +463,7 @@ struct ChatAttachmentPicker {
         }
 
         if !support.nativeFile {
-            guard String(data: data, encoding: .utf8) != nil else { return .unsupported }
+            guard String(data: data, encoding: .utf8) != nil else { return .mediumUnavailable(.file) }
         }
 
         let base64 = autoreleasepool { data.base64EncodedString() }

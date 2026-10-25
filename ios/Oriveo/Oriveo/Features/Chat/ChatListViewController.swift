@@ -187,6 +187,7 @@ final class ChatListViewController: UIViewController {
     private var lastCompactionSeparator: ContextCompactionSeparator?
     /// The suggestion bar appearing or disappearing does not change the message revision either, so keep a separate copy to trigger a rebuild.
     private var lastDirectiveSuggestionMessageID: UUID?
+    private var lastCurrentVisionInput: CapabilityEvidenceFacade.InputCapabilityProjection?
     private var lastMemorySuggestion: MemorySuggestionBar?
     private var lastMeasuredWidth: CGFloat = 0
     private var contentDirty = false
@@ -493,7 +494,8 @@ final class ChatListViewController: UIViewController {
             || providerMetadataVersion != lastProviderMetadataVersion
             || viewModel.compactionSeparator != lastCompactionSeparator
             || viewModel.directiveSuggestionMessageID != lastDirectiveSuggestionMessageID
-            || viewModel.memorySuggestion != lastMemorySuggestion {
+            || viewModel.memorySuggestion != lastMemorySuggestion
+            || viewModel.currentVisionInput != lastCurrentVisionInput {
             contentDirty = true
             prewarmMarkdown(rows: viewModel.rows)
         }
@@ -1001,6 +1003,7 @@ final class ChatListViewController: UIViewController {
         lastCompactionSeparator = viewModel.compactionSeparator
         lastDirectiveSuggestionMessageID = viewModel.directiveSuggestionMessageID
         lastMemorySuggestion = viewModel.memorySuggestion
+        lastCurrentVisionInput = viewModel.currentVisionInput
         contentDirty = false
     }
 
@@ -1623,7 +1626,12 @@ extension ChatListViewController: ChatLayoutDelegate {
                     partitionUID: AppSessionStore.activeUID
                 ) ?? CachedAttachmentImage.fallbackAspectRatio
             }
-            height += estimatedImagesHeight(imageWidth: imageWidth, ratios: ratios)
+            height += estimatedImagesHeight(imageWidth: imageWidth, ratios: ratios, userGrid: isUser)
+        }
+        // User file attachments: `UserAttachmentsGroup` lays out one row of file chips; below images there is one more stack spacing.
+        if isUser, (message.attachments ?? []).contains(where: { $0.kind != .image }) {
+            height += UserFileAttachmentLayout.chipHeight
+            if !imageAttachments.isEmpty { height += UserFileAttachmentLayout.rowSpacing }
         }
 
         // Before the body: the MCP step block. Only its collapsed height counts (it collapses once the
@@ -1649,6 +1657,10 @@ extension ChatListViewController: ChatLayoutDelegate {
         // Below the bubble: the "Set as instruction" suggestion bar (user only).
         if isUser, row.showsDirectiveSuggestion {
             height += directiveSuggestionHeight
+        }
+        // Below the attachments inside the bubble: the "not sent to this model" caption (attached only to user messages with images whose current vision projection is a placeholder).
+        if isUser, UserMessageCell.showsNotSentToModel(attachments: message.attachments ?? [], visionInput: row.visionInput) {
+            height += notSentCaptionHeight
         }
         // After the metadata action row: the "Save to memory?" bar (non-streaming assistant only); its height follows the candidate text line count.
         if !isUser, let memorySuggestion = row.memorySuggestion {
@@ -1684,8 +1696,27 @@ extension ChatListViewController: ChatLayoutDelegate {
         return chrome + bodyLines * proseLineHeight + 8
     }
 
-    nonisolated static func estimatedImagesHeight(imageWidth: CGFloat, ratios: [CGFloat]) -> CGFloat {
-        ratios.reduce(0) { $0 + imageWidth / max($1, 0.1) + 12 }
+    /// `userGrid`: several images in a user bubble are not stacked one per row but laid out by `UserAttachmentsGroup` in a fixed grid:
+    /// 2 images in one row of 128 squares, 3 in one row of 96 squares, 4+ in a 2x2 of 128 squares (the 4th cell carries +N), independent of aspect ratio.
+    /// A single image stays a hero at width / ratio.
+    nonisolated static func estimatedImagesHeight(
+        imageWidth: CGFloat,
+        ratios: [CGFloat],
+        userGrid: Bool = false
+    ) -> CGFloat {
+        if userGrid, ratios.count >= 2 {
+            let grid: CGFloat
+            switch ratios.count {
+            case 2:
+                grid = UserImageAttachmentLayout.gridSide
+            case 3:
+                grid = UserImageAttachmentLayout.compactSide
+            default:
+                grid = UserImageAttachmentLayout.gridSide * 2 + UserImageAttachmentLayout.imageSpacing
+            }
+            return grid + 12
+        }
+        return ratios.reduce(0) { $0 + imageWidth / max($1, 0.1) + 12 }
     }
 
     nonisolated static func estimatedCitationsHeight(count: Int) -> CGFloat {
@@ -1741,6 +1772,8 @@ extension ChatListViewController: ChatLayoutDelegate {
     nonisolated static let compactionSeparatorHeight: CGFloat = 52
     /// "Set as instruction" suggestion bar (`DirectiveSuggestionBarView`: top gap 8 + padding 10x2 + one footnote line + gap 6 + button 28).
     nonisolated static let directiveSuggestionHeight: CGFloat = 80
+    /// The "not sent to this model" caption (`UserMessageCell.notSentRow`: one caption2 line + bubbleStack spacing 8).
+    nonisolated static let notSentCaptionHeight: CGFloat = 22
 
     /// "Save to memory?" bar (`MemorySuggestionBarView`): top gap 8 + padding 10x2 + one prompt line; with a candidate,
     /// add gap 6 + body (footnote, up to 2 lines) + gap 6 + button 28. With memory off there is only the prompt text, counted as two lines.

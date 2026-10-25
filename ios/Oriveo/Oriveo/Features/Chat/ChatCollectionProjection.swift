@@ -104,6 +104,9 @@ nonisolated enum ChatCollectionProjectionBuilder {
         /// "Save to memory?" bar: attached only to the assistant message of this turn that the suggestion belongs to,
         /// appears only after streaming ends and is drawn after the metadata action row.
         var memorySuggestion: MemorySuggestionBar? = nil
+        /// Vision input projection of the current model: attached only to user messages carrying images;
+        /// when it is a placeholder the bubble shows "not sent to this model" under the attachments; rows are rebuilt when the model or the negative cache changes.
+        var visionInput: CapabilityEvidenceFacade.InputCapabilityProjection? = nil
 
         nonisolated var id: UUID { message.id }
     }
@@ -141,6 +144,8 @@ nonisolated enum ChatCollectionProjectionBuilder {
         let showsDirectiveSuggestion: Bool
         /// Memory bar (passed through from MessageRow); part of Equatable, so appearing / disappearing / a new candidate triggers a reconfigure.
         let memorySuggestion: MemorySuggestionBar?
+        /// Passed through from MessageRow; part of Equatable, so a change in placeholder state triggers a reconfigure.
+        let visionInput: CapabilityEvidenceFacade.InputCapabilityProjection?
 
         init(
             messageID: UUID,
@@ -163,7 +168,8 @@ nonisolated enum ChatCollectionProjectionBuilder {
             replyNotice: RelayWebReplyNotice? = nil,
             compactionSeparator: ContextCompactionSeparator? = nil,
             showsDirectiveSuggestion: Bool = false,
-            memorySuggestion: MemorySuggestionBar? = nil
+            memorySuggestion: MemorySuggestionBar? = nil,
+            visionInput: CapabilityEvidenceFacade.InputCapabilityProjection? = nil
         ) {
             self.messageID = messageID
             self.message = message
@@ -186,6 +192,7 @@ nonisolated enum ChatCollectionProjectionBuilder {
             self.compactionSeparator = compactionSeparator
             self.showsDirectiveSuggestion = showsDirectiveSuggestion
             self.memorySuggestion = memorySuggestion
+            self.visionInput = visionInput
         }
     }
 
@@ -219,7 +226,8 @@ nonisolated enum ChatCollectionProjectionBuilder {
         replyNotices: [UUID: RelayWebReplyNotice] = [:],
         compactionSeparator: ContextCompactionSeparator? = nil,
         directiveSuggestionMessageID: UUID? = nil,
-        memorySuggestion: MemorySuggestionBar? = nil
+        memorySuggestion: MemorySuggestionBar? = nil,
+        currentVisionInput: CapabilityEvidenceFacade.InputCapabilityProjection? = nil
     ) -> [MessageRow] {
         var rows: [MessageRow] = []
         rows.reserveCapacity(messages.count)
@@ -266,6 +274,10 @@ nonisolated enum ChatCollectionProjectionBuilder {
                         && message.state != .generating
                         && message.id == memorySuggestion?.messageID
                         ? memorySuggestion
+                        : nil,
+                    visionInput: message.role == .user
+                        && (message.attachments ?? []).contains { $0.kind == .image }
+                        ? currentVisionInput
                         : nil
                 )
             )
@@ -319,7 +331,8 @@ nonisolated enum ChatCollectionProjectionBuilder {
                 replyNotice: row.replyNotice,
                 compactionSeparator: row.compactionSeparator,
                 showsDirectiveSuggestion: row.showsDirectiveSuggestion,
-                memorySuggestion: row.memorySuggestion
+                memorySuggestion: row.memorySuggestion,
+                visionInput: row.visionInput
             )
         }
 
@@ -378,4 +391,6 @@ struct ChatCollectionViewModel {
     var directiveSuggestionMessageID: UUID? = nil
     /// The pending memory bar (which assistant message it is attached to and what it shows); rows must be rebuilt when it appears / disappears.
     var memorySuggestion: MemorySuggestionBar? = nil
+    /// The current model's vision input projection; rows must be rebuilt when it changes (the "not sent to this model" caption on user bubbles with images).
+    var currentVisionInput: CapabilityEvidenceFacade.InputCapabilityProjection? = nil
 }

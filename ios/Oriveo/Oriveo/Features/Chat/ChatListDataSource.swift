@@ -136,7 +136,8 @@ final class ChatListDataSource: NSObject, UICollectionViewDataSource {
                     : { context.onOpenNoteReferences(model.noteReferences) },
                 onOpenCompactionDetail: { context.onOpenCompactionDetail() },
                 onAcceptDirectiveSuggestion: { context.onAcceptDirectiveSuggestion() },
-                onIgnoreDirectiveSuggestion: { context.onIgnoreDirectiveSuggestion() }
+                onIgnoreDirectiveSuggestion: { context.onIgnoreDirectiveSuggestion() },
+                visionInput: model.visionInput
             )
             return cell
         }

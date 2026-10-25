@@ -136,10 +136,15 @@ nonisolated enum ChatDropImport {
         availableSlots: Int,
         importContext: ChatAttachmentPicker.ImportContext,
         byteLimit: Int,
-        extractionLimits: FileExtractionLimits
-    ) async -> (attachments: [Attachment], rejectedCount: Int, oversizedCount: Int, overLimitCount: Int) {
+        extractionLimits: FileExtractionLimits,
+        refusalReasons: [AttachmentKind: String] = [:]
+    ) async -> (
+        attachments: [Attachment], rejectedCount: Int, oversizedCount: Int, overLimitCount: Int,
+        refusalReasons: [String]
+    ) {
         var rejected = 0
         var oversized = 0
+        var refusals: [String] = []
         let batch = await AttachmentImportLimiter.importSequentially(urls, availableSlots: availableSlots) { url in
             switch await ChatAttachmentPicker.processFileURL(
                 url,
@@ -153,6 +158,13 @@ nonisolated enum ChatDropImport {
                 oversized += 1
             case .unsupported:
                 rejected += 1
+            case .mediumUnavailable(let kind):
+                // The reason is supplied by the caller per entry; one without a reason still counts as an unsupported format.
+                if let reason = refusalReasons[kind] {
+                    if !refusals.contains(reason) { refusals.append(reason) }
+                } else {
+                    rejected += 1
+                }
             case .extractionFailed(let code, let fileName):
                 // An extraction failure (corrupted, encrypted, scanned, ...) has its own message and is not
                 // counted as rejected: counting it would immediately show a second "unsupported file format"
@@ -166,7 +178,7 @@ nonisolated enum ChatDropImport {
             }
             return nil
         }
-        return (batch.accepted, rejected, oversized, batch.skippedOverLimit)
+        return (batch.accepted, rejected, oversized, batch.skippedOverLimit, refusals)
     }
 
     private static func looksLikeFile(_ item: Item) -> Bool {
