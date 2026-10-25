@@ -48,8 +48,7 @@ extension AppState {
             changed = true
         }
         guard changed else { return }
-        conversations = next
-        try? replaceConversationProjectionOrThrow(next)
+        replaceConversationProjection(next)
     }
 
 
