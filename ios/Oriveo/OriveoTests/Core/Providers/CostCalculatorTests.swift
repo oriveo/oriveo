@@ -1,7 +1,7 @@
 import Testing
 @testable import Oriveo
 
-@Suite("CostCalculator")
+@Suite("CostCalculator", .sharedProcessState)
 struct CostCalculatorTests {
     // MARK: - Upstream cost path
 
@@ -180,6 +180,21 @@ struct CostCalculatorTests {
         #expect(breakdown.cachedInputTokens == 1500)
     }
 
+    @Test("Moonshot Reads Choice Usage When Top Level Is Missing")
+    func moonshotChoiceUsageWhenTopLevelMissing() throws {
+        let body = Data(#"{"choices":[{"message":{"content":"ok"},"usage":{"prompt_tokens":67,"completion_tokens":88,"cached_tokens":7}}]}"#.utf8)
+        let parsed = try MoonshotService.chatCompletionUsageForTesting(responseBody: body)
+        #expect(parsed.reported)
+        #expect(parsed.breakdown.promptTokens == 60)
+        #expect(parsed.breakdown.cachedInputTokens == 7)
+        #expect(parsed.breakdown.completionTokens == 88)
+        // Neither place reports usage: it is unknown, not zero.
+        let missing = try MoonshotService.chatCompletionUsageForTesting(
+            responseBody: Data(#"{"choices":[{"message":{"content":"ok"}}]}"#.utf8)
+        )
+        #expect(!missing.reported)
+    }
+
     @Test("Anthropic Cache Creation Nested")
     func anthropicCacheCreationNested() {
         let nestedUsage = AnthropicServiceTestProxy.makeUsage(
@@ -288,6 +303,17 @@ struct CostCalculatorTests {
         #expect(breakdown.reasoningTokens == 77)
     }
 
+    @Test("Per Unit Pricing Without A Unit Price Is Unknown")
+    func perUnitWithoutUnitPriceIsUnknown() {
+        let pricing = makePricing(promptPerM: 0, completionPerM: 0, pricingUnit: "per_image")
+        let result = CostCalculator.estimate(breakdown: UsageBreakdown(), pricing: pricing, at: Date(), units: 2)
+        #expect(result.source == .unknown)
+        let priced = makePricing(promptPerM: 0, completionPerM: 0, pricingUnit: "per_image", costPerUnit: 0.04)
+        let pricedResult = CostCalculator.estimate(breakdown: UsageBreakdown(), pricing: priced, at: Date(), units: 2)
+        #expect(pricedResult.source == .localEstimate)
+        #expect(abs(pricedResult.amount - 0.08) < 1e-12)
+    }
+
     // MARK: - Helpers
 
     private func makePricing(
@@ -295,7 +321,9 @@ struct CostCalculatorTests {
         completionPerM: Double,
         cachedReadPerM: Double? = nil,
         cacheWrite5mPerM: Double? = nil,
-        cacheWrite1hPerM: Double? = nil
+        cacheWrite1hPerM: Double? = nil,
+        pricingUnit: String = "per_token",
+        costPerUnit: Double? = nil
     ) -> MetadataClient.ResolvedModelMetadata {
         MetadataClient.ResolvedModelMetadata(
             canonicalModelId: "test-model",
@@ -305,13 +333,13 @@ struct CostCalculatorTests {
             maxOutputTokens: nil,
             supportsTemperature: nil,
             billingSku: nil,
-            pricingUnit: "per_token",
+            pricingUnit: pricingUnit,
             sourceSummary: nil,
             pricingStatus: "priced",
             capabilities: [],
             promptPerToken: promptPerM / 1_000_000,
             completionPerToken: completionPerM / 1_000_000,
-            costPerUnit: nil,
+            costPerUnit: costPerUnit,
             costInputBatches: nil,
             costOutputBatches: nil,
             costInputPriority: nil,

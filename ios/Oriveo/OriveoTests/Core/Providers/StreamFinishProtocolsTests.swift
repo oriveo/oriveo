@@ -41,7 +41,7 @@ private final class StreamFinishProtocolsURLProtocol: URLProtocol, @unchecked Se
 /// The streams of the Responses / Anthropic / Gemini families carry a StreamFinish on `.done`.
 /// Each case feeds raw SSE bytes to the production services (OpenAI Responses main path, Anthropic Messages, Gemini generateContent),
 /// asserts the done event they deliver, and goes through StopReasonResolver to the StopReason that is persisted.
-@Suite("StreamFinish：Responses / Anthropic / Gemini（iOS）", .serialized)
+@Suite("StreamFinish: Responses / Anthropic / Gemini (iOS)", .serialized, .sharedProcessState)
 struct StreamFinishProtocolsTests {
     private static let key = "sk-stream-finish-test-0123456789"
     private static let responsesModel = "stream-finish-responses"
@@ -142,7 +142,7 @@ struct StreamFinishProtocolsTests {
         return drained
     }
 
-    @Test("responses_completed：response.completed → clean，finishRaw completed → stop")
+    @Test("responses_completed: response.completed → clean, finishRaw completed → stop")
     func responses_completed() async throws {
         let drained = try await Self.runResponses([
             Self.responsesDelta,
@@ -265,7 +265,7 @@ struct StreamFinishProtocolsTests {
         ))
     }
 
-    @Test("anthropic_max_tokens：message_delta stop_reason max_tokens + message_stop → clean → length")
+    @Test("anthropic_max_tokens: message_delta stop_reason max_tokens + message_stop → clean → length")
     func anthropic_max_tokens() async throws {
         let drained = await Self.runAnthropic([
             Self.anthropicStart, Self.anthropicBlockStart, Self.anthropicDelta, Self.anthropicBlockStop,
@@ -278,7 +278,7 @@ struct StreamFinishProtocolsTests {
         #expect(Self.resolved(result.finish) == .length)
     }
 
-    @Test("anthropic_context_window_exceeded：stop_reason model_context_window_exceeded → context_window_exceeded")
+    @Test("anthropic_context_window_exceeded: stop_reason model_context_window_exceeded → context_window_exceeded")
     func anthropic_context_window_exceeded() async throws {
         let drained = await Self.runAnthropic([
             Self.anthropicStart, Self.anthropicBlockStart, Self.anthropicDelta, Self.anthropicBlockStop,
@@ -306,6 +306,43 @@ struct StreamFinishProtocolsTests {
         #expect(Self.resolved(result.finish) == .incomplete)
     }
 
+    @Test("anthropic_stream_usage_reported: message_start / message_delta carry usage -> usageReported true, priced by tokens")
+    func anthropic_stream_usage_reported() async throws {
+        let drained = await Self.runAnthropic([
+            Self.anthropicStart, Self.anthropicBlockStart, Self.anthropicDelta, Self.anthropicBlockStop,
+            Self.anthropicMessageDelta("end_turn"), Self.anthropicStop,
+        ])
+        #expect(drained.error == nil, "\(String(describing: drained.error))")
+        let result = try #require(drained.result, "no done")
+        #expect(result.usageReported)
+        #expect(result.promptTokens == 5)
+        #expect(result.completionTokens == 2)
+    }
+
+    @Test("anthropic_stream_without_usage: neither event carries usage -> usageReported false, and no cost is made up")
+    func anthropic_stream_without_usage() async throws {
+        let startWithoutUsage = Self.anthropicFrame(
+            "message_start",
+            #"{"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","model":"claude-test","content":[],"stop_reason":null}}"#
+        )
+        let deltaWithoutUsage = Self.anthropicFrame(
+            "message_delta", #"{"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null}}"#
+        )
+        let drained = await Self.runAnthropic([
+            startWithoutUsage, Self.anthropicBlockStart, Self.anthropicDelta, Self.anthropicBlockStop,
+            deltaWithoutUsage, Self.anthropicStop,
+        ])
+        #expect(drained.error == nil, "\(String(describing: drained.error))")
+        let result = try #require(drained.result, "no done")
+        #expect(result.text == "Hello")
+        #expect(!result.usageReported)
+        var model = TestFactories.makeModel(id: "claude-test")
+        model.promptPrice = 0.000003
+        model.completionPrice = 0.000015
+        #expect(ChatDeliveryAccounting.deliveredCost(result: result, model: model, providerKind: .relay) == 0,
+                "without reported usage there is nothing to price")
+    }
+
     // MARK: - Gemini generateContent
 
     private static let geminiText = #"data: {"candidates":[{"content":{"role":"model","parts":[{"text":"Hello"}]},"index":0}],"modelVersion":"gemini-test"}"#
@@ -322,7 +359,7 @@ struct StreamFinishProtocolsTests {
         ))
     }
 
-    @Test("gemini_max_tokens：candidate finishReason MAX_TOKENS → clean → length")
+    @Test("gemini_max_tokens: candidate finishReason MAX_TOKENS → clean → length")
     func gemini_max_tokens() async throws {
         let drained = await Self.runGemini([Self.geminiText, Self.geminiFinish("MAX_TOKENS")])
         #expect(drained.error == nil, "\(String(describing: drained.error))")
@@ -422,15 +459,15 @@ struct StreamFinishProtocolsTests {
     func interactions_terminal_status_carries_finish() async throws {
         for (status, expected) in [("completed", StopReason.stop), ("incomplete", .length)] {
             let run = await Self.runInteractions([Self.interactionsDelta, Self.interactionsStatus(status)])
-            #expect(run.error == nil, "\(status)：\(String(describing: run.error))")
-            #expect(run.done == StreamFinish(family: .geminiInteractions, ended: .clean, finishRaw: status), "\(status)：\(String(describing: run.done))")
+            #expect(run.error == nil, "\(status): \(String(describing: run.error))")
+            #expect(run.done == StreamFinish(family: .geminiInteractions, ended: .clean, finishRaw: status), "\(status): \(String(describing: run.done))")
             #expect(Self.resolved(run.done) == expected, "\(status)")
         }
         for (status, expected) in [("failed", StopReason.error), ("requires_action", .tool), ("cancelled", .unknown)] {
             let run = await Self.runInteractions([Self.interactionsDelta, Self.interactionsStatus(status)])
             #expect(run.error != nil, "\(status) should still throw")
             #expect(run.done == nil)
-            #expect(run.finishes == [StreamFinish(family: .geminiInteractions, ended: .clean, finishRaw: status)], "\(status)：\(run.finishes)")
+            #expect(run.finishes == [StreamFinish(family: .geminiInteractions, ended: .clean, finishRaw: status)], "\(status): \(run.finishes)")
             #expect(Self.resolved(run.finishes.last) == expected, "\(status)")
         }
         let truncated = await Self.runInteractions([Self.interactionsDelta])

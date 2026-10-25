@@ -41,7 +41,7 @@ private final class StreamFinishURLProtocol: URLProtocol, @unchecked Sendable {
 /// The stream of the OpenAI chat-compatible family carries a StreamFinish on `.done` (family openai_chat).
 /// Clean criterion: a `[DONE]` or a non-empty finish_reason was seen; if neither was seen it is eof_without_marker.
 /// Each case feeds raw SSE bytes to the three production services DeepSeek / Qwen / OpenRouter and asserts the done event they deliver.
-@Suite("StreamFinish: OpenAI chat family (iOS)", .serialized)
+@Suite("StreamFinish: OpenAI chat family (iOS)", .serialized, .sharedProcessState)
 struct StreamFinishOpenAIChatTests {
     private static let contentFrame = #"data: {"id":"c1","object":"chat.completion.chunk","model":"m","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}"#
 
@@ -87,7 +87,7 @@ struct StreamFinishOpenAIChatTests {
         return (text, result, finish, nil)
     }
 
-    @Test("openai_chat_done_with_length：finish_reason length + [DONE] → clean，finishRaw length")
+    @Test("openai_chat_done_with_length: finish_reason length + [DONE] → clean, finishRaw length")
     func openai_chat_done_with_length() async throws {
         await MetadataClient.shared.resetForTesting()
         let stream = Self.body([Self.contentFrame, Self.finishFrame("length"), Self.usageFrame, "data: [DONE]"])
@@ -95,12 +95,12 @@ struct StreamFinishOpenAIChatTests {
             let drained = await Self.drain(service.sendMessageStream(
                 apiKey: Self.key, modelID: modelID, messages: [Self.message(kind: kind)]
             ))
-            #expect(drained.error == nil, "\(kind.rawValue)：\(String(describing: drained.error))")
+            #expect(drained.error == nil, "\(kind.rawValue): \(String(describing: drained.error))")
             let result = try #require(drained.result, "\(kind.rawValue): no done")
             #expect(result.text == "Hello", "\(kind.rawValue)")
             #expect(
                 result.finish == StreamFinish(family: .openaiChat, ended: .clean, finishRaw: "length"),
-                "\(kind.rawValue)：\(String(describing: result.finish))"
+                "\(kind.rawValue): \(String(describing: result.finish))"
             )
             #expect(
                 result.finish.map {
@@ -119,11 +119,11 @@ struct StreamFinishOpenAIChatTests {
             let drained = await Self.drain(service.sendMessageStream(
                 apiKey: Self.key, modelID: modelID, messages: [Self.message(kind: kind)]
             ))
-            #expect(drained.error == nil, "\(kind.rawValue)：\(String(describing: drained.error))")
+            #expect(drained.error == nil, "\(kind.rawValue): \(String(describing: drained.error))")
             let result = try #require(drained.result, "\(kind.rawValue): no done")
             #expect(
                 result.finish == StreamFinish(family: .openaiChat, ended: .clean, finishRaw: "stop"),
-                "\(kind.rawValue)：\(String(describing: result.finish))"
+                "\(kind.rawValue): \(String(describing: result.finish))"
             )
         }
     }
@@ -147,11 +147,11 @@ struct StreamFinishOpenAIChatTests {
                 )
                 continue
             }
-            #expect(drained.error == nil, "\(kind.rawValue)：\(String(describing: drained.error))")
+            #expect(drained.error == nil, "\(kind.rawValue): \(String(describing: drained.error))")
             let result = try #require(drained.result, "\(kind.rawValue): no done")
             #expect(
                 result.finish == StreamFinish(family: .openaiChat, ended: .eofWithoutMarker, finishRaw: nil),
-                "\(kind.rawValue)：\(String(describing: result.finish))"
+                "\(kind.rawValue): \(String(describing: result.finish))"
             )
             #expect(
                 result.finish.map {
@@ -197,7 +197,7 @@ struct StreamFinishOpenAIChatTests {
         for (frame, raw, expected) in cases {
             let run = try await Self.runLlamaCpp([Self.llamaContent, frame])
             #expect(run.text == "Hello")
-            #expect(run.finish == StreamFinish(family: .llamaCpp, ended: .clean, finishRaw: raw), "\(raw)：\(run.finish)")
+            #expect(run.finish == StreamFinish(family: .llamaCpp, ended: .clean, finishRaw: raw), "\(raw): \(run.finish)")
             #expect(StopReasonResolver.resolve(family: run.finish.family, ended: run.finish.ended, finishRaw: run.finish.finishRaw, hadContent: true) == expected, "\(raw)")
         }
         let truncated = try await Self.runLlamaCpp([Self.llamaContent])

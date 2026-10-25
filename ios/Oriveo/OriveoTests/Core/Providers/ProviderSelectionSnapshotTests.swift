@@ -1,7 +1,7 @@
 import Testing
 @testable import Oriveo
 
-@Suite("ProviderSelectionSnapshot", .serialized)
+@Suite("ProviderSelectionSnapshot", .serialized, .sharedProcessState)
 struct ProviderSelectionSnapshotTests {
     private func withOpenAIMetadata<Result>(
         _ operation: () async throws -> Result
@@ -141,5 +141,71 @@ struct ProviderSelectionSnapshotTests {
             #expect(defaultModel?.id == "gpt-4o")
             #expect(ProviderCatalogResolver.debugResolveCallCount == 0)
         }
+    }
+
+    @Test("New chat across connections skips connections without a key; the last used connection is tried first, the rest follow list order")
+    func activeModelConnectionOrder() {
+        let noKey = TestFactories.makeProvider(
+            kind: .anthropic, models: [TestFactories.makeModel(id: "claude-x")], apiKey: "", apiKeyPreview: ""
+        )
+        let unverified = TestFactories.makeProvider(
+            kind: .mistral, status: .issue("Connection has not been verified."),
+            models: [TestFactories.makeModel(id: "mistral-small")]
+        )
+        let empty = TestFactories.makeProvider(kind: .openAI, models: [])
+        let connected = TestFactories.makeProvider(kind: .deepseek, models: [TestFactories.makeModel(id: "deepseek-chat")])
+        let providers = [noKey, unverified, empty, connected]
+
+        #expect(!ProviderSelectionSnapshot.isUsableForNewChat(noKey))
+        #expect(ProviderSelectionSnapshot.isUsableForNewChat(unverified))
+
+        // No last used model: the first usable connection is tried first; connections without a key never appear.
+        let none = ProviderSelectionSnapshot.activeModel(in: [noKey, connected, unverified], lastUsedModelRef: nil)
+        #expect(none?.provider.id == connected.id)
+
+        // The last used connection has no usable model: the rest follow list order, so unverified wins over connected.
+        let ref = LastUsedModelRef(providerID: empty.id, modelID: "gpt-gone")
+        let chosen = ProviderSelectionSnapshot.activeModel(in: providers, lastUsedModelRef: ref)
+        #expect(chosen?.provider.id == unverified.id)
+        #expect(chosen?.model.id == "mistral-small")
+
+        // The last used model points at a connection without a key: that connection is skipped.
+        let deadRef = LastUsedModelRef(providerID: noKey.id, modelID: "claude-x")
+        #expect(ProviderSelectionSnapshot.activeModel(in: providers, lastUsedModelRef: deadRef)?.provider.id != noKey.id)
+    }
+
+    @Test("Unusable means missing credentials only: a subscription connection without login credentials is skipped, an erroring connection is not")
+    func newChatSkipsOnlyMissingCredential() {
+        var subscription = TestFactories.makeProvider(
+            kind: .grok, models: [TestFactories.makeModel(id: "grok-4")], apiKey: "", apiKeyPreview: ""
+        )
+        subscription.authMode = .subscription
+        let erroring = TestFactories.makeProvider(
+            kind: .deepseek, status: .issue("Invalid API key."),
+            models: [TestFactories.makeModel(id: "deepseek-chat")]
+        )
+        let providers = [subscription, erroring]
+
+        #expect(!ProviderSelectionSnapshot.isUsableForNewChat(subscription))
+        #expect(ProviderSelectionSnapshot.isUsableForNewChat(erroring))
+
+        // The subscription connection lacks login credentials, so resolution falls through to the erroring one that has a key.
+        let chosen = ProviderSelectionSnapshot.activeModel(in: providers, lastUsedModelRef: nil)
+        #expect(chosen?.provider.id == erroring.id)
+        #expect(chosen?.model.id == "deepseek-chat")
+    }
+
+    @Test("An empty model id makes currentModel use the new-chat chain and ignore the connection default")
+    func currentModelEmptyIDIgnoresConnectionDefault() {
+        let provider = TestFactories.makeProvider(
+            kind: .openAI,
+            models: [
+                TestFactories.makeModel(id: "first"),
+                TestFactories.makeModel(id: "flagged", isDefault: true)
+            ]
+        )
+        #expect(ProviderSelectionSnapshot.currentModel(storedModelID: "", in: provider)?.id == "first")
+        let ref = LastUsedModelRef(providerID: provider.id, modelID: "flagged")
+        #expect(ProviderSelectionSnapshot.currentModel(storedModelID: nil, in: provider, lastUsedModelRef: ref)?.id == "flagged")
     }
 }

@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Oriveo
 
-@Suite("ModelDisplayLookup", .serialized)
+@Suite("ModelDisplayLookup", .serialized, .sharedProcessState)
 struct ModelDisplayLookupTests {
     @Test("Official Provider Lookup Avoids Catalog Projection")
     func officialProviderLookupAvoidsCatalogProjection() async throws {

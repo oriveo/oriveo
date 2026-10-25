@@ -10,7 +10,7 @@ import Testing
 /// (`resolveFromLocal`) compared every catalog model against every enabled model: "catalog x enabled"
 /// calls to `modelsShareSameRemoteModel`.
 @MainActor
-@Suite("Relay large catalog main-thread cost", .serialized)
+@Suite("Relay large catalog main-thread cost", .serialized, .sharedProcessState)
 struct RelayCatalogScaleTests {
     private static let catalogCount = 22_000
     private static let enabledCount = 1_500
