@@ -356,20 +356,33 @@ final class FolderManager {
         return (try? appState.conversationRuntimeBridge.fetchConversationProjection(ids: ids, uid: partitionUID)) ?? []
     }
 
+    /// A conversation already loaded in memory wins: the database may still hold an older thread from before a
+    /// truncation or deletion was persisted, and writing that back would resurrect deleted messages. Only an
+    /// unloaded summary reads the full row from the database.
     private func conversationForFolderMutation(id: UUID) -> Conversation? {
+        let inMemory = appState.conversations.first(where: { $0.id == id })
+        if let inMemory, inMemory.messagesAreLoaded {
+            return inMemory
+        }
         if let conversation = authoritativeConversationForMutation(id: id) {
             return conversation
         }
-        return appState.conversations.first(where: { $0.id == id })
+        return inMemory
     }
 
     private func conversationsForFolderMutation(ids: Set<UUID>) -> [Conversation] {
         guard !ids.isEmpty else { return [] }
 
-        let authoritative = authoritativeConversationsForMutation(ids: ids)
+        // Loaded conversations come from memory (see conversationForFolderMutation); only unloaded ones read the database.
+        let loadedInMemoryIDs = Set(
+            appState.conversations
+                .filter { ids.contains($0.id) && $0.messagesAreLoaded }
+                .map(\.id)
+        )
+        let authoritative = authoritativeConversationsForMutation(ids: ids.subtracting(loadedInMemoryIDs))
         var byID = Dictionary(
             uniqueKeysWithValues: authoritative
-                .filter { ids.contains($0.id) }
+                .filter { ids.contains($0.id) && !loadedInMemoryIDs.contains($0.id) }
                 .map { ($0.id, $0) }
         )
 
@@ -409,6 +422,7 @@ final class FolderManager {
     }
 
     private func authoritativeConversationsForMutation(ids: Set<UUID>) -> [Conversation] {
+        guard !ids.isEmpty else { return [] }
         let partitionUID = appState.sessionPartitionUID
         guard appState.prefersAuthoritativeConversationStore,
               DatabaseManager.shared.hasDatabase(for: partitionUID) else {
