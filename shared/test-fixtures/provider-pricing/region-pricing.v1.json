@@ -1,0 +1,214 @@
+{
+  "$comment": "Region price selection. A metadata model may carry optional regionPricing[] = {regionScope, currencyCode, pricingStatus, pricingUnit, pricing, pricingV2?}, listing only regions other than the model-level regionScope, sorted by regionScope. Selection: take the connection's effective region option id: the stored option id if any, else the option whose baseURL matches the connection baseURL, else regionOptions[0]; if it equals an entry's regionScope, that entry replaces the five model-level keys (currencyCode, pricingStatus, pricingUnit, pricing, pricingV2 - an entry without pricingV2 means no pricingV2) and the normal estimate runs unchanged; otherwise the model-level keys are used. Relay / custom endpoints never select region prices. Estimates are in the selected currency, never converted. Tests are named REGION_PRICING_<id>. A malformed regionPricing entry drops only that entry (the model and its other entries stay); unknown keys inside an entry are ignored.",
+  "v": 1,
+  "model": {
+    "id": "kimi-example",
+    "regionScope": "intl",
+    "currencyCode": "USD",
+    "pricingStatus": "priced",
+    "pricingUnit": "per_token",
+    "pricing": {
+      "promptPerMToken": 0.6,
+      "completionPerMToken": 2.5
+    },
+    "regionPricing": [
+      {
+        "regionScope": "cn",
+        "currencyCode": "CNY",
+        "pricingStatus": "priced",
+        "pricingUnit": "per_token",
+        "pricing": {
+          "promptPerMToken": 4,
+          "completionPerMToken": 16
+        }
+      }
+    ]
+  },
+  "cnOnlyModel": {
+    "id": "image-cn-only",
+    "regionScope": "global",
+    "pricingStatus": "unknown",
+    "regionPricing": [
+      {
+        "regionScope": "cn",
+        "currencyCode": "CNY",
+        "pricingStatus": "priced",
+        "pricingUnit": "per_image",
+        "pricing": {
+          "costPerUnit": 0.025
+        }
+      }
+    ]
+  },
+  "cases": [
+    {
+      "id": "cn_connection_uses_cny_entry",
+      "modelRef": "model",
+      "connectionRegion": "cn",
+      "usage": {
+        "inputTokens": 1000000,
+        "outputTokens": 500000
+      },
+      "expect": {
+        "status": "estimated",
+        "amount": 12,
+        "currencyCode": "CNY"
+      }
+    },
+    {
+      "id": "intl_connection_uses_model_level",
+      "modelRef": "model",
+      "connectionRegion": "intl",
+      "usage": {
+        "inputTokens": 1000000,
+        "outputTokens": 500000
+      },
+      "expect": {
+        "status": "estimated",
+        "amount": 1.85,
+        "currencyCode": "USD"
+      }
+    },
+    {
+      "id": "no_stored_choice_matches_base_url",
+      "modelRef": "model",
+      "connectionRegion": null,
+      "connectionBaseURL": "https://api.moonshot.cn/v1",
+      "regionOptions": [
+        {
+          "id": "intl",
+          "baseURL": "https://api.moonshot.ai/v1"
+        },
+        {
+          "id": "cn",
+          "baseURL": "https://api.moonshot.cn/v1"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1000000,
+        "outputTokens": 500000
+      },
+      "expect": {
+        "status": "estimated",
+        "amount": 12,
+        "currencyCode": "CNY"
+      }
+    },
+    {
+      "id": "no_choice_no_match_takes_first_option",
+      "modelRef": "model",
+      "connectionRegion": null,
+      "connectionBaseURL": "https://proxy.example.com/v1",
+      "regionOptions": [
+        {
+          "id": "intl",
+          "baseURL": "https://api.moonshot.ai/v1"
+        },
+        {
+          "id": "cn",
+          "baseURL": "https://api.moonshot.cn/v1"
+        }
+      ],
+      "usage": {
+        "inputTokens": 1000000,
+        "outputTokens": 500000
+      },
+      "expect": {
+        "status": "estimated",
+        "amount": 1.85,
+        "currencyCode": "USD"
+      }
+    },
+    {
+      "id": "malformed_entry_dropped_model_kept",
+      "modelRef": "model",
+      "connectionRegion": "cn",
+      "entryOverride": {
+        "regionScope": "cn",
+        "currencyCode": "CNY",
+        "pricingStatus": "priced",
+        "pricingUnit": "per_token",
+        "pricing": "not-an-object"
+      },
+      "usage": {
+        "inputTokens": 1000000,
+        "outputTokens": 500000
+      },
+      "expect": {
+        "status": "estimated",
+        "amount": 1.85,
+        "currencyCode": "USD"
+      }
+    },
+    {
+      "id": "unlisted_region_falls_back_to_model_level",
+      "modelRef": "model",
+      "connectionRegion": "sg",
+      "usage": {
+        "inputTokens": 1000000,
+        "outputTokens": 500000
+      },
+      "expect": {
+        "status": "estimated",
+        "amount": 1.85,
+        "currencyCode": "USD"
+      }
+    },
+    {
+      "id": "cn_only_entry_prices_otherwise_unknown_model",
+      "modelRef": "cnOnlyModel",
+      "connectionRegion": "cn",
+      "usage": {
+        "images": 4
+      },
+      "expect": {
+        "status": "estimated",
+        "amount": 0.1,
+        "currencyCode": "CNY"
+      }
+    },
+    {
+      "id": "cn_only_model_outside_cn_is_unavailable",
+      "modelRef": "cnOnlyModel",
+      "connectionRegion": "global",
+      "usage": {
+        "images": 4
+      },
+      "expect": {
+        "status": "unavailable"
+      }
+    },
+    {
+      "id": "relay_connection_ignores_region_pricing",
+      "modelRef": "model",
+      "connectionRegion": "cn",
+      "connectionKind": "relay",
+      "usage": {
+        "inputTokens": 1000000,
+        "outputTokens": 500000
+      },
+      "expect": {
+        "status": "estimated",
+        "amount": 1.85,
+        "currencyCode": "USD"
+      }
+    },
+    {
+      "id": "unknown_payload_keys_ignored",
+      "modelRef": "model",
+      "connectionRegion": "cn",
+      "entryExtraKeys": {
+        "futureKey": 1
+      },
+      "usage": {
+        "inputTokens": 1000000,
+        "outputTokens": 500000
+      },
+      "expect": {
+        "status": "estimated",
+        "amount": 12,
+        "currencyCode": "CNY"
+      }
+    }
+  ]
+}

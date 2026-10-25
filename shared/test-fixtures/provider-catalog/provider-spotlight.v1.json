@@ -1,0 +1,319 @@
+{
+  "$comment": "Providers page spotlight (featured) provider selection; ranking is by this month's billed message count. Candidates = providers with at least one billed message this UTC month in ANY currency. A billed message = delivered assistant message with at least one recorded part: the USD part (top-level costSource upstream or localEstimate AND estimatedCost > COST_EPSILON) or the non-USD part (nonUsdCost.costSource upstream or localEstimate AND nonUsdCost.amount > COST_EPSILON; a CNY-only message carries top-level costSource unknown + estimatedCost 0). A mixed-currency message counts once. Messages with no recorded part (costSource unknown and no nonUsdCost, or zero amounts) are not counted and do not make a provider a candidate. Ranking: billed message count desc (currency-agnostic); tie -> this month's USD amount desc (non-USD amounts are never converted or added); tie -> status connected > syncing > issue (needsKey ranks as issue); tie -> existing stable list order (order of `providers` below). If no provider is a candidate: first provider by status connected > syncing > issue, then list order. Spotlight count per client is listed in spotlightCount. All messages below are inside the current UTC month. Tests are named PROVIDER_SPOTLIGHT_<id>.",
+  "version": 1,
+  "spotlightCount": {
+    "web": 1,
+    "android": 1,
+    "ios": 1,
+    "desktop": 0
+  },
+  "cases": [
+    {
+      "id": "cny_only_provider_can_win",
+      "note": "A provider billed only in CNY is a candidate and wins on message count; old USD-only ranking would pick usd_a.",
+      "providers": [
+        {
+          "id": "usd_a",
+          "kind": "openAI",
+          "status": "connected"
+        },
+        {
+          "id": "cny_b",
+          "kind": "moonshot",
+          "status": "connected"
+        }
+      ],
+      "messages": [
+        {
+          "providerId": "usd_a",
+          "costSource": "upstream",
+          "estimatedCost": 0.5
+        },
+        {
+          "providerId": "cny_b",
+          "costSource": "unknown",
+          "estimatedCost": 0,
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 0.1,
+            "costSource": "localEstimate"
+          }
+        },
+        {
+          "providerId": "cny_b",
+          "costSource": "unknown",
+          "estimatedCost": 0,
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 0.1,
+            "costSource": "localEstimate"
+          }
+        }
+      ],
+      "expect": {
+        "spotlightProviderIds": [
+          "cny_b"
+        ]
+      }
+    },
+    {
+      "id": "message_count_beats_usd_amount",
+      "note": "More billed messages wins even with a far smaller USD amount.",
+      "providers": [
+        {
+          "id": "expensive",
+          "kind": "anthropic",
+          "status": "connected"
+        },
+        {
+          "id": "chatty",
+          "kind": "openAI",
+          "status": "connected"
+        }
+      ],
+      "messages": [
+        {
+          "providerId": "expensive",
+          "costSource": "upstream",
+          "estimatedCost": 2
+        },
+        {
+          "providerId": "chatty",
+          "costSource": "localEstimate",
+          "estimatedCost": 0.01
+        },
+        {
+          "providerId": "chatty",
+          "costSource": "localEstimate",
+          "estimatedCost": 0.01
+        },
+        {
+          "providerId": "chatty",
+          "costSource": "localEstimate",
+          "estimatedCost": 0.01
+        }
+      ],
+      "expect": {
+        "spotlightProviderIds": [
+          "chatty"
+        ]
+      }
+    },
+    {
+      "id": "tie_breaks_by_usd_then_status",
+      "note": "All three have 2 billed messages. cny_only has USD 0 (CNY is not converted) and loses on USD; usd_issue and usd_connected tie on USD 0.04 and status decides.",
+      "providers": [
+        {
+          "id": "cny_only",
+          "kind": "moonshot",
+          "status": "connected"
+        },
+        {
+          "id": "usd_issue",
+          "kind": "openAI",
+          "status": "issue"
+        },
+        {
+          "id": "usd_connected",
+          "kind": "anthropic",
+          "status": "connected"
+        }
+      ],
+      "messages": [
+        {
+          "providerId": "cny_only",
+          "costSource": "unknown",
+          "estimatedCost": 0,
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 5,
+            "costSource": "upstream"
+          }
+        },
+        {
+          "providerId": "cny_only",
+          "costSource": "unknown",
+          "estimatedCost": 0,
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 5,
+            "costSource": "upstream"
+          }
+        },
+        {
+          "providerId": "usd_issue",
+          "costSource": "localEstimate",
+          "estimatedCost": 0.02
+        },
+        {
+          "providerId": "usd_issue",
+          "costSource": "localEstimate",
+          "estimatedCost": 0.02
+        },
+        {
+          "providerId": "usd_connected",
+          "costSource": "localEstimate",
+          "estimatedCost": 0.02
+        },
+        {
+          "providerId": "usd_connected",
+          "costSource": "localEstimate",
+          "estimatedCost": 0.02
+        }
+      ],
+      "expect": {
+        "spotlightProviderIds": [
+          "usd_connected"
+        ]
+      }
+    },
+    {
+      "id": "full_tie_keeps_list_order",
+      "note": "Same count, same USD amount, same status -> earlier in the existing list order wins.",
+      "providers": [
+        {
+          "id": "first",
+          "kind": "openAI",
+          "status": "syncing"
+        },
+        {
+          "id": "second",
+          "kind": "deepSeek",
+          "status": "syncing"
+        }
+      ],
+      "messages": [
+        {
+          "providerId": "second",
+          "costSource": "localEstimate",
+          "estimatedCost": 0.03
+        },
+        {
+          "providerId": "first",
+          "costSource": "localEstimate",
+          "estimatedCost": 0.03
+        }
+      ],
+      "expect": {
+        "spotlightProviderIds": [
+          "first"
+        ]
+      }
+    },
+    {
+      "id": "no_cost_falls_back_to_status",
+      "note": "No billed messages anywhere -> status rule: connected beats syncing beats issue, even when an issue provider is listed first.",
+      "providers": [
+        {
+          "id": "broken",
+          "kind": "openAI",
+          "status": "issue"
+        },
+        {
+          "id": "pending",
+          "kind": "anthropic",
+          "status": "syncing"
+        },
+        {
+          "id": "ready",
+          "kind": "deepSeek",
+          "status": "connected"
+        }
+      ],
+      "messages": [],
+      "expect": {
+        "spotlightProviderIds": [
+          "ready"
+        ]
+      }
+    },
+    {
+      "id": "unrecorded_messages_not_counted",
+      "note": "Messages with costSource unknown (or zero amount) are not counted. many_unknown has 4 unknown + 1 billed = 1; two_billed has 2; only_unknown has no billed message and is not a candidate despite connected status and list position.",
+      "providers": [
+        {
+          "id": "only_unknown",
+          "kind": "openRouter",
+          "status": "connected"
+        },
+        {
+          "id": "many_unknown",
+          "kind": "openAI",
+          "status": "connected"
+        },
+        {
+          "id": "two_billed",
+          "kind": "moonshot",
+          "status": "syncing"
+        }
+      ],
+      "messages": [
+        {
+          "providerId": "only_unknown",
+          "costSource": "unknown",
+          "estimatedCost": 0
+        },
+        {
+          "providerId": "only_unknown",
+          "costSource": "unknown",
+          "estimatedCost": 0
+        },
+        {
+          "providerId": "only_unknown",
+          "costSource": "unknown",
+          "estimatedCost": 0
+        },
+        {
+          "providerId": "many_unknown",
+          "costSource": "unknown",
+          "estimatedCost": 0
+        },
+        {
+          "providerId": "many_unknown",
+          "costSource": "unknown",
+          "estimatedCost": 0
+        },
+        {
+          "providerId": "many_unknown",
+          "costSource": "unknown",
+          "estimatedCost": 0
+        },
+        {
+          "providerId": "many_unknown",
+          "costSource": "localEstimate",
+          "estimatedCost": 0
+        },
+        {
+          "providerId": "many_unknown",
+          "costSource": "upstream",
+          "estimatedCost": 1
+        },
+        {
+          "providerId": "two_billed",
+          "costSource": "unknown",
+          "estimatedCost": 0,
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 0.2,
+            "costSource": "localEstimate"
+          }
+        },
+        {
+          "providerId": "two_billed",
+          "costSource": "localEstimate",
+          "estimatedCost": 0.001,
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 0.2,
+            "costSource": "localEstimate"
+          }
+        }
+      ],
+      "expect": {
+        "spotlightProviderIds": [
+          "two_billed"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,493 @@
+{
+  "$comment": "Per-currency message cost, conversation totals, display and migration. Message shape: estimatedCost always holds only the USD part (may be 0) and costSource describes the USD part ('unknown' when there is no USD part); nullable nonUsdCost {currencyCode (ISO 4217 upper case), amount, costSource} holds the single non-USD part. Amounts are never converted. totalCases: messages are in the message shape; estimatedCost adds into the USD total and nonUsdCost into its currency's total; totals are per currency and never added across currencies; parts are ordered USD first, then other codes ascending; zero-amount currencies are omitted; unrecorded parts are skipped. displayCases: parts are joined by ' + '; one message may render two parts; USD keeps the existing '$' rendering and precision; other currencies use the platform currency formatter with the UI locale and the standard symbol, and each part is rounded by the same digit rule used for USD in that place, evaluated on that part's own amount (cases give the resolved digits per part). migrationCases: the schema adds a nullable nonUsdCost (three fields); existing rows get nonUsdCost null; past messages whose CNY estimate was dropped stay unknown. Tests are named COST_CURRENCY_<id>.",
+  "v": 1,
+  "totalCases": [
+    {
+      "id": "mixed_totals_split_by_currency",
+      "messages": [
+        {
+          "estimatedCost": 1,
+          "costSource": "estimated",
+          "nonUsdCost": null
+        },
+        {
+          "estimatedCost": 0,
+          "costSource": "unknown",
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 3.5,
+            "costSource": "estimated"
+          }
+        },
+        {
+          "estimatedCost": 0.2,
+          "costSource": "estimated",
+          "nonUsdCost": null
+        },
+        {
+          "estimatedCost": 0,
+          "costSource": "unknown",
+          "nonUsdCost": null
+        }
+      ],
+      "expect": {
+        "parts": [
+          {
+            "currencyCode": "USD",
+            "amount": 1.2
+          },
+          {
+            "currencyCode": "CNY",
+            "amount": 3.5
+          }
+        ]
+      }
+    },
+    {
+      "id": "cny_only",
+      "messages": [
+        {
+          "estimatedCost": 0,
+          "costSource": "unknown",
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 2,
+            "costSource": "estimated"
+          }
+        },
+        {
+          "estimatedCost": 0,
+          "costSource": "unknown",
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 1.5,
+            "costSource": "estimated"
+          }
+        }
+      ],
+      "expect": {
+        "parts": [
+          {
+            "currencyCode": "CNY",
+            "amount": 3.5
+          }
+        ]
+      }
+    },
+    {
+      "id": "order_usd_then_code_ascending",
+      "messages": [
+        {
+          "estimatedCost": 0,
+          "costSource": "unknown",
+          "nonUsdCost": {
+            "currencyCode": "EUR",
+            "amount": 1,
+            "costSource": "estimated"
+          }
+        },
+        {
+          "estimatedCost": 0,
+          "costSource": "unknown",
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 1,
+            "costSource": "estimated"
+          }
+        },
+        {
+          "estimatedCost": 1,
+          "costSource": "estimated",
+          "nonUsdCost": null
+        }
+      ],
+      "expect": {
+        "parts": [
+          {
+            "currencyCode": "USD",
+            "amount": 1
+          },
+          {
+            "currencyCode": "CNY",
+            "amount": 1
+          },
+          {
+            "currencyCode": "EUR",
+            "amount": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "zero_currency_omitted",
+      "messages": [
+        {
+          "estimatedCost": 1.2,
+          "costSource": "estimated",
+          "nonUsdCost": null
+        },
+        {
+          "estimatedCost": 0,
+          "costSource": "unknown",
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 0,
+            "costSource": "estimated"
+          }
+        }
+      ],
+      "expect": {
+        "parts": [
+          {
+            "currencyCode": "USD",
+            "amount": 1.2
+          }
+        ]
+      }
+    },
+    {
+      "id": "mixed_message_split_into_both_totals",
+      "messages": [
+        {
+          "estimatedCost": 0.25,
+          "costSource": "estimated",
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 0.12,
+            "costSource": "estimated"
+          }
+        },
+        {
+          "estimatedCost": 1,
+          "costSource": "estimated",
+          "nonUsdCost": null
+        },
+        {
+          "estimatedCost": 0,
+          "costSource": "unknown",
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 3.5,
+            "costSource": "estimated"
+          }
+        }
+      ],
+      "expect": {
+        "parts": [
+          {
+            "currencyCode": "USD",
+            "amount": 1.25
+          },
+          {
+            "currencyCode": "CNY",
+            "amount": 3.62
+          }
+        ]
+      }
+    },
+    {
+      "id": "nothing_recorded_is_empty",
+      "messages": [
+        {
+          "estimatedCost": 0,
+          "costSource": "unknown",
+          "nonUsdCost": null
+        }
+      ],
+      "expect": {
+        "parts": []
+      }
+    },
+    {
+      "id": "tiny_parts_summed_before_epsilon",
+      "messages": [
+        {
+          "estimatedCost": 0.000005,
+          "costSource": "estimated",
+          "nonUsdCost": null
+        },
+        {
+          "estimatedCost": 0.000005,
+          "costSource": "estimated",
+          "nonUsdCost": null
+        },
+        {
+          "estimatedCost": 0.000005,
+          "costSource": "estimated",
+          "nonUsdCost": null
+        },
+        {
+          "estimatedCost": 0,
+          "costSource": "unknown",
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 0.000005,
+            "costSource": "estimated"
+          }
+        },
+        {
+          "estimatedCost": 0,
+          "costSource": "unknown",
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 0.000005,
+            "costSource": "estimated"
+          }
+        },
+        {
+          "estimatedCost": 0,
+          "costSource": "unknown",
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 0.000005,
+            "costSource": "estimated"
+          }
+        }
+      ],
+      "expect": {
+        "parts": [
+          {
+            "currencyCode": "USD",
+            "amount": 0.000015
+          },
+          {
+            "currencyCode": "CNY",
+            "amount": 0.000015
+          }
+        ]
+      },
+      "note": "X-G2a: add every message's raw amount first; the epsilon (1e-5) applies only to the sum and to display, never per message"
+    },
+    {
+      "id": "negative_parts_not_added",
+      "messages": [
+        {
+          "estimatedCost": -0.5,
+          "costSource": "estimated",
+          "nonUsdCost": null
+        },
+        {
+          "estimatedCost": 1,
+          "costSource": "estimated",
+          "nonUsdCost": null
+        },
+        {
+          "estimatedCost": 0,
+          "costSource": "unknown",
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": -2,
+            "costSource": "estimated"
+          }
+        }
+      ],
+      "expect": {
+        "parts": [
+          {
+            "currencyCode": "USD",
+            "amount": 1
+          }
+        ]
+      },
+      "note": "X-G2a: only amounts > 0 are added; a negative part is ignored"
+    },
+    {
+      "id": "total_equal_to_epsilon_omitted",
+      "messages": [
+        {
+          "estimatedCost": 0.00001,
+          "costSource": "estimated",
+          "nonUsdCost": null
+        }
+      ],
+      "expect": {
+        "parts": []
+      },
+      "note": "X-G2a: a total is kept only when it is strictly greater than epsilon (1e-5)"
+    }
+  ],
+  "displayCases": [
+    {
+      "id": "en_us_mixed",
+      "locale": "en-US",
+      "parts": [
+        {
+          "currencyCode": "USD",
+          "amount": 1.2,
+          "fractionDigits": 2
+        },
+        {
+          "currencyCode": "CNY",
+          "amount": 3.5,
+          "fractionDigits": 2
+        }
+      ],
+      "expect": "$1.20 + CN¥3.50"
+    },
+    {
+      "id": "zh_hans_mixed",
+      "locale": "zh-Hans",
+      "parts": [
+        {
+          "currencyCode": "USD",
+          "amount": 1.2,
+          "fractionDigits": 2
+        },
+        {
+          "currencyCode": "CNY",
+          "amount": 3.5,
+          "fractionDigits": 2
+        }
+      ],
+      "expect": "$1.20 + ¥3.50"
+    },
+    {
+      "id": "zh_hans_cny_only",
+      "locale": "zh-Hans",
+      "parts": [
+        {
+          "currencyCode": "CNY",
+          "amount": 3.5,
+          "fractionDigits": 2
+        }
+      ],
+      "expect": "¥3.50"
+    },
+    {
+      "id": "en_us_usd_only_unchanged",
+      "locale": "en-US",
+      "parts": [
+        {
+          "currencyCode": "USD",
+          "amount": 1.2,
+          "fractionDigits": 2
+        }
+      ],
+      "expect": "$1.20"
+    },
+    {
+      "id": "zh_hans_small_cny_own_tier",
+      "locale": "zh-Hans",
+      "parts": [
+        {
+          "currencyCode": "USD",
+          "amount": 1.2,
+          "fractionDigits": 2
+        },
+        {
+          "currencyCode": "CNY",
+          "amount": 0.0039,
+          "fractionDigits": 4
+        }
+      ],
+      "expect": "$1.20 + ¥0.0039"
+    },
+    {
+      "id": "mixed_message_two_parts",
+      "locale": "zh-Hans",
+      "message": {
+        "estimatedCost": 0.25,
+        "costSource": "estimated",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": 0.12,
+          "costSource": "estimated"
+        }
+      },
+      "parts": [
+        {
+          "currencyCode": "USD",
+          "amount": 0.25,
+          "fractionDigits": 2
+        },
+        {
+          "currencyCode": "CNY",
+          "amount": 0.12,
+          "fractionDigits": 2
+        }
+      ],
+      "expect": "$0.25 + ¥0.12",
+      "note": "a single message renders both parts; USD first per the ordering rule"
+    },
+    {
+      "id": "second_non_usd_currency_part_not_available",
+      "locale": "zh-Hans",
+      "message": {
+        "estimatedCost": 0.25,
+        "costSource": "estimated",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": 0,
+          "costSource": "unknown"
+        }
+      },
+      "parts": [
+        {
+          "currencyCode": "USD",
+          "amount": 0.25,
+          "fractionDigits": 2
+        }
+      ],
+      "notAvailableParts": [
+        "CNY"
+      ],
+      "expect": "$0.25",
+      "note": "the USD part renders as usual; the unknown CNY part renders as the end's existing 'not available' text (no new localized string) instead of an amount, never as 0"
+    },
+    {
+      "id": "cny_half_rounds_away_from_zero",
+      "locale": "zh-Hans",
+      "parts": [
+        {
+          "currencyCode": "CNY",
+          "amount": 0.125,
+          "fractionDigits": 2
+        }
+      ],
+      "expect": "¥0.13",
+      "note": "X-G2a: half rounds away from zero on every end (not banker's rounding)"
+    }
+  ],
+  "migrationCases": [
+    {
+      "id": "existing_row_defaults_usd",
+      "before": {
+        "estimatedCost": 0.02
+      },
+      "expectAfter": {
+        "estimatedCost": 0.02,
+        "nonUsdCost": null
+      }
+    },
+    {
+      "id": "dropped_cny_stays_unknown",
+      "before": {
+        "estimatedCost": 0,
+        "costSource": "unknown"
+      },
+      "expectAfter": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "id": "legacy_currency_column_moved",
+      "before": {
+        "estimatedCost": 0.0039,
+        "estimatedCostCurrency": "CNY",
+        "costSource": "estimated"
+      },
+      "expectAfter": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": 0.0039,
+          "costSource": "estimated"
+        }
+      },
+      "note": "rows stored in a superseded single-currency shape; USD or empty-currency rows keep estimatedCost and get nonUsdCost null"
+    }
+  ]
+}

@@ -1,0 +1,961 @@
+{
+  "schema": "oriveo.pricing-v2-estimate/v1",
+  "id": "pricing-v2-estimate.v1",
+  "description": "Shared fixture for pricingV2 cost estimation: every client must produce the same answer. The estimate function takes pricingV2 + five usage buckets + the request instant at (UTC ISO). Rules: unit other than per_token -> not_applicable; base missing the input or output price -> unavailable (shown as not available, never 0); total input = sum of the four input buckets, and a tier applies only when strictly greater than aboveInputTokens, taking the highest tier crossed; whole_request prices the entire request at that tier, incremental lays the buckets in one line in the order cache read, 5m write, 1h write, uncached and prices each segment, with output priced at the highest crossed tier; a tier missing a key inherits base; when cache prices are missing, read = input x 0.5, 5m write = input x 1.25, 1h write = input x 2 (using that tier input price); timeWindows take the first matching window (evaluated in the window timezone, start inclusive and end exclusive, end <= start crosses midnight with days referring to the start day, 24:00 is the end of the day, windows with an unparseable timezone are skipped, holidayCalendar is ignored); a window multiplier scales all unit prices while absolute prices replace only the keys given; regionSurcharges are ignored. amount is in the major currency unit; comparison tolerance is 1e-9.",
+  "cases": [
+    {
+      "name": "PV2-BASE",
+      "note": "All buckets priced at the base and cache rates",
+      "pricingV2": {
+        "currencyCode": "USD",
+        "unit": "per_token",
+        "base": {
+          "inputPerMToken": 2,
+          "outputPerMToken": 8
+        },
+        "cache": {
+          "readPerMToken": 0.5,
+          "writes": [
+            {
+              "ttl": "5m",
+              "perMToken": 2.5
+            },
+            {
+              "ttl": "1h",
+              "perMToken": 4
+            }
+          ]
+        }
+      },
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 2000,
+        "cacheWrite5mTokens": 300,
+        "cacheWrite1hTokens": 400,
+        "outputTokens": 500
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "expected": {
+        "status": "estimated",
+        "amount": 0.00935,
+        "currencyCode": "USD"
+      }
+    },
+    {
+      "name": "PV2-CACHE-FALLBACK",
+      "note": "No cache prices: read 0.5x, 5m write 1.25x, 1h write 2x of the input price",
+      "pricingV2": {
+        "currencyCode": "USD",
+        "unit": "per_token",
+        "base": {
+          "inputPerMToken": 2,
+          "outputPerMToken": 8
+        }
+      },
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 2000,
+        "cacheWrite5mTokens": 300,
+        "cacheWrite1hTokens": 400,
+        "outputTokens": 500
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "expected": {
+        "status": "estimated",
+        "amount": 0.01035,
+        "currencyCode": "USD"
+      }
+    },
+    {
+      "name": "PV2-TIER-AT-THRESHOLD",
+      "note": "Total input exactly at the threshold does not enter the tier (strictly greater required)",
+      "pricingV2": {
+        "currencyCode": "USD",
+        "unit": "per_token",
+        "base": {
+          "inputPerMToken": 2,
+          "outputPerMToken": 8
+        },
+        "cache": {
+          "readPerMToken": 0.5,
+          "writes": [
+            {
+              "ttl": "5m",
+              "perMToken": 2.5
+            },
+            {
+              "ttl": "1h",
+              "perMToken": 4
+            }
+          ]
+        },
+        "contextTiers": [
+          {
+            "aboveInputTokens": 200000,
+            "semantics": "whole_request",
+            "inputPerMToken": 4,
+            "outputPerMToken": 12
+          }
+        ]
+      },
+      "usage": {
+        "uncachedInputTokens": 150000,
+        "cacheReadTokens": 50000,
+        "cacheWrite5mTokens": 0,
+        "cacheWrite1hTokens": 0,
+        "outputTokens": 1000
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "expected": {
+        "status": "estimated",
+        "amount": 0.333,
+        "currencyCode": "USD"
+      }
+    },
+    {
+      "name": "PV2-TIER-WHOLE-ABOVE",
+      "note": "Above the threshold the whole request is priced by the tier; a tier missing the cache read price inherits base",
+      "pricingV2": {
+        "currencyCode": "USD",
+        "unit": "per_token",
+        "base": {
+          "inputPerMToken": 2,
+          "outputPerMToken": 8
+        },
+        "cache": {
+          "readPerMToken": 0.5,
+          "writes": [
+            {
+              "ttl": "5m",
+              "perMToken": 2.5
+            },
+            {
+              "ttl": "1h",
+              "perMToken": 4
+            }
+          ]
+        },
+        "contextTiers": [
+          {
+            "aboveInputTokens": 200000,
+            "semantics": "whole_request",
+            "inputPerMToken": 4,
+            "outputPerMToken": 12
+          }
+        ]
+      },
+      "usage": {
+        "uncachedInputTokens": 150001,
+        "cacheReadTokens": 50000,
+        "cacheWrite5mTokens": 0,
+        "cacheWrite1hTokens": 0,
+        "outputTokens": 1000
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "expected": {
+        "status": "estimated",
+        "amount": 0.637004,
+        "currencyCode": "USD"
+      }
+    },
+    {
+      "name": "PV2-TIER-MULTI-HIGHEST",
+      "note": "With several tiers the highest crossed tier applies; a tier missing the output price inherits base; unordered input is sorted ascending first",
+      "pricingV2": {
+        "currencyCode": "USD",
+        "unit": "per_token",
+        "base": {
+          "inputPerMToken": 2,
+          "outputPerMToken": 8
+        },
+        "cache": {
+          "readPerMToken": 0.5,
+          "writes": [
+            {
+              "ttl": "5m",
+              "perMToken": 2.5
+            },
+            {
+              "ttl": "1h",
+              "perMToken": 4
+            }
+          ]
+        },
+        "contextTiers": [
+          {
+            "aboveInputTokens": 256000,
+            "semantics": "whole_request",
+            "inputPerMToken": 6
+          },
+          {
+            "aboveInputTokens": 128000,
+            "semantics": "whole_request",
+            "inputPerMToken": 3,
+            "outputPerMToken": 10
+          }
+        ]
+      },
+      "usage": {
+        "uncachedInputTokens": 300000,
+        "cacheReadTokens": 0,
+        "cacheWrite5mTokens": 0,
+        "cacheWrite1hTokens": 0,
+        "outputTokens": 1000
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "expected": {
+        "status": "estimated",
+        "amount": 1.808,
+        "currencyCode": "USD"
+      }
+    },
+    {
+      "name": "PV2-TIER-CACHE-WRITE",
+      "note": "A tier's cacheWritePerMToken applies to both 5m and 1h writes",
+      "pricingV2": {
+        "currencyCode": "USD",
+        "unit": "per_token",
+        "base": {
+          "inputPerMToken": 2,
+          "outputPerMToken": 8
+        },
+        "cache": {
+          "readPerMToken": 0.5,
+          "writes": [
+            {
+              "ttl": "5m",
+              "perMToken": 2.5
+            },
+            {
+              "ttl": "1h",
+              "perMToken": 4
+            }
+          ]
+        },
+        "contextTiers": [
+          {
+            "aboveInputTokens": 1000,
+            "semantics": "whole_request",
+            "cacheWritePerMToken": 5,
+            "cacheReadPerMToken": 1
+          }
+        ]
+      },
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 500,
+        "cacheWrite5mTokens": 300,
+        "cacheWrite1hTokens": 400,
+        "outputTokens": 100
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "expected": {
+        "status": "estimated",
+        "amount": 0.0068,
+        "currencyCode": "USD"
+      }
+    },
+    {
+      "name": "PV2-TIER-INCREMENTAL",
+      "note": "incremental: input is laid out in one line as cache read, 5m write, 1h write, uncached; the part past the threshold is priced by the tier; output uses the highest crossed tier",
+      "pricingV2": {
+        "currencyCode": "USD",
+        "unit": "per_token",
+        "base": {
+          "inputPerMToken": 2,
+          "outputPerMToken": 8
+        },
+        "cache": {
+          "readPerMToken": 0.5,
+          "writes": [
+            {
+              "ttl": "5m",
+              "perMToken": 2.5
+            },
+            {
+              "ttl": "1h",
+              "perMToken": 4
+            }
+          ]
+        },
+        "contextTiers": [
+          {
+            "aboveInputTokens": 100000,
+            "semantics": "incremental",
+            "inputPerMToken": 4,
+            "outputPerMToken": 12
+          }
+        ]
+      },
+      "usage": {
+        "uncachedInputTokens": 80000,
+        "cacheReadTokens": 40000,
+        "cacheWrite5mTokens": 0,
+        "cacheWrite1hTokens": 0,
+        "outputTokens": 1000
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "expected": {
+        "status": "estimated",
+        "amount": 0.232,
+        "currencyCode": "USD"
+      }
+    },
+    {
+      "name": "PV2-WINDOW-ABS-IN",
+      "note": "Inside the Shanghai 00:30-08:30 absolute-price window (Tuesday 01:00 Shanghai)",
+      "pricingV2": {
+        "currencyCode": "CNY",
+        "unit": "per_token",
+        "base": {
+          "inputPerMToken": 2,
+          "outputPerMToken": 3
+        },
+        "cache": {
+          "readPerMToken": 0.2
+        },
+        "timeWindows": [
+          {
+            "timezone": "Asia/Shanghai",
+            "start": "00:30",
+            "end": "08:30",
+            "inputPerMToken": 1,
+            "outputPerMToken": 1.5,
+            "cacheReadPerMToken": 0.1
+          }
+        ]
+      },
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 2000,
+        "cacheWrite5mTokens": 0,
+        "cacheWrite1hTokens": 0,
+        "outputTokens": 500
+      },
+      "at": "2026-10-19T17:00:00Z",
+      "expected": {
+        "status": "estimated",
+        "amount": 0.00195,
+        "currencyCode": "CNY"
+      }
+    },
+    {
+      "name": "PV2-WINDOW-END-EXCLUSIVE",
+      "note": "Window start is inclusive and end exclusive: exactly 08:30 is outside the window",
+      "pricingV2": {
+        "currencyCode": "CNY",
+        "unit": "per_token",
+        "base": {
+          "inputPerMToken": 2,
+          "outputPerMToken": 3
+        },
+        "cache": {
+          "readPerMToken": 0.2
+        },
+        "timeWindows": [
+          {
+            "timezone": "Asia/Shanghai",
+            "start": "00:30",
+            "end": "08:30",
+            "inputPerMToken": 1,
+            "outputPerMToken": 1.5,
+            "cacheReadPerMToken": 0.1
+          }
+        ]
+      },
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 2000,
+        "cacheWrite5mTokens": 0,
+        "cacheWrite1hTokens": 0,
+        "outputTokens": 500
+      },
+      "at": "2026-10-20T00:30:00Z",
+      "expected": {
+        "status": "estimated",
+        "amount": 0.0039,
+        "currencyCode": "CNY"
+      }
+    },
+    {
+      "name": "PV2-WINDOW-START-INCLUSIVE",
+      "note": "Window start is inclusive: exactly 00:30 is inside the window",
+      "pricingV2": {
+        "currencyCode": "CNY",
+        "unit": "per_token",
+        "base": {
+          "inputPerMToken": 2,
+          "outputPerMToken": 3
+        },
+        "cache": {
+          "readPerMToken": 0.2
+        },
+        "timeWindows": [
+          {
+            "timezone": "Asia/Shanghai",
+            "start": "00:30",
+            "end": "08:30",
+            "inputPerMToken": 1,
+            "outputPerMToken": 1.5,
+            "cacheReadPerMToken": 0.1
+          }
+        ]
+      },
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 2000,
+        "cacheWrite5mTokens": 0,
+        "cacheWrite1hTokens": 0,
+        "outputTokens": 500
+      },
+      "at": "2026-10-19T16:30:00Z",
+      "expected": {
+        "status": "estimated",
+        "amount": 0.00195,
+        "currencyCode": "CNY"
+      }
+    },
+    {
+      "name": "PV2-WINDOW-CROSS-MIDNIGHT-START-DAY",
+      "note": "For a window crossing midnight, days refers to the start day: Saturday 03:00 belongs to the window that starts on Friday",
+      "pricingV2": {
+        "currencyCode": "USD",
+        "unit": "per_token",
+        "base": {
+          "inputPerMToken": 2,
+          "outputPerMToken": 8
+        },
+        "cache": {
+          "readPerMToken": 0.5,
+          "writes": [
+            {
+              "ttl": "5m",
+              "perMToken": 2.5
+            },
+            {
+              "ttl": "1h",
+              "perMToken": 4
+            }
+          ]
+        },
+        "timeWindows": [
+          {
+            "timezone": "UTC",
+            "days": [
+              "friday"
+            ],
+            "start": "22:00",
+            "end": "06:00",
+            "multiplier": 0.5
+          }
+        ]
+      },
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 0,
+        "cacheWrite5mTokens": 0,
+        "cacheWrite1hTokens": 0,
+        "outputTokens": 1000
+      },
+      "at": "2026-10-24T03:00:00Z",
+      "expected": {
+        "status": "estimated",
+        "amount": 0.005,
+        "currencyCode": "USD"
+      }
+    },
+    {
+      "name": "PV2-WINDOW-CROSS-MIDNIGHT-OTHER-DAY",
+      "note": "Window crossing midnight: Saturday 23:00 has start day Saturday, which is not in days",
+      "pricingV2": {
+        "currencyCode": "USD",
+        "unit": "per_token",
+        "base": {
+          "inputPerMToken": 2,
+          "outputPerMToken": 8
+        },
+        "cache": {
+          "readPerMToken": 0.5,
+          "writes": [
+            {
+              "ttl": "5m",
+              "perMToken": 2.5
+            },
+            {
+              "ttl": "1h",
+              "perMToken": 4
+            }
+          ]
+        },
+        "timeWindows": [
+          {
+            "timezone": "UTC",
+            "days": [
+              "friday"
+            ],
+            "start": "22:00",
+            "end": "06:00",
+            "multiplier": 0.5
+          }
+        ]
+      },
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 0,
+        "cacheWrite5mTokens": 0,
+        "cacheWrite1hTokens": 0,
+        "outputTokens": 1000
+      },
+      "at": "2026-10-24T23:00:00Z",
+      "expected": {
+        "status": "estimated",
+        "amount": 0.01,
+        "currencyCode": "USD"
+      }
+    },
+    {
+      "name": "PV2-WINDOW-24-00",
+      "note": "24:00 means the end of the day: 23:59 is inside the window",
+      "pricingV2": {
+        "currencyCode": "USD",
+        "unit": "per_token",
+        "base": {
+          "inputPerMToken": 2,
+          "outputPerMToken": 8
+        },
+        "cache": {
+          "readPerMToken": 0.5,
+          "writes": [
+            {
+              "ttl": "5m",
+              "perMToken": 2.5
+            },
+            {
+              "ttl": "1h",
+              "perMToken": 4
+            }
+          ]
+        },
+        "timeWindows": [
+          {
+            "timezone": "UTC",
+            "start": "18:00",
+            "end": "24:00",
+            "inputPerMToken": 1
+          }
+        ]
+      },
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 0,
+        "cacheWrite5mTokens": 0,
+        "cacheWrite1hTokens": 0,
+        "outputTokens": 1000
+      },
+      "at": "2026-10-19T23:59:00Z",
+      "expected": {
+        "status": "estimated",
+        "amount": 0.009,
+        "currencyCode": "USD"
+      }
+    },
+    {
+      "name": "PV2-WINDOW-MULTIPLIER-ON-TIER",
+      "note": "The multiplier applies to all unit prices after the tier is selected (including cache fallback)",
+      "pricingV2": {
+        "currencyCode": "USD",
+        "unit": "per_token",
+        "base": {
+          "inputPerMToken": 2,
+          "outputPerMToken": 8
+        },
+        "contextTiers": [
+          {
+            "aboveInputTokens": 1000,
+            "semantics": "whole_request",
+            "inputPerMToken": 4,
+            "outputPerMToken": 12
+          }
+        ],
+        "timeWindows": [
+          {
+            "timezone": "UTC",
+            "start": "00:00",
+            "end": "24:00",
+            "multiplier": 0.5
+          }
+        ]
+      },
+      "usage": {
+        "uncachedInputTokens": 1500,
+        "cacheReadTokens": 1000,
+        "cacheWrite5mTokens": 200,
+        "cacheWrite1hTokens": 0,
+        "outputTokens": 1000
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "expected": {
+        "status": "estimated",
+        "amount": 0.0105,
+        "currencyCode": "USD"
+      }
+    },
+    {
+      "name": "PV2-WINDOW-ABS-OVER-TIER",
+      "note": "Absolute window prices override tier prices; keys missing from the window keep the tier price",
+      "pricingV2": {
+        "currencyCode": "USD",
+        "unit": "per_token",
+        "base": {
+          "inputPerMToken": 2,
+          "outputPerMToken": 8
+        },
+        "cache": {
+          "readPerMToken": 0.5,
+          "writes": [
+            {
+              "ttl": "5m",
+              "perMToken": 2.5
+            },
+            {
+              "ttl": "1h",
+              "perMToken": 4
+            }
+          ]
+        },
+        "contextTiers": [
+          {
+            "aboveInputTokens": 1000,
+            "semantics": "whole_request",
+            "inputPerMToken": 4,
+            "outputPerMToken": 12
+          }
+        ],
+        "timeWindows": [
+          {
+            "timezone": "UTC",
+            "start": "00:00",
+            "end": "24:00",
+            "inputPerMToken": 1
+          }
+        ]
+      },
+      "usage": {
+        "uncachedInputTokens": 1500,
+        "cacheReadTokens": 0,
+        "cacheWrite5mTokens": 0,
+        "cacheWrite1hTokens": 0,
+        "outputTokens": 1000
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "expected": {
+        "status": "estimated",
+        "amount": 0.0135,
+        "currencyCode": "USD"
+      }
+    },
+    {
+      "name": "PV2-WINDOW-FIRST-MATCH",
+      "note": "When several windows match, the first one in the array wins",
+      "pricingV2": {
+        "currencyCode": "USD",
+        "unit": "per_token",
+        "base": {
+          "inputPerMToken": 2,
+          "outputPerMToken": 8
+        },
+        "cache": {
+          "readPerMToken": 0.5,
+          "writes": [
+            {
+              "ttl": "5m",
+              "perMToken": 2.5
+            },
+            {
+              "ttl": "1h",
+              "perMToken": 4
+            }
+          ]
+        },
+        "timeWindows": [
+          {
+            "timezone": "UTC",
+            "start": "10:00",
+            "end": "14:00",
+            "multiplier": 0.25
+          },
+          {
+            "timezone": "UTC",
+            "start": "00:00",
+            "end": "24:00",
+            "multiplier": 0.5
+          }
+        ]
+      },
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 0,
+        "cacheWrite5mTokens": 0,
+        "cacheWrite1hTokens": 0,
+        "outputTokens": 1000
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "expected": {
+        "status": "estimated",
+        "amount": 0.0025,
+        "currencyCode": "USD"
+      }
+    },
+    {
+      "name": "PV2-WINDOW-HOLIDAY-IGNORED",
+      "note": "holidayCalendar is not recognized by any client and is treated as no holidays: a Thursday national holiday gets no weekend off-peak price",
+      "pricingV2": {
+        "currencyCode": "USD",
+        "unit": "per_token",
+        "base": {
+          "inputPerMToken": 2,
+          "outputPerMToken": 8
+        },
+        "cache": {
+          "readPerMToken": 0.5,
+          "writes": [
+            {
+              "ttl": "5m",
+              "perMToken": 2.5
+            },
+            {
+              "ttl": "1h",
+              "perMToken": 4
+            }
+          ]
+        },
+        "timeWindows": [
+          {
+            "timezone": "Asia/Shanghai",
+            "days": [
+              "saturday",
+              "sunday"
+            ],
+            "start": "00:00",
+            "end": "24:00",
+            "multiplier": 0.5,
+            "holidayCalendar": "cn_statutory"
+          }
+        ]
+      },
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 0,
+        "cacheWrite5mTokens": 0,
+        "cacheWrite1hTokens": 0,
+        "outputTokens": 1000
+      },
+      "at": "2026-10-01T04:00:00Z",
+      "expected": {
+        "status": "estimated",
+        "amount": 0.01,
+        "currencyCode": "USD"
+      }
+    },
+    {
+      "name": "PV2-WINDOW-BAD-TIMEZONE",
+      "note": "A window whose timezone cannot be parsed is skipped",
+      "pricingV2": {
+        "currencyCode": "USD",
+        "unit": "per_token",
+        "base": {
+          "inputPerMToken": 2,
+          "outputPerMToken": 8
+        },
+        "cache": {
+          "readPerMToken": 0.5,
+          "writes": [
+            {
+              "ttl": "5m",
+              "perMToken": 2.5
+            },
+            {
+              "ttl": "1h",
+              "perMToken": 4
+            }
+          ]
+        },
+        "timeWindows": [
+          {
+            "timezone": "Mars/Olympus",
+            "start": "00:00",
+            "end": "24:00",
+            "multiplier": 0.5
+          }
+        ]
+      },
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 0,
+        "cacheWrite5mTokens": 0,
+        "cacheWrite1hTokens": 0,
+        "outputTokens": 1000
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "expected": {
+        "status": "estimated",
+        "amount": 0.01,
+        "currencyCode": "USD"
+      }
+    },
+    {
+      "name": "PV2-REGION-IGNORED",
+      "note": "Clients do not know the routed region, so regionSurcharges do not take part in the estimate",
+      "pricingV2": {
+        "currencyCode": "USD",
+        "unit": "per_token",
+        "base": {
+          "inputPerMToken": 2,
+          "outputPerMToken": 8
+        },
+        "cache": {
+          "readPerMToken": 0.5,
+          "writes": [
+            {
+              "ttl": "5m",
+              "perMToken": 2.5
+            },
+            {
+              "ttl": "1h",
+              "perMToken": 4
+            }
+          ]
+        },
+        "regionSurcharges": [
+          {
+            "regionScope": "cn",
+            "multiplier": 1.1
+          }
+        ]
+      },
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 0,
+        "cacheWrite5mTokens": 0,
+        "cacheWrite1hTokens": 0,
+        "outputTokens": 1000
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "expected": {
+        "status": "estimated",
+        "amount": 0.01,
+        "currencyCode": "USD"
+      }
+    },
+    {
+      "name": "PV2-FREE-ZERO",
+      "note": "A free model with base 0/0 is a real zero, status estimated",
+      "pricingV2": {
+        "currencyCode": "USD",
+        "unit": "per_token",
+        "base": {
+          "inputPerMToken": 0,
+          "outputPerMToken": 0
+        }
+      },
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 0,
+        "cacheWrite5mTokens": 0,
+        "cacheWrite1hTokens": 0,
+        "outputTokens": 1000
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "expected": {
+        "status": "estimated",
+        "amount": 0,
+        "currencyCode": "USD"
+      }
+    },
+    {
+      "name": "PV2-NO-CURRENCY",
+      "note": "A missing currencyCode is still estimated and the result carries no currency (the caller keeps the legacy convention)",
+      "pricingV2": {
+        "unit": "per_token",
+        "base": {
+          "inputPerMToken": 2,
+          "outputPerMToken": 8
+        }
+      },
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 0,
+        "cacheWrite5mTokens": 0,
+        "cacheWrite1hTokens": 0,
+        "outputTokens": 1000
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "expected": {
+        "status": "estimated",
+        "amount": 0.01
+      }
+    },
+    {
+      "name": "PV2-MISSING-OUTPUT",
+      "note": "base missing the output price: unavailable, never treated as 0",
+      "pricingV2": {
+        "currencyCode": "USD",
+        "unit": "per_token",
+        "base": {
+          "inputPerMToken": 2,
+          "outputPerMToken": null
+        }
+      },
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 0,
+        "cacheWrite5mTokens": 0,
+        "cacheWrite1hTokens": 0,
+        "outputTokens": 1000
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "expected": {
+        "status": "unavailable"
+      }
+    },
+    {
+      "name": "PV2-NO-BASE",
+      "note": "No base: unavailable",
+      "pricingV2": {
+        "currencyCode": "USD",
+        "unit": "per_token"
+      },
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 0,
+        "cacheWrite5mTokens": 0,
+        "cacheWrite1hTokens": 0,
+        "outputTokens": 1000
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "expected": {
+        "status": "unavailable"
+      }
+    },
+    {
+      "name": "PV2-PER-IMAGE",
+      "note": "Non per_token unit: not_applicable, the caller uses the legacy per-image / per-second path",
+      "pricingV2": {
+        "currencyCode": "USD",
+        "unit": "per_image",
+        "perUnit": 0.04
+      },
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 0,
+        "cacheWrite5mTokens": 0,
+        "cacheWrite1hTokens": 0,
+        "outputTokens": 0
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "expected": {
+        "status": "not_applicable"
+      }
+    }
+  ]
+}

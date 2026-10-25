@@ -1,0 +1,39 @@
+{
+  "$comment": "Legacy single-tier pricing: the cache-read rate resolves as cacheReadInputPerMToken, then cachedInputPerMToken, then input price x 0.5 (same fallback as pricing-v2-estimate.v1.json). Amounts come from real metadata JSON through the production cost calculation. Tests are named COST_RESULT_<id>.",
+  "v": 1,
+  "legacyCacheReadCases": [
+    {
+      "id": "new_field_wins",
+      "pricing": {
+        "promptPerMToken": 2,
+        "completionPerMToken": 8,
+        "cacheReadInputPerMToken": 0.2,
+        "cachedInputPerMToken": 0.5
+      },
+      "expect": {
+        "cacheReadPerMToken": 0.2
+      }
+    },
+    {
+      "id": "old_field_when_new_missing",
+      "pricing": {
+        "promptPerMToken": 2,
+        "completionPerMToken": 8,
+        "cachedInputPerMToken": 0.5
+      },
+      "expect": {
+        "cacheReadPerMToken": 0.5
+      }
+    },
+    {
+      "id": "half_input_when_both_missing",
+      "pricing": {
+        "promptPerMToken": 2,
+        "completionPerMToken": 8
+      },
+      "expect": {
+        "cacheReadPerMToken": 1
+      }
+    }
+  ]
+}
