@@ -204,7 +204,28 @@ private struct DecodedFingerprint: Equatable {
     var evidence: [String: [CapabilityEvidenceFacade.Candidate]] = [:]
 }
 
-private func decodedFingerprint(_ client: MetadataClient) -> DecodedFingerprint {
+/// The corpus's top-level leanV1DroppedFields: fields lean v1 deliberately does not project, removed by key
+/// before the expansion result is compared. Field names are read from the corpus, never hard-coded.
+private struct LeanV1DroppedFields {
+    var model: Set<String>
+    var capabilityControls: Set<String>
+}
+
+private func leanV1DroppedFields(_ corpus: [String: Any]) throws -> LeanV1DroppedFields {
+    let raw = try #require(corpus["leanV1DroppedFields"] as? [String: Any])
+    let model = try #require(raw["model"] as? [String])
+    let controls = try #require(raw["capabilityControls"] as? [String])
+    return LeanV1DroppedFields(model: Set(model), capabilityControls: Set(controls))
+}
+
+/// The fingerprint reads capabilityControls only through production decoding and never reads the model-column
+/// fields (parameterSupport / lifecycle), so the model columns need no removal here. Keys of the capabilityControls
+/// column are removed from the decoded controls before the fingerprint is assembled; an emptied map and a missing
+/// one are both [] in the fingerprint, matching the "drop the whole key when emptied" rule.
+private func decodedFingerprint(
+    _ client: MetadataClient,
+    dropping dropped: LeanV1DroppedFields
+) -> DecodedFingerprint {
     var fingerprint = DecodedFingerprint()
     var lines: [String] = []
     for kind in [ProviderKind.openAI, .anthropic] {
@@ -222,6 +243,7 @@ private func decodedFingerprint(_ client: MetadataClient) -> DecodedFingerprint 
                 continue
             }
             let controls = (client.syncCapabilityRecipeRuntime(modelID: modelID, providerKind: kind).controls ?? [:])
+                .filter { !dropped.capabilityControls.contains($0.key) }
                 .sorted { $0.key < $1.key }
                 .map { key, control in
                     "\(key):\(control.state)|\(control.recipeRef ?? "-")|\(control.reasonCode ?? "-")|\(control.sourceRefs ?? [])|\(control.availableIntents ?? [])|\(control.customControlRefs ?? [])"
@@ -315,6 +337,7 @@ struct MetadataCatalogSplitTests {
     @Test("index + catalogs expanded and decoded here equal leanEquivalent model by model")
     func splitExpansionDecodesEqualToLeanEquivalent() async throws {
         let corpus = try catalogCorpus()
+        let dropped = try leanV1DroppedFields(corpus)
         let client = makeClient()
 
         // Baseline: leanEquivalent through the existing lean decoding.
@@ -323,14 +346,14 @@ struct MetadataCatalogSplitTests {
             json: try jsonText(try leanEquivalentData(corpus)),
             metadataETag: "index-etag-1"
         )
-        let leanFingerprint = decodedFingerprint(client)
+        let leanFingerprint = decodedFingerprint(client, dropping: dropped)
 
         // Production path: request the index and both catalogs, expand, assemble, then the same lean decoding.
         await client.resetForTesting()
         try stubServer(corpus, indexETag: "index-etag-1")
         client.registerConfiguredProviders(providers([.openAI, .anthropic]))
         await client.forceRefresh()
-        let splitFingerprint = decodedFingerprint(client)
+        let splitFingerprint = decodedFingerprint(client, dropping: dropped)
 
         #expect(splitFingerprint == leanFingerprint)
         #expect(splitFingerprint.generation.count
@@ -512,7 +535,7 @@ struct MetadataCatalogSplitTests {
         #expect(!client.syncIsCatalogPending(providerKind: .openAI), "last-good is still there, so this is not pending")
         #expect(!client.syncSnapshotConfirmedThisSession(providerKind: .openAI), "last-good does not match the current index and is not confirmed")
         let diagnostics = recorder.snapshot()
-        #expect(diagnostics.map(\.tags) == [["operation": "catalog_unresolved_ref", "provider": "openAI"]])
+        #expect(diagnostics.map(\.tags) == [["operation": "catalog_unresolved_ref", "reason": "unresolved_ref", "provider": "openAI"]])
         #expect(try await client.splitCacheRowsForTesting()["catalog:openAI"] == nil, "a rejected catalog is never persisted")
         await client.resetForTesting()
     }
@@ -551,7 +574,7 @@ struct MetadataCatalogSplitTests {
             #expect(client.resolveCatalogModel(modelID: modelID, providerKind: .openAI) != nil)
         }
         #expect(!client.syncSnapshotConfirmedThisSession(providerKind: .openAI))
-        #expect(recorder.snapshot().map(\.tags) == [["operation": "catalog_revision_mismatch", "provider": "openAI"]])
+        #expect(recorder.snapshot().map(\.tags) == [["operation": "catalog_revision_mismatch", "reason": "revision_mismatch", "provider": "openAI"]])
         await client.resetForTesting()
     }
 

@@ -315,25 +315,35 @@ struct NavigationManagerTests {
         return nav
     }
 
-    @Test("columnTab puts a provider detail in the Providers tab; everything else is nil")
+    @Test("columnTab maps a tab root's one-level details to their tab; everything else is nil")
     func columnTabMapping() {
         #expect(NavigationManager.columnTab(for: .providerDetail(providerID: UUID())) == .providers)
-        for route: AppRoute in [.memory, .skillsList, .mcpServers, .backup, .notesList,
-                                .chat(conversationID: nil), .relayKeys(providerID: UUID())] {
+        for route: AppRoute in [.memory, .contextSettings, .voiceSettings, .skillsList, .mcpServers, .backup] {
+            #expect(NavigationManager.columnTab(for: route) == .settings)
+        }
+        for route: AppRoute in [.notesList, .chat(conversationID: nil), .relayKeys(providerID: UUID())] {
             #expect(NavigationManager.columnTab(for: route) == nil)
         }
     }
 
-    @Test("At a wide Providers root, opening a provider writes the right column instead of pushing")
+    @Test("At a wide tab root, opening that tab's detail writes the right column instead of pushing")
     func regularAttemptNavigateWritesColumnDetail() {
         let id = UUID()
         let providers = regularNav(tab: .providers)
         providers.openProviderDetail(providerID: id)
         #expect(providers.path.isEmpty)
         #expect(providers.providersDetail == .providerDetail(providerID: id))
+
+        let settings = regularNav(tab: .settings)
+        settings.openBackup()
+        #expect(settings.path.isEmpty)
+        #expect(settings.settingsDetail == .backup)
+        settings.openMemory()
+        #expect(settings.path.isEmpty)
+        #expect(settings.settingsDetail == .memory)
     }
 
-    @Test("On wide screens other tabs' routes, settings pages and a non-empty stack still push")
+    @Test("On wide screens other tabs' routes and a non-empty stack still push")
     func regularAttemptNavigatePushesOtherwise() {
         let id = UUID()
         let home = regularNav(tab: .home)
@@ -341,9 +351,16 @@ struct NavigationManagerTests {
         #expect(home.path == [.providerDetail(providerID: id)])
         #expect(home.providersDetail == nil)
 
+        let homeSettingsPage = regularNav(tab: .home)
+        homeSettingsPage.openBackup()
+        #expect(homeSettingsPage.path == [.backup])
+        #expect(homeSettingsPage.settingsDetail == nil)
+
         let settings = regularNav(tab: .settings)
+        settings.attemptNavigate(to: .notesList)
         settings.openBackup()
-        #expect(settings.path == [.backup])
+        #expect(settings.path == [.notesList, .backup])
+        #expect(settings.settingsDetail == nil)
 
         let providers = regularNav(tab: .providers)
         providers.attemptNavigate(to: .notesList)
@@ -371,6 +388,7 @@ struct NavigationManagerTests {
         nav.openNotesList()
         nav.openNoteDetail(noteID: id)
         #expect(nav.path == [.backup, .notesList, .noteDetail(noteID: id)])
+        #expect(nav.settingsDetail == nil)
         #expect(nav.notesDetail == nil)
         nav.pop()
         #expect(nav.path == [.backup, .notesList])

@@ -8,7 +8,7 @@ struct ChatToolbarLongModelNameTests {
     func toolbarModelTitleUsesTwoLines() throws {
         let source = try String(contentsOf: chatSourceURL("ChatToolbar.swift"), encoding: .utf8)
         let titleSource = try source.requiredSlice(
-            from: "Text(currentModel?.name ?? L10n.tr(\"Choose Model\"))",
+            from: "Text(currentModel?.name ?? pendingModelName ?? L10n.tr(\"Choose Model\"))",
             to: "HStack(spacing: 4)"
         )
 

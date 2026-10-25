@@ -174,8 +174,8 @@ struct CostCurrencyContractTests {
             try db.execute(
                 sql: """
                     INSERT INTO message (id, conversationID, role, text, providerKind, providerName, modelName, state,
-                                         providerMode, estimatedCost, costSource)
-                    VALUES (?, ?, 'assistant', 'legacy', 'openAI', 'OpenAI', 'GPT-4.1', 'delivered', 'byok', ?, ?)
+                                         estimatedCost, costSource)
+                    VALUES (?, ?, 'assistant', 'legacy', 'openAI', 'OpenAI', 'GPT-4.1', 'delivered', ?, ?)
                     """,
                 arguments: [
                     UUID().uuidString, conversationID.uuidString,

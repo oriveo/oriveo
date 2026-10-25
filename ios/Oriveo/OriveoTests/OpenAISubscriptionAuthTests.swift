@@ -99,7 +99,7 @@ struct OpenAISubscriptionAuthTests {
             of: "https://chatgpt.com/backend-api/codex",
             with: "https://evil.example.com/backend-api/codex"
         )
-        #expect(OpenAISubscriptionAuthResolver.resolve(raw: Self.raw(json)) == .unavailable)
+        #expect(OpenAISubscriptionAuthResolver.resolve(raw: Self.raw(json), appVersion: "1.2.6") == .unavailable)
     }
 
     @Test("an auth endpoint host outside the trusted list is always rejected: this is the gate against phishing redirects")
@@ -108,7 +108,7 @@ struct OpenAISubscriptionAuthTests {
             of: "https://auth.openai.com/oauth/token",
             with: "https://auth.evil.com/oauth/token"
         )
-        #expect(OpenAISubscriptionAuthResolver.resolve(raw: Self.raw(json)) == .unavailable)
+        #expect(OpenAISubscriptionAuthResolver.resolve(raw: Self.raw(json), appVersion: "1.2.6") == .unavailable)
     }
 
     @Test("a client below minAppVersion steps aside as disabled rather than silently unavailable")

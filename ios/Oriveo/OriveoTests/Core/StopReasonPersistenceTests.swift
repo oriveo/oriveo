@@ -84,7 +84,7 @@ nonisolated private func stopReasonChatSSE(_ frames: [String]) -> String {
 
 private let stopReasonMcpServerID = UUID(uuidString: "AAAAAAAA-0000-0000-0000-0000000005C2")!
 
-@Suite("StopReasonPersistenceTests", .serialized)
+@Suite("StopReasonPersistenceTests", .serialized, .sharedProcessState)
 @MainActor
 struct StopReasonPersistenceTests {
 

@@ -48,7 +48,7 @@ private final class ModelFactsMockURLProtocol: URLProtocol, @unchecked Sendable 
     override func stopLoading() {}
 }
 
-@Suite("Model picker intent index key", .serialized)
+@Suite("Model picker intent index key", .serialized, .sharedProcessState)
 struct ModelPickerIntentIndexKeyTests {
 
     /// Model facts merged or withdrawn while the picker is open: the intent index used by the chip

@@ -340,18 +340,6 @@ struct RelayCatalogScaleTests {
         }
     }
 
-    /// The per-conversation decision `normalizeConversationModelSelections` made before, copied verbatim as the
-    /// reference.
-    private static func referenceNormalizedModelID(_ storedModelID: String, in provider: Provider) -> String {
-        if let resolved = ModelResolver.matchingModel(for: storedModelID, in: provider) {
-            return ModelResolver.preferredStoredModelIdentifier(for: resolved, providerKind: provider.kind)
-        }
-        if let defaultModel = provider.defaultModel {
-            return ModelResolver.preferredStoredModelIdentifier(for: defaultModel, providerKind: provider.kind)
-        }
-        return storedModelID
-    }
-
     /// One "add" from the Home picker with 1,500 conversations on this relay: every Provider write normalizes their
     /// model ids against the new catalog, which used to run `matchingModel` over the whole 22k catalog for each one.
     @Test("conversation normalization: adding a model with a 22k catalog and 1.5k conversations stalls the main thread < 50ms, and relay conversation models are not rewritten")
@@ -778,8 +766,8 @@ struct RelayCatalogScaleTests {
     /// prefixes, canonical ids and duplicate ids; the conversations have retired models, whitespace, the same
     /// character written composed and decomposed (a stored id resolves once, so two canonically equivalent spellings
     /// must not resolve differently), and another provider's conversation.
-    @Test("conversation normalization matches per-conversation matchingModel: seeded random catalogs x relay / built-in / openRouter")
-    func conversationNormalizationMatchesPerConversationReference() async throws {
+    @Test("updateProvider does not rewrite conversation models: seeded random catalogs x relay / built-in / openRouter")
+    func conversationModelsUntouchedByUpdateProvider() async throws {
         await MetadataClient.shared.resetForTesting()
         defer { ProviderCatalogResolver.resetMemoForTesting() }
 
@@ -840,23 +828,15 @@ struct RelayCatalogScaleTests {
             state.conversations = conversations
 
             state.providerManager.updateProvider(provider)
-            let written = try #require(state.providers.first { $0.id == provider.id })
-            // A relay's finalize runs in the background: wait for the finalize merge (relay conversations are not normalized).
+            // A relay's finalize runs in the background: wait for it to merge (the merge does not rewrite conversation models either).
             await state.providerManager.waitForRelayFinalizeForTesting(providerID: provider.id)
-            let settled = try #require(state.providers.first { $0.id == provider.id })
-            // The old timing: normalize against `written` at write time, then once more against the finalized
-            // Provider when the finalize merge changed it.
-            func reference(_ stored: String, in written: Provider) -> String {
-                written.allModels.isEmpty ? stored : Self.referenceNormalizedModelID(stored, in: written)
-            }
             let storedByID = Dictionary(uniqueKeysWithValues: state.conversations.map { ($0.id, $0.modelID) })
+            #expect(storedByID.count == conversations.count, "conversation count changed")
             for conversation in conversations {
-                var expected = conversation.modelID
-                if conversation.providerID == provider.id, kind != .relay {
-                    expected = reference(expected, in: written)
-                    if settled != written { expected = reference(expected, in: settled) }
-                }
-                #expect(storedByID[conversation.id] == expected, "round=\(round) kind=\(kind) stored=\(conversation.modelID)")
+                #expect(
+                    storedByID[conversation.id] == conversation.modelID,
+                    "round=\(round) kind=\(kind) stored=\(conversation.modelID)"
+                )
             }
         }
     }

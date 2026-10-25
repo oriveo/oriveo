@@ -328,7 +328,7 @@ extension ContextCapConfirmPresentationTests {
 
             // The two kinds of suggestion bars raised by this send (attached to this user message)
             state.directiveSuggestions.evaluate(
-                text: "From now on, reply in English.",
+                text: "\u{4EE5}\u{540E}\u{6BCF}\u{6B21}\u{56DE}\u{7B54}\u{90FD}\u{5148}\u{7ED9}\u{7ED3}\u{8BBA}",
                 messageID: userMessageID,
                 conversationID: conversation.id,
                 instructions: "",

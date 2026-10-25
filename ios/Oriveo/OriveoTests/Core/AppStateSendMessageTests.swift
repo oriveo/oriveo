@@ -487,7 +487,7 @@ struct AppStateSendMessageTests {
             data: {"choices":[{"delta":{"content":null,"role":"assistant","reasoning_content":""},"index":0,"finish_reason":null}]}
             data: {"choices":[{"delta":{"content":null,"reasoning_content":"Here"},"index":0,"finish_reason":null}]}
             data: {"choices":[{"delta":{"content":null,"reasoning_content":"'s a thinking process"},"index":0,"finish_reason":null}]}
-            data: {"choices":[{"delta":{"content":"! How can I help"},"index":0,"finish_reason":null}]}
+            data: {"choices":[{"delta":{"content":"\u{4F60}\u{597D}"},"index":0,"finish_reason":null}]}
             data: {"choices":[{"delta":{"content":"\u{FF01}\u{6709}\u{4EC0}\u{4E48}\u{6211}\u{53EF}\u{4EE5}\u{5E2E}"},"index":0,"finish_reason":null}]}
             data: {"choices":[{"delta":{"content":"\u{4F60}\u{7684}\u{5417}\u{FF1F}"},"index":0,"finish_reason":null}]}
             data: {"usage":{"prompt_tokens":8,"completion_tokens":12}}
@@ -538,7 +538,7 @@ struct AppStateSendMessageTests {
         #expect(requestedModelID == "qwen3.6-plus")
         #expect(requestedStream == true)
         #expect(assistant.state == .delivered)
-        #expect(assistant.text == "Hello! How can I help you?")
+        #expect(assistant.text == "\u{4F60}\u{597D}\u{FF01}\u{6709}\u{4EC0}\u{4E48}\u{6211}\u{53EF}\u{4EE5}\u{5E2E}\u{4F60}\u{7684}\u{5417}\u{FF1F}")
         #expect(assistant.errorTitle == nil)
         #expect(assistant.errorDetail == nil)
     }

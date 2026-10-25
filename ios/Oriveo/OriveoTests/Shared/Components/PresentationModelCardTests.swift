@@ -3,7 +3,7 @@ import Testing
 @testable import Oriveo
 
 
-@Suite("PresentationModelCard Presentation Contract", .serialized)
+@Suite("PresentationModelCard Presentation Contract", .serialized, .sharedProcessState)
 struct PresentationModelCardTests {
 
     private func makeDescriptor(
@@ -150,14 +150,16 @@ struct PresentationModelCardTests {
             badgeOrder: [.image, .file, .web, .reasoning]
         )
 
-        #expect(model.visibleMetadataCapabilities(provider: provider, maxCapabilities: 2) == [.image, .web])
+        // Input capabilities (image / file) show only with evidence for the provider's wire; the official provider here has
+        // no vision evidence, so the image badge stays hidden while web and reasoning follow their capability controls.
+        #expect(model.visibleMetadataCapabilities(provider: provider, maxCapabilities: 2) == [.web, .reasoning])
 
         var relay = TestFactories.makeProvider(id: UUID(), kind: .relay)
         relay.baseURLText = "https://relay.test/v1"
         relay.relayRequested = .init(transport: .auto)
         #expect(
-            model.visibleMetadataCapabilities(provider: relay, maxCapabilities: 4) == [.file],
-            "When Relay has no actual transport/final endpoint scope, the H2 badge must fail-closed; file stays as-is"
+            model.visibleMetadataCapabilities(provider: relay, maxCapabilities: 4).isEmpty,
+            "When Relay has no actual transport/final endpoint scope, every capability badge must fail closed"
         )
         await MetadataClient.shared.resetForTesting()
     }

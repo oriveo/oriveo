@@ -96,7 +96,8 @@ struct ProviderDetailVisualRefreshTests {
         #expect(!enabledModelsSource.contains(".scaleEffect(isHighlighted"))
         #expect(enabledModelsSource.contains("ModelListMetadataRow("))
         #expect(enabledModelsSource.contains("provider: provider"))
-        #expect(enabledModelsSource.contains("model.normalizedPriceTier"))
+        #expect(enabledModelsSource.contains("pricedModel.normalizedPriceTier"))
+        #expect(enabledModelsSource.contains("CatalogModelBuilder.connectionPriced(model, provider: provider)"))
         let enabledRowSource = try enabledModelsSource.requiredSlice(
             from: "struct ProviderEnabledModelRow",
             to: "    private var modelActions"
@@ -150,7 +151,7 @@ struct ProviderDetailVisualRefreshTests {
 
         #expect(enabledRowSource.contains("if hasDetailedSpecifications"))
         #expect(inlineSpecSource.contains("VStack(alignment: .leading, spacing: 3)"))
-        #expect(inlineSpecSource.contains("Text(\"  •  \")"))
+        #expect(inlineSpecSource.contains("Text(\"  ·  \")"))
         #expect(inlineSpecSource.contains(".lineLimit(1)"))
         #expect(inlineSpecSource.contains(".minimumScaleFactor(0.7)"))
         #expect(!inlineSpecSource.contains("GridItem"))
@@ -232,6 +233,7 @@ struct ProviderDetailVisualRefreshTests {
         #expect(!relayEditSource.contains("NavigationStack"))
         #expect(!relayEditSource.contains(".toolbar"))
         #expect(relayEditSource.contains("L10n.tr(RelayEditBoardModel.titleKey, table: .providers)"))
+        #expect(RelayEditBoardModel.titleKey == RelayDetailBoardModel.editConnectionKey, "The entry name and the destination page share one name")
         #expect(RelayEditBoardModel.titleKey == RelayDetailBoardModel.editConnectionKey, "The entry name and the destination page share one name")
     }
 

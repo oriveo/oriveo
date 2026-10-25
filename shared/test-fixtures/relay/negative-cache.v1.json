@@ -20,12 +20,12 @@
   "visionEntryCases": [
     {"caseId": "relay_unknown_shows_entry", "form": "relay", "envelopeAllowsImage": true, "engineDeclarationImage": null, "override": null, "imageNegCached": false, "expectVisible": true},
     {"caseId": "relay_unknown_rejected_hides_entry", "form": "relay", "envelopeAllowsImage": true, "engineDeclarationImage": null, "override": null, "imageNegCached": true, "expectVisible": false},
-    {"caseId": "relay_override_true_shows_even_if_cached", "form": "relay", "envelopeAllowsImage": true, "engineDeclarationImage": null, "override": {"value": true, "source": "tested"}, "imageNegCached": true, "expectVisible": true},
+    {"caseId": "relay_override_true_shows_even_if_cached", "form": "relay", "envelopeAllowsImage": true, "engineDeclarationImage": null, "override": {"value": true, "source": "tested"}, "imageNegCached": true, "expectVisible": true, "e39Expect": {"visible": false, "editable": false}},
     {"caseId": "relay_override_false_hides", "form": "relay", "envelopeAllowsImage": true, "engineDeclarationImage": true, "override": {"value": false, "source": "user"}, "imageNegCached": false, "expectVisible": false},
     {"caseId": "relay_override_beats_engine_declaration", "form": "relay", "envelopeAllowsImage": true, "engineDeclarationImage": false, "override": {"value": true, "source": "user"}, "imageNegCached": false, "expectVisible": true},
     {"caseId": "relay_engine_declared_false_hides", "form": "relay", "envelopeAllowsImage": true, "engineDeclarationImage": false, "override": null, "imageNegCached": false, "expectVisible": false},
     {"caseId": "relay_envelope_without_image_hides", "form": "relay", "envelopeAllowsImage": false, "engineDeclarationImage": null, "override": {"value": true, "source": "user"}, "imageNegCached": false, "expectVisible": false},
-    {"caseId": "official_unknown_stays_hidden", "form": "official", "envelopeAllowsImage": true, "engineDeclarationImage": null, "override": null, "imageNegCached": false, "expectVisible": false}
+    {"caseId": "official_unknown_stays_hidden", "form": "official", "envelopeAllowsImage": true, "engineDeclarationImage": null, "override": null, "imageNegCached": false, "expectVisible": false, "e39Expect": {"visible": false, "editable": true}}
   ],
   "imageRecordCases": [
     {"caseId": "no_positive_evidence_records", "override": null, "engineDeclarationImage": null, "modelDeclaresImage": false, "rejected": true, "outputStarted": false, "protocolSwitched": false, "expectRecord": true},

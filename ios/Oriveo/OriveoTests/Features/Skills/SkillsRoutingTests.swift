@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Oriveo
 
-@Suite("Skills routing", .serialized)
+@Suite("Skills routing", .serialized, .sharedProcessState)
 @MainActor
 struct SkillsRoutingTests {
     @Test("Skill Routes Push Expected Destinations")

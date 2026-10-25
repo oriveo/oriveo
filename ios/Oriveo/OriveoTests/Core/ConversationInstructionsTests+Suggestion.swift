@@ -46,7 +46,7 @@ private func sameResolvedColor(_ lhs: UIColor?, _ rhs: UIColor) -> Bool {
 
 extension ConversationInstructionsTests {
     /// The lexical bar only appears when the detector's lang is in suggestionLanguages: use a zh-Hans sentence.
-    private static let directive = "From now on, reply in English."
+    private static let directive = "\u{4EE5}\u{540E}\u{6BCF}\u{6B21}\u{56DE}\u{7B54}\u{90FD}\u{5148}\u{7ED9}\u{7ED3}\u{8BBA}"
 
     /// The primary "Set as instruction" button uses the brand color with white text, not the system blue (AccentColor is empty).
     @MainActor
@@ -192,7 +192,7 @@ extension ConversationInstructionsTests {
             }
             #expect(defaults.integer(forKey: key) == 2)
 
-            _ = await state.sendMessage("From now on, reply in French.", in: conversation.id)
+            _ = await state.sendMessage("\u{4ECE}\u{73B0}\u{5728}\u{8D77}\u{FF0C}\u{56DE}\u{7B54}\u{90FD}\u{7528}\u{7E41}\u{4F53}\u{4E2D}\u{6587}", in: conversation.id)
             #expect(state.directiveSuggestions.pending(in: conversation.id) != nil)
             #expect(state.directiveSuggestions.accept(conversationID: conversation.id, appState: state) != nil)
             #expect(defaults.integer(forKey: key) == 0)
@@ -273,7 +273,7 @@ extension ConversationInstructionsTests {
             for: "\u{3000} \(Self.directive)\u{00A0}\n", instructions: ""
         )
         #expect(sentence == DirectiveSuggestionController.trimWhiteSpace(sentence ?? ""))
-        #expect(sentence?.hasPrefix("From") == true)
+        #expect(sentence?.hasPrefix("\u{4EE5}\u{540E}") == true)
         #expect(DirectiveSuggestionController.trimWhiteSpace("\u{2003}a b\u{3000}") == "a b")
         #expect(DirectiveSuggestionController.trimWhiteSpace(" \u{00A0}\n") == "")
     }
