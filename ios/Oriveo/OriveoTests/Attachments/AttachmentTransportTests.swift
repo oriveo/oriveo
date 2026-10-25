@@ -52,8 +52,8 @@ final class AttachmentTransportTests: XCTestCase {
         case .openRouterChat: return row(.openRouter, native: .always, emitsNative: true)
         case .grokChat, .grokResponses: return row(.grok)
         // Routes that send only a string content: images arrive as a placeholder instead of being dropped silently.
-        case .miniMaxChat, .miniMaxAnthropicWeb: return row(.miniMax, placeholder: textOnlyRouteImagePlaceholder, emitsImages: false)
-        case .deepSeekChat: return row(.deepseek, placeholder: "[Image omitted: unsupported by DeepSeek]", emitsImages: false)
+        case .miniMaxChat, .miniMaxAnthropicWeb: return row(.miniMax, placeholder: textOnlyRouteImagePlaceholder)
+        case .deepSeekChat: return row(.deepseek, placeholder: "[Image omitted: unsupported by DeepSeek]")
         case .qwenChat: return row(.qwen)
         case .moonshotChat: return row(.moonshot)
         case .zhipuChat: return row(.zhipu)
@@ -65,8 +65,8 @@ final class AttachmentTransportTests: XCTestCase {
         // The OpenRouter leg sends Chat Completions, so files are not downgraded to text just because tools are on.
         case .toolLoop(.openRouter): return row(.openRouter, native: .always, emitsNative: true)
         // The tool-loop leg reuses the image placeholder of that provider's Chat route.
-        case .toolLoop(.deepseek): return row(.deepseek, placeholder: "[Image omitted: unsupported by DeepSeek]")
-        case .toolLoop(.miniMax): return row(.miniMax, placeholder: textOnlyRouteImagePlaceholder)
+        case .toolLoop(.deepseek): return row(.deepseek, placeholder: "[Image omitted: unsupported by DeepSeek]", emitsImages: false)
+        case .toolLoop(.miniMax): return row(.miniMax, placeholder: textOnlyRouteImagePlaceholder, emitsImages: false)
         case .toolLoop(let provider): return row(provider)
         }
     }
