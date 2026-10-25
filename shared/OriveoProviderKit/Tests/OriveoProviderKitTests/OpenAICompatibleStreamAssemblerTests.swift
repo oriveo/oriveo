@@ -43,6 +43,19 @@ private func drain(
     return events
 }
 
+/// Raw bytes of `shared/test-fixtures/provider-toolcall/recorded/<name>` (a recorded real upstream stream).
+private func recordedStream(_ name: String) throws -> Data {
+    var folder = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+    while folder.path != "/" {
+        let candidate = folder.appendingPathComponent("shared/test-fixtures/provider-toolcall/recorded/\(name)")
+        if FileManager.default.fileExists(atPath: candidate.path) {
+            return try Data(contentsOf: candidate)
+        }
+        folder.deleteLastPathComponent()
+    }
+    throw CocoaError(.fileNoSuchFile)
+}
+
 private func text(_ events: [ProviderStreamEvent]) -> String {
     events.reduce(into: "") { acc, event in
         if case .textDelta(let value) = event { acc += value }
@@ -228,6 +241,18 @@ struct OpenAICompatibleStreamAssemblerTests {
             #"data: {"choices":[],"usage":{"prompt_tokens":10,"completion_tokens":2}}"#,
         ], profile: .deepSeek)
         #expect(usage(missing)?.cachedInputTokens == nil)
+    }
+
+    @Test("Moonshot recorded streams: usage on the final frame at choices[0].usage is read when the top level has none", arguments: [
+        ("moonshot.leg1.sse", Int64(67), Int64(88)),
+        ("moonshot_web_search.leg1.sse", Int64(20), Int64(1)),
+    ])
+    func moonshotRecordedChoiceUsage(file: String, input: Int64, output: Int64) throws {
+        let raw = try #require(String(data: try recordedStream(file), encoding: .utf8))
+        let lines = raw.components(separatedBy: "\n")
+        let parsed = try #require(usage(drain(lines, profile: .moonshot)))
+        #expect(parsed.inputTokens == input)
+        #expect(parsed.outputTokens == output)
     }
 
     @Test("Moonshot reports cached tokens at the top level of usage")

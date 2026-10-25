@@ -96,7 +96,9 @@ public struct OpenAICompatibleStreamAssembler {
         guard let chunk = try? Self.chunkDecoder.decode(OpenAICompatibleChunk.self, from: data) else { return events }
 
         // Usage replaces rather than accumulates: providers resend a running total.
-        if let raw = chunk.usage { usage = Self.usage(from: raw, profile: profile) }
+        // Kimi puts usage on the final frame at choices[0].usage; read it when the top level has none.
+        let choiceUsage = profile.id == ProviderWireProfile.moonshot.id ? chunk.choices?.first?.usage : nil
+        if let raw = chunk.usage ?? choiceUsage { usage = Self.usage(from: raw, profile: profile) }
 
         // Only the first choice is read: requests are always single-completion, and the final
         // usage chunk legitimately carries an empty `choices` array.
@@ -420,6 +422,8 @@ public struct OpenAICompatibleChunk: Decodable, Sendable {
 
         public var delta: Delta?
         public var finishReason: String?
+        /// Kimi only: streamed usage is at choices[0].usage, not at the top level.
+        public var usage: Usage?
     }
 
     public struct Usage: Decodable, Sendable {
