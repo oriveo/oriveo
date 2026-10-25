@@ -375,6 +375,11 @@ struct HomeView: View {
                 contentAppeared = true
             }
         }
+        .onChange(of: contentAppeared) { _, appeared in
+            // Record only after the animation has actually started; otherwise the first visit would skip the fade-in.
+            guard appeared else { return }
+            appState.hasPlayedHomeIntro = true
+        }
         .onChange(of: appState.providersVersion) { _, _ in
             refreshConversationModelLookup()
         }
@@ -845,6 +850,7 @@ struct HomeView: View {
                 onLengthLimitExceeded: ChatInputLimit.showLimitReachedToast
             )
             .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+            .accessibilityIdentifier("home_composer_input")
 
             if !heroFocused && heroText.isEmpty {
                 HStack(spacing: 4) {
@@ -951,6 +957,7 @@ struct HomeView: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("home_send_button")
     }
 
     @MainActor
@@ -1213,11 +1220,13 @@ struct HomeView: View {
                     isStreaming: appState.streamingConversationIDs.contains(conversation.id),
                     isPinned: appState.conversationManager.isPinned(conversation.id)
                 )
+                .equatable()
             }
             .padding(.leading, isEditing ? 14 : 0)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("home_conversation_item")
         .contextMenu {
             if !isEditing {
                 if canOpenConversationWindow {
