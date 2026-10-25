@@ -1,0 +1,1931 @@
+{
+  "schema": "oriveo.voice.realtime-events",
+  "version": 1,
+  "$comment": "Native realtime wire contract. mapCases replay server messages taken from the official docs (OpenAI and xAI samples verbatim or trimmed; Gemini samples assembled from the documented field paths, the docs have no raw JSON) and lock the unified session events each client must emit, in order. openCases / urlCases / truncateCases / appendCases lock the JSON each client sends. No request was made with a real key.",
+  "constants": {
+    "transports": [
+      "openai_realtime",
+      "xai_realtime",
+      "gemini_live"
+    ],
+    "unifiedEvents": [
+      "ready",
+      "userSpeechStarted",
+      "userSpeechStopped",
+      "userTranscript",
+      "assistantAudio",
+      "assistantTranscript",
+      "interrupted",
+      "assistantTurnDone",
+      "goAway",
+      "resumable",
+      "sessionEnded",
+      "error"
+    ],
+    "turnStatuses": [
+      "completed",
+      "interrupted",
+      "incomplete",
+      "failed"
+    ],
+    "outputSampleRateHz": 24000,
+    "inputSampleRateHz": {
+      "openai_realtime": 24000,
+      "xai_realtime": 24000,
+      "gemini_live": 16000
+    },
+    "geminiInputMimeType": "audio/pcm;rate=16000",
+    "sessionEndErrorTypes": [
+      "max_duration",
+      "timeout"
+    ]
+  },
+  "sources": {
+    "openai": [
+      "https://developers.openai.com/api/reference/resources/realtime/server-events.md",
+      "https://developers.openai.com/api/reference/resources/realtime/client-events.md",
+      "https://developers.openai.com/api/docs/guides/realtime-conversations.md"
+    ],
+    "xai": [
+      "https://docs.x.ai/developers/model-capabilities/audio/speech-to-speech.md",
+      "https://docs.x.ai/voice-realtime.ws.json"
+    ],
+    "gemini": [
+      "https://ai.google.dev/api/live",
+      "https://ai.google.dev/gemini-api/docs/live-session",
+      "https://ai.google.dev/gemini-api/docs/live-guide",
+      "https://ai.google.dev/gemini-api/docs/live-api/get-started-websocket"
+    ],
+    "checked": "2026-10-19"
+  },
+  "pendingEvidence": [
+    "gemini has no server error message; errors arrive as WebSocket close (code / reason format undocumented). Clients map an unexpected close to their existing connection-failure path, not to a unified error event.",
+    "gemini goAway.timeLeft JSON form inferred from protobuf Duration mapping (\"10s\"); no raw sample.",
+    "xai: whether input transcription needs audio.input.transcription.model (docs disagree) and whether .completed arrives without it; maximum session length; interruption reason field."
+  ],
+  "rules": {
+    "map": [
+      "Every unified event carries only the keys shown in expected. Transcripts are always the cumulative text of the current item: OpenAI input_audio_transcription.delta and output_audio_transcript.delta append; xAI input_audio_transcription.updated replaces; *.completed / *.done with a transcript string replace and mark final. A transcript event for a new item_id restarts the text.",
+      "OpenAI / xAI: session.created → ready; speech_started / speech_stopped → userSpeechStarted / userSpeechStopped; output_audio.delta → assistantAudio (sampleRateHz = outputSampleRateHz); response.done → assistantTurnDone with status completed | interrupted (cancelled) | incomplete | failed (anything else), carrying the last assistant item id and text, then the turn state resets. Interruption is detected by the client from userSpeechStarted while playing; the server only confirms it with response.done cancelled.",
+      "error → error {code: error.code ?? error.type, message} (non-fatal; the connection close decides fatality); on xai_realtime an error.type in sessionEndErrorTypes → sessionEnded {reason}.",
+      "Gemini: setupComplete → ready; voiceActivity ACTIVITY_START / ACTIVITY_END → userSpeechStarted / userSpeechStopped (optional signal); serverContent.inputTranscription.text appends to the user text (non-final), or to the next turn's user text once this turn's user text is final or a new ACTIVITY_START arrived after the reply started (barge-in or speaker echo); without new speech a late transcription still belongs to this turn and is finalised at turnComplete before the assistant; modelTurn.parts[].inlineData.data → assistantAudio; outputTranscription.text appends to the assistant text; interrupted → interrupted; the first model output of a turn (modelTurn audio or outputTranscription) → user final first (if any text), so the user message always persists before its reply (real recording 2026-10-21: inputTranscription precedes the first modelTurn by 4-11 ms); turnComplete → user final (if any text and not yet final), assistant final (if any text), assistantTurnDone (interrupted when this turn had interrupted, else completed). The docs give no ordering guarantee between transcription and other messages; input after turnComplete, or after the reply started once there is new speech or the user text is final, belongs to the next turn. goAway → goAway {timeLeftMs} (Duration \"Ns\" / \"N.fffs\", else null); sessionResumptionUpdate with resumable true and a non-empty newHandle → resumable {handle}. Connection switch (goAway, resumption, reopen) that replaces the mapper: before the old mapper is dropped it flushes its pending user text as userTranscript final (both this turn's not-yet-final text and text carried to the next turn, in that order, each only if non-empty); assistant text of an unfinished reply is not flushed (the reducer's end / reopen sequence owns it). Clients lock this with a transport test named gemini_switch_flushes_pending_user_text. Confirmed by real recordings (recordings/gemini-live-home-two-turn.v1.json, recordings/gemini-live-barge-in.v1.json, 2026-10-21): transcription text is incremental; after interrupted no model output precedes turnComplete; a barge-in's inputTranscription arrives after turnComplete, right before its reply; empty {} messages and outputTranscription {} without text occur and are ignored. GoAway: the server warns before an ~10 min connection ends but may also close without it (https://ai.google.dev/api/live, https://ai.google.dev/gemini-api/docs/live-api/session-management, checked 2026-10-21), so the switch flush above never relies on the server resending transcription.",
+      "Persistence: the host stores each userTranscript with final true and each assistantTurnDone text as a plain text message when trim(text) is non-empty (assistant modelID = the realtime model). Order is by turn, not arrival: a user transcript is stored before the assistant reply of its turn even when it arrives after response.done (OpenAI / xAI match it by item_id: the user item that preceded the response; Gemini by turn); an interrupted assistant turn stores the text received so far; empty and noise turns are not stored.",
+      "Ignored (no unified event): usage of any kind, session.updated, conversation.created / item.* lifecycle, response.created, output_item.*, content_part.*, output_audio.done, rate_limits.updated, input_audio_buffer.committed / cleared / timeout_triggered, output_audio_buffer.* (WebRTC only), function call / MCP events, conversation.item.truncated (the client already knows), generationComplete, toolCall*, groundingMetadata, waitingForInput, and any event of another transport."
+    ],
+    "client": [
+      "URL: openai_realtime / xai_realtime wss://{host}{path}?model={percent-encoded model} with header Authorization: Bearer {user key}; gemini_live wss://{host}{path} and the host appends ?key={user key}. No ephemeral token.",
+      "OpenAI opening (before any audio): session.update {type realtime, instructions, output_modalities [audio], audio.input {format pcm 24000, transcription {model: entry.inputTranscriptionModel} only when the entry has one, turn_detection semantic_vad}, audio.output {format pcm 24000, voice}}, then one conversation.item.create per history item (user input_text, assistant output_text).",
+      "xAI opening: flat session.update {instructions, voice, turn_detection server_vad, audio.input {format pcm 24000, transcription {model} only when the entry has inputTranscriptionModel}, audio.output {format pcm 24000}}; history items as OpenAI but assistant content type text.",
+      "Gemini opening: setup {model models/{model}, generationConfig {responseModalities [AUDIO], speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName}, systemInstruction.parts[0].text = instructions, inputAudioTranscription {}, outputAudioTranscription {}, sessionResumption {} or {handle}, contextWindowCompression {slidingWindow {}}}; historyConfig {initialHistoryInClientContent true} and one clientContent {turns (assistant → model), turnComplete true} after setupComplete only when the plan has history and no resume handle is used. A resumed session never resends history.",
+      "Audio: OpenAI / xAI input_audio_buffer.append {audio: base64 PCM16 mono at inputSampleRateHz}; Gemini realtimeInput.audio {data, mimeType geminiInputMimeType}. Output is PCM16 mono at outputSampleRateHz on all three.",
+      "Interruption: when local playback is stopped for an assistant item, OpenAI / xAI send conversation.item.truncate {item_id, content_index, audio_end_ms = floor(played ms of that item), never negative}; Gemini sends nothing and only flushes the playback queue. No truncate without an item id."
+    ]
+  },
+  "mapCases": [
+    {
+      "id": "openai_normal_turn",
+      "input": {
+        "transport": "openai_realtime",
+        "messages": [
+          {
+            "type": "session.created",
+            "session": {
+              "type": "realtime",
+              "audio": {
+                "output": {
+                  "format": {
+                    "type": "audio/pcm",
+                    "rate": 24000
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "session.updated",
+            "session": {
+              "type": "realtime"
+            }
+          },
+          {
+            "type": "input_audio_buffer.speech_started",
+            "audio_start_ms": 1000,
+            "item_id": "msg_003"
+          },
+          {
+            "type": "input_audio_buffer.speech_stopped",
+            "audio_end_ms": 2000,
+            "item_id": "msg_003"
+          },
+          {
+            "type": "input_audio_buffer.committed",
+            "item_id": "msg_003"
+          },
+          {
+            "type": "conversation.item.input_audio_transcription.delta",
+            "item_id": "msg_003",
+            "content_index": 0,
+            "delta": "Hey, can"
+          },
+          {
+            "type": "conversation.item.input_audio_transcription.delta",
+            "item_id": "msg_003",
+            "content_index": 0,
+            "delta": " you hear me?"
+          },
+          {
+            "type": "conversation.item.input_audio_transcription.completed",
+            "item_id": "msg_003",
+            "content_index": 0,
+            "transcript": "Hey, can you hear me?",
+            "usage": {
+              "type": "tokens",
+              "total_tokens": 22,
+              "input_tokens": 13,
+              "output_tokens": 9
+            }
+          },
+          {
+            "type": "response.created",
+            "response": {
+              "id": "resp_001",
+              "status": "in_progress"
+            }
+          },
+          {
+            "type": "response.output_audio.delta",
+            "response_id": "resp_001",
+            "item_id": "msg_008",
+            "output_index": 0,
+            "content_index": 0,
+            "delta": "AAAA"
+          },
+          {
+            "type": "response.output_audio_transcript.delta",
+            "response_id": "resp_001",
+            "item_id": "msg_008",
+            "output_index": 0,
+            "content_index": 0,
+            "delta": "Hello, how can I a"
+          },
+          {
+            "type": "response.output_audio_transcript.delta",
+            "response_id": "resp_001",
+            "item_id": "msg_008",
+            "output_index": 0,
+            "content_index": 0,
+            "delta": "ssist you today?"
+          },
+          {
+            "type": "response.output_audio.done",
+            "response_id": "resp_001",
+            "item_id": "msg_008",
+            "output_index": 0,
+            "content_index": 0
+          },
+          {
+            "type": "response.output_audio_transcript.done",
+            "response_id": "resp_001",
+            "item_id": "msg_008",
+            "output_index": 0,
+            "content_index": 0,
+            "transcript": "Hello, how can I assist you today?"
+          },
+          {
+            "type": "rate_limits.updated",
+            "rate_limits": []
+          },
+          {
+            "type": "response.done",
+            "response": {
+              "id": "resp_001",
+              "status": "completed",
+              "usage": {
+                "total_tokens": 50,
+                "input_tokens": 20,
+                "output_tokens": 30
+              }
+            }
+          }
+        ]
+      },
+      "expected": [
+        {
+          "type": "ready"
+        },
+        {
+          "type": "userSpeechStarted",
+          "itemId": "msg_003"
+        },
+        {
+          "type": "userSpeechStopped",
+          "itemId": "msg_003"
+        },
+        {
+          "type": "userTranscript",
+          "itemId": "msg_003",
+          "text": "Hey, can",
+          "final": false
+        },
+        {
+          "type": "userTranscript",
+          "itemId": "msg_003",
+          "text": "Hey, can you hear me?",
+          "final": false
+        },
+        {
+          "type": "userTranscript",
+          "itemId": "msg_003",
+          "text": "Hey, can you hear me?",
+          "final": true
+        },
+        {
+          "type": "assistantAudio",
+          "itemId": "msg_008",
+          "contentIndex": 0,
+          "base64": "AAAA",
+          "sampleRateHz": 24000
+        },
+        {
+          "type": "assistantTranscript",
+          "itemId": "msg_008",
+          "text": "Hello, how can I a",
+          "final": false
+        },
+        {
+          "type": "assistantTranscript",
+          "itemId": "msg_008",
+          "text": "Hello, how can I assist you today?",
+          "final": false
+        },
+        {
+          "type": "assistantTranscript",
+          "itemId": "msg_008",
+          "text": "Hello, how can I assist you today?",
+          "final": true
+        },
+        {
+          "type": "assistantTurnDone",
+          "itemId": "msg_008",
+          "text": "Hello, how can I assist you today?",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "openai_turn_detected_cancel_is_interrupted",
+      "input": {
+        "transport": "openai_realtime",
+        "messages": [
+          {
+            "type": "response.output_audio.delta",
+            "response_id": "resp_002",
+            "item_id": "msg_010",
+            "output_index": 0,
+            "content_index": 0,
+            "delta": "BBBB"
+          },
+          {
+            "type": "response.output_audio_transcript.delta",
+            "response_id": "resp_002",
+            "item_id": "msg_010",
+            "output_index": 0,
+            "content_index": 0,
+            "delta": "The museum opens at"
+          },
+          {
+            "type": "input_audio_buffer.speech_started",
+            "audio_start_ms": 5200,
+            "item_id": "msg_011"
+          },
+          {
+            "type": "response.done",
+            "response": {
+              "id": "resp_002",
+              "status": "cancelled",
+              "status_details": {
+                "type": "cancelled",
+                "reason": "turn_detected"
+              }
+            }
+          },
+          {
+            "type": "conversation.item.truncated",
+            "item_id": "msg_010",
+            "content_index": 0,
+            "audio_end_ms": 1500
+          }
+        ]
+      },
+      "expected": [
+        {
+          "type": "assistantAudio",
+          "itemId": "msg_010",
+          "contentIndex": 0,
+          "base64": "BBBB",
+          "sampleRateHz": 24000
+        },
+        {
+          "type": "assistantTranscript",
+          "itemId": "msg_010",
+          "text": "The museum opens at",
+          "final": false
+        },
+        {
+          "type": "userSpeechStarted",
+          "itemId": "msg_011"
+        },
+        {
+          "type": "assistantTurnDone",
+          "itemId": "msg_010",
+          "text": "The museum opens at",
+          "status": "interrupted"
+        }
+      ]
+    },
+    {
+      "id": "openai_user_transcript_completed_after_response_done",
+      "input": {
+        "transport": "openai_realtime",
+        "messages": [
+          {
+            "type": "input_audio_buffer.speech_started",
+            "audio_start_ms": 100,
+            "item_id": "msg_020"
+          },
+          {
+            "type": "response.output_audio_transcript.delta",
+            "response_id": "r3",
+            "item_id": "msg_021",
+            "delta": "Sure."
+          },
+          {
+            "type": "response.done",
+            "response": {
+              "id": "r3",
+              "status": "completed"
+            }
+          },
+          {
+            "type": "conversation.item.input_audio_transcription.completed",
+            "item_id": "msg_020",
+            "content_index": 0,
+            "transcript": "Can you help?"
+          }
+        ]
+      },
+      "expected": [
+        {
+          "type": "userSpeechStarted",
+          "itemId": "msg_020"
+        },
+        {
+          "type": "assistantTranscript",
+          "itemId": "msg_021",
+          "text": "Sure.",
+          "final": false
+        },
+        {
+          "type": "assistantTurnDone",
+          "itemId": "msg_021",
+          "text": "Sure.",
+          "status": "completed"
+        },
+        {
+          "type": "userTranscript",
+          "itemId": "msg_020",
+          "text": "Can you help?",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "openai_incomplete_and_failed_status",
+      "input": {
+        "transport": "openai_realtime",
+        "messages": [
+          {
+            "type": "response.done",
+            "response": {
+              "id": "r1",
+              "status": "incomplete",
+              "status_details": {
+                "type": "incomplete",
+                "reason": "max_output_tokens"
+              }
+            }
+          },
+          {
+            "type": "response.done",
+            "response": {
+              "id": "r2",
+              "status": "failed"
+            }
+          }
+        ]
+      },
+      "expected": [
+        {
+          "type": "assistantTurnDone",
+          "itemId": null,
+          "text": "",
+          "status": "incomplete"
+        },
+        {
+          "type": "assistantTurnDone",
+          "itemId": null,
+          "text": "",
+          "status": "failed"
+        }
+      ]
+    },
+    {
+      "id": "openai_error_is_non_fatal_event",
+      "input": {
+        "transport": "openai_realtime",
+        "messages": [
+          {
+            "type": "error",
+            "error": {
+              "type": "invalid_request_error",
+              "code": "invalid_event",
+              "message": "The 'type' field is missing.",
+              "param": null,
+              "event_id": "event_567"
+            }
+          }
+        ]
+      },
+      "expected": [
+        {
+          "type": "error",
+          "code": "invalid_event",
+          "message": "The 'type' field is missing."
+        }
+      ]
+    },
+    {
+      "id": "openai_ignores_webrtc_and_tool_events",
+      "input": {
+        "transport": "openai_realtime",
+        "messages": [
+          {
+            "type": "output_audio_buffer.cleared",
+            "response_id": "r1"
+          },
+          {
+            "type": "response.function_call_arguments.delta",
+            "delta": "{"
+          },
+          {
+            "type": "conversation.item.added",
+            "item": {
+              "id": "x"
+            }
+          },
+          {
+            "type": "conversation.item.input_audio_transcription.updated",
+            "item_id": "m",
+            "transcript": "not an OpenAI event"
+          }
+        ]
+      },
+      "expected": []
+    },
+    {
+      "id": "xai_cumulative_user_transcript_replaces",
+      "input": {
+        "transport": "xai_realtime",
+        "messages": [
+          {
+            "type": "session.created",
+            "session": {
+              "id": "sess_001",
+              "object": "realtime.session",
+              "model": "grok-voice-latest"
+            }
+          },
+          {
+            "type": "conversation.created",
+            "conversation": {
+              "id": "conv_001"
+            }
+          },
+          {
+            "type": "input_audio_buffer.speech_started",
+            "item_id": "msg_003"
+          },
+          {
+            "type": "conversation.item.input_audio_transcription.updated",
+            "item_id": "msg_003",
+            "transcript": "Hello, how are"
+          },
+          {
+            "type": "conversation.item.input_audio_transcription.updated",
+            "item_id": "msg_003",
+            "transcript": "Hello, how are you"
+          },
+          {
+            "type": "input_audio_buffer.speech_stopped",
+            "item_id": "msg_003"
+          },
+          {
+            "type": "conversation.item.input_audio_transcription.completed",
+            "item_id": "msg_003",
+            "transcript": "Hello, how are you?"
+          },
+          {
+            "type": "response.output_audio.delta",
+            "response_id": "resp_001",
+            "item_id": "msg_004",
+            "output_index": 0,
+            "content_index": 0,
+            "delta": "CCCC"
+          },
+          {
+            "type": "response.output_audio_transcript.delta",
+            "response_id": "resp_001",
+            "item_id": "msg_004",
+            "delta": "I'm doing well"
+          },
+          {
+            "type": "response.output_audio_transcript.done",
+            "response_id": "resp_001",
+            "item_id": "msg_004"
+          },
+          {
+            "type": "response.done",
+            "response": {
+              "id": "resp_001",
+              "status": "completed",
+              "usage": {
+                "input_tokens": 10,
+                "output_tokens": 20,
+                "total_tokens": 30
+              }
+            }
+          }
+        ]
+      },
+      "expected": [
+        {
+          "type": "ready"
+        },
+        {
+          "type": "userSpeechStarted",
+          "itemId": "msg_003"
+        },
+        {
+          "type": "userTranscript",
+          "itemId": "msg_003",
+          "text": "Hello, how are",
+          "final": false
+        },
+        {
+          "type": "userTranscript",
+          "itemId": "msg_003",
+          "text": "Hello, how are you",
+          "final": false
+        },
+        {
+          "type": "userSpeechStopped",
+          "itemId": "msg_003"
+        },
+        {
+          "type": "userTranscript",
+          "itemId": "msg_003",
+          "text": "Hello, how are you?",
+          "final": true
+        },
+        {
+          "type": "assistantAudio",
+          "itemId": "msg_004",
+          "contentIndex": 0,
+          "base64": "CCCC",
+          "sampleRateHz": 24000
+        },
+        {
+          "type": "assistantTranscript",
+          "itemId": "msg_004",
+          "text": "I'm doing well",
+          "final": false
+        },
+        {
+          "type": "assistantTranscript",
+          "itemId": "msg_004",
+          "text": "I'm doing well",
+          "final": true
+        },
+        {
+          "type": "assistantTurnDone",
+          "itemId": "msg_004",
+          "text": "I'm doing well",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "xai_cancelled_is_interrupted",
+      "input": {
+        "transport": "xai_realtime",
+        "messages": [
+          {
+            "type": "response.output_audio_transcript.delta",
+            "response_id": "r",
+            "item_id": "msg_004",
+            "delta": "Hello! I'm doing well, thank you for"
+          },
+          {
+            "type": "response.done",
+            "response": {
+              "id": "r",
+              "status": "cancelled"
+            }
+          },
+          {
+            "type": "conversation.item.truncated",
+            "item_id": "msg_004",
+            "content_index": 0,
+            "audio_end_ms": 1500,
+            "transcript": "Hello! I'm doing well, thank you for"
+          }
+        ]
+      },
+      "expected": [
+        {
+          "type": "assistantTranscript",
+          "itemId": "msg_004",
+          "text": "Hello! I'm doing well, thank you for",
+          "final": false
+        },
+        {
+          "type": "assistantTurnDone",
+          "itemId": "msg_004",
+          "text": "Hello! I'm doing well, thank you for",
+          "status": "interrupted"
+        }
+      ]
+    },
+    {
+      "id": "xai_max_duration_ends_session",
+      "input": {
+        "transport": "xai_realtime",
+        "messages": [
+          {
+            "type": "error",
+            "error": {
+              "type": "max_duration",
+              "code": "max_duration",
+              "message": "Session reached maximum duration."
+            }
+          },
+          {
+            "type": "error",
+            "error": {
+              "type": "invalid_request_error",
+              "code": "invalid_audio_format",
+              "message": "Bad audio."
+            }
+          }
+        ]
+      },
+      "expected": [
+        {
+          "type": "sessionEnded",
+          "reason": "max_duration"
+        },
+        {
+          "type": "error",
+          "code": "invalid_audio_format",
+          "message": "Bad audio."
+        }
+      ]
+    },
+    {
+      "id": "xai_ignores_openai_only_delta_event",
+      "input": {
+        "transport": "xai_realtime",
+        "messages": [
+          {
+            "type": "conversation.item.input_audio_transcription.delta",
+            "item_id": "m",
+            "delta": "x"
+          },
+          {
+            "type": "input_audio_buffer.timeout_triggered"
+          }
+        ]
+      },
+      "expected": []
+    },
+    {
+      "id": "gemini_normal_turn",
+      "input": {
+        "transport": "gemini_live",
+        "messages": [
+          {
+            "setupComplete": {}
+          },
+          {
+            "serverContent": {
+              "inputTranscription": {
+                "text": "What time"
+              }
+            }
+          },
+          {
+            "serverContent": {
+              "inputTranscription": {
+                "text": " is it?"
+              }
+            }
+          },
+          {
+            "serverContent": {
+              "modelTurn": {
+                "parts": [
+                  {
+                    "inlineData": {
+                      "mimeType": "audio/pcm;rate=24000",
+                      "data": "DDDD"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "serverContent": {
+              "outputTranscription": {
+                "text": "It's three"
+              }
+            }
+          },
+          {
+            "serverContent": {
+              "outputTranscription": {
+                "text": " o’clock."
+              }
+            },
+            "usageMetadata": {
+              "totalTokenCount": 40
+            }
+          },
+          {
+            "serverContent": {
+              "generationComplete": true
+            }
+          },
+          {
+            "serverContent": {
+              "turnComplete": true
+            }
+          }
+        ]
+      },
+      "expected": [
+        {
+          "type": "ready"
+        },
+        {
+          "type": "userTranscript",
+          "itemId": null,
+          "text": "What time",
+          "final": false
+        },
+        {
+          "type": "userTranscript",
+          "itemId": null,
+          "text": "What time is it?",
+          "final": false
+        },
+        {
+          "type": "userTranscript",
+          "itemId": null,
+          "text": "What time is it?",
+          "final": true
+        },
+        {
+          "type": "assistantAudio",
+          "itemId": null,
+          "contentIndex": 0,
+          "base64": "DDDD",
+          "sampleRateHz": 24000
+        },
+        {
+          "type": "assistantTranscript",
+          "itemId": null,
+          "text": "It's three",
+          "final": false
+        },
+        {
+          "type": "assistantTranscript",
+          "itemId": null,
+          "text": "It's three o’clock.",
+          "final": false
+        },
+        {
+          "type": "assistantTranscript",
+          "itemId": null,
+          "text": "It's three o’clock.",
+          "final": true
+        },
+        {
+          "type": "assistantTurnDone",
+          "itemId": null,
+          "text": "It's three o’clock.",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "gemini_interrupted_then_turn_complete",
+      "input": {
+        "transport": "gemini_live",
+        "messages": [
+          {
+            "serverContent": {
+              "inputTranscription": {
+                "text": "Tell me a story"
+              }
+            }
+          },
+          {
+            "serverContent": {
+              "outputTranscription": {
+                "text": "Once upon"
+              }
+            }
+          },
+          {
+            "serverContent": {
+              "interrupted": true
+            }
+          },
+          {
+            "serverContent": {
+              "turnComplete": true
+            }
+          }
+        ]
+      },
+      "expected": [
+        {
+          "type": "userTranscript",
+          "itemId": null,
+          "text": "Tell me a story",
+          "final": false
+        },
+        {
+          "type": "userTranscript",
+          "itemId": null,
+          "text": "Tell me a story",
+          "final": true
+        },
+        {
+          "type": "assistantTranscript",
+          "itemId": null,
+          "text": "Once upon",
+          "final": false
+        },
+        {
+          "type": "interrupted"
+        },
+        {
+          "type": "assistantTranscript",
+          "itemId": null,
+          "text": "Once upon",
+          "final": true
+        },
+        {
+          "type": "assistantTurnDone",
+          "itemId": null,
+          "text": "Once upon",
+          "status": "interrupted"
+        }
+      ]
+    },
+    {
+      "id": "gemini_late_input_transcription_goes_to_next_turn",
+      "input": {
+        "transport": "gemini_live",
+        "messages": [
+          {
+            "serverContent": {
+              "outputTranscription": {
+                "text": "Hi there."
+              }
+            }
+          },
+          {
+            "serverContent": {
+              "turnComplete": true
+            }
+          },
+          {
+            "serverContent": {
+              "inputTranscription": {
+                "text": "Late words"
+              }
+            }
+          },
+          {
+            "serverContent": {
+              "turnComplete": true
+            }
+          }
+        ]
+      },
+      "expected": [
+        {
+          "type": "assistantTranscript",
+          "itemId": null,
+          "text": "Hi there.",
+          "final": false
+        },
+        {
+          "type": "assistantTranscript",
+          "itemId": null,
+          "text": "Hi there.",
+          "final": true
+        },
+        {
+          "type": "assistantTurnDone",
+          "itemId": null,
+          "text": "Hi there.",
+          "status": "completed"
+        },
+        {
+          "type": "userTranscript",
+          "itemId": null,
+          "text": "Late words",
+          "final": false
+        },
+        {
+          "type": "userTranscript",
+          "itemId": null,
+          "text": "Late words",
+          "final": true
+        },
+        {
+          "type": "assistantTurnDone",
+          "itemId": null,
+          "text": "",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "gemini_input_during_reply_goes_to_next_turn",
+      "input": {
+        "transport": "gemini_live",
+        "messages": [
+          {
+            "serverContent": {
+              "inputTranscription": {
+                "text": "What is the weather?"
+              }
+            }
+          },
+          {
+            "serverContent": {
+              "modelTurn": {
+                "parts": [
+                  {
+                    "inlineData": {
+                      "mimeType": "audio/pcm;rate=24000",
+                      "data": "EEEE"
+                    }
+                  }
+                ]
+              },
+              "outputTranscription": {
+                "text": "Which city?"
+              }
+            }
+          },
+          {
+            "voiceActivity": {
+              "type": "ACTIVITY_START"
+            }
+          },
+          {
+            "serverContent": {
+              "inputTranscription": {
+                "text": "Which city"
+              }
+            }
+          },
+          {
+            "serverContent": {
+              "turnComplete": true
+            }
+          },
+          {
+            "serverContent": {
+              "inputTranscription": {
+                "text": " do you mean?"
+              }
+            }
+          },
+          {
+            "serverContent": {
+              "turnComplete": true
+            }
+          }
+        ]
+      },
+      "expected": [
+        {
+          "type": "userTranscript",
+          "itemId": null,
+          "text": "What is the weather?",
+          "final": false
+        },
+        {
+          "type": "userTranscript",
+          "itemId": null,
+          "text": "What is the weather?",
+          "final": true
+        },
+        {
+          "type": "assistantAudio",
+          "itemId": null,
+          "contentIndex": 0,
+          "base64": "EEEE",
+          "sampleRateHz": 24000
+        },
+        {
+          "type": "assistantTranscript",
+          "itemId": null,
+          "text": "Which city?",
+          "final": false
+        },
+        {
+          "type": "userSpeechStarted",
+          "itemId": null
+        },
+        {
+          "type": "userTranscript",
+          "itemId": null,
+          "text": "Which city",
+          "final": false
+        },
+        {
+          "type": "assistantTranscript",
+          "itemId": null,
+          "text": "Which city?",
+          "final": true
+        },
+        {
+          "type": "assistantTurnDone",
+          "itemId": null,
+          "text": "Which city?",
+          "status": "completed"
+        },
+        {
+          "type": "userTranscript",
+          "itemId": null,
+          "text": "Which city do you mean?",
+          "final": false
+        },
+        {
+          "type": "userTranscript",
+          "itemId": null,
+          "text": "Which city do you mean?",
+          "final": true
+        },
+        {
+          "type": "assistantTurnDone",
+          "itemId": null,
+          "text": "",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "gemini_late_input_without_new_speech_stays_in_turn",
+      "input": {
+        "transport": "gemini_live",
+        "messages": [
+          {
+            "serverContent": {
+              "modelTurn": {
+                "parts": [
+                  {
+                    "inlineData": {
+                      "mimeType": "audio/pcm;rate=24000",
+                      "data": "FFFF"
+                    }
+                  }
+                ]
+              },
+              "outputTranscription": {
+                "text": "Sure."
+              }
+            }
+          },
+          {
+            "serverContent": {
+              "inputTranscription": {
+                "text": "Late question"
+              }
+            }
+          },
+          {
+            "serverContent": {
+              "turnComplete": true
+            }
+          }
+        ]
+      },
+      "expected": [
+        {
+          "type": "assistantAudio",
+          "itemId": null,
+          "contentIndex": 0,
+          "base64": "FFFF",
+          "sampleRateHz": 24000
+        },
+        {
+          "type": "assistantTranscript",
+          "itemId": null,
+          "text": "Sure.",
+          "final": false
+        },
+        {
+          "type": "userTranscript",
+          "itemId": null,
+          "text": "Late question",
+          "final": false
+        },
+        {
+          "type": "userTranscript",
+          "itemId": null,
+          "text": "Late question",
+          "final": true
+        },
+        {
+          "type": "assistantTranscript",
+          "itemId": null,
+          "text": "Sure.",
+          "final": true
+        },
+        {
+          "type": "assistantTurnDone",
+          "itemId": null,
+          "text": "Sure.",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "gemini_goaway_and_resumption_handle",
+      "input": {
+        "transport": "gemini_live",
+        "messages": [
+          {
+            "sessionResumptionUpdate": {
+              "newHandle": "h-1",
+              "resumable": true
+            }
+          },
+          {
+            "sessionResumptionUpdate": {
+              "newHandle": "",
+              "resumable": false
+            }
+          },
+          {
+            "goAway": {
+              "timeLeft": "10s"
+            }
+          },
+          {
+            "goAway": {
+              "timeLeft": "0.250s"
+            }
+          },
+          {
+            "goAway": {}
+          }
+        ]
+      },
+      "expected": [
+        {
+          "type": "resumable",
+          "handle": "h-1"
+        },
+        {
+          "type": "goAway",
+          "timeLeftMs": 10000
+        },
+        {
+          "type": "goAway",
+          "timeLeftMs": 250
+        },
+        {
+          "type": "goAway",
+          "timeLeftMs": null
+        }
+      ]
+    },
+    {
+      "id": "gemini_voice_activity_optional",
+      "input": {
+        "transport": "gemini_live",
+        "messages": [
+          {
+            "voiceActivity": {
+              "type": "ACTIVITY_START",
+              "audioOffset": "1.2s"
+            }
+          },
+          {
+            "voiceActivity": {
+              "type": "ACTIVITY_END"
+            }
+          },
+          {
+            "toolCall": {
+              "functionCalls": []
+            }
+          },
+          {
+            "serverContent": {
+              "groundingMetadata": {}
+            }
+          }
+        ]
+      },
+      "expected": [
+        {
+          "type": "userSpeechStarted",
+          "itemId": null
+        },
+        {
+          "type": "userSpeechStopped",
+          "itemId": null
+        }
+      ]
+    }
+  ],
+  "openCases": [
+    {
+      "id": "open_openai_with_history",
+      "input": {
+        "transport": "openai_realtime",
+        "plan": {
+          "instructions": "Conversation instructions (set by the user for this conversation):\nBe brief.\n\n<oriveo-delivery>\nDELIVERY\n</oriveo-delivery>",
+          "history": [
+            {
+              "role": "user",
+              "text": "Hi"
+            },
+            {
+              "role": "assistant",
+              "text": "Hello"
+            }
+          ]
+        },
+        "entry": {
+          "model": "gpt-realtime-2.1",
+          "transport": "openai_realtime",
+          "path": "/v1/realtime",
+          "contextWindow": 128000,
+          "voices": [
+            {
+              "id": "marin",
+              "isDefault": true
+            }
+          ],
+          "inputTranscriptionModel": "gpt-4o-mini-transcribe",
+          "isDefault": true
+        },
+        "voice": "marin"
+      },
+      "expected": {
+        "beforeReady": [
+          {
+            "type": "session.update",
+            "session": {
+              "type": "realtime",
+              "instructions": "Conversation instructions (set by the user for this conversation):\nBe brief.\n\n<oriveo-delivery>\nDELIVERY\n</oriveo-delivery>",
+              "output_modalities": [
+                "audio"
+              ],
+              "audio": {
+                "input": {
+                  "format": {
+                    "type": "audio/pcm",
+                    "rate": 24000
+                  },
+                  "transcription": {
+                    "model": "gpt-4o-mini-transcribe"
+                  },
+                  "turn_detection": {
+                    "type": "semantic_vad"
+                  }
+                },
+                "output": {
+                  "format": {
+                    "type": "audio/pcm",
+                    "rate": 24000
+                  },
+                  "voice": "marin"
+                }
+              }
+            }
+          },
+          {
+            "type": "conversation.item.create",
+            "item": {
+              "type": "message",
+              "role": "user",
+              "content": [
+                {
+                  "type": "input_text",
+                  "text": "Hi"
+                }
+              ]
+            }
+          },
+          {
+            "type": "conversation.item.create",
+            "item": {
+              "type": "message",
+              "role": "assistant",
+              "content": [
+                {
+                  "type": "output_text",
+                  "text": "Hello"
+                }
+              ]
+            }
+          }
+        ],
+        "afterReady": []
+      }
+    },
+    {
+      "id": "open_openai_without_transcription_model",
+      "input": {
+        "transport": "openai_realtime",
+        "plan": {
+          "instructions": "Conversation instructions (set by the user for this conversation):\nBe brief.\n\n<oriveo-delivery>\nDELIVERY\n</oriveo-delivery>",
+          "history": []
+        },
+        "entry": {
+          "model": "gpt-realtime-2.1",
+          "transport": "openai_realtime",
+          "path": "/v1/realtime",
+          "contextWindow": 128000,
+          "voices": [
+            {
+              "id": "marin",
+              "isDefault": true
+            }
+          ],
+          "isDefault": true
+        },
+        "voice": "marin"
+      },
+      "expected": {
+        "beforeReady": [
+          {
+            "type": "session.update",
+            "session": {
+              "type": "realtime",
+              "instructions": "Conversation instructions (set by the user for this conversation):\nBe brief.\n\n<oriveo-delivery>\nDELIVERY\n</oriveo-delivery>",
+              "output_modalities": [
+                "audio"
+              ],
+              "audio": {
+                "input": {
+                  "format": {
+                    "type": "audio/pcm",
+                    "rate": 24000
+                  },
+                  "turn_detection": {
+                    "type": "semantic_vad"
+                  }
+                },
+                "output": {
+                  "format": {
+                    "type": "audio/pcm",
+                    "rate": 24000
+                  },
+                  "voice": "marin"
+                }
+              }
+            }
+          }
+        ],
+        "afterReady": []
+      }
+    },
+    {
+      "id": "open_xai_flat_session_assistant_text",
+      "input": {
+        "transport": "xai_realtime",
+        "plan": {
+          "instructions": "Conversation instructions (set by the user for this conversation):\nBe brief.\n\n<oriveo-delivery>\nDELIVERY\n</oriveo-delivery>",
+          "history": [
+            {
+              "role": "user",
+              "text": "Hi"
+            },
+            {
+              "role": "assistant",
+              "text": "Hello"
+            }
+          ]
+        },
+        "entry": {
+          "model": "grok-voice-latest",
+          "transport": "xai_realtime",
+          "path": "/v1/realtime",
+          "contextWindow": 128000,
+          "voices": [
+            {
+              "id": "Eve",
+              "isDefault": true
+            }
+          ],
+          "isDefault": true
+        },
+        "voice": "Eve"
+      },
+      "expected": {
+        "beforeReady": [
+          {
+            "type": "session.update",
+            "session": {
+              "instructions": "Conversation instructions (set by the user for this conversation):\nBe brief.\n\n<oriveo-delivery>\nDELIVERY\n</oriveo-delivery>",
+              "voice": "Eve",
+              "turn_detection": {
+                "type": "server_vad"
+              },
+              "audio": {
+                "input": {
+                  "format": {
+                    "type": "audio/pcm",
+                    "rate": 24000
+                  }
+                },
+                "output": {
+                  "format": {
+                    "type": "audio/pcm",
+                    "rate": 24000
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "conversation.item.create",
+            "item": {
+              "type": "message",
+              "role": "user",
+              "content": [
+                {
+                  "type": "input_text",
+                  "text": "Hi"
+                }
+              ]
+            }
+          },
+          {
+            "type": "conversation.item.create",
+            "item": {
+              "type": "message",
+              "role": "assistant",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Hello"
+                }
+              ]
+            }
+          }
+        ],
+        "afterReady": []
+      }
+    },
+    {
+      "id": "open_gemini_history_in_client_content",
+      "input": {
+        "transport": "gemini_live",
+        "plan": {
+          "instructions": "Conversation instructions (set by the user for this conversation):\nBe brief.\n\n<oriveo-delivery>\nDELIVERY\n</oriveo-delivery>",
+          "history": [
+            {
+              "role": "user",
+              "text": "Hi"
+            },
+            {
+              "role": "assistant",
+              "text": "Hello"
+            }
+          ]
+        },
+        "entry": {
+          "model": "gemini-3.8-live",
+          "transport": "gemini_live",
+          "path": "/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent",
+          "contextWindow": 131072,
+          "voices": [
+            {
+              "id": "Kore",
+              "isDefault": true
+            }
+          ],
+          "isDefault": true
+        },
+        "voice": "Kore"
+      },
+      "expected": {
+        "beforeReady": [
+          {
+            "setup": {
+              "model": "models/gemini-3.8-live",
+              "generationConfig": {
+                "responseModalities": [
+                  "AUDIO"
+                ],
+                "speechConfig": {
+                  "voiceConfig": {
+                    "prebuiltVoiceConfig": {
+                      "voiceName": "Kore"
+                    }
+                  }
+                }
+              },
+              "systemInstruction": {
+                "parts": [
+                  {
+                    "text": "Conversation instructions (set by the user for this conversation):\nBe brief.\n\n<oriveo-delivery>\nDELIVERY\n</oriveo-delivery>"
+                  }
+                ]
+              },
+              "inputAudioTranscription": {},
+              "outputAudioTranscription": {},
+              "sessionResumption": {},
+              "contextWindowCompression": {
+                "slidingWindow": {}
+              },
+              "historyConfig": {
+                "initialHistoryInClientContent": true
+              }
+            }
+          }
+        ],
+        "afterReady": [
+          {
+            "clientContent": {
+              "turns": [
+                {
+                  "role": "user",
+                  "parts": [
+                    {
+                      "text": "Hi"
+                    }
+                  ]
+                },
+                {
+                  "role": "model",
+                  "parts": [
+                    {
+                      "text": "Hello"
+                    }
+                  ]
+                }
+              ],
+              "turnComplete": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "open_gemini_no_history_no_history_config",
+      "input": {
+        "transport": "gemini_live",
+        "plan": {
+          "instructions": "Conversation instructions (set by the user for this conversation):\nBe brief.\n\n<oriveo-delivery>\nDELIVERY\n</oriveo-delivery>",
+          "history": []
+        },
+        "entry": {
+          "model": "gemini-3.8-live",
+          "transport": "gemini_live",
+          "path": "/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent",
+          "contextWindow": 131072,
+          "voices": [
+            {
+              "id": "Kore",
+              "isDefault": true
+            }
+          ],
+          "isDefault": true
+        },
+        "voice": "Kore"
+      },
+      "expected": {
+        "beforeReady": [
+          {
+            "setup": {
+              "model": "models/gemini-3.8-live",
+              "generationConfig": {
+                "responseModalities": [
+                  "AUDIO"
+                ],
+                "speechConfig": {
+                  "voiceConfig": {
+                    "prebuiltVoiceConfig": {
+                      "voiceName": "Kore"
+                    }
+                  }
+                }
+              },
+              "systemInstruction": {
+                "parts": [
+                  {
+                    "text": "Conversation instructions (set by the user for this conversation):\nBe brief.\n\n<oriveo-delivery>\nDELIVERY\n</oriveo-delivery>"
+                  }
+                ]
+              },
+              "inputAudioTranscription": {},
+              "outputAudioTranscription": {},
+              "sessionResumption": {},
+              "contextWindowCompression": {
+                "slidingWindow": {}
+              }
+            }
+          }
+        ],
+        "afterReady": []
+      }
+    },
+    {
+      "id": "open_gemini_resume_sends_handle_not_history",
+      "input": {
+        "transport": "gemini_live",
+        "plan": {
+          "instructions": "Conversation instructions (set by the user for this conversation):\nBe brief.\n\n<oriveo-delivery>\nDELIVERY\n</oriveo-delivery>",
+          "history": [
+            {
+              "role": "user",
+              "text": "Hi"
+            },
+            {
+              "role": "assistant",
+              "text": "Hello"
+            }
+          ]
+        },
+        "entry": {
+          "model": "gemini-3.8-live",
+          "transport": "gemini_live",
+          "path": "/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent",
+          "contextWindow": 131072,
+          "voices": [
+            {
+              "id": "Kore",
+              "isDefault": true
+            }
+          ],
+          "isDefault": true
+        },
+        "voice": "Kore",
+        "resumeHandle": "h-1"
+      },
+      "expected": {
+        "beforeReady": [
+          {
+            "setup": {
+              "model": "models/gemini-3.8-live",
+              "generationConfig": {
+                "responseModalities": [
+                  "AUDIO"
+                ],
+                "speechConfig": {
+                  "voiceConfig": {
+                    "prebuiltVoiceConfig": {
+                      "voiceName": "Kore"
+                    }
+                  }
+                }
+              },
+              "systemInstruction": {
+                "parts": [
+                  {
+                    "text": "Conversation instructions (set by the user for this conversation):\nBe brief.\n\n<oriveo-delivery>\nDELIVERY\n</oriveo-delivery>"
+                  }
+                ]
+              },
+              "inputAudioTranscription": {},
+              "outputAudioTranscription": {},
+              "sessionResumption": {
+                "handle": "h-1"
+              },
+              "contextWindowCompression": {
+                "slidingWindow": {}
+              }
+            }
+          }
+        ],
+        "afterReady": []
+      }
+    }
+  ],
+  "urlCases": [
+    {
+      "id": "url_openai",
+      "input": {
+        "transport": "openai_realtime",
+        "host": "api.openai.com",
+        "entry": {
+          "model": "gpt-realtime-2.1",
+          "transport": "openai_realtime",
+          "path": "/v1/realtime",
+          "contextWindow": 128000,
+          "voices": [
+            {
+              "id": "marin",
+              "isDefault": true
+            }
+          ],
+          "inputTranscriptionModel": "gpt-4o-mini-transcribe",
+          "isDefault": true
+        }
+      },
+      "expected": "wss://api.openai.com/v1/realtime?model=gpt-realtime-2.1"
+    },
+    {
+      "id": "url_xai",
+      "input": {
+        "transport": "xai_realtime",
+        "host": "api.x.ai",
+        "entry": {
+          "model": "grok-voice-latest",
+          "transport": "xai_realtime",
+          "path": "/v1/realtime",
+          "contextWindow": 128000,
+          "voices": [
+            {
+              "id": "Eve",
+              "isDefault": true
+            }
+          ],
+          "isDefault": true
+        }
+      },
+      "expected": "wss://api.x.ai/v1/realtime?model=grok-voice-latest"
+    },
+    {
+      "id": "url_gemini_key_appended_by_host",
+      "input": {
+        "transport": "gemini_live",
+        "host": "generativelanguage.googleapis.com",
+        "entry": {
+          "model": "gemini-3.8-live",
+          "transport": "gemini_live",
+          "path": "/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent",
+          "contextWindow": 131072,
+          "voices": [
+            {
+              "id": "Kore",
+              "isDefault": true
+            }
+          ],
+          "isDefault": true
+        }
+      },
+      "expected": "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
+    },
+    {
+      "id": "url_model_is_percent_encoded",
+      "input": {
+        "transport": "openai_realtime",
+        "host": "api.openai.com",
+        "entry": {
+          "model": "gpt realtime/2",
+          "transport": "openai_realtime",
+          "path": "/v1/realtime",
+          "contextWindow": 128000,
+          "voices": [
+            {
+              "id": "marin",
+              "isDefault": true
+            }
+          ],
+          "inputTranscriptionModel": "gpt-4o-mini-transcribe",
+          "isDefault": true
+        }
+      },
+      "expected": "wss://api.openai.com/v1/realtime?model=gpt%20realtime%2F2"
+    }
+  ],
+  "truncateCases": [
+    {
+      "id": "truncate_openai_floor_played_ms",
+      "input": {
+        "transport": "openai_realtime",
+        "itemId": "msg_010",
+        "playedMs": 1500.9
+      },
+      "expected": {
+        "type": "conversation.item.truncate",
+        "item_id": "msg_010",
+        "content_index": 0,
+        "audio_end_ms": 1500
+      }
+    },
+    {
+      "id": "truncate_xai_same_shape",
+      "input": {
+        "transport": "xai_realtime",
+        "itemId": "msg_004",
+        "contentIndex": 0,
+        "playedMs": 820
+      },
+      "expected": {
+        "type": "conversation.item.truncate",
+        "item_id": "msg_004",
+        "content_index": 0,
+        "audio_end_ms": 820
+      }
+    },
+    {
+      "id": "truncate_negative_clamped_to_zero",
+      "input": {
+        "transport": "openai_realtime",
+        "itemId": "msg_010",
+        "playedMs": -3
+      },
+      "expected": {
+        "type": "conversation.item.truncate",
+        "item_id": "msg_010",
+        "content_index": 0,
+        "audio_end_ms": 0
+      }
+    },
+    {
+      "id": "truncate_gemini_not_sent",
+      "input": {
+        "transport": "gemini_live",
+        "itemId": null,
+        "playedMs": 900
+      },
+      "expected": null
+    },
+    {
+      "id": "truncate_without_item_not_sent",
+      "input": {
+        "transport": "openai_realtime",
+        "itemId": null,
+        "playedMs": 900
+      },
+      "expected": null
+    }
+  ],
+  "appendCases": [
+    {
+      "id": "append_openai_realtime",
+      "input": {
+        "transport": "openai_realtime",
+        "base64": "AAEC"
+      },
+      "expected": {
+        "type": "input_audio_buffer.append",
+        "audio": "AAEC"
+      }
+    },
+    {
+      "id": "append_xai_realtime",
+      "input": {
+        "transport": "xai_realtime",
+        "base64": "AAEC"
+      },
+      "expected": {
+        "type": "input_audio_buffer.append",
+        "audio": "AAEC"
+      }
+    },
+    {
+      "id": "append_gemini_live",
+      "input": {
+        "transport": "gemini_live",
+        "base64": "AAEC"
+      },
+      "expected": {
+        "realtimeInput": {
+          "audio": {
+            "data": "AAEC",
+            "mimeType": "audio/pcm;rate=16000"
+          }
+        }
+      }
+    }
+  ]
+}
