@@ -471,53 +471,15 @@ enum ProviderKind: String, CaseIterable, Hashable, Identifiable, Codable, Sendab
     }
 
     var attachmentSupport: (image: Bool, video: Bool, nativeFile: Bool, textFileInline: Bool) {
-        if let support = MetadataClient.shared.syncProviderAttachmentSupport(providerKind: self) {
-            return (
-                image: support.image,
-                video: support.video,
-                nativeFile: support.nativeFile,
-                textFileInline: support.textFileInline
-            )
+        guard let support = MetadataClient.shared.syncProviderAttachmentSupport(providerKind: self) else {
+            return (image: false, video: false, nativeFile: false, textFileInline: false)
         }
-
-        return fallbackAttachmentSupport
-    }
-
-    private var fallbackAttachmentSupport: (image: Bool, video: Bool, nativeFile: Bool, textFileInline: Bool) {
-        switch self {
-        case .openRouter:
-            return (image: true, video: false, nativeFile: true, textFileInline: true)
-        case .openAI:
-            return (image: true, video: false, nativeFile: true, textFileInline: true)
-        case .gemini:
-            return (image: true, video: true, nativeFile: true, textFileInline: true)
-        case .anthropic:
-            return (image: true, video: false, nativeFile: true, textFileInline: true)
-        case .deepseek:
-            return (image: false, video: false, nativeFile: false, textFileInline: true)
-        case .grok:
-            return (image: true, video: false, nativeFile: false, textFileInline: true)
-        case .groq:
-            return (image: true, video: false, nativeFile: false, textFileInline: true)
-        case .together:
-            return (image: true, video: false, nativeFile: false, textFileInline: true)
-        case .fireworks:
-            return (image: true, video: false, nativeFile: false, textFileInline: true)
-        case .miniMax:
-            return (image: false, video: false, nativeFile: false, textFileInline: true)
-        case .zhipu:
-            return (image: true, video: false, nativeFile: false, textFileInline: true)
-        case .qwen:
-            return (image: true, video: false, nativeFile: false, textFileInline: true)
-        case .moonshot:
-            return (image: true, video: false, nativeFile: false, textFileInline: true)
-        case .mistral:
-            return (image: true, video: false, nativeFile: false, textFileInline: true)
-        case .siliconFlow:
-            return (image: true, video: false, nativeFile: false, textFileInline: true)
-        case .relay:
-            return (image: true, video: false, nativeFile: false, textFileInline: true)
-        }
+        return (
+            image: support.image,
+            video: support.video,
+            nativeFile: support.nativeFile,
+            textFileInline: support.textFileInline
+        )
     }
 }
 
@@ -762,30 +724,6 @@ struct ChatCapabilitySelection: Hashable, Codable, Sendable {
     var hasCustomReasoning: Bool {
         reasoningMode != .automatic
     }
-
-    func normalized(for model: AIModel?) -> ChatCapabilitySelection {
-        guard let model else { return ChatCapabilitySelection() }
-
-        var normalized = self
-        if !model.reasoningModeAvailable {
-            normalized.reasoningMode = .automatic
-        } else {
-            normalized.reasoningMode = MetadataClient.shared.syncClampReasoningMode(
-                mode: normalized.reasoningMode,
-                profileName: model.reasoningProfile
-            )
-        }
-        if !model.capabilities.contains(.web) {
-            normalized.webSearchEnabled = false
-        }
-        if !model.supportsWebSearchControl {
-            normalized.webSearchEnabled = false
-        }
-        if model.toolCall == false {
-            normalized.libraryResearchEnabled = false
-        }
-        return normalized
-    }
 }
 
 struct AttachmentExtractionLimits: Codable, Equatable, Hashable, Sendable {
@@ -911,11 +849,6 @@ struct AIModel: Identifiable, Hashable, Codable, Sendable {
     /// Nil = this object was not produced by decoding the current catalog; an item inside being nil = the catalog did not declare it.
     /// Same discipline as `upstreamReasoningLevels`: **not in `CodingKeys`**, refilled on every catalog fetch.
     var catalogCapabilityTruth: CatalogCapabilityTruth? = nil
-
-    var supportsWebSearchControl: Bool {
-        capabilities.contains(.web)
-            && webSearchProfile?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-    }
 
     var supportsImageGenerationRoute: Bool {
         capabilities.contains(.imageGen)

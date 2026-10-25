@@ -522,6 +522,7 @@ final class ProviderManager {
         .enumerated().map { index, model -> AIModel in
             var enriched = model
             enriched.upstreamReasoningLevels = descriptors[index].supportedReasoningLevels
+            enriched.upstreamInputModalities = descriptors[index].inputModalities
             return enriched
         }
     }
@@ -1890,9 +1891,9 @@ final class ProviderManager {
             updateProvider(current)
         }
         // When test results are written back, clear the image and toolCall negative cache of the model's first-send protocol (the protocol this test sent).
-        RelayNegativeCache.shared.clear(
+        Self.clearRelayNegativeCaches(
             connectionID: providerID.uuidString, modelID: modelID,
-            transport: transport.rawValue, kinds: [.image, .toolCall]
+            transport: transport, kinds: [.image, .toolCall]
         )
         return result
     }
@@ -2249,11 +2250,49 @@ final class ProviderManager {
         guard value != nil, let kind,
               let provider = provider(for: providerID),
               let model = provider.models.first(where: { $0.id == modelID }) else { return }
-        RelayNegativeCache.shared.clear(
+        Self.clearRelayNegativeCaches(
             connectionID: providerID.uuidString, modelID: modelID,
-            transport: RelayFirstSendTransport.current(provider: provider, model: model).rawValue,
+            transport: RelayFirstSendTransport.current(provider: provider, model: model),
             kinds: [kind]
         )
+    }
+
+    /// Clears the relay negative cache and the matching capability negative cache entries together, so a
+    /// rejection recorded in either layer cannot keep hiding a capability the user just re-tested or overrode.
+    static func clearRelayNegativeCaches(
+        connectionID: String,
+        modelID: String,
+        transport: RelayTransport,
+        kinds: Set<RelayNegativeCache.Kind>,
+        negativeCache: RelayNegativeCache = .shared,
+        capabilityNegativeCache: CapabilityNegativeCache = .shared
+    ) {
+        negativeCache.clear(connectionID: connectionID, modelID: modelID, transport: transport.rawValue, kinds: kinds)
+        let keys: [String] = kinds.compactMap { kind in
+            switch kind {
+            case .image: CapabilityEvidenceFacade.visionInputKey
+            case .file: CapabilityEvidenceFacade.fileInputKey
+            case .toolCall, .reasoningTierFast, .reasoningTierBalanced, .reasoningTierDeep, .reasoningTierMax: nil
+            }
+        }
+        for key in keys {
+            guard let family = CapabilityEvidenceProductionAdapter.relayWireFamily(transport: transport, key: key) else {
+                continue
+            }
+            capabilityNegativeCache.clear(
+                connectionId: connectionID, modelId: modelID, wireFamily: family, capabilityKeys: [key]
+            )
+        }
+    }
+
+    /// Clears every negative cache entry of a connection in both layers.
+    static func clearRelayNegativeCaches(
+        connectionID: String,
+        negativeCache: RelayNegativeCache = .shared,
+        capabilityNegativeCache: CapabilityNegativeCache = .shared
+    ) {
+        negativeCache.clearConnection(connectionID)
+        capabilityNegativeCache.clearConnection(connectionID)
     }
 
     /// The five thinking cells: they only narrow the automatic set (anything outside it is dropped); a set equal to the automatic one, or nil, deletes the override; an empty set is not written.
@@ -2279,9 +2318,9 @@ final class ProviderManager {
             model.relayCapabilityOverrides = overrides.isEmpty ? nil : overrides
         }
         // When the user changes the level override, clear the level-rejection record of the model's first-send protocol.
-        RelayNegativeCache.shared.clear(
+        Self.clearRelayNegativeCaches(
             connectionID: providerID.uuidString, modelID: modelID,
-            transport: RelayFirstSendTransport.current(provider: provider, model: model).rawValue,
+            transport: RelayFirstSendTransport.current(provider: provider, model: model),
             kinds: RelayReasoningTier.kinds
         )
     }
@@ -2372,7 +2411,7 @@ final class ProviderManager {
         appState?.relayModelProbeStates[providerID] = nil
         ToolCallMemoryStore.shared.clear(connectionID: providerID)
         UnsupportedParamCache.shared.clearCapabilityRejections(connectionID: providerID.uuidString)
-        RelayNegativeCache.shared.clearConnection(providerID.uuidString)
+        Self.clearRelayNegativeCaches(connectionID: providerID.uuidString)
         if provider != before {
             updateProvider(provider)
         }
@@ -2520,7 +2559,7 @@ final class ProviderManager {
         ProviderCapabilityIdentityStore.tombstone(providerID: providerID, partitionID: appState.sessionPartitionUID)
         ToolCallMemoryStore.shared.clear(connectionID: providerID)
         // The relay's negative cache is cleared as a whole entry together with the connection.
-        RelayNegativeCache.shared.clearConnection(providerID.uuidString)
+        Self.clearRelayNegativeCaches(connectionID: providerID.uuidString)
         // The connection-level web fragments live on this device only and go with the connection.
         RelayWebFragmentStore.shared.deleteConnection(providerID)
         // Web probe records live in the same layer as the negative cache and go with the connection.
@@ -2550,7 +2589,6 @@ final class ProviderManager {
         } else {
             providers.insert(p, at: 0)
         }
-        normalizeConversationModelSelections(for: p)
         if p.kind == .relay {
             scheduleRelayFinalize(for: p)
         }
@@ -2588,7 +2626,6 @@ final class ProviderManager {
         }
         let replacedKeyIDs = Self.relayReplacedSecretKeyIDs(from: providers[index], to: p)
         providers[index] = p
-        normalizeConversationModelSelections(for: p)
         if p.kind == .relay {
             scheduleRelayFinalize(for: p)
         }
@@ -2614,8 +2651,7 @@ final class ProviderManager {
     /// the models both derive from `ProviderCatalogResolver.resolve` over the whole catalog. A relay catalog comes
     /// from the user's own server (tens of thousands of models on some public relays), and enriching each one
     /// against every official catalog takes hundreds of milliseconds on the main thread. The caller has already
-    /// stored the user's change and normalized conversations synchronously; this only fills in the derived fields
-    /// in the background.
+    /// stored the user's change synchronously; this only fills in the derived fields in the background.
     ///
     /// Ordering: the result is only merged into a Provider that is still exactly this write. Any later write (a
     /// new update/upsert always carries a new `updatedAt`, and a delete removes it) invalidates it. The newer write
@@ -2644,7 +2680,6 @@ final class ProviderManager {
         relayFinalizeTasks[written.id] = nil
         guard finalized != written else { return }
         providers[index] = finalized
-        normalizeConversationModelSelections(for: finalized)
     }
 
     /// Pure function: reads only the Provider value and MetadataClient's shared, lock-protected snapshot, so it can
@@ -2721,117 +2756,6 @@ final class ProviderManager {
         return p
     }
 
-    /// Syncs the model ids referenced by conversations after a Provider changes (official providers only).
-    ///
-    /// Relays (including local ones) are skipped: when a conversation's model is not among the enabled models it is
-    /// neither silently replaced nor rewritten, and the composer asks the user to pick again. The catalog of an official
-    /// provider is metadata-sized, so it is normalized synchronously on the spot: the catalog is read once, the index
-    /// is built once, and each stored id is resolved once (the criterion is exactly equivalent to calling
-    /// `matchingModel(for:in:)` per conversation).
-    private func normalizeConversationModelSelections(for provider: Provider) {
-        guard provider.kind != .relay else { return }
-        let stored = storedConversationModels(for: provider.id)
-        guard !stored.isEmpty else { return }
-        // For built-in providers with no local catalog, allModels is a full resolve on every read, which used to run
-        // once per conversation.
-        let allModels = provider.allModels
-        guard !allModels.isEmpty else { return }
-        let providerKind = provider.kind
-        let defaultModelID = provider.defaultModel.map {
-            ModelResolver.preferredStoredModelIdentifier(for: $0, providerKind: providerKind)
-        }
-        applyConversationModelNormalizations(
-            Self.conversationModelNormalizations(
-                stored,
-                allModels: allModels,
-                enabledModels: provider.models,
-                defaultModelID: defaultModelID,
-                providerKind: providerKind
-            ),
-            providerID: provider.id
-        )
-    }
-
-    private func storedConversationModels(for providerID: UUID) -> [StoredConversationModel] {
-        appState.conversations.compactMap { conversation in
-            guard conversation.providerID == providerID else { return nil }
-            return StoredConversationModel(conversationID: conversation.id, modelID: conversation.modelID)
-        }
-    }
-
-    /// Changes only conversations that still belong to the Provider and still hold the model id read at
-    /// normalization time (always true on the synchronous path).
-    private func applyConversationModelNormalizations(
-        _ normalizations: [ConversationModelNormalization],
-        providerID: UUID
-    ) {
-        guard !normalizations.isEmpty else { return }
-        var currentByID: [UUID: Conversation] = [:]
-        for conversation in appState.conversations
-        where conversation.providerID == providerID && currentByID[conversation.id] == nil {
-            currentByID[conversation.id] = conversation
-        }
-        let metadataUpdatedAt = Date()
-        let modelUpdates = normalizations.compactMap { normalization -> ConversationModelUpdate? in
-            guard let conversation = currentByID[normalization.conversationID],
-                  conversation.modelID == normalization.storedModelID else { return nil }
-            // Normalization only swaps the modelID, never the provider, so providerKind keeps its value.
-            return ConversationModelUpdate(
-                conversationID: conversation.id,
-                providerID: conversation.providerID,
-                providerKind: conversation.providerKind,
-                modelID: normalization.normalizedModelID,
-                metadataUpdatedAt: metadataUpdatedAt
-            )
-        }
-        if !modelUpdates.isEmpty {
-            appState.updateConversationModelProjections(modelUpdates)
-        }
-    }
-
-    /// Pure function over the values passed in, safe to run off the main thread. Each conversation's result is
-    /// exactly `matchingModel(for:in:)` (allModels first, then the enabled models) mapped to its stored id, or the
-    /// default model when nothing matches.
-    nonisolated private static func conversationModelNormalizations(
-        _ stored: [StoredConversationModel],
-        allModels: [AIModel],
-        enabledModels: [AIModel],
-        defaultModelID: String?,
-        providerKind: ProviderKind
-    ) -> [ConversationModelNormalization] {
-        var allModelsIndex = ModelResolver.MatchingModelIndex(allModels, providerKind: providerKind)
-        var enabledIndex: ModelResolver.MatchingModelIndex?
-        var normalizedByStoredID: [String: String] = [:]
-        var normalizations: [ConversationModelNormalization] = []
-        for conversation in stored {
-            let normalizedModelID: String
-            if let known = normalizedByStoredID[conversation.modelID] {
-                normalizedModelID = known
-            } else {
-                var resolvedModel = allModelsIndex.match(conversation.modelID)
-                if resolvedModel == nil {
-                    if enabledIndex == nil {
-                        enabledIndex = ModelResolver.MatchingModelIndex(enabledModels, providerKind: providerKind)
-                    }
-                    resolvedModel = enabledIndex?.match(conversation.modelID)
-                }
-                normalizedModelID = resolvedModel.map {
-                    ModelResolver.preferredStoredModelIdentifier(for: $0, providerKind: providerKind)
-                } ?? defaultModelID ?? conversation.modelID
-                normalizedByStoredID[conversation.modelID] = normalizedModelID
-            }
-            if normalizedModelID != conversation.modelID {
-                normalizations.append(ConversationModelNormalization(
-                    conversationID: conversation.conversationID,
-                    storedModelID: conversation.modelID,
-                    normalizedModelID: normalizedModelID
-                ))
-            }
-        }
-        return normalizations
-    }
-
-
     func applyValidationOutcome(_ result: ProviderKeyValidator.Result, to provider: inout Provider) {
         provider.lastCheckedAt = Date()
         switch result {
@@ -2884,18 +2808,4 @@ final class ProviderManager {
             }
         }
     }
-}
-
-/// Input snapshot for conversation model normalization: only the two values the background computation reads.
-private nonisolated struct StoredConversationModel: Sendable {
-    let conversationID: UUID
-    let modelID: String
-}
-
-/// Result of conversation model normalization: `storedModelID` is the value read at computation time, used before the
-/// merge to confirm the conversation has not changed.
-private nonisolated struct ConversationModelNormalization: Sendable {
-    let conversationID: UUID
-    let storedModelID: String
-    let normalizedModelID: String
 }

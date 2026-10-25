@@ -432,18 +432,18 @@ func providerModelSpecifications(for model: AIModel) -> [ProviderModelSpecificat
         )
     }
 
-    if let value = perMillionPriceText(fromPerToken: model.promptPrice) {
+    if let value = perMillionPriceText(fromPerToken: model.promptPrice, currencyCode: model.priceCurrencyCode) {
         specifications.append(.init(id: "input", label: L10n.tr("Input", table: .chat), value: value, systemImage: nil))
     }
-    if let value = perMillionPriceText(fromPerToken: model.completionPrice) {
+    if let value = perMillionPriceText(fromPerToken: model.completionPrice, currencyCode: model.priceCurrencyCode) {
         specifications.append(.init(id: "output", label: L10n.tr("Output", table: .chat), value: value, systemImage: nil))
     }
-    if let value = perMillionPriceText(fromPerMillion: model.cacheReadInputPerMToken) {
+    if let value = perMillionPriceText(fromPerMillion: model.cacheReadInputPerMToken, currencyCode: model.priceCurrencyCode) {
         specifications.append(.init(id: "cache-read", label: L10n.tr("Cache read", table: .chat), value: value, systemImage: nil, isSecondary: true))
     }
 
     let cacheWrite = model.cacheWrite5mPerMToken ?? model.cacheCreationInputPerMToken
-    if let value = perMillionPriceText(fromPerMillion: cacheWrite) {
+    if let value = perMillionPriceText(fromPerMillion: cacheWrite, currencyCode: model.priceCurrencyCode) {
         let suffix = model.cacheWrite5mPerMToken == nil ? "" : " 5m"
         specifications.append(
             .init(
@@ -455,7 +455,7 @@ func providerModelSpecifications(for model: AIModel) -> [ProviderModelSpecificat
             )
         )
     }
-    if let value = perMillionPriceText(fromPerMillion: model.cacheWrite1hPerMToken) {
+    if let value = perMillionPriceText(fromPerMillion: model.cacheWrite1hPerMToken, currencyCode: model.priceCurrencyCode) {
         specifications.append(
             .init(
                 id: "cache-write-1h",
@@ -537,15 +537,17 @@ struct ProviderModelSpecInline: View {
     }
 }
 
-private func perMillionPriceText(fromPerToken price: Double?) -> String? {
+private func perMillionPriceText(fromPerToken price: Double?, currencyCode: String?) -> String? {
     guard let price, price.isFinite, price > 0 else { return nil }
-    let formatted = CostFormatter.formatPerMillion(price)
+    let formatted = CostFormatter.formatPerMillion(price, currencyCode: currencyCode, locale: AppLocalization.currentLocale)
     return formatted.isEmpty ? nil : formatted
 }
 
-private func perMillionPriceText(fromPerMillion price: Double?) -> String? {
+private func perMillionPriceText(fromPerMillion price: Double?, currencyCode: String?) -> String? {
     guard let price, price.isFinite, price > 0 else { return nil }
-    let formatted = CostFormatter.formatPerMillion(price / 1_000_000)
+    let formatted = CostFormatter.formatPerMillion(
+        price / 1_000_000, currencyCode: currencyCode, locale: AppLocalization.currentLocale
+    )
     return formatted.isEmpty ? nil : formatted
 }
 

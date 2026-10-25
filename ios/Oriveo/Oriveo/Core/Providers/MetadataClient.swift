@@ -2559,10 +2559,6 @@ actor MetadataClient {
         }
     }
 
-    nonisolated func syncClampReasoningMode(mode: ReasoningMode, profileName: String?) -> ReasoningMode {
-        Self.withSharedSnapshot { Self.clampReasoningMode(mode, profileName: profileName, in: $0) }
-    }
-
     // MARK: - Internal
 
     private func replaceTable(_ newValue: MetadataResponse?) {
