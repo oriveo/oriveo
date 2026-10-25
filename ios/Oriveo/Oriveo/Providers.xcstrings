@@ -15067,7 +15067,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hubungkan penyedia terlebih dahulu. Peralihan model, obrolan, dan transparansi biaya semuanya dimulai di sini."
+            "value" : "Hubungkan penyedia terlebih dahulu. Peralihan model, percakapan, dan transparansi biaya semuanya dimulai di sini."
           }
         },
         "ja" : {
@@ -25965,7 +25965,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hasilkan gambar di obrolan"
+            "value" : "Hasilkan gambar di percakapan"
           }
         },
         "ja" : {
@@ -39477,7 +39477,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Obrolan teks biasa"
+            "value" : "Chat teks biasa"
           }
         },
         "ja" : {
@@ -47087,7 +47087,7 @@
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "Mengirim hingga %lld permintaan kecil dengan kunci Anda, lewat jalur yang sama dengan obrolan. Salah satunya melakukan pencarian web, yang mungkin dikenai biaya pencarian. Maksimal 30 detik per item."
+                  "value" : "Mengirim hingga %lld permintaan kecil dengan kunci Anda, lewat jalur yang sama dengan percakapan. Salah satunya melakukan pencarian web, yang mungkin dikenai biaya pencarian. Maksimal 30 detik per item."
                 }
               }
             }
@@ -47371,7 +47371,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mengirim hingga %lld permintaan kecil dengan kunci Anda, lewat jalur yang sama dengan obrolan. Maksimal 30 detik per item."
+            "value" : "Mengirim hingga %lld permintaan kecil dengan kunci Anda, lewat jalur yang sama dengan percakapan. Maksimal 30 detik per item."
           }
         },
         "ja" : {
@@ -60530,7 +60530,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Unggah gambar ke obrolan"
+            "value" : "Unggah gambar ke percakapan"
           }
         },
         "ja" : {

@@ -108,7 +108,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%d Konversationen wurden zusammengeführt"
+            "value" : "%d Unterhaltungen wurden zusammengeführt"
           }
         },
         "es" : {
@@ -203,7 +203,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%d Konversationen wurden übersprungen"
+            "value" : "%d Unterhaltungen wurden übersprungen"
           }
         },
         "es" : {
@@ -488,7 +488,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%d neue Konversationen hinzugefügt"
+            "value" : "%d neue Unterhaltungen hinzugefügt"
           }
         },
         "es" : {
@@ -2198,7 +2198,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gespräche"
+            "value" : "Unterhaltungen"
           }
         },
         "es" : {
@@ -4763,7 +4763,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fügen Sie Nachrichten in bestehende Konversationen ein und fügen Sie neue hinzu."
+            "value" : "Fügen Sie Nachrichten in bestehende Unterhaltungen ein und fügen Sie neue hinzu."
           }
         },
         "es" : {
@@ -5814,7 +5814,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Stellen Sie Konversationen, Anbieter und Einstellungen aus einer Sicherungsdatei wieder her."
+            "value" : "Stellen Sie Unterhaltungen, Anbieter und Einstellungen aus einer Sicherungsdatei wieder her."
           }
         },
         "es" : {
@@ -6004,7 +6004,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Überspringen Sie bestehende Gespräche und Anbieter; nur neue hinzufügen."
+            "value" : "Überspringen Sie bestehende Unterhaltungen und Anbieter; nur neue hinzufügen."
           }
         },
         "es" : {

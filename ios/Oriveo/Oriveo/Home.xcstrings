@@ -13,7 +13,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%d Konversationen werden dauerhaft gelöscht."
+            "value" : "%d Unterhaltungen werden dauerhaft gelöscht."
           }
         },
         "es" : {
@@ -399,7 +399,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wechsle das Modell für die nächste Antwort, ohne die Konversation zu verlieren."
+            "value" : "Wechsle das Modell für die nächste Antwort, ohne die Unterhaltung zu verlieren."
           }
         },
         "es" : {
@@ -494,7 +494,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gesprächstitel"
+            "value" : "Titel der Unterhaltung"
           }
         },
         "es" : {
@@ -874,6 +874,101 @@
         }
       }
     },
+    "Current: %@ · %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "الحالي: %@ · %@"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktuell: %@ · %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actual: %@ · %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actuel : %@ · %@"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "वर्तमान: %@ · %@"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saat ini: %@ · %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在: %@ · %@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "현재: %@ · %@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atual: %@ · %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Текущий: %@ · %@"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ปัจจุบัน: %@ · %@"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Güncel: %@ · %@"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hiện tại: %@ · %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前: %@ · %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前: %@ · %@"
+          }
+        }
+      }
+    },
     "Current: %@ • %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1183,7 +1278,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ausgewählte Konversationen löschen?"
+            "value" : "Ausgewählte Unterhaltungen löschen?"
           }
         },
         "es" : {
@@ -3345,7 +3440,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gespräch umbenennen"
+            "value" : "Unterhaltung umbenennen"
           }
         },
         "es" : {
@@ -4224,7 +4319,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Starte dein erstes KI-Gespräch"
+            "value" : "Starte deine erste Unterhaltung mit der KI"
           }
         },
         "es" : {

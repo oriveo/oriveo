@@ -3,9 +3,51 @@
   "strings" : {
     "" : {
       "extractionState" : "manual",
+      "localizations" : {
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ""
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ""
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ""
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ""
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ""
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ""
+          }
+        }
+      },
       "shouldTranslate" : false
     },
     " " : {
+      "extractionState" : "manual",
+      "shouldTranslate" : false
+    },
+    "  ·  " : {
       "extractionState" : "manual",
       "shouldTranslate" : false
     },
@@ -69,10 +111,26 @@
     },
     "%@ · %@" : {
       "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$@"
+          }
+        }
+      },
       "shouldTranslate" : false
     },
     "%@ / %@" : {
       "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ / %2$@"
+          }
+        }
+      },
       "shouldTranslate" : false
     },
     "%@ / 2,000" : {
@@ -4967,7 +5025,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Data obrolan tidak diunggah ke server Oriveo"
+            "value" : "Data percakapan tidak diunggah ke server Oriveo"
           }
         },
         "ja" : {
@@ -7605,7 +7663,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dieses Gespräch konnte nicht geladen werden."
+            "value" : "Diese Unterhaltung konnte nicht geladen werden."
           }
         },
         "es" : {
@@ -7629,7 +7687,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Obrolan ini tidak bisa dimuat."
+            "value" : "Percakapan ini tidak bisa dimuat."
           }
         },
         "ja" : {
@@ -7843,13 +7901,13 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Текущий разговор"
+            "value" : "Текущий диалог"
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "การสนทนาปัจจุบัน"
+            "value" : "บทสนทนาปัจจุบัน"
           }
         },
         "tr" : {
@@ -8181,7 +8239,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dieses Gespräch löschen?"
+            "value" : "Diese Unterhaltung löschen?"
           }
         },
         "es" : {
@@ -15945,7 +16003,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Obrolan Baru"
+            "value" : "Percakapan Baru"
           }
         },
         "ja" : {
@@ -19825,7 +19883,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bereit, ein neues Gespräch zu beginnen"
+            "value" : "Bereit, eine neue Unterhaltung zu beginnen"
           }
         },
         "es" : {
@@ -20039,7 +20097,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Penalaran & obrolan"
+            "value" : "Penalaran & percakapan"
           }
         },
         "ja" : {
@@ -39284,6 +39342,101 @@
         }
       }
     },
+    "Supported" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "مدعوم"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unterstützt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compatible"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pris en charge"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "समर्थित"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Didukung"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "対応済み"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "지원됨"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compatível"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поддерживается"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "รองรับ"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Destekleniyor"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Được hỗ trợ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已支持"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已支援"
+          }
+        }
+      }
+    },
     "Switch" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -41838,7 +41991,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dieses Gespräch und alle Nachrichten werden dauerhaft gelöscht."
+            "value" : "Diese Unterhaltung und alle Nachrichten werden dauerhaft gelöscht."
           }
         },
         "es" : {
@@ -44430,7 +44583,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ruang penyimpanan perangkat sudah habis, jadi Oriveo tidak bisa membuka data lokalnya. Kosongkan sebagian ruang lalu coba lagi — obrolan tetap tersimpan di perangkat ini."
+            "value" : "Ruang penyimpanan perangkat sudah habis, jadi Oriveo tidak bisa membuka data lokalnya. Kosongkan sebagian ruang lalu coba lagi — percakapan tetap tersimpan di perangkat ini."
           }
         },
         "ja" : {
@@ -44502,7 +44655,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Auf Ihrem Gerät ist kein Speicherplatz mehr frei. Neue Nachrichten werden möglicherweise nicht gespeichert – schaffen Sie Platz, damit dieses Gespräch erhalten bleibt."
+            "value" : "Auf Ihrem Gerät ist kein Speicherplatz mehr frei. Neue Nachrichten werden möglicherweise nicht gespeichert – schaffen Sie Platz, damit diese Unterhaltung erhalten bleibt."
           }
         },
         "es" : {
@@ -44526,7 +44679,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Penyimpanan perangkat penuh. Pesan baru mungkin tidak tersimpan — kosongkan ruang agar obrolan ini tidak hilang."
+            "value" : "Penyimpanan perangkat penuh. Pesan baru mungkin tidak tersimpan — kosongkan ruang agar percakapan ini tidak hilang."
           }
         },
         "ja" : {

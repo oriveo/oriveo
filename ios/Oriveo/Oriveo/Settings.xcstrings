@@ -880,7 +880,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kürzliche Gespräche konnten nicht geladen werden"
+            "value" : "Kürzliche Unterhaltungen konnten nicht geladen werden"
           }
         },
         "es" : {
@@ -1575,7 +1575,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Führe zuerst einige Gespräche, dann erstelle daraus den Entwurf."
+            "value" : "Führe zuerst einige Unterhaltungen, dann erstelle daraus den Entwurf."
           }
         },
         "es" : {
@@ -2353,7 +2353,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nicht genug Gesprächsinhalt"
+            "value" : "Nicht genug Inhalt aus Unterhaltungen"
           }
         },
         "es" : {
@@ -2622,6 +2622,107 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "請稍後重試，或手動編寫。"
+          }
+        }
+      }
+    },
+    "Replay Onboarding" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "إعادة عرض الجولة التعريفية"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einführung erneut ansehen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replay Onboarding"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ver la introducción de nuevo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revoir l'introduction"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "परिचय फिर से देखें"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Putar Ulang Perkenalan"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オンボーディングをもう一度見る"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "온보딩 다시 보기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rever a introdução"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Посмотреть знакомство снова"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ดูการแนะนำอีกครั้ง"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tanıtımı yeniden izle"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xem lại phần giới thiệu"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重看新手引导"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重看新手引導"
           }
         }
       }
