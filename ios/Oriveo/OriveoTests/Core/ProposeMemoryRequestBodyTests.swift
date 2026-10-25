@@ -42,8 +42,8 @@ private final class ProposeBodyURLProtocol: URLProtocol, @unchecked Sendable {
 }
 
 /// When an ordinary chat request carries a client tool (propose_memory), the tools / tool_choice of each protocol's request body
-/// have the same shape as the projections of fixture `memory-propose.v2.json`; without it there is no tools key.
-@Suite("Propose memory request body (client tools injection)", .serialized)
+/// have the same shape as the projections of fixture `memory-propose.v3.json`; without it there is no tools key.
+@Suite("Propose memory request body (client tools injection)", .serialized, .sharedProcessState)
 struct ProposeMemoryRequestBodyTests {
 
     // MARK: Fixtures and shared builders
@@ -51,7 +51,7 @@ struct ProposeMemoryRequestBodyTests {
     private static func proposeFixture() throws -> [String: Any] {
         var cursor = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         while cursor.path != "/" {
-            let candidate = cursor.appendingPathComponent("shared/context-contracts/memory-propose.v2.json")
+            let candidate = cursor.appendingPathComponent("shared/context-contracts/memory-propose.v3.json")
             if FileManager.default.fileExists(atPath: candidate.path) {
                 return try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: candidate)) as? [String: Any])
             }

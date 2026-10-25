@@ -99,7 +99,7 @@ struct MemoryCandidateRepositoryTests {
 
     private static let explicitText = "\u{8BB0}\u{4F4F}\u{6211}\u{504F}\u{597D}\u{7B80}\u{6D01}\u{56DE}\u{7B54}"
     private static let implicitText = "\u{4EE5}\u{540E}\u{6240}\u{6709}\u{5BF9}\u{8BDD}\u{90FD}\u{7528}\u{7B80}\u{4F53}\u{4E2D}\u{6587}\u{56DE}\u{590D}\u{6211}"
-    private static let folderMarkerText = "\u{8BB0}\u{4F4F}，\u{8FD9}\u{4E2A}\u{9879}\u{76EE}\u{91CC}\u{7684}\u{4EE3}\u{7801}\u{90FD}\u{7528} Kotlin \u{5199}"
+    private static let folderMarkerText = "\u{8BB0}\u{4F4F}\u{FF0C}\u{8FD9}\u{4E2A}\u{9879}\u{76EE}\u{91CC}\u{7684}\u{4EE3}\u{7801}\u{90FD}\u{7528} Kotlin \u{5199}"
     private static let typeScriptText = "Remember that I use TypeScript"
 
     @Test func generate_creates_pending_for_explicit_remember() async throws {
@@ -521,7 +521,7 @@ struct MemoryCandidateRepositoryTests {
             conversationId: Self.conversation,
             folderId: folderId,
             nowMs: nowMs
-        )
+        ).candidate
     }
 
     @Test func propose_creates_pending_from_tool_call() async throws {
@@ -557,7 +557,7 @@ struct MemoryCandidateRepositoryTests {
         // This turn has already used its 3 calls
         #expect(try await propose(device, valid, priorInTurn: 3) == nil)
         // The message contains a secret
-        #expect(try await propose(device, valid, userText: "\u{8BB0}\u{4F4F}\u{6211}\u{504F}\u{597D}\u{7B80}\u{6D01}\u{56DE}\u{7B54}，\u{6211}\u{7684}\u{5BC6}\u{7801}\u{662F} hunter2") == nil)
+        #expect(try await propose(device, valid, userText: "\u{8BB0}\u{4F4F}\u{6211}\u{504F}\u{597D}\u{7B80}\u{6D01}\u{56DE}\u{7B54}\u{FF0C}\u{6211}\u{7684}\u{5BC6}\u{7801}\u{662F} hunter2") == nil)
 
         #expect(try device.storedRows().isEmpty)
         #expect(try await propose(device, valid, priorInTurn: 2) != nil)
@@ -597,7 +597,7 @@ struct MemoryCandidateRepositoryTests {
     private static func proposeFixture() throws -> [String: Any] {
         var cursor = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         while cursor.path != "/" {
-            let candidate = cursor.appendingPathComponent("shared/context-contracts/memory-propose.v2.json")
+            let candidate = cursor.appendingPathComponent("shared/context-contracts/memory-propose.v3.json")
             if FileManager.default.fileExists(atPath: candidate.path) {
                 return try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: candidate)) as? [String: Any])
             }

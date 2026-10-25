@@ -46,7 +46,7 @@ private func sameResolvedColor(_ lhs: UIColor?, _ rhs: UIColor) -> Bool {
     }
 }
 
-@Suite("MemorySuggestionPresentation", .serialized)
+@Suite("MemorySuggestionPresentation", .serialized, .sharedProcessState)
 struct MemorySuggestionPresentationTests {
     /// The primary save button background uses the brand primary color with white text, not system blue (AccentColor is empty).
     @MainActor
@@ -64,8 +64,8 @@ struct MemorySuggestionPresentationTests {
     private static let remember = "zh_explicit_01_golden"
     /// Global directive -> suggestion=memory.
     private static let globalDirective = "zh_implicit_04_golden"
-    /// Conversation-level directive -> suggestion=conversationInstruction.
-    private static let conversationDirective = "en_implicit_01_golden"
+    /// Conversation-level directive -> suggestion=conversationInstruction (the lexical bar is gated by language; the zh sentence is used).
+    private static let conversationDirective = "zh_implicit_03_golden"
     /// Contains a secret -> suggestion=none.
     private static let secretMessage = "mixed_sensitive_02"
     /// One-off request -> suggestion=none (used as the "next send").
@@ -428,10 +428,9 @@ struct MemorySuggestionPresentationTests {
             let candidates = try await pendingCandidates(state)
             #expect(candidates.isEmpty)
 
-            // The standing-instruction bar stays as before.
+            // The lexical standing-instruction bar does not run either: it only comes from the model's instruct.
             try await send(Self.conversationDirective, state, conversation.id)
-            let pending = try #require(state.directiveSuggestions.pending(in: conversation.id))
-            #expect(pending.sentence == DirectiveDetector.detect(try Self.text(Self.conversationDirective)).span)
+            #expect(state.directiveSuggestions.pending(in: conversation.id) == nil)
         }
     }
 
@@ -462,7 +461,7 @@ struct MemorySuggestionPresentationTests {
                     conversationId: conversation.id.uuidString,
                     folderId: nil,
                     nowMs: Int64(Date().timeIntervalSince1970 * 1000)
-                ))
+                ).candidate)
                 created.append(candidate)
                 state.memorySuggestions.presentProposed(candidate, messageID: assistantID, conversationID: conversation.id)
             }
