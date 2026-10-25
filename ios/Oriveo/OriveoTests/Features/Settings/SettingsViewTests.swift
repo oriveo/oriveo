@@ -46,6 +46,18 @@ struct SettingsViewTests {
         #expect(flatStyleSource.contains("func flatMenuRow"))
     }
 
+    @Test("the AI group has a Voice row after Skills that opens the voice settings page")
+    func aiGroupHasVoiceRowNavigatingToVoiceSettings() throws {
+        let source = try String(contentsOf: settingsViewSourceURL, encoding: .utf8)
+        let aiGroup = try source.requiredSlice(
+            from: "appState.openSkillsList()",
+            to: ".accessibilityIdentifier(\"settings_voice_row\")"
+        )
+
+        #expect(aiGroup.contains("navigation.attemptNavigate(to: .voiceSettings)"))
+        #expect(aiGroup.contains("title: L10n.tr(\"Voice\", table: .voice)"))
+    }
+
     @Test("the About logo reveals the developer menu on the tenth tap and resets the count")
     func aboutLogoRevealsDeveloperMenuOnTenthTap() {
         var count = 0

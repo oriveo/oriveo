@@ -292,6 +292,29 @@ struct MemoryItemListPresentationTests {
         #expect(twenty.visibleRows(expanded: false).count == 20)
     }
 
+    @Test("Events and decisions sort: each time is parsed once (not repeatedly inside the comparator), and the date column reuses the parse from the sort")
+    func episodic_sort_parses_each_date_once() {
+        let many = (0..<40).map { index in
+            Self.episodic(String(format: "e%02d", index),
+                          occurredAt: index.isMultiple(of: 4) ? nil : String(format: "2026-02-%02dT00:00:00.000Z", index % 28 + 1),
+                          createdAt: String(format: "2026-01-%02dT00:00:00Z", index % 28 + 1))
+        }
+        var calls: [String] = []
+        let section = MemoryItemListPresentation.episodicSection(many, folderNames: [:]) { raw in
+            if let raw { calls.append(raw) }
+            return MemoryEpisodicTime.parse(raw)
+        }
+
+        // Items with occurredAt are parsed once; items without it parse createdAt once instead
+        #expect(calls.count == many.count)
+        #expect(section.rows.count == many.count)
+        // The result matches the ordering and date column of the production resolve
+        let production = MemoryItemListPresentation.resolve(items: many, deviceId: Self.thisDevice).episodic
+        #expect(section == production)
+        #expect(production.rows.first?.dateLabel == "2026-02-28")
+        #expect(production.rows.map(\.id) == many.sorted { MemoryEpisodicTime.isNewer($0, than: $1) }.map(\.id))
+    }
+
     @Test("L3 conflict pair: newer = later occurredAt (the larger id on a tie); keep newer / keep older / keep both are persisted through the repository as useNew / useOld / keepBoth")
     func l3ConflictPairActions() async throws {
         #expect(MemoryL3ConflictChoice.keepNewer.resolution == .useNew)
@@ -327,7 +350,7 @@ struct MemoryItemListPresentationTests {
             #expect(presentation.l3Conflicts.count == 1)
             #expect(pair.newer.id == newer.id)
             #expect(pair.older.id == older.id)
-            #expect(MemoryEpisodicTime.monthDayLabel(of: pair.newer) == "03-05")
+            #expect(MemoryEpisodicTime.dayLabel(of: pair.newer) == "2026-03-05")
 
             _ = try await repository.perform { try pair.apply(choice, writer: $0) }
 

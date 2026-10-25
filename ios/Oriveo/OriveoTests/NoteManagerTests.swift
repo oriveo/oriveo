@@ -237,12 +237,12 @@ struct NoteManagerTests {
         #expect(replaced.provenance == nil)
     }
 
-    @Test("Free (No syncAdapter) createNote Writes Locally Without Crashing")
+    @Test("A blank note's localized fallback is not persisted as the title (the persisted title stays empty)")
     @MainActor
     func localizationFallbackNotPersisted() {
         let state = makeNotesAppState()
         let note = state.noteManager.createNote(from: NoteDraft(body: "", captureKind: .blank))
-        #expect(note?.title == "")
+        #expect(note?.title == "")  // Localized to "Untitled" only at render time, never stored
         #expect(note?.titleSource == .placeholder)
     }
 
