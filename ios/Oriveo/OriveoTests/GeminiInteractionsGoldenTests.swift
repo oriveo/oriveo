@@ -87,7 +87,7 @@ private enum GIFixtures {
 
 // MARK: - Request golden (GI-01 to 05)
 
-@Suite("Gemini Interactions golden (same-name cases for the shared fixtures)")
+@Suite("Gemini Interactions golden (same-name cases for the shared fixtures)", .sharedProcessState)
 struct GeminiInteractionsGoldenTests {
 
     private static func messages(from input: [String: Any], activated: Bool) throws -> [ChatMessage] {
@@ -272,7 +272,7 @@ struct GeminiInteractionsGoldenTests {
 
 // MARK: - Stream replay (GI-06 to 08)
 
-@Suite("Gemini Interactions SSE replay (same-name cases for the shared fixtures)")
+@Suite("Gemini Interactions SSE replay (same-name cases for the shared fixtures)", .sharedProcessState)
 struct GeminiInteractionsStreamReplayTests {
 
     private struct Replay {

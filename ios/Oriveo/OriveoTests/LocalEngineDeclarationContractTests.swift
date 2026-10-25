@@ -81,7 +81,7 @@ private final class LocalEngineRecordingProtocol: URLProtocol, @unchecked Sendab
 /// Cross-platform contract for local engine fingerprinting and per-model capability declarations (`shared/test-fixtures/local-engine/engine-expectations.v1.json`,
 /// with the raw recordings in `engine-declarations.v1.json`). Expectations are driven by caseId; the input is the raw recording sent through a fake HTTP layer into the production connector,
 /// and assertions target the actual output of production functions / the connector / `registerRelay` / the capability evidence facade.
-@Suite("Relay 2.0 · local engine fingerprint and capability declaration", .serialized)
+@Suite("Relay 2.0 · local engine fingerprint and capability declaration", .serialized, .sharedProcessState)
 @MainActor
 struct LocalEngineDeclarationContractTests {
     private static var retainedStates: [AppState] = []
@@ -515,8 +515,7 @@ struct LocalEngineDeclarationContractTests {
         projection: CapabilityEvidenceProjection
     ) -> Bool {
         let visibleKeys = ChatView.visibleCapabilityKeys(
-            provider: provider, model: model, projection: projection,
-            negativeCache: RelayNegativeCache(defaults: UserDefaults(suiteName: "local-engine-\(UUID().uuidString)")!)
+            provider: provider, model: model, projection: projection
         )
         return ChatComposerBar.supportsImageAttachment(
             provider: provider, model: model, visibleCapabilityKeys: visibleKeys

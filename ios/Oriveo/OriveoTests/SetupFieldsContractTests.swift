@@ -5,7 +5,7 @@ import Testing
 /// Cross-platform contract for `setupFields` (`shared/test-fixtures/provider-catalog/setup-fields.v1.json`; its $comment is the rule).
 /// Decoding goes through production `ProviderSetupCatalog.fromProviderConfigs`; forms go through `setupFieldIDs` / `setupSubmission`, which the setup page uses;
 /// resolve assertions check the address production `EndpointResolver.resolve(provider:)` actually produces.
-@Suite("setupFields contract", .serialized)
+@Suite("setupFields contract", .serialized, .sharedProcessState)
 @MainActor
 struct SetupFieldsContractTests {
 

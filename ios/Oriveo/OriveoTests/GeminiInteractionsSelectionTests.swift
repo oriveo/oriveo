@@ -56,7 +56,7 @@ private final class SelectionCaptureProtocol: URLProtocol, @unchecked Sendable {
     }
 }
 
-@Suite("Gemini Interactions routing (same-name cases for the shared fixtures)", .serialized)
+@Suite("Gemini Interactions routing (same-name cases for the shared fixtures)", .serialized, .sharedProcessState)
 struct GeminiInteractionsSelectionTests {
     private static let directory = ["shared", "test-fixtures", "provider-toolcall"]
 

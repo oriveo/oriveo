@@ -5,7 +5,7 @@ import Testing
 /// The single entry point for picking a key by model.
 ///
 /// The fixture `shared/test-fixtures/relay/credential-resolve.v1.json` drives it by id; the same cases have the same names on all three platforms.
-@Suite("Provider key resolution entry (iOS)", .serialized)
+@Suite("Provider key resolution entry (iOS)", .serialized, .sharedProcessState)
 struct ProviderCredentialResolveContractTests {
 
     // MARK: - Fixture

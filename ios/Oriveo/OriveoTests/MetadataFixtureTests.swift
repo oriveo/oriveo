@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Oriveo
 
-@Suite("Metadata Fixture Tests", .serialized)
+@Suite("Metadata Fixture Tests", .serialized, .sharedProcessState)
 struct MetadataFixtureTests {
 
     private func loadFixtureJSON() throws -> String {

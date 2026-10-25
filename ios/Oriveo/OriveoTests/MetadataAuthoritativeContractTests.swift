@@ -5,7 +5,7 @@ import Foundation
 import Testing
 @testable import Oriveo
 
-@Suite("Metadata Authoritative Contract Tests", .serialized)
+@Suite("Metadata Authoritative Contract Tests", .serialized, .sharedProcessState)
 struct MetadataAuthoritativeContractTests {
 
     // MARK: - Fixture decode types

@@ -4,7 +4,7 @@ import Testing
 
 /// The official detail page's region picker lists template items that contain placeholders; selecting one reveals a Workspace ID slot, and saving writes the template value and the region source
 /// (`shared/test-fixtures/provider-catalog/setup-fields.v1.json`; form values reuse formCases).
-@Suite("Official detail page setupFields", .serialized)
+@Suite("Official detail page setupFields", .serialized, .sharedProcessState)
 @MainActor
 struct SetupFieldsDetailTests {
     private static func fixture() throws -> [String: Any] {
