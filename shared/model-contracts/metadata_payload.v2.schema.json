@@ -1,0 +1,246 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oriveo.app/schemas/metadata_payload.v2.schema.json",
+  "$comment": "GET /api/metadata response envelope for metadataSchema 2 and 3 (views: full = no view key, index, catalog; full is never 3). A schema 3 catalog is validated after expanding it to schema 2, so its model entries look exactly like schema 2 here. Additive only: unknown keys stay allowed everywhere. Clients validate each provider and each model entry separately ($defs/provider, $defs/model): a bad model entry is dropped and reported, a bad envelope keeps the previous cached payload. The server test validates real schema-2 output against this file.",
+  "type": "object",
+  "required": ["data"],
+  "properties": {
+    "code": { "type": "integer" },
+    "message": { "type": "string" },
+    "data": {
+      "oneOf": [
+        { "$ref": "#/$defs/fullOrIndex" },
+        { "$ref": "#/$defs/catalog" }
+      ]
+    }
+  },
+  "$defs": {
+    "revisionFields": {
+      "type": "object",
+      "required": ["metadataSchema", "metadataRevision", "generatedAt"],
+      "properties": {
+        "metadataSchema": { "enum": [2, 3] },
+        "metadataRevision": { "type": "integer", "minimum": 0 },
+        "generatedAt": { "type": "string", "format": "date-time" },
+        "rollbackOf": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "fullOrIndex": {
+      "allOf": [{ "$ref": "#/$defs/revisionFields" }],
+      "type": "object",
+      "required": ["contractVersion", "providers"],
+      "properties": {
+        "view": { "const": "index" },
+        "contractVersion": { "type": "integer" },
+        "version": { "type": "integer" },
+        "updatedAt": { "type": "string" },
+        "providers": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/provider" }
+        },
+        "providerConfigs": { "type": "array" }
+      }
+    },
+    "catalog": {
+      "allOf": [{ "$ref": "#/$defs/revisionFields" }],
+      "type": "object",
+      "required": ["view", "provider", "models", "catalogRevision"],
+      "properties": {
+        "view": { "const": "catalog" },
+        "provider": { "type": "string", "minLength": 1 },
+        "catalogRevision": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "models": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/model" }
+        },
+        "tables": { "type": "object" },
+        "resolveMap": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "provider": {
+      "type": "object",
+      "required": ["displayName"],
+      "properties": {
+        "displayName": { "type": "string" },
+        "defaultModelId": { "type": ["string", "null"] },
+        "catalogRevision": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "modelCount": { "type": "integer", "minimum": 0 },
+        "attachmentSupport": {
+          "type": "object",
+          "properties": {
+            "image": { "type": "boolean" },
+            "video": { "type": "boolean" },
+            "nativeFile": { "type": "boolean" },
+            "textFileInline": { "type": "boolean" }
+          }
+        },
+        "models": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/model" }
+        },
+        "retiredModels": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/retiredModel" }
+        }
+      }
+    },
+    "model": {
+      "type": "object",
+      "required": ["displayName"],
+      "properties": {
+        "displayName": { "type": "string" },
+        "canonicalModelId": { "type": "string" },
+        "contextLength": { "type": ["integer", "null"] },
+        "maxOutputTokens": { "type": ["integer", "null"] },
+        "capabilities": { "type": "array", "items": { "type": "string" } },
+        "capabilityControlsRef": { "type": "string" },
+        "capabilityControls": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/verdict" }
+        },
+        "lifecycle": { "$ref": "#/$defs/lifecycle" },
+        "pricingV2": { "$ref": "#/$defs/pricingV2" },
+        "regionPricing": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/regionPricingEntry" }
+        }
+      }
+    },
+    "regionPricingEntry": {
+      "type": "object",
+      "required": ["regionScope", "currencyCode", "pricingStatus", "pricingUnit", "pricing"],
+      "properties": {
+        "regionScope": { "type": "string", "minLength": 1 },
+        "currencyCode": { "type": "string" },
+        "pricingStatus": { "enum": ["priced", "free", "unknown"] },
+        "pricingUnit": { "enum": ["per_token", "per_image", "per_second"] },
+        "pricing": { "type": ["object", "null"] },
+        "pricingV2": { "$ref": "#/$defs/pricingV2" }
+      }
+    },
+    "pricingV2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["unit"],
+      "properties": {
+        "currencyCode": { "type": "string" },
+        "unit": { "enum": ["per_token", "per_image", "per_second"] },
+        "base": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "inputPerMToken": { "type": ["number", "null"] },
+            "outputPerMToken": { "type": ["number", "null"] }
+          }
+        },
+        "cache": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "readPerMToken": { "type": "number" },
+            "writes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["ttl", "perMToken"],
+                "properties": {
+                  "ttl": { "enum": ["5m", "1h"] },
+                  "perMToken": { "type": "number" }
+                }
+              }
+            }
+          }
+        },
+        "contextTiers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["aboveInputTokens", "semantics"],
+            "properties": {
+              "aboveInputTokens": { "type": "integer", "minimum": 0 },
+              "semantics": { "enum": ["whole_request", "incremental"] },
+              "inputPerMToken": { "type": "number" },
+              "outputPerMToken": { "type": "number" },
+              "cacheReadPerMToken": { "type": "number" },
+              "cacheWritePerMToken": { "type": "number" }
+            }
+          }
+        },
+        "timeWindows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["timezone", "start", "end"],
+            "properties": {
+              "timezone": { "type": "string", "minLength": 1 },
+              "days": {
+                "type": "array",
+                "items": { "enum": ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] }
+              },
+              "start": { "type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$" },
+              "end": { "type": "string", "pattern": "^(([01][0-9]|2[0-3]):[0-5][0-9]|24:00)$" },
+              "inputPerMToken": { "type": "number" },
+              "outputPerMToken": { "type": "number" },
+              "cacheReadPerMToken": { "type": "number" },
+              "multiplier": { "type": "number" },
+              "holidayCalendar": { "enum": ["cn_statutory"] }
+            }
+          }
+        },
+        "regionSurcharges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["regionScope", "multiplier"],
+            "properties": {
+              "regionScope": { "type": "string", "minLength": 1 },
+              "multiplier": { "type": "number" }
+            }
+          }
+        },
+        "perUnit": { "type": "number" }
+      }
+    },
+    "verdict": {
+      "type": "object",
+      "required": ["state"],
+      "properties": {
+        "state": { "enum": ["auto_available", "managed_only", "custom_only", "unavailable", "unknown"] },
+        "recipeRef": { "type": "string" },
+        "reasonCode": { "type": "string" },
+        "wireFamily": { "type": "string" },
+        "sourceRefs": { "type": "array", "items": { "type": "string" } },
+        "availableIntents": { "type": "array" }
+      }
+    },
+    "lifecycle": {
+      "type": "object",
+      "required": ["state"],
+      "properties": {
+        "state": { "enum": ["deprecated", "retired", "retired_alias", "unknown"] },
+        "shutdownAt": { "type": "string", "format": "date-time" },
+        "signal": { "enum": ["upstream_shutdown_date", "upstream_inactive", "litellm_deprecation_date"] },
+        "routedTo": { "type": "string", "minLength": 1 },
+        "sourceRefs": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "retiredModel": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "displayName": { "type": "string" },
+        "retiredAt": { "type": "string" },
+        "routedTo": { "type": ["string", "null"] }
+      }
+    }
+  }
+}
