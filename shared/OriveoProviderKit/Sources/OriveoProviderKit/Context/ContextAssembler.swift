@@ -110,17 +110,30 @@ public struct ContextRecallEntry: Hashable, Sendable {
     }
 }
 
+/// Delivery-style envelope at the end of [D]; voice is the only style so far.
+public enum ContextDelivery: String, Hashable, Sendable {
+    case voice
+}
+
 /// Host input for [D] (chat, toolLoopLeg and continue).
 public struct ContextDynamicInput: Hashable, Sendable {
     public var recall: [ContextRecallEntry]
     /// nil means no library search was run for this message; an empty array means a search ran with no hits and emits libraryEmptyEntry.
     public var library: [ContextLibraryEntry]?
     public var attachmentGuide: String?
+    /// nil is byte-identical to the field being absent; .voice appends <oriveo-delivery> at the very end of [D].
+    public var delivery: ContextDelivery?
 
-    public init(recall: [ContextRecallEntry] = [], library: [ContextLibraryEntry]? = nil, attachmentGuide: String? = nil) {
+    public init(
+        recall: [ContextRecallEntry] = [],
+        library: [ContextLibraryEntry]? = nil,
+        attachmentGuide: String? = nil,
+        delivery: ContextDelivery? = nil
+    ) {
         self.recall = recall
         self.library = library
         self.attachmentGuide = attachmentGuide
+        self.delivery = delivery
     }
 }
 
@@ -193,6 +206,9 @@ public enum ContextAssembler {
     /// The only entry in the envelope when the library search has no hits.
     public static let libraryEmptyEntry =
         "No relevant document was found in the connected Library sources. Say so plainly instead of inventing facts."
+    /// Voice delivery envelope body; identical verbatim on all platforms, so changes must stay in sync with the contract.
+    public static let deliveryVoice =
+        "The user is talking with you by voice and will hear your reply read aloud. Answer the way you would speak: short, natural sentences, usually under 80 words unless the user asks for detail. Do not use Markdown, tables, code blocks, lists, or emoji; say symbols and units in words. If the answer really needs code or a long list, give the gist in speech and say the full version is in the chat."
     /// Envelope tag -> explanatory sentence; identical verbatim on all platforms, so changes must stay in sync with the contract.
     public static let envelopeNotes: [String: String] = [
         "oriveo-standing-instructions": "Standing instructions the user saved for all conversations. Follow them unless the conversation instructions or the user's current message say otherwise.",
@@ -214,6 +230,8 @@ public enum ContextAssembler {
             return purposeSystemPlan(input, window: window)
         case .chat, .continue, .toolLoopLeg, .compaction:
             return conversationPlan(input, window: window)
+        case .realtimeSession:
+            preconditionFailure("realtimeSession plans go through ContextAssembler.assembleRealtimeSession")
         }
     }
 
@@ -257,7 +275,7 @@ public enum ContextAssembler {
 
     // MARK: Conversation prefix (chat / continue / toolLoopLeg / compaction)
 
-    private struct Prefix {
+    struct Prefix {
         var skill: String?
         var instructions: String?
         var standing: [ContextMemoryItem]
@@ -470,6 +488,10 @@ public enum ContextAssembler {
                     )
                 }
             }
+            // Voice delivery envelope: the constant text is not escaped and goes last in [D].
+            if input.dynamic?.delivery == .voice {
+                dynamicParts.append("<oriveo-delivery>\n\(deliveryVoice)\n</oriveo-delivery>")
+            }
         }
         let dynamicText = dynamicParts.joined(separator: "\n\n")
 
@@ -497,7 +519,10 @@ public enum ContextAssembler {
     // MARK: Memory filtering
 
     /// Takes only semantic, active, global or current-conversation items (defaulting to semantic / active / global).
-    private static func eligibleMemory(_ items: [ContextMemoryItem], conversationId: String) -> [ContextMemoryItem] {
+    /// With dropEmpty false, items with empty bodies are kept (realtime session: they stay in the shrink pool, are skipped when rendering and are counted when dropped).
+    static func eligibleMemory(
+        _ items: [ContextMemoryItem], conversationId: String, dropEmpty: Bool = true
+    ) -> [ContextMemoryItem] {
         items.filter { item in
             guard item.layer == nil || item.layer == "semantic" else { return false }
             guard item.status == nil || item.status == "active" else { return false }
@@ -506,7 +531,7 @@ public enum ContextAssembler {
             case .conversation(let id)?: return id == conversationId
             }
         }
-        .filter { !trimmed($0.content).isEmpty }
+        .filter { !dropEmpty || !trimmed($0.content).isEmpty }
     }
 
     /// Tries entries one by one in rank order: if adding one pushes the whole <oriveo-recall> envelope estimate above recallMax, drop that entry and look at the next;
@@ -527,12 +552,12 @@ public enum ContextAssembler {
         return kept
     }
 
-    private static func isStanding(_ item: ContextMemoryItem) -> Bool {
+    static func isStanding(_ item: ContextMemoryItem) -> Bool {
         item.kind == "instruction" || item.kind == "constraint"
     }
 
     /// Pinned items first, the rest keep input order.
-    private static func pinnedFirst(_ items: [ContextMemoryItem]) -> [ContextMemoryItem] {
+    static func pinnedFirst(_ items: [ContextMemoryItem]) -> [ContextMemoryItem] {
         items.filter(\.pinned) + items.filter { !$0.pinned }
     }
 
@@ -548,7 +573,7 @@ public enum ContextAssembler {
         text.isEmpty ? nil : text
     }
 
-    private static func note(_ tag: String) -> String {
+    static func note(_ tag: String) -> String {
         envelopeNotes[tag] ?? ""
     }
 
@@ -566,7 +591,7 @@ public enum ContextAssembler {
     }
 
     /// A single entry; returns nil when the body is empty after trim (the envelope skips it).
-    private static func entry(_ attribute: String?, _ text: String) -> String? {
+    static func entry(_ attribute: String?, _ text: String) -> String? {
         let body = trimmed(text)
         guard !body.isEmpty else { return nil }
         let opening = attribute.map { "<entry \($0)>" } ?? "<entry>"
@@ -574,7 +599,7 @@ public enum ContextAssembler {
     }
 
     /// <tag>\n<note>...</note>\n{entries}\n</tag>; the whole envelope is omitted when there are no entries.
-    private static func envelope(_ tag: String, entries: [String?]) -> String? {
+    static func envelope(_ tag: String, entries: [String?]) -> String? {
         let kept = entries.compactMap { $0 }
         guard !kept.isEmpty else { return nil }
         return "<\(tag)>\n<note>\(note(tag))</note>\n" + kept.joined(separator: "\n") + "\n</\(tag)>"

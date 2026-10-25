@@ -11,6 +11,8 @@ public enum RequestPurpose: String, Codable, Hashable, Sendable, CaseIterable {
     case crosscheck
     case compaction
     case memoryExtraction
+    /// Native realtime session opening plan; it goes only through ContextAssembler.assembleRealtimeSession, and receiving it in assemble() is a programmer error.
+    case realtimeSession
 }
 
 /// Closed set of manifest section types.

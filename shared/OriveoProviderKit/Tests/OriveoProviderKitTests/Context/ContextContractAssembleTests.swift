@@ -139,6 +139,7 @@ private struct AssembleContract: Decodable {
         var reminderFullTextMaxTokens: Int
         var reminderMinUserMessages: Int
         var libraryEmptyEntry: String
+        var deliveryVoice: String
         var notes: [String: String]
     }
 
@@ -206,6 +207,7 @@ private struct AssembleContract: Decodable {
         var recall: [RecallEntry]?
         var library: [LibraryEntry]?
         var attachmentGuide: String?
+        var delivery: String?
     }
 
     struct Input: Decodable {
@@ -298,7 +300,8 @@ private func assembleInput(_ input: AssembleContract.Input, caseId: String) thro
                 library: $0.library?.map {
                     ContextLibraryEntry(citation: $0.citation, title: $0.title, truncated: $0.truncated, text: $0.text)
                 },
-                attachmentGuide: $0.attachmentGuide
+                attachmentGuide: $0.attachmentGuide,
+                delivery: $0.delivery.flatMap(ContextDelivery.init(rawValue:))
             )
         },
         reminderEnabled: input.reminderEnabled ?? true,
@@ -311,13 +314,14 @@ struct ContextContractAssembleTests {
     @Test("constants")
     func constants() throws {
         let constants = try AssembleContract.load().constants
-        #expect(AssembleContract.caseIds.count == 41)
+        #expect(AssembleContract.caseIds.count == 47)
         #expect(ContextAssembler.instructionsHeader == constants.instructionsHeader)
         #expect(ContextAssembler.reminderPointer == constants.reminderPointer)
         #expect(ContextAssembler.continuePrompt == constants.continuePrompt)
         #expect(ContextAssembler.reminderFullTextMaxTokens == constants.reminderFullTextMaxTokens)
         #expect(ContextAssembler.reminderMinUserMessages == constants.reminderMinUserMessages)
         #expect(ContextAssembler.libraryEmptyEntry == constants.libraryEmptyEntry)
+        #expect(ContextAssembler.deliveryVoice == constants.deliveryVoice)
         #expect(ContextAssembler.envelopeNotes == constants.notes)
         #expect(ContextAssembler.envelopeNotes[ContextSanitizer.unansweredTag] == ContextSanitizer.unansweredNote)
     }
