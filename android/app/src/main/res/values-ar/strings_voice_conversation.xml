@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="voice_conversation_start_a11y">بدء محادثة صوتية</string>
+    <string name="voice_conversation_status_listening">جارٍ الاستماع</string>
+    <string name="voice_conversation_status_thinking">جارٍ التفكير</string>
+    <string name="voice_conversation_status_speaking">جارٍ التحدث</string>
+    <string name="voice_conversation_status_speaking_tap_to_interrupt">جارٍ التحدث · اضغط للمقاطعة</string>
+    <string name="voice_conversation_status_muted">الميكروفون مكتوم</string>
+    <string name="voice_conversation_status_awaiting_approval">بانتظار تأكيدك</string>
+    <string name="voice_conversation_status_error">حدث خطأ ما</string>
+    <string name="voice_conversation_orb_hint_listening">اضغط عند الانتهاء من الكلام</string>
+    <string name="voice_conversation_orb_hint_thinking">اضغط للإيقاف</string>
+    <string name="voice_conversation_orb_hint_speaking">اضغط لإيقاف القراءة الصوتية</string>
+    <string name="voice_conversation_mute_a11y">كتم الميكروفون</string>
+    <string name="voice_conversation_unmute_a11y">إلغاء كتم الميكروفون</string>
+    <string name="voice_conversation_end_a11y">إنهاء المحادثة الصوتية</string>
+    <string name="voice_conversation_prompt_did_not_catch">عذرًا، لم أسمع ذلك بوضوح.</string>
+    <string name="voice_conversation_prompt_approval_needed">يُرجى التأكيد على الشاشة.</string>
+    <string name="voice_conversation_notification_title">محادثة صوتية جارية</string>
+    <string name="voice_conversation_notification_end">إنهاء</string>
+    <string name="voice_conversation_start_failed_toast">تعذّر بدء المحادثة الصوتية. يُرجى المحاولة مرة أخرى.</string>
+    <string name="voice_conversation_background_paused_toast">أُوقفت المحادثة الصوتية مؤقتًا لأن Oriveo في الخلفية.</string>
+</resources>

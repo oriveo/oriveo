@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="voice_conversation_start_a11y">音声会話を開始</string>
+    <string name="voice_conversation_status_listening">聞いています</string>
+    <string name="voice_conversation_status_thinking">考えています</string>
+    <string name="voice_conversation_status_speaking">話しています</string>
+    <string name="voice_conversation_status_speaking_tap_to_interrupt">話しています · タップで中断</string>
+    <string name="voice_conversation_status_muted">ミュート中</string>
+    <string name="voice_conversation_status_awaiting_approval">確認待ち</string>
+    <string name="voice_conversation_status_error">問題が発生しました</string>
+    <string name="voice_conversation_orb_hint_listening">話し終えたらタップ</string>
+    <string name="voice_conversation_orb_hint_thinking">タップで停止</string>
+    <string name="voice_conversation_orb_hint_speaking">タップで音声を停止</string>
+    <string name="voice_conversation_mute_a11y">マイクをミュート</string>
+    <string name="voice_conversation_unmute_a11y">ミュートを解除</string>
+    <string name="voice_conversation_end_a11y">音声会話を終了</string>
+    <string name="voice_conversation_prompt_did_not_catch">すみません、聞き取れませんでした。</string>
+    <string name="voice_conversation_prompt_approval_needed">画面で確認してください。</string>
+    <string name="voice_conversation_notification_title">音声会話中</string>
+    <string name="voice_conversation_notification_end">終了</string>
+    <string name="voice_conversation_start_failed_toast">音声会話を開始できませんでした。もう一度お試しください。</string>
+    <string name="voice_conversation_background_paused_toast">Oriveo がバックグラウンドに移ったため、音声会話を一時停止しました。</string>
+</resources>

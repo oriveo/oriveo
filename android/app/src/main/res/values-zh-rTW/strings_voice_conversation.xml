@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="voice_conversation_start_a11y">開始語音對話</string>
+    <string name="voice_conversation_status_listening">在聽</string>
+    <string name="voice_conversation_status_thinking">在想</string>
+    <string name="voice_conversation_status_speaking">在說</string>
+    <string name="voice_conversation_status_speaking_tap_to_interrupt">在說 · 點一下打斷</string>
+    <string name="voice_conversation_status_muted">已靜音</string>
+    <string name="voice_conversation_status_awaiting_approval">等你確認</string>
+    <string name="voice_conversation_status_error">出錯了</string>
+    <string name="voice_conversation_orb_hint_listening">說完後點一下</string>
+    <string name="voice_conversation_orb_hint_thinking">點一下停止</string>
+    <string name="voice_conversation_orb_hint_speaking">點一下停止播報</string>
+    <string name="voice_conversation_mute_a11y">將麥克風靜音</string>
+    <string name="voice_conversation_unmute_a11y">取消靜音</string>
+    <string name="voice_conversation_end_a11y">結束語音對話</string>
+    <string name="voice_conversation_prompt_did_not_catch">抱歉，沒聽清楚。</string>
+    <string name="voice_conversation_prompt_approval_needed">請在螢幕上確認。</string>
+    <string name="voice_conversation_notification_title">語音對話進行中</string>
+    <string name="voice_conversation_notification_end">結束</string>
+    <string name="voice_conversation_start_failed_toast">無法開始語音對話，請再試一次。</string>
+    <string name="voice_conversation_background_paused_toast">Oriveo 已移至背景，語音對話已暫停。</string>
+</resources>

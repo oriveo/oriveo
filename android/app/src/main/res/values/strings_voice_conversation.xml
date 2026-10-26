@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="voice_conversation_start_a11y">Start voice conversation</string>
+    <string name="voice_conversation_status_listening">Listening</string>
+    <string name="voice_conversation_status_thinking">Thinking</string>
+    <string name="voice_conversation_status_speaking">Speaking</string>
+    <string name="voice_conversation_status_speaking_tap_to_interrupt">Speaking · tap to interrupt</string>
+    <string name="voice_conversation_status_muted">Muted</string>
+    <string name="voice_conversation_status_awaiting_approval">Waiting for you</string>
+    <string name="voice_conversation_status_error">Something went wrong</string>
+    <string name="voice_conversation_orb_hint_listening">Tap when you\'re done</string>
+    <string name="voice_conversation_orb_hint_thinking">Tap to stop</string>
+    <string name="voice_conversation_orb_hint_speaking">Tap to stop speaking</string>
+    <string name="voice_conversation_mute_a11y">Mute microphone</string>
+    <string name="voice_conversation_unmute_a11y">Unmute microphone</string>
+    <string name="voice_conversation_end_a11y">End voice conversation</string>
+    <string name="voice_conversation_prompt_did_not_catch">Sorry, I didn\'t catch that.</string>
+    <string name="voice_conversation_prompt_approval_needed">Please confirm on the screen.</string>
+    <string name="voice_conversation_notification_title">Voice conversation in progress</string>
+    <string name="voice_conversation_notification_end">End</string>
+    <string name="voice_conversation_start_failed_toast">Couldn\'t start the voice conversation. Try again.</string>
+    <string name="voice_conversation_background_paused_toast">Voice conversation paused while Oriveo is in the background.</string>
+</resources>

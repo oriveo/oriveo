@@ -8,17 +8,37 @@ import java.util.Locale
 
 /**
  * System TextToSpeech: each segment is queued with QUEUE_ADD and utteranceId "<session>:<index>"; callbacks from old sessions are dropped.
+ * The speech rate is the slider value at enqueue time.
  */
-class SystemSpeechEngine(context: Context) : SpeechEngine {
+class SystemSpeechEngine(
+    context: Context,
+    /** Read-aloud rate slider value (1.0 is normal speed), read on every enqueue. */
+    private val speechRate: () -> Double = { VoiceEngineSettings.DEFAULT_SPEECH_RATE },
+    /** Test injection point: production constructs the system TextToSpeech directly. */
+    private val ttsFactory: (Context, TextToSpeech.OnInitListener) -> TextToSpeech =
+        { ctx, listener -> TextToSpeech(ctx, listener) },
+) : SpeechEngine {
     private val appContext = context.applicationContext
     private val lock = Any()
     private var tts: TextToSpeech? = null
     private var ready = false
+    /** Initialization of this createTts has failed (including a synchronous ERROR callback inside the constructor, when [tts] is not yet assigned). */
+    private var initFailed = false
     private var pendingSpeak: (() -> Unit)? = null
     private var pendingListener: SpeechEngine.Listener? = null
     private var session = 0L
 
-    override fun speak(utterances: List<String>, locale: Locale, listener: SpeechEngine.Listener) {
+    override val engineName: String = "system"
+
+    override fun speak(utterances: List<String>, locale: Locale, listener: SpeechEngine.Listener) =
+        speak(utterances, locale, List(utterances.size) { locale }, listener)
+
+    override fun speak(
+        utterances: List<String>,
+        locale: Locale,
+        segmentLocales: List<Locale>,
+        listener: SpeechEngine.Listener,
+    ) {
         if (utterances.isEmpty()) {
             listener.onDoneAll()
             return
@@ -26,14 +46,19 @@ class SystemSpeechEngine(context: Context) : SpeechEngine {
         val action: () -> Unit
         synchronized(lock) {
             val id = ++session
-            action = { enqueue(id, utterances, locale, listener) }
+            action = { enqueue(id, utterances, locale, segmentLocales, listener) }
             if (ready) {
                 pendingSpeak = null
                 pendingListener = null
             } else {
                 pendingSpeak = action
                 pendingListener = listener
-                if (tts == null) tts = createTts()
+                if (tts == null) {
+                    initFailed = false
+                    val created = createTts()
+                    // When onInit(ERROR) fires synchronously inside the constructor the callback cannot clear the not-yet-assigned instance: discard it here and rebuild on the next speak
+                    if (initFailed) created.shutdown() else tts = created
+                }
                 return
             }
         }
@@ -50,7 +75,7 @@ class SystemSpeechEngine(context: Context) : SpeechEngine {
     }
 
     private fun createTts(): TextToSpeech =
-        TextToSpeech(appContext) { status ->
+        ttsFactory(appContext, TextToSpeech.OnInitListener { status ->
             val action: (() -> Unit)?
             synchronized(lock) {
                 if (status == TextToSpeech.SUCCESS) {
@@ -59,7 +84,8 @@ class SystemSpeechEngine(context: Context) : SpeechEngine {
                     pendingSpeak = null
                     pendingListener = null
                 } else {
-                    // The next speak call recreates the engine and tries again
+                    // Recreate the engine and retry on the next speak
+                    initFailed = true
                     tts?.shutdown()
                     tts = null
                     val waiting = pendingListener
@@ -69,17 +95,30 @@ class SystemSpeechEngine(context: Context) : SpeechEngine {
                 }
             }
             action?.invoke()
-        }
+        })
 
-    private fun enqueue(id: Long, utterances: List<String>, locale: Locale, listener: SpeechEngine.Listener) {
+    private fun enqueue(
+        id: Long,
+        utterances: List<String>,
+        locale: Locale,
+        segmentLocales: List<Locale>,
+        listener: SpeechEngine.Listener,
+    ) {
         val engine = synchronized(lock) { if (id != session) null else tts } ?: return
         val result = runCatching {
-            val lang = engine.setLanguage(locale)
-            if (lang == TextToSpeech.LANG_MISSING_DATA || lang == TextToSpeech.LANG_NOT_SUPPORTED) {
-                engine.setLanguage(engine.defaultVoice?.locale ?: Locale.getDefault())
-            }
+            engine.setSpeechRate(speechRate().toFloat())
             engine.setOnUtteranceProgressListener(progressListener(id, utterances.size, listener))
+            var current: Locale? = null
             utterances.withIndex().all { (index, text) ->
+                // Switch to this segment's language before enqueueing (a placeholder may be in a different language than the sentences); skip if same as the previous segment
+                val segmentLocale = segmentLocales.getOrNull(index) ?: locale
+                if (segmentLocale != current) {
+                    current = segmentLocale
+                    val lang = engine.setLanguage(segmentLocale)
+                    if (lang == TextToSpeech.LANG_MISSING_DATA || lang == TextToSpeech.LANG_NOT_SUPPORTED) {
+                        engine.setLanguage(engine.defaultVoice?.locale ?: Locale.getDefault())
+                    }
+                }
                 engine.speak(text, TextToSpeech.QUEUE_ADD, Bundle(), "$id:$index") == TextToSpeech.SUCCESS
             }
         }.getOrDefault(false)

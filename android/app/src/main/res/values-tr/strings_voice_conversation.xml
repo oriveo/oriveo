@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="voice_conversation_start_a11y">Sesli sohbeti başlat</string>
+    <string name="voice_conversation_status_listening">Dinliyor</string>
+    <string name="voice_conversation_status_thinking">Düşünüyor</string>
+    <string name="voice_conversation_status_speaking">Konuşuyor</string>
+    <string name="voice_conversation_status_speaking_tap_to_interrupt">Konuşuyor · kesmek için dokunun</string>
+    <string name="voice_conversation_status_muted">Mikrofon kapalı</string>
+    <string name="voice_conversation_status_awaiting_approval">Onayınız bekleniyor</string>
+    <string name="voice_conversation_status_error">Bir sorun oluştu</string>
+    <string name="voice_conversation_orb_hint_listening">Bitirince dokunun</string>
+    <string name="voice_conversation_orb_hint_thinking">Durdurmak için dokunun</string>
+    <string name="voice_conversation_orb_hint_speaking">Sesli yanıtı durdurmak için dokunun</string>
+    <string name="voice_conversation_mute_a11y">Mikrofonu kapat</string>
+    <string name="voice_conversation_unmute_a11y">Mikrofonu aç</string>
+    <string name="voice_conversation_end_a11y">Sesli sohbeti bitir</string>
+    <string name="voice_conversation_prompt_did_not_catch">Kusura bakmayın, anlayamadım.</string>
+    <string name="voice_conversation_prompt_approval_needed">Lütfen ekrandan onaylayın.</string>
+    <string name="voice_conversation_notification_title">Sesli sohbet sürüyor</string>
+    <string name="voice_conversation_notification_end">Bitir</string>
+    <string name="voice_conversation_start_failed_toast">Sesli sohbet başlatılamadı. Tekrar deneyin.</string>
+    <string name="voice_conversation_background_paused_toast">Oriveo arka plana alındığı için sesli sohbet duraklatıldı.</string>
+</resources>

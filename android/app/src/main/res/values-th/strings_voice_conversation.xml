@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="voice_conversation_start_a11y">เริ่มสนทนาด้วยเสียง</string>
+    <string name="voice_conversation_status_listening">กำลังฟัง</string>
+    <string name="voice_conversation_status_thinking">กำลังคิด</string>
+    <string name="voice_conversation_status_speaking">กำลังพูด</string>
+    <string name="voice_conversation_status_speaking_tap_to_interrupt">กำลังพูด · แตะเพื่อขัดจังหวะ</string>
+    <string name="voice_conversation_status_muted">ปิดไมค์อยู่</string>
+    <string name="voice_conversation_status_awaiting_approval">รอคุณยืนยัน</string>
+    <string name="voice_conversation_status_error">เกิดข้อผิดพลาด</string>
+    <string name="voice_conversation_orb_hint_listening">แตะเมื่อพูดจบ</string>
+    <string name="voice_conversation_orb_hint_thinking">แตะเพื่อหยุด</string>
+    <string name="voice_conversation_orb_hint_speaking">แตะเพื่อหยุดเสียงพูด</string>
+    <string name="voice_conversation_mute_a11y">ปิดไมค์</string>
+    <string name="voice_conversation_unmute_a11y">เปิดไมค์</string>
+    <string name="voice_conversation_end_a11y">จบการสนทนาด้วยเสียง</string>
+    <string name="voice_conversation_prompt_did_not_catch">ขออภัย ฟังไม่ค่อยชัด</string>
+    <string name="voice_conversation_prompt_approval_needed">กรุณายืนยันบนหน้าจอ</string>
+    <string name="voice_conversation_notification_title">กำลังสนทนาด้วยเสียง</string>
+    <string name="voice_conversation_notification_end">จบ</string>
+    <string name="voice_conversation_start_failed_toast">เริ่มการสนทนาด้วยเสียงไม่สำเร็จ ลองอีกครั้ง</string>
+    <string name="voice_conversation_background_paused_toast">การสนทนาด้วยเสียงจะหยุดชั่วคราวขณะที่ Oriveo อยู่ในเบื้องหลัง</string>
+</resources>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="voice_conversation_start_a11y">Mulai percakapan suara</string>
+    <string name="voice_conversation_status_listening">Mendengarkan</string>
+    <string name="voice_conversation_status_thinking">Berpikir</string>
+    <string name="voice_conversation_status_speaking">Berbicara</string>
+    <string name="voice_conversation_status_speaking_tap_to_interrupt">Berbicara · ketuk untuk menyela</string>
+    <string name="voice_conversation_status_muted">Mikrofon dibisukan</string>
+    <string name="voice_conversation_status_awaiting_approval">Menunggu konfirmasi</string>
+    <string name="voice_conversation_status_error">Terjadi kesalahan</string>
+    <string name="voice_conversation_orb_hint_listening">Ketuk setelah selesai bicara</string>
+    <string name="voice_conversation_orb_hint_thinking">Ketuk untuk berhenti</string>
+    <string name="voice_conversation_orb_hint_speaking">Ketuk untuk menghentikan suara</string>
+    <string name="voice_conversation_mute_a11y">Bisukan mikrofon</string>
+    <string name="voice_conversation_unmute_a11y">Aktifkan mikrofon</string>
+    <string name="voice_conversation_end_a11y">Akhiri percakapan suara</string>
+    <string name="voice_conversation_prompt_did_not_catch">Maaf, tadi kurang terdengar.</string>
+    <string name="voice_conversation_prompt_approval_needed">Silakan konfirmasi di layar.</string>
+    <string name="voice_conversation_notification_title">Percakapan suara sedang berlangsung</string>
+    <string name="voice_conversation_notification_end">Akhiri</string>
+    <string name="voice_conversation_start_failed_toast">Percakapan suara tidak dapat dimulai. Coba lagi.</string>
+    <string name="voice_conversation_background_paused_toast">Percakapan suara dijeda selama Oriveo berjalan di latar belakang.</string>
+</resources>

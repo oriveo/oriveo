@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="voice_conversation_start_a11y">음성 대화 시작</string>
+    <string name="voice_conversation_status_listening">듣는 중</string>
+    <string name="voice_conversation_status_thinking">생각하는 중</string>
+    <string name="voice_conversation_status_speaking">말하는 중</string>
+    <string name="voice_conversation_status_speaking_tap_to_interrupt">말하는 중 · 탭하여 중단</string>
+    <string name="voice_conversation_status_muted">음소거됨</string>
+    <string name="voice_conversation_status_awaiting_approval">확인 대기 중</string>
+    <string name="voice_conversation_status_error">문제가 발생했습니다</string>
+    <string name="voice_conversation_orb_hint_listening">말을 마치면 탭하세요</string>
+    <string name="voice_conversation_orb_hint_thinking">탭하여 중지</string>
+    <string name="voice_conversation_orb_hint_speaking">탭하여 음성 중지</string>
+    <string name="voice_conversation_mute_a11y">마이크 음소거</string>
+    <string name="voice_conversation_unmute_a11y">음소거 해제</string>
+    <string name="voice_conversation_end_a11y">음성 대화 종료</string>
+    <string name="voice_conversation_prompt_did_not_catch">죄송해요, 잘 못 들었어요.</string>
+    <string name="voice_conversation_prompt_approval_needed">화면에서 확인해 주세요.</string>
+    <string name="voice_conversation_notification_title">음성 대화 중</string>
+    <string name="voice_conversation_notification_end">종료</string>
+    <string name="voice_conversation_start_failed_toast">음성 대화를 시작하지 못했습니다. 다시 시도해 주세요.</string>
+    <string name="voice_conversation_background_paused_toast">Oriveo가 백그라운드에 있는 동안 음성 대화가 일시 중지됩니다.</string>
+</resources>

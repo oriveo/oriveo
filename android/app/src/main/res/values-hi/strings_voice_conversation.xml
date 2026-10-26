@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="voice_conversation_start_a11y">बोलकर बातचीत शुरू करें</string>
+    <string name="voice_conversation_status_listening">सुन रहे हैं</string>
+    <string name="voice_conversation_status_thinking">सोच रहे हैं</string>
+    <string name="voice_conversation_status_speaking">बोल रहे हैं</string>
+    <string name="voice_conversation_status_speaking_tap_to_interrupt">बोल रहे हैं · रोकने के लिए टैप करें</string>
+    <string name="voice_conversation_status_muted">माइक म्यूट है</string>
+    <string name="voice_conversation_status_awaiting_approval">आपकी पुष्टि का इंतज़ार</string>
+    <string name="voice_conversation_status_error">कुछ गड़बड़ हो गई</string>
+    <string name="voice_conversation_orb_hint_listening">बोलना पूरा होने पर टैप करें</string>
+    <string name="voice_conversation_orb_hint_thinking">रोकने के लिए टैप करें</string>
+    <string name="voice_conversation_orb_hint_speaking">आवाज़ रोकने के लिए टैप करें</string>
+    <string name="voice_conversation_mute_a11y">माइक म्यूट करें</string>
+    <string name="voice_conversation_unmute_a11y">माइक अनम्यूट करें</string>
+    <string name="voice_conversation_end_a11y">बोलकर बातचीत बंद करें</string>
+    <string name="voice_conversation_prompt_did_not_catch">माफ़ कीजिए, ठीक से सुनाई नहीं दिया।</string>
+    <string name="voice_conversation_prompt_approval_needed">कृपया स्क्रीन पर पुष्टि करें।</string>
+    <string name="voice_conversation_notification_title">बोलकर बातचीत चल रही है</string>
+    <string name="voice_conversation_notification_end">बंद करें</string>
+    <string name="voice_conversation_start_failed_toast">बोलकर बातचीत शुरू नहीं हो सकी। फिर से कोशिश करें।</string>
+    <string name="voice_conversation_background_paused_toast">Oriveo बैकग्राउंड में है, इसलिए बोलकर बातचीत रोक दी गई है।</string>
+</resources>

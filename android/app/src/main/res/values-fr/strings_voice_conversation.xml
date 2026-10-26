@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="voice_conversation_start_a11y">Démarrer une conversation vocale</string>
+    <string name="voice_conversation_status_listening">À l’écoute</string>
+    <string name="voice_conversation_status_thinking">Réflexion</string>
+    <string name="voice_conversation_status_speaking">Réponse en cours</string>
+    <string name="voice_conversation_status_speaking_tap_to_interrupt">Réponse en cours · touchez pour interrompre</string>
+    <string name="voice_conversation_status_muted">Micro coupé</string>
+    <string name="voice_conversation_status_awaiting_approval">Confirmation requise</string>
+    <string name="voice_conversation_status_error">Un problème est survenu</string>
+    <string name="voice_conversation_orb_hint_listening">Touchez quand vous avez terminé</string>
+    <string name="voice_conversation_orb_hint_thinking">Touchez pour arrêter</string>
+    <string name="voice_conversation_orb_hint_speaking">Touchez pour arrêter la lecture</string>
+    <string name="voice_conversation_mute_a11y">Couper le micro</string>
+    <string name="voice_conversation_unmute_a11y">Réactiver le micro</string>
+    <string name="voice_conversation_end_a11y">Terminer la conversation vocale</string>
+    <string name="voice_conversation_prompt_did_not_catch">Pardon, je n’ai pas bien entendu.</string>
+    <string name="voice_conversation_prompt_approval_needed">Merci de confirmer à l’écran.</string>
+    <string name="voice_conversation_notification_title">Conversation vocale en cours</string>
+    <string name="voice_conversation_notification_end">Terminer</string>
+    <string name="voice_conversation_start_failed_toast">Impossible de démarrer la conversation vocale. Réessayez.</string>
+    <string name="voice_conversation_background_paused_toast">La conversation vocale est en pause tant qu’Oriveo est en arrière-plan.</string>
+</resources>

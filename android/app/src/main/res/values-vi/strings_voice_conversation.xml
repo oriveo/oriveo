@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="voice_conversation_start_a11y">Bắt đầu trò chuyện bằng giọng nói</string>
+    <string name="voice_conversation_status_listening">Đang nghe</string>
+    <string name="voice_conversation_status_thinking">Đang suy nghĩ</string>
+    <string name="voice_conversation_status_speaking">Đang nói</string>
+    <string name="voice_conversation_status_speaking_tap_to_interrupt">Đang nói · chạm để ngắt lời</string>
+    <string name="voice_conversation_status_muted">Đã tắt micrô</string>
+    <string name="voice_conversation_status_awaiting_approval">Chờ bạn xác nhận</string>
+    <string name="voice_conversation_status_error">Đã xảy ra lỗi</string>
+    <string name="voice_conversation_orb_hint_listening">Chạm khi bạn nói xong</string>
+    <string name="voice_conversation_orb_hint_thinking">Chạm để dừng</string>
+    <string name="voice_conversation_orb_hint_speaking">Chạm để dừng đọc</string>
+    <string name="voice_conversation_mute_a11y">Tắt micrô</string>
+    <string name="voice_conversation_unmute_a11y">Bật micrô</string>
+    <string name="voice_conversation_end_a11y">Kết thúc trò chuyện bằng giọng nói</string>
+    <string name="voice_conversation_prompt_did_not_catch">Xin lỗi, mình nghe chưa rõ.</string>
+    <string name="voice_conversation_prompt_approval_needed">Bạn hãy xác nhận trên màn hình nhé.</string>
+    <string name="voice_conversation_notification_title">Đang trò chuyện bằng giọng nói</string>
+    <string name="voice_conversation_notification_end">Kết thúc</string>
+    <string name="voice_conversation_start_failed_toast">Không thể bắt đầu trò chuyện bằng giọng nói. Hãy thử lại.</string>
+    <string name="voice_conversation_background_paused_toast">Trò chuyện bằng giọng nói tạm dừng khi Oriveo chạy nền.</string>
+</resources>

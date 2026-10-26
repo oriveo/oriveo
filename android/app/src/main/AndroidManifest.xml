@@ -6,6 +6,12 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Dictation: both the app-recorded paths (cloud / system recognizer pipe) and the system recognizer's own capture need the microphone. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Voice conversation: only the microphone foreground-service type is declared; the service keeps running if notifications are denied. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!--
         CHANGE_WIFI_MULTICAST_STATE implies android.hardware.wifi, which would hide the app from
@@ -26,6 +32,24 @@
         declared optional so the app still installs on devices without a camera.
     -->
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+
+    <!--
+        RECORD_AUDIO implies android.hardware.microphone as required on Google Play.
+        Dictation is an optional entry in the input box and the app stays usable by typing on devices
+        without a microphone, so the feature is marked optional.
+    -->
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
+    <!-- Read aloud: Android 11+ package visibility is needed to bind the system TTS engine. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+        <!-- System dictation: package visibility is needed to discover and bind the system speech recognition service. -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
 
     <!-- Read aloud: Android 11+ package visibility; required to bind the system TTS engine. -->
     <queries>
@@ -99,6 +123,12 @@
                 <data android:scheme="oriveo" android:host="mcp" android:path="/oauth/callback" />
             </intent-filter>
         </activity>
+
+        <!-- Voice conversation foreground service: started only while the activity is visible and RECORD_AUDIO is granted (VoiceConversationServiceStarter). -->
+        <service
+            android:name=".core.voice.conversation.VoiceConversationService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

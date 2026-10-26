@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="voice_conversation_start_a11y">Sprachgespräch starten</string>
+    <string name="voice_conversation_status_listening">Hört zu</string>
+    <string name="voice_conversation_status_thinking">Denkt nach</string>
+    <string name="voice_conversation_status_speaking">Spricht</string>
+    <string name="voice_conversation_status_speaking_tap_to_interrupt">Spricht · Tippen zum Unterbrechen</string>
+    <string name="voice_conversation_status_muted">Stummgeschaltet</string>
+    <string name="voice_conversation_status_awaiting_approval">Wartet auf dich</string>
+    <string name="voice_conversation_status_error">Etwas ist schiefgelaufen</string>
+    <string name="voice_conversation_orb_hint_listening">Tippen, wenn du fertig bist</string>
+    <string name="voice_conversation_orb_hint_thinking">Tippen zum Stoppen</string>
+    <string name="voice_conversation_orb_hint_speaking">Tippen, um die Sprachausgabe zu stoppen</string>
+    <string name="voice_conversation_mute_a11y">Mikrofon stummschalten</string>
+    <string name="voice_conversation_unmute_a11y">Stummschaltung aufheben</string>
+    <string name="voice_conversation_end_a11y">Sprachgespräch beenden</string>
+    <string name="voice_conversation_prompt_did_not_catch">Entschuldige, das habe ich nicht verstanden.</string>
+    <string name="voice_conversation_prompt_approval_needed">Bitte bestätige das auf dem Bildschirm.</string>
+    <string name="voice_conversation_notification_title">Sprachgespräch läuft</string>
+    <string name="voice_conversation_notification_end">Beenden</string>
+    <string name="voice_conversation_start_failed_toast">Das Sprachgespräch konnte nicht gestartet werden. Versuch es noch einmal.</string>
+    <string name="voice_conversation_background_paused_toast">Das Sprachgespräch pausiert, solange Oriveo im Hintergrund ist.</string>
+</resources>

@@ -14,9 +14,9 @@ fun quoted(value: String): String = "\"${value.replace("\"", "\\\"")}\""
  * Base address of the public model catalog, which supplies model capabilities and prices.
  *
  * Override it with `-PORIVEO_METADATA_BASE_URL=https://your.host` to serve the catalog yourself,
- * or with an empty value to build an app that never contacts a catalog at all. There is no bundled
- * fallback, so such a build lists no models for the official providers; every model then comes from
- * a relay, a local engine, or manual entry.
+ * or with an empty value to build an app that never contacts a catalog at all. Such a build falls
+ * back to the catalog snapshot bundled in the APK (see syncMetadataContractAssets), which is never
+ * refreshed; models can also come from a relay, a local engine, or manual entry.
  */
 val metadataBaseUrl = providers.gradleProperty("ORIVEO_METADATA_BASE_URL").orNull
     ?: "https://api.oriveoai.com"
@@ -228,6 +228,53 @@ kotlin {
     }
 }
 
+// The shared schema and the bundled snapshot used by schema 2 validation are packaged into the APK assets (under model-contracts/).
+// The shared/ directory is found by walking up from projectDir; a missing directory or file fails the build
+// instead of silently producing a package without the schema.
+// The narrow upstream-rejection signature table (contract model catalog and capability truth, section 6.1) is also a shared single source,
+// flattened into model-contracts/ as well and read directly at runtime.
+val metadataContractAssetFiles = listOf(
+    "model-contracts/bundled-metadata.v2.json.gz",
+    "model-contracts/metadata_payload.v2.schema.json",
+    "test-fixtures/capability/rejection-signatures.v1.json",
+)
+val metadataContractRoot: File? = generateSequence(projectDir) { it.parentFile }
+    .map { it.resolve("shared") }
+    .firstOrNull { it.resolve("model-contracts").isDirectory }
+
+abstract class SyncMetadataContractAssets : DefaultTask() {
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.NAME_ONLY)
+    abstract val contractFiles: ConfigurableFileCollection
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun sync() {
+        val missing = contractFiles.files.filterNot { it.isFile }
+        if (contractFiles.isEmpty || missing.isNotEmpty()) {
+            throw GradleException(
+                "Metadata assets not found under shared/model-contracts: " +
+                    missing.joinToString { it.path }.ifEmpty { "<no model-contracts directory found>" },
+            )
+        }
+        val target = outputDir.get().asFile.resolve("model-contracts")
+        outputDir.get().asFile.deleteRecursively()
+        target.mkdirs()
+        contractFiles.files.forEach { it.copyTo(target.resolve(it.name), overwrite = true) }
+    }
+}
+
+val syncMetadataContractAssets = tasks.register<SyncMetadataContractAssets>("syncMetadataContractAssets") {
+    metadataContractRoot?.let { root -> contractFiles.from(metadataContractAssetFiles.map { root.resolve(it) }) }
+    outputDir.set(layout.buildDirectory.dir("generated/metadataContractAssets"))
+}
+
+androidComponents.onVariants { variant ->
+    variant.sources.assets?.addGeneratedSourceDirectory(syncMetadataContractAssets, SyncMetadataContractAssets::outputDir)
+}
+
 dependencies {
     // AndroidX
     implementation(libs.androidx.core.ktx)
@@ -240,6 +287,7 @@ dependencies {
     implementation(libs.androidx.security.crypto)
     implementation(libs.androidx.browser)
     implementation(libs.androidx.exifinterface)
+    implementation(libs.androidx.media3.muxer)
 
     // Compose
     val composeBom = platform(libs.compose.bom)
@@ -296,6 +344,7 @@ dependencies {
     testImplementation(libs.mockk)
     testImplementation(libs.turbine)
     testImplementation(libs.ktor.client.mock)
+    testImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.robolectric)
     testImplementation(libs.compose.ui.test.junit4)

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="voice_conversation_start_a11y">Начать голосовой диалог</string>
+    <string name="voice_conversation_status_listening">Слушаю</string>
+    <string name="voice_conversation_status_thinking">Думаю</string>
+    <string name="voice_conversation_status_speaking">Отвечаю</string>
+    <string name="voice_conversation_status_speaking_tap_to_interrupt">Отвечаю · нажмите, чтобы прервать</string>
+    <string name="voice_conversation_status_muted">Микрофон выключен</string>
+    <string name="voice_conversation_status_awaiting_approval">Нужно подтверждение</string>
+    <string name="voice_conversation_status_error">Что-то пошло не так</string>
+    <string name="voice_conversation_orb_hint_listening">Нажмите, когда закончите</string>
+    <string name="voice_conversation_orb_hint_thinking">Нажмите, чтобы остановить</string>
+    <string name="voice_conversation_orb_hint_speaking">Нажмите, чтобы остановить озвучку</string>
+    <string name="voice_conversation_mute_a11y">Выключить микрофон</string>
+    <string name="voice_conversation_unmute_a11y">Включить микрофон</string>
+    <string name="voice_conversation_end_a11y">Завершить голосовой диалог</string>
+    <string name="voice_conversation_prompt_did_not_catch">Извините, не удалось расслышать.</string>
+    <string name="voice_conversation_prompt_approval_needed">Подтвердите на экране, пожалуйста.</string>
+    <string name="voice_conversation_notification_title">Идёт голосовой диалог</string>
+    <string name="voice_conversation_notification_end">Завершить</string>
+    <string name="voice_conversation_start_failed_toast">Не удалось начать голосовой диалог. Попробуйте ещё раз.</string>
+    <string name="voice_conversation_background_paused_toast">Пока Oriveo работает в фоне, голосовой диалог приостановлен.</string>
+</resources>
