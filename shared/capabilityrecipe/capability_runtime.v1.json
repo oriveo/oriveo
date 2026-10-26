@@ -68,28 +68,16 @@
       "reviewedAt": "2026-08-15",
       "officialUpdatedAt": null
     },
-    "mistral.agent_tools": {
-      "kind": "official_doc",
-      "url": "https://docs.mistral.ai/studio/agents/agent-tools",
-      "reviewedAt": "2026-08-15",
-      "officialUpdatedAt": null
-    },
-    "groq.built_in_tools": {
-      "kind": "official_doc",
-      "url": "https://console.groq.com/docs/tool-use/built-in-tools/web-search",
-      "reviewedAt": "2026-08-11",
-      "officialUpdatedAt": null
-    },
     "deepseek.thinking_mode": {
       "kind": "official_doc",
       "url": "https://api-docs.deepseek.com/guides/thinking_mode",
-      "reviewedAt": "2026-08-15",
+      "reviewedAt": "2026-10-19",
       "officialUpdatedAt": "2026-08-13"
     },
     "deepseek.chat_api": {
       "kind": "official_doc",
       "url": "https://api-docs.deepseek.com/api/create-chat-completion",
-      "reviewedAt": "2026-08-15",
+      "reviewedAt": "2026-10-19",
       "officialUpdatedAt": null
     },
     "together.chat_completions": {
@@ -110,6 +98,18 @@
       "reviewedAt": "2026-08-11",
       "officialUpdatedAt": null
     },
+    "siliconflow.release_notes": {
+      "kind": "official_doc",
+      "url": "https://docs.siliconflow.cn/cn/release-notes/overview",
+      "reviewedAt": "2026-10-20",
+      "officialUpdatedAt": null
+    },
+    "siliconflow.models": {
+      "kind": "official_doc",
+      "url": "https://cloud.siliconflow.cn/models",
+      "reviewedAt": "2026-10-20",
+      "officialUpdatedAt": null
+    },
     "minimax.text_api": {
       "kind": "official_doc",
       "url": "https://platform.minimax.io/docs/api-reference/text-post",
@@ -120,6 +120,24 @@
       "kind": "official_doc",
       "url": "https://developers.openai.com/api/docs/guides/latest-model",
       "reviewedAt": "2026-08-11",
+      "officialUpdatedAt": null
+    },
+    "anthropic.deprecations": {
+      "kind": "official_doc",
+      "url": "https://platform.claude.com/docs/en/about-claude/model-deprecations",
+      "reviewedAt": "2026-10-19",
+      "officialUpdatedAt": null
+    },
+    "openai.deprecations": {
+      "kind": "official_doc",
+      "url": "https://developers.openai.com/api/docs/deprecations",
+      "reviewedAt": "2026-10-19",
+      "officialUpdatedAt": null
+    },
+    "gemini.deprecations": {
+      "kind": "official_doc",
+      "url": "https://ai.google.dev/gemini-api/docs/deprecations",
+      "reviewedAt": "2026-10-19",
       "officialUpdatedAt": null
     },
     "anthropic.effort": {
@@ -143,7 +161,7 @@
     "deepseek.pricing": {
       "kind": "official_doc",
       "url": "https://api-docs.deepseek.com/quick_start/pricing",
-      "reviewedAt": "2026-09-24",
+      "reviewedAt": "2026-10-19",
       "officialUpdatedAt": null
     },
     "grok.reasoning": {
@@ -182,10 +200,28 @@
       "reviewedAt": "2026-09-24",
       "officialUpdatedAt": null
     },
+    "together.deprecations": {
+      "kind": "official_doc",
+      "url": "https://docs.together.ai/docs/deprecations",
+      "reviewedAt": "2026-10-19",
+      "officialUpdatedAt": null
+    },
     "fireworks.reasoning": {
       "kind": "official_doc",
       "url": "https://docs.fireworks.ai/guides/reasoning",
       "reviewedAt": "2026-08-11",
+      "officialUpdatedAt": null
+    },
+    "fireworks.changelog": {
+      "kind": "official_doc",
+      "url": "https://docs.fireworks.ai/updates/changelog",
+      "reviewedAt": "2026-10-26",
+      "officialUpdatedAt": null
+    },
+    "fireworks.vision": {
+      "kind": "official_doc",
+      "url": "https://docs.fireworks.ai/guides/querying-vision-language-models",
+      "reviewedAt": "2026-10-26",
       "officialUpdatedAt": null
     },
     "zhipu.migration": {
@@ -236,16 +272,10 @@
       "reviewedAt": "2026-08-11",
       "officialUpdatedAt": null
     },
-    "qwen.responses_api": {
-      "kind": "official_doc",
-      "url": "https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-openai-responses",
-      "reviewedAt": "2026-08-11",
-      "officialUpdatedAt": null
-    },
     "kimi.web_search": {
       "kind": "official_doc",
       "url": "https://platform.kimi.ai/docs/guide/use-web-search",
-      "reviewedAt": "2026-08-15",
+      "reviewedAt": "2026-10-26",
       "officialUpdatedAt": null
     },
     "kimi.thinking_models": {
@@ -270,6 +300,138 @@
       "kind": "official_doc",
       "url": "https://platform.minimax.io/docs/guides/server-tools",
       "reviewedAt": "2026-08-23",
+      "officialUpdatedAt": null
+    },
+    "openai.images_vision": {
+      "kind": "official_doc",
+      "url": "https://developers.openai.com/api/docs/guides/images-vision",
+      "reviewedAt": "2026-10-19",
+      "officialUpdatedAt": null
+    },
+    "openai.file_inputs": {
+      "kind": "official_doc",
+      "url": "https://developers.openai.com/api/docs/guides/file-inputs",
+      "reviewedAt": "2026-10-19",
+      "officialUpdatedAt": null
+    },
+    "openai.chat_create": {
+      "kind": "official_doc",
+      "url": "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create",
+      "reviewedAt": "2026-10-19",
+      "officialUpdatedAt": null
+    },
+    "anthropic.vision": {
+      "kind": "official_doc",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/vision",
+      "reviewedAt": "2026-10-19",
+      "officialUpdatedAt": null
+    },
+    "anthropic.pdf_support": {
+      "kind": "official_doc",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/pdf-support",
+      "reviewedAt": "2026-10-19",
+      "officialUpdatedAt": null
+    },
+    "gemini.generate_content": {
+      "kind": "official_doc",
+      "url": "https://ai.google.dev/api/generate-content",
+      "reviewedAt": "2026-10-19",
+      "officialUpdatedAt": null
+    },
+    "gemini.changelog": {
+      "kind": "official_doc",
+      "url": "https://ai.google.dev/gemini-api/docs/changelog",
+      "reviewedAt": "2026-10-19",
+      "officialUpdatedAt": null
+    },
+    "openrouter.images": {
+      "kind": "official_doc",
+      "url": "https://openrouter.ai/docs/guides/overview/multimodal/image-understanding",
+      "reviewedAt": "2026-10-19",
+      "officialUpdatedAt": null
+    },
+    "openrouter.pdfs": {
+      "kind": "official_doc",
+      "url": "https://openrouter.ai/docs/guides/overview/multimodal/pdfs",
+      "reviewedAt": "2026-10-19",
+      "officialUpdatedAt": null
+    },
+    "openrouter.videos": {
+      "kind": "official_doc",
+      "url": "https://openrouter.ai/docs/guides/overview/multimodal/videos",
+      "reviewedAt": "2026-10-19",
+      "officialUpdatedAt": null
+    },
+    "qwen.openai_chat": {
+      "kind": "official_doc",
+      "url": "https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-openai-chat-completions",
+      "reviewedAt": "2026-10-19",
+      "officialUpdatedAt": null
+    },
+    "deepseek.vision": {
+      "kind": "official_doc",
+      "url": "https://api-docs.deepseek.com/guides/vision",
+      "reviewedAt": "2026-10-19",
+      "officialUpdatedAt": null
+    },
+    "deepseek.search": {
+      "kind": "official_doc",
+      "url": "https://api-docs.deepseek.com/guides/search",
+      "reviewedAt": "2026-10-19",
+      "officialUpdatedAt": null
+    },
+    "deepseek.updates": {
+      "kind": "official_doc",
+      "url": "https://api-docs.deepseek.com/updates",
+      "reviewedAt": "2026-10-19",
+      "officialUpdatedAt": null
+    },
+    "minimax.openai_api": {
+      "kind": "official_doc",
+      "url": "https://platform.minimax.io/docs/api-reference/text-openai-api",
+      "reviewedAt": "2026-10-19",
+      "officialUpdatedAt": null
+    },
+    "minimax.anthropic_api": {
+      "kind": "official_doc",
+      "url": "https://platform.minimax.io/docs/api-reference/text-anthropic-api",
+      "reviewedAt": "2026-10-19",
+      "officialUpdatedAt": null
+    },
+    "qwen.notice_731": {
+      "kind": "official_doc",
+      "url": "https://www.alibabacloud.com/en/notice/model_studionotice_on_the_decommissioning_of_certain_historical_mainline_models_731",
+      "reviewedAt": "2026-10-19",
+      "officialUpdatedAt": null
+    },
+    "qwen.notice_79d": {
+      "kind": "official_doc",
+      "url": "https://www.alibabacloud.com/en/notice/model_studio_notice_of_retirement_for_selected_legacy_mainline_models_79d",
+      "reviewedAt": "2026-10-19",
+      "officialUpdatedAt": null
+    },
+    "qwen.notice_79e": {
+      "kind": "official_doc",
+      "url": "https://www.alibabacloud.com/en/notice/model_studio_notice_of_retirement_for_selected_legacy_mainline_models_79e",
+      "reviewedAt": "2026-10-19",
+      "officialUpdatedAt": null
+    },
+    "qwen.notice_7d9": {
+      "kind": "official_doc",
+      "url": "https://www.alibabacloud.com/en/notice/model_studio_notice_of_retirement_for_selected_legacy_models_7d9",
+      "reviewedAt": "2026-10-19",
+      "officialUpdatedAt": null
+    },
+    "kimi.models": {
+      "kind": "official_doc",
+      "url": "https://platform.kimi.ai/docs/models",
+      "reviewedAt": "2026-10-19",
+      "officialUpdatedAt": null
+    },
+    "minimax.models": {
+      "kind": "official_doc",
+      "url": "https://platform.minimax.io/docs/faq/models",
+      "reviewedAt": "2026-10-19",
       "officialUpdatedAt": null
     }
   },
@@ -681,7 +843,7 @@
       "reviewedAt": "2026-09-24"
     },
     "moonshot.chat.web.v1": {
-      "$comment": "The older builtin $web_search, a bounded client tool loop (role=tool refills arguments). The official use-web-search page states: '$web_search works directly with each model's reasoning behavior: kimi-k3 always reasons, and kimi-k2.6 can also perform web search with thinking enabled' — meaning k2.6's thinking is **compatible** with the builtin search, not mutually exclusive with it. k2.5 is never named officially either way, and is treated as undocumented rather than assumed compatible. This recipe still does not claim ownership of the reasoning parameter.",
+      "$comment": "The older builtin $web_search, a bounded client tool loop (role=tool refills arguments). No model selects it from 2026-10-26: the official use-web-search page lists the builtin tool as 'Retires on October 20, 2026', and the pricing/tools page says 'expected to be deprecated on October 20, 2026 — for new integrations, please use the /v1/tools/search endpoint or the web-search official tool'; all Kimi web search goes through moonshot.formula.web.v1. The definition stays registered because the builtin parsing branches on every client and the shared fixtures still reference it. The official use-web-search page states: '$web_search works directly with each model's reasoning behavior: kimi-k3 always reasons, and kimi-k2.6 can also perform web search with thinking enabled' — meaning k2.6's thinking is **compatible** with the builtin search, not mutually exclusive with it. k2.5 is never named officially either way, and is treated as undocumented rather than assumed compatible. This recipe still does not claim ownership of the reasoning parameter.",
       "id": "moonshot.chat.web.v1",
       "providerKind": "moonshot",
       "transport": {
@@ -713,10 +875,10 @@
       "sourceRefs": [
         "kimi.web_search"
       ],
-      "reviewedAt": "2026-08-15"
+      "reviewedAt": "2026-10-26"
     },
     "moonshot.formula.web.v1": {
-      "$comment": "The official Formula/Fiber tool channel, the officially recommended path. Tool declarations must be read dynamically from /formulas/{uri}/tools first, never hardcoded against an assumed schema; the name and arguments the model returns are POSTed to fibers unchanged, and the encrypted_output from context.output or search is sent back as role=tool unchanged.",
+      "$comment": "The official Formula/Fiber tool channel and, from 2026-10-26, the only Kimi web search channel (the use-official-tools page: 'When using official tools such as web search with kimi-k3.1-pro, use the Formula API official tools channel'). Tool declarations must be read dynamically from /formulas/{uri}/tools first, never hardcoded against an assumed schema; the name and arguments the model returns are POSTed to fibers unchanged, and the encrypted_output from context.output or search is sent back as role=tool unchanged.",
       "id": "moonshot.formula.web.v1",
       "providerKind": "moonshot",
       "transport": {
@@ -747,7 +909,7 @@
       "sourceRefs": [
         "kimi.official_tools"
       ],
-      "reviewedAt": "2026-08-15"
+      "reviewedAt": "2026-10-26"
     },
     "openai.responses.reasoning.v1": {
       "id": "openai.responses.reasoning.v1",

@@ -190,7 +190,7 @@
       "responseParserKind": "moonshot_builtin_web_v1",
       "continuationKind": "tool_loop",
       "continuationVariant": "default",
-      "selectorExpected": true
+      "selectorExpected": false
     },
     {
       "providerKind": "moonshot",

@@ -31,7 +31,10 @@
     "capabilityControlKeys": [
       "web",
       "reasoning",
-      "generation"
+      "generation",
+      "vision_input",
+      "file_input",
+      "video_input"
     ],
     "unknownCapabilityKeyPolicy": "ignore",
     "recipeReferenceKey": "recipeRef",
@@ -121,6 +124,13 @@
         "state": "custom_only",
         "reasonCode": "relay_user_directory",
         "why": "the relay catalog comes from the user's own machine, which the model catalog cannot see and therefore cannot resolve an exact selector against, so there is no official source to cite"
+      },
+      {
+        "providerKind": "relay",
+        "state": "unknown",
+        "reasonCode": "relay_user_directory",
+        "capabilityFamily": "input",
+        "why": "input keys on relay: the catalog comes from the user's own machine, so whether the model accepts the medium is unknown and there is no official source to cite"
       }
     ],
     "fixedVerdicts": [
@@ -573,16 +583,22 @@
         "reviewedAt": "2026-08-15",
         "officialUpdatedAt": null
       },
-      "groq.built_in_tools": {
+      "groq.browser_search": {
         "kind": "official_doc",
-        "url": "https://console.groq.com/docs/tool-use/built-in-tools/web-search",
-        "reviewedAt": "2026-08-11",
+        "url": "https://console.groq.com/docs/tool-use/built-in-tools/browser-search",
+        "reviewedAt": "2026-09-24",
+        "officialUpdatedAt": null
+      },
+      "groq.reasoning": {
+        "kind": "official_doc",
+        "url": "https://console.groq.com/docs/reasoning",
+        "reviewedAt": "2026-09-24",
         "officialUpdatedAt": null
       },
       "deepseek.thinking_mode": {
         "kind": "official_doc",
         "url": "https://api-docs.deepseek.com/guides/thinking_mode",
-        "reviewedAt": "2026-08-15",
+        "reviewedAt": "2026-10-19",
         "officialUpdatedAt": "2026-08-13"
       },
       "together.chat_completions": {
@@ -1813,14 +1829,6 @@
         }
       },
       {
-        "caseId": "recipe.unknown_provider_kind_rejected",
-        "expect": {
-          "valid": false,
-          "action": "reject_feature_patch",
-          "reason": "unknown_provider_kind"
-        }
-      },
-      {
         "caseId": "recipe.malformed_id_rejected",
         "recipe": {
           "id": "openai-web-v1",
@@ -2252,7 +2260,7 @@
           "defaultBehavior": "provider_default",
           "riskTier": "standard",
           "sourceRefs": [
-            "groq.built_in_tools"
+            "groq.reasoning"
           ]
         },
         "expect": {
@@ -2531,7 +2539,7 @@
             "state": "custom_only",
             "reasonCode": "model_route_pending",
             "sourceRefs": [
-              "groq.built_in_tools"
+              "groq.browser_search"
             ]
           }
         },

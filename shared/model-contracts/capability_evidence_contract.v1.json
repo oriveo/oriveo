@@ -113,6 +113,14 @@
         ]
       },
       {
+        "path": "web/apps/app/lib/core/chat/local-engine-profiles.ts",
+        "role": "profile_producer",
+        "anchors": [
+          "GenerationParameterProfile",
+          "localEngineGenerationProfile"
+        ]
+      },
+      {
         "path": "web/packages/core/src/providers/request-builders/generation-parameters.ts",
         "role": "projection_consumer",
         "anchors": [
@@ -163,6 +171,14 @@
       },
       {
         "path": "ios/Oriveo/Oriveo/Features/Providers/GenerationParameterDefaultsSheet.swift",
+        "role": "presentation_consumer",
+        "anchors": [
+          "CapabilityEvidenceProductionAdapter",
+          "GenerationParameterPanelPresentation"
+        ]
+      },
+      {
+        "path": "ios/Oriveo/Oriveo/Features/Chat/ModelControls/AdvancedSettingsCatalog.swift",
         "role": "presentation_consumer",
         "anchors": [
           "CapabilityEvidenceProductionAdapter",

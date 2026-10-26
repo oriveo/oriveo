@@ -811,12 +811,6 @@
         "reviewedAt": "2026-08-15",
         "url": "https://docs.x.ai/developers/tools/web-search"
       },
-      "groq.built_in_tools": {
-        "kind": "official_doc",
-        "officialUpdatedAt": null,
-        "reviewedAt": "2026-08-11",
-        "url": "https://console.groq.com/docs/tool-use/built-in-tools/web-search"
-      },
       "groq.reasoning": {
         "kind": "official_doc",
         "officialUpdatedAt": null,
@@ -858,12 +852,6 @@
         "officialUpdatedAt": null,
         "reviewedAt": "2026-08-11",
         "url": "https://platform.minimax.io/docs/token-plan/mcp-guide"
-      },
-      "mistral.agent_tools": {
-        "kind": "official_doc",
-        "officialUpdatedAt": null,
-        "reviewedAt": "2026-08-15",
-        "url": "https://docs.mistral.ai/studio/agents/agent-tools"
       },
       "mistral.deprecations": {
         "kind": "official_doc",
@@ -912,12 +900,6 @@
         "officialUpdatedAt": null,
         "reviewedAt": "2026-08-11",
         "url": "https://www.alibabacloud.com/help/en/model-studio/deep-thinking"
-      },
-      "qwen.responses_api": {
-        "kind": "official_doc",
-        "officialUpdatedAt": null,
-        "reviewedAt": "2026-08-11",
-        "url": "https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-openai-responses"
       },
       "qwen.web_search": {
         "kind": "official_doc",

@@ -1107,7 +1107,7 @@
             "responseParserKind": "zhipu_web_search_v1"
           }
         },
-        "generatedAt": "2026-10-13T00:00:00Z",
+        "generatedAt": "2026-10-26T00:00:00Z",
         "recipes": {
           "anthropic.messages.generation.v1": {
             "capability": "generation",
@@ -1951,7 +1951,7 @@
             ]
           }
         },
-        "revision": "sha256:e73f7dde58142c7df2e6c3256adbd0400efba480057ed0090821b224198807f2",
+        "revision": "sha256:dafb696b264bb731a050134a1b87dfc947e99bd201d574c0ab2f05577b652bd9",
         "schemaVersion": 2,
         "sourceIndex": {
           "anthropic.deprecations": {
@@ -2149,7 +2149,7 @@
           "kimi.web_search": {
             "kind": "official_doc",
             "url": "https://platform.kimi.ai/docs/guide/use-web-search",
-            "reviewedAt": "2026-08-15",
+            "reviewedAt": "2026-10-26",
             "officialUpdatedAt": null
           },
           "minimax.anthropic_api": {
@@ -4566,7 +4566,7 @@
             "responseParserKind": "zhipu_web_search_v1"
           }
         },
-        "generatedAt": "2026-10-13T00:00:00Z",
+        "generatedAt": "2026-10-26T00:00:00Z",
         "recipes": {
           "anthropic.messages.generation.v1": {
             "capability": "generation",
@@ -5410,7 +5410,7 @@
             ]
           }
         },
-        "revision": "sha256:e73f7dde58142c7df2e6c3256adbd0400efba480057ed0090821b224198807f2",
+        "revision": "sha256:dafb696b264bb731a050134a1b87dfc947e99bd201d574c0ab2f05577b652bd9",
         "schemaVersion": 2,
         "sourceIndex": {
           "anthropic.deprecations": {
@@ -5608,7 +5608,7 @@
           "kimi.web_search": {
             "kind": "official_doc",
             "url": "https://platform.kimi.ai/docs/guide/use-web-search",
-            "reviewedAt": "2026-08-15",
+            "reviewedAt": "2026-10-26",
             "officialUpdatedAt": null
           },
           "minimax.anthropic_api": {
@@ -10239,7 +10239,7 @@
               "responseParserKind": "zhipu_web_search_v1"
             }
           },
-          "generatedAt": "2026-10-13T00:00:00Z",
+          "generatedAt": "2026-10-26T00:00:00Z",
           "recipes": {
             "anthropic.messages.generation.v1": {
               "capability": "generation",
@@ -11083,7 +11083,7 @@
               ]
             }
           },
-          "revision": "sha256:e73f7dde58142c7df2e6c3256adbd0400efba480057ed0090821b224198807f2",
+          "revision": "sha256:dafb696b264bb731a050134a1b87dfc947e99bd201d574c0ab2f05577b652bd9",
           "schemaVersion": 2,
           "sourceIndex": {
             "anthropic.deprecations": {
@@ -11281,7 +11281,7 @@
             "kimi.web_search": {
               "kind": "official_doc",
               "url": "https://platform.kimi.ai/docs/guide/use-web-search",
-              "reviewedAt": "2026-08-15",
+              "reviewedAt": "2026-10-26",
               "officialUpdatedAt": null
             },
             "minimax.anthropic_api": {
@@ -20961,7 +20961,7 @@
               "responseParserKind": "zhipu_web_search_v1"
             }
           },
-          "generatedAt": "2026-10-13T00:00:00Z",
+          "generatedAt": "2026-10-26T00:00:00Z",
           "recipes": {
             "anthropic.messages.generation.v1": {
               "capability": "generation",
@@ -21805,7 +21805,7 @@
               ]
             }
           },
-          "revision": "sha256:e73f7dde58142c7df2e6c3256adbd0400efba480057ed0090821b224198807f2",
+          "revision": "sha256:dafb696b264bb731a050134a1b87dfc947e99bd201d574c0ab2f05577b652bd9",
           "schemaVersion": 2,
           "sourceIndex": {
             "anthropic.deprecations": {
@@ -22003,7 +22003,7 @@
             "kimi.web_search": {
               "kind": "official_doc",
               "url": "https://platform.kimi.ai/docs/guide/use-web-search",
-              "reviewedAt": "2026-08-15",
+              "reviewedAt": "2026-10-26",
               "officialUpdatedAt": null
             },
             "minimax.anthropic_api": {
