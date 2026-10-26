@@ -1,6 +1,136 @@
 {
-  "$comment": "Per-currency message cost, conversation totals, display and migration. Message shape: estimatedCost always holds only the USD part (may be 0) and costSource describes the USD part ('unknown' when there is no USD part); nullable nonUsdCost {currencyCode (ISO 4217 upper case), amount, costSource} holds the single non-USD part. Amounts are never converted. totalCases: messages are in the message shape; estimatedCost adds into the USD total and nonUsdCost into its currency's total; totals are per currency and never added across currencies; parts are ordered USD first, then other codes ascending; zero-amount currencies are omitted; unrecorded parts are skipped. displayCases: parts are joined by ' + '; one message may render two parts; USD keeps the existing '$' rendering and precision; other currencies use the platform currency formatter with the UI locale and the standard symbol, and each part is rounded by the same digit rule used for USD in that place, evaluated on that part's own amount (cases give the resolved digits per part). migrationCases: the schema adds a nullable nonUsdCost (three fields); existing rows get nonUsdCost null; past messages whose CNY estimate was dropped stay unknown. Tests are named COST_CURRENCY_<id>.",
+  "$comment": "Per-currency message cost, conversation totals, display and migration. Message shape: estimatedCost always holds only the USD part (may be 0) and costSource describes the USD part ('unknown' when there is no USD part); nullable nonUsdCost {currencyCode (ISO 4217 upper case), amount, costSource} holds the single non-USD part. Amounts are never converted. recordCases: 'estimate' is one priced result, 'estimates' lists every priced part of one message (e.g. CNY generation + USD retrieval); USD parts add into estimatedCost, the non-USD part goes to nonUsdCost; expect gives {estimatedCost, costSource, nonUsdCost|null}, or {recorded:false} when nothing is recorded. A second, different non-USD currency in the same message sets nonUsdCost to {first currency code, 0, 'unknown'}: amounts are never added, that part displays as each end's existing 'not available' text and the USD part displays as usual. totalCases: messages are in the message shape; estimatedCost adds into the USD total and nonUsdCost into its currency's total; totals are per currency and never added across currencies; parts are ordered USD first, then other codes ascending; zero-amount currencies are omitted; unrecorded parts are skipped. All USD consumers (conversation total, monthly summary, budget) read estimatedCost without currency filtering. displayCases: parts are joined by ' + '; one message may render two parts; USD keeps each end's existing '$' rendering and precision; other currencies use the platform currency formatter with the UI locale and the standard symbol, and each part is rounded by the same digit rule used for USD in that place, evaluated on that part's own amount (cases give the resolved digits per part). migrationCases: the schema adds a nullable nonUsdCost (three fields); existing rows get nonUsdCost null; past messages whose CNY estimate was dropped stay unknown. Tests are named COST_CURRENCY_<id> (Web: it('COST-CURRENCY-<id> ...')).",
   "v": 1,
+  "recordCases": [
+    {
+      "id": "usd_estimate_recorded",
+      "estimate": {
+        "status": "estimated",
+        "amount": 0.00935,
+        "currencyCode": "USD"
+      },
+      "expect": {
+        "estimatedCost": 0.00935,
+        "costSource": "estimated",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "id": "missing_currency_is_usd",
+      "estimate": {
+        "status": "estimated",
+        "amount": 0.01
+      },
+      "expect": {
+        "estimatedCost": 0.01,
+        "costSource": "estimated",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "id": "cny_estimate_recorded_in_cny",
+      "estimate": {
+        "status": "estimated",
+        "amount": 0.0039,
+        "currencyCode": "CNY"
+      },
+      "expect": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": 0.0039,
+          "costSource": "estimated"
+        }
+      }
+    },
+    {
+      "id": "lowercase_code_normalized",
+      "estimate": {
+        "status": "estimated",
+        "amount": 0.5,
+        "currencyCode": "cny"
+      },
+      "expect": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": 0.5,
+          "costSource": "estimated"
+        }
+      }
+    },
+    {
+      "id": "mixed_cny_generation_usd_retrieval",
+      "estimates": [
+        {
+          "part": "generation",
+          "status": "estimated",
+          "amount": 0.12,
+          "currencyCode": "CNY"
+        },
+        {
+          "part": "retrieval",
+          "status": "estimated",
+          "amount": 0.25,
+          "currencyCode": "USD"
+        }
+      ],
+      "expect": {
+        "estimatedCost": 0.25,
+        "costSource": "estimated",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": 0.12,
+          "costSource": "estimated"
+        }
+      },
+      "note": "e.g. Moonshot cn connection (CNY price) + knowledge-base retrieval priced at OpenAI USD price; both parts are recorded, neither is dropped or converted"
+    },
+    {
+      "id": "second_non_usd_currency_marks_unknown",
+      "estimates": [
+        {
+          "part": "generation",
+          "status": "estimated",
+          "amount": 0.12,
+          "currencyCode": "CNY"
+        },
+        {
+          "part": "extra",
+          "status": "estimated",
+          "amount": 0.01,
+          "currencyCode": "EUR"
+        },
+        {
+          "part": "retrieval",
+          "status": "estimated",
+          "amount": 0.25,
+          "currencyCode": "USD"
+        }
+      ],
+      "expect": {
+        "estimatedCost": 0.25,
+        "costSource": "estimated",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": 0,
+          "costSource": "unknown"
+        }
+      },
+      "note": "not expected in practice (retrieval is always USD); the non-USD part keeps the first currency code, amount 0, costSource unknown; CNY and EUR are never added"
+    },
+    {
+      "id": "unavailable_not_recorded",
+      "estimate": {
+        "status": "unavailable"
+      },
+      "expect": {
+        "recorded": false
+      }
+    }
+  ],
   "totalCases": [
     {
       "id": "mixed_totals_split_by_currency",
@@ -202,17 +332,17 @@
       "id": "tiny_parts_summed_before_epsilon",
       "messages": [
         {
-          "estimatedCost": 0.000005,
+          "estimatedCost": 5e-06,
           "costSource": "estimated",
           "nonUsdCost": null
         },
         {
-          "estimatedCost": 0.000005,
+          "estimatedCost": 5e-06,
           "costSource": "estimated",
           "nonUsdCost": null
         },
         {
-          "estimatedCost": 0.000005,
+          "estimatedCost": 5e-06,
           "costSource": "estimated",
           "nonUsdCost": null
         },
@@ -221,7 +351,7 @@
           "costSource": "unknown",
           "nonUsdCost": {
             "currencyCode": "CNY",
-            "amount": 0.000005,
+            "amount": 5e-06,
             "costSource": "estimated"
           }
         },
@@ -230,7 +360,7 @@
           "costSource": "unknown",
           "nonUsdCost": {
             "currencyCode": "CNY",
-            "amount": 0.000005,
+            "amount": 5e-06,
             "costSource": "estimated"
           }
         },
@@ -239,7 +369,7 @@
           "costSource": "unknown",
           "nonUsdCost": {
             "currencyCode": "CNY",
-            "amount": 0.000005,
+            "amount": 5e-06,
             "costSource": "estimated"
           }
         }
@@ -248,11 +378,11 @@
         "parts": [
           {
             "currencyCode": "USD",
-            "amount": 0.000015
+            "amount": 1.5e-05
           },
           {
             "currencyCode": "CNY",
-            "amount": 0.000015
+            "amount": 1.5e-05
           }
         ]
       },
@@ -295,7 +425,7 @@
       "id": "total_equal_to_epsilon_omitted",
       "messages": [
         {
-          "estimatedCost": 0.00001,
+          "estimatedCost": 1e-05,
           "costSource": "estimated",
           "nonUsdCost": null
         }
@@ -487,7 +617,1429 @@
           "costSource": "estimated"
         }
       },
-      "note": "rows stored in a superseded single-currency shape; USD or empty-currency rows keep estimatedCost and get nonUsdCost null"
+      "note": "rows stored in the superseded single-currency shape (Android DB 46); USD or empty-currency rows keep estimatedCost and get nonUsdCost null"
+    }
+  ],
+  "totalsIncompleteThreadComment": "Conversation totals when the local thread may be partial. Totals shape = conversation {estimatedCost (USD only), nonUsdCostTotals {CODE: amount} | null}. isComplete = the per-conversation local-only 'thread complete' flag (never synced): true only after the conversation was created locally or its whole thread was pulled from the cloud; set false whenever messages are written from a window / fragment / interrupted or failed backfill; rows without the flag count as false. messageCount is never used. Complete: apply the change to localMessages, then recompute all currencies from every local message (same as totalCases). Incomplete: never recompute; start from remoteTotals (latest conversation totals) and add (after - before) per currency for locally originated changes only (add: before=null, delete: after=null, costChange: both). Messages merged in from the cloud (remoteWindowMerged) are already counted remotely and contribute no delta. Each currency total is clamped at >= 0; a non-USD currency whose total is 0 is dropped and an empty map is written as null. Compare amounts with 1e-9 tolerance. rejectTotals lists results that must not be produced. The result is written locally and synced.",
+  "totalsIncompleteThreadCases": [
+    {
+      "id": "complete_thread_recomputes",
+      "note": "Complete local thread: apply the change, then recompute every currency from all local messages; the (stale) remote totals are not used.",
+      "remoteTotals": {
+        "estimatedCost": 9.0,
+        "nonUsdCostTotals": {
+          "CNY": 9.0
+        }
+      },
+      "localMessages": [
+        {
+          "id": "m1",
+          "estimatedCost": 1.0,
+          "costSource": "estimated",
+          "nonUsdCost": null
+        },
+        {
+          "id": "m2",
+          "estimatedCost": 0,
+          "costSource": "unknown",
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 3.5,
+            "costSource": "estimated"
+          }
+        },
+        {
+          "id": "m3",
+          "estimatedCost": 0.25,
+          "costSource": "upstream",
+          "nonUsdCost": null
+        }
+      ],
+      "isComplete": true,
+      "change": {
+        "kind": "add",
+        "before": null,
+        "after": {
+          "id": "m4",
+          "estimatedCost": 0.5,
+          "costSource": "estimated",
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 0.25,
+            "costSource": "estimated"
+          }
+        }
+      },
+      "expectTotals": {
+        "estimatedCost": 1.75,
+        "nonUsdCostTotals": {
+          "CNY": 3.75
+        }
+      }
+    },
+    {
+      "id": "incomplete_thread_add_message_applies_delta",
+      "note": "Incomplete thread: base = remote totals, add the new message's parts per currency; a currency missing from remote nonUsdCostTotals starts at 0.",
+      "remoteTotals": {
+        "estimatedCost": 10.0,
+        "nonUsdCostTotals": null
+      },
+      "localMessages": [
+        {
+          "id": "m1",
+          "estimatedCost": 1.0,
+          "costSource": "estimated",
+          "nonUsdCost": null
+        }
+      ],
+      "isComplete": false,
+      "change": {
+        "kind": "add",
+        "before": null,
+        "after": {
+          "id": "m2",
+          "estimatedCost": 0.25,
+          "costSource": "estimated",
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 0.5,
+            "costSource": "estimated"
+          }
+        }
+      },
+      "expectTotals": {
+        "estimatedCost": 10.25,
+        "nonUsdCostTotals": {
+          "CNY": 0.5
+        }
+      }
+    },
+    {
+      "id": "incomplete_thread_delete_message_applies_delta",
+      "note": "Incomplete thread: subtract the deleted message's parts from the remote totals; local recompute (USD 1.0, CNY 0) would be wrong.",
+      "remoteTotals": {
+        "estimatedCost": 10.0,
+        "nonUsdCostTotals": {
+          "CNY": 20.0
+        }
+      },
+      "localMessages": [
+        {
+          "id": "m1",
+          "estimatedCost": 1.0,
+          "costSource": "estimated",
+          "nonUsdCost": null
+        },
+        {
+          "id": "m2",
+          "estimatedCost": 0,
+          "costSource": "unknown",
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 2.0,
+            "costSource": "estimated"
+          }
+        }
+      ],
+      "isComplete": false,
+      "change": {
+        "kind": "delete",
+        "before": {
+          "id": "m2",
+          "estimatedCost": 0,
+          "costSource": "unknown",
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 2.0,
+            "costSource": "estimated"
+          }
+        },
+        "after": null
+      },
+      "expectTotals": {
+        "estimatedCost": 10.0,
+        "nonUsdCostTotals": {
+          "CNY": 18.0
+        }
+      }
+    },
+    {
+      "id": "incomplete_thread_cost_change_applies_delta",
+      "note": "Incomplete thread: cost of an existing message changes (e.g. upstream actual cost arrives, or a USD retrieval part is added); totals += after - before, per currency.",
+      "remoteTotals": {
+        "estimatedCost": 10.0,
+        "nonUsdCostTotals": {
+          "CNY": 20.0
+        }
+      },
+      "localMessages": [
+        {
+          "id": "m1",
+          "estimatedCost": 1.0,
+          "costSource": "estimated",
+          "nonUsdCost": null
+        },
+        {
+          "id": "m2",
+          "estimatedCost": 0,
+          "costSource": "unknown",
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 2.0,
+            "costSource": "estimated"
+          }
+        }
+      ],
+      "isComplete": false,
+      "change": {
+        "kind": "costChange",
+        "before": {
+          "id": "m1",
+          "estimatedCost": 1.0,
+          "costSource": "estimated",
+          "nonUsdCost": null
+        },
+        "after": {
+          "id": "m1",
+          "estimatedCost": 0.75,
+          "costSource": "upstream",
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 0.5,
+            "costSource": "estimated"
+          }
+        }
+      },
+      "expectTotals": {
+        "estimatedCost": 9.75,
+        "nonUsdCostTotals": {
+          "CNY": 20.5
+        }
+      }
+    },
+    {
+      "id": "incomplete_thread_never_shrinks_below_remote_minus_known",
+      "note": "Incomplete thread: a remote message window (search-anchor jump / backfill page) lands locally. Those messages are already counted in the remote totals, so there is no local change and the totals stay at the remote value; neither the partial local sum nor remote + window is acceptable.",
+      "remoteTotals": {
+        "estimatedCost": 10.0,
+        "nonUsdCostTotals": {
+          "CNY": 20.0
+        }
+      },
+      "localMessages": [
+        {
+          "id": "m1",
+          "estimatedCost": 1.0,
+          "costSource": "estimated",
+          "nonUsdCost": null
+        },
+        {
+          "id": "m2",
+          "estimatedCost": 0,
+          "costSource": "unknown",
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 2.0,
+            "costSource": "estimated"
+          }
+        }
+      ],
+      "isComplete": false,
+      "change": {
+        "kind": "remoteWindowMerged",
+        "messages": [
+          {
+            "id": "m5",
+            "estimatedCost": 3.0,
+            "costSource": "upstream",
+            "nonUsdCost": null
+          },
+          {
+            "id": "m6",
+            "estimatedCost": 0,
+            "costSource": "unknown",
+            "nonUsdCost": {
+              "currencyCode": "CNY",
+              "amount": 4.0,
+              "costSource": "estimated"
+            }
+          }
+        ]
+      },
+      "expectTotals": {
+        "estimatedCost": 10.0,
+        "nonUsdCostTotals": {
+          "CNY": 20.0
+        }
+      },
+      "rejectTotals": [
+        {
+          "estimatedCost": 4.0,
+          "nonUsdCostTotals": {
+            "CNY": 6.0
+          }
+        },
+        {
+          "estimatedCost": 13.0,
+          "nonUsdCostTotals": {
+            "CNY": 24.0
+          }
+        }
+      ]
+    }
+  ],
+  "relayPricingComment": "Relay message cost. A relay model priced through the relay official match (literal id / canonicalModelId matched to an official catalog entry, same cross-provider match as relay capability inheritance) goes through the very same estimate entry as an official message: upstream-reported cost > the matched entry's pricingV2 > its legacy single-tier price; currency is the matched entry's currencyCode and a non-USD estimate is recorded in nonUsdCost (never unknown, never converted). Without a match the model's local price (user-entered or previously inherited legacy price) is used on the legacy single-tier path; with neither the cost is unknown. No region selection for relay. Fields: catalogMatch = null or {canonicalModelId, pricingV2} (the matched official entry); localPrice = null or {inputPerMToken, outputPerMToken} stored on the relay model; upstreamCost = null or {amount, currencyCode}; usage buckets as pricing-v2-estimate.v1.json; at = pricing instant; expect = the recorded message cost (recordCases shape). Ends assert through their production relay delivery/cost entry with a relay connection. Desktop consumes this section in the desktop package unit 'Chats send relay model' ; test names COST_CURRENCY_<id>. relayModelId defaults to catalogMatch.canonicalModelId (literal-id match); when given, the relay model stores that id with canonicalModelId = catalogMatch.canonicalModelId. connection defaults to 'relay'; 'official' runs the same record through the official connection of the matched provider. upstreamCost is always USD; relays never adopt it ; a reported 0 is a real upstream 0. usage null = the upstream reported no usage. catalogMatch.pricingStatus (default 'priced') is the matched entry's legacy pricingStatus. usage with every bucket 0 is a reported usage (a real 0), usage null is no usage (unknown). Official match: canonicalModelId first, then the literal id when the canonical id has no entry; the provider order is the server transportRules order used by capability inheritance. Once an official entry matched (relay or official connection) only the entry's own prices are used; whatever it cannot price is unknown — the local price is used only when nothing matched. 'usage null' must be produced by the end's real response parsing (an explicit usage-reported signal), not synthesized in the test. catalogMatch.pricingUnit / perUnitPrice = the entry's legacy per-unit price (per_image / per_second); units = images (or seconds) produced. Per-unit pricing never depends on token usage.",
+  "relayPricingCases": [
+    {
+      "id": "relay_matched_usd_uses_pricing_v2",
+      "note": "Matched official USD entry: pricingV2 cache buckets are used; the inherited legacy local price (2 / 8 flat) is ignored.",
+      "catalogMatch": {
+        "canonicalModelId": "gpt-next",
+        "pricingV2": {
+          "currencyCode": "USD",
+          "unit": "per_token",
+          "base": {
+            "inputPerMToken": 2.0,
+            "outputPerMToken": 8.0
+          },
+          "cache": {
+            "readPerMToken": 0.5,
+            "writes": [
+              {
+                "ttl": "5m",
+                "perMToken": 2.5
+              },
+              {
+                "ttl": "1h",
+                "perMToken": 4.0
+              }
+            ]
+          }
+        }
+      },
+      "localPrice": {
+        "inputPerMToken": 2.0,
+        "outputPerMToken": 8.0
+      },
+      "upstreamCost": null,
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 2000,
+        "cacheWrite5mTokens": 300,
+        "cacheWrite1hTokens": 400,
+        "outputTokens": 500
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "expect": {
+        "estimatedCost": 0.00935,
+        "costSource": "estimated",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "id": "relay_matched_cny_records_native_currency",
+      "note": "Matched official CNY entry: recorded in nonUsdCost in CNY, the USD part is unknown 0; never 'unknown' as a whole and never converted.",
+      "catalogMatch": {
+        "canonicalModelId": "kimi-next",
+        "pricingV2": {
+          "currencyCode": "CNY",
+          "unit": "per_token",
+          "base": {
+            "inputPerMToken": 2.0,
+            "outputPerMToken": 8.0
+          },
+          "cache": {
+            "readPerMToken": 0.5,
+            "writes": [
+              {
+                "ttl": "5m",
+                "perMToken": 2.5
+              },
+              {
+                "ttl": "1h",
+                "perMToken": 4.0
+              }
+            ]
+          }
+        }
+      },
+      "localPrice": null,
+      "upstreamCost": null,
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 2000,
+        "cacheWrite5mTokens": 300,
+        "cacheWrite1hTokens": 400,
+        "outputTokens": 500
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "expect": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": 0.00935,
+          "costSource": "estimated"
+        }
+      }
+    },
+    {
+      "id": "relay_unmatched_uses_local_price",
+      "note": "No official match: the relay model's own local price on the legacy single-tier path.",
+      "catalogMatch": null,
+      "localPrice": {
+        "inputPerMToken": 2.0,
+        "outputPerMToken": 8.0
+      },
+      "upstreamCost": null,
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 0,
+        "cacheWrite5mTokens": 0,
+        "cacheWrite1hTokens": 0,
+        "outputTokens": 500
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "expect": {
+        "estimatedCost": 0.006,
+        "costSource": "estimated",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "id": "relay_unmatched_without_price_is_unknown",
+      "note": "No match and no local price: unknown (shown as 'not available'), never 0 as a price.",
+      "catalogMatch": null,
+      "localPrice": null,
+      "upstreamCost": null,
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 0,
+        "cacheWrite5mTokens": 0,
+        "cacheWrite1hTokens": 0,
+        "outputTokens": 500
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "expect": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "id": "relay_ignores_upstream_cost",
+      "note": "A relay is an arbitrary endpoint: an upstream-reported cost (usage.cost) has no trustworthy unit or currency, so relays never adopt it; the matched entry's pricingV2 prices the message .",
+      "catalogMatch": {
+        "canonicalModelId": "gpt-next",
+        "pricingV2": {
+          "currencyCode": "USD",
+          "unit": "per_token",
+          "base": {
+            "inputPerMToken": 2.0,
+            "outputPerMToken": 8.0
+          },
+          "cache": {
+            "readPerMToken": 0.5,
+            "writes": [
+              {
+                "ttl": "5m",
+                "perMToken": 2.5
+              },
+              {
+                "ttl": "1h",
+                "perMToken": 4.0
+              }
+            ]
+          }
+        }
+      },
+      "localPrice": null,
+      "upstreamCost": {
+        "amount": 0.02
+      },
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 2000,
+        "cacheWrite5mTokens": 300,
+        "cacheWrite1hTokens": 400,
+        "outputTokens": 500
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "expect": {
+        "estimatedCost": 0.00935,
+        "costSource": "estimated",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "id": "relay_matched_without_price_is_unknown",
+      "note": "Matched entry whose pricingV2 cannot price (no base output price): unknown; the local price is NOT used once an official entry matched.",
+      "catalogMatch": {
+        "canonicalModelId": "gpt-next",
+        "pricingV2": {
+          "currencyCode": "USD",
+          "unit": "per_token",
+          "base": {
+            "inputPerMToken": 2.0,
+            "outputPerMToken": null
+          }
+        }
+      },
+      "localPrice": {
+        "inputPerMToken": 2.0,
+        "outputPerMToken": 8.0
+      },
+      "upstreamCost": null,
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 0,
+        "cacheWrite5mTokens": 0,
+        "cacheWrite1hTokens": 0,
+        "outputTokens": 500
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "expect": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "id": "relay_matched_time_window",
+      "note": "Matched CNY entry with a Shanghai time window; priced at the fixture instant (inject 'at', never the wall clock).",
+      "catalogMatch": {
+        "canonicalModelId": "kimi-next",
+        "pricingV2": {
+          "currencyCode": "CNY",
+          "unit": "per_token",
+          "base": {
+            "inputPerMToken": 2.0,
+            "outputPerMToken": 3.0
+          },
+          "cache": {
+            "readPerMToken": 0.2
+          },
+          "timeWindows": [
+            {
+              "timezone": "Asia/Shanghai",
+              "start": "00:30",
+              "end": "08:30",
+              "inputPerMToken": 1.0,
+              "outputPerMToken": 1.5,
+              "cacheReadPerMToken": 0.1
+            }
+          ]
+        }
+      },
+      "localPrice": null,
+      "upstreamCost": null,
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 2000,
+        "cacheWrite5mTokens": 0,
+        "cacheWrite1hTokens": 0,
+        "outputTokens": 500
+      },
+      "at": "2026-10-19T17:00:00Z",
+      "expect": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": 0.00195,
+          "costSource": "estimated"
+        }
+      }
+    },
+    {
+      "id": "relay_matched_cache_fallback_ratio",
+      "note": "Matched entry without cache prices: read = input x0.5, write 5m = x1.25, write 1h = x2.",
+      "catalogMatch": {
+        "canonicalModelId": "gpt-next",
+        "pricingV2": {
+          "currencyCode": "USD",
+          "unit": "per_token",
+          "base": {
+            "inputPerMToken": 2.0,
+            "outputPerMToken": 8.0
+          }
+        }
+      },
+      "localPrice": null,
+      "upstreamCost": null,
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 2000,
+        "cacheWrite5mTokens": 300,
+        "cacheWrite1hTokens": 400,
+        "outputTokens": 500
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "expect": {
+        "estimatedCost": 0.01035,
+        "costSource": "estimated",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "id": "relay_matched_via_canonical_id",
+      "note": "The relay model id differs from the official id; the match goes through the relay model's canonicalModelId.",
+      "relayModelId": "my-gpt-next",
+      "catalogMatch": {
+        "canonicalModelId": "gpt-next",
+        "pricingV2": {
+          "currencyCode": "USD",
+          "unit": "per_token",
+          "base": {
+            "inputPerMToken": 2.0,
+            "outputPerMToken": 8.0
+          },
+          "cache": {
+            "readPerMToken": 0.5,
+            "writes": [
+              {
+                "ttl": "5m",
+                "perMToken": 2.5
+              },
+              {
+                "ttl": "1h",
+                "perMToken": 4.0
+              }
+            ]
+          }
+        }
+      },
+      "localPrice": null,
+      "upstreamCost": null,
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 2000,
+        "cacheWrite5mTokens": 300,
+        "cacheWrite1hTokens": 400,
+        "outputTokens": 500
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "expect": {
+        "estimatedCost": 0.00935,
+        "costSource": "estimated",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "id": "relay_without_usage_is_unknown",
+      "note": "The upstream reported no usage: unknown, never a 0 estimate.",
+      "catalogMatch": {
+        "canonicalModelId": "gpt-next",
+        "pricingV2": {
+          "currencyCode": "USD",
+          "unit": "per_token",
+          "base": {
+            "inputPerMToken": 2.0,
+            "outputPerMToken": 8.0
+          },
+          "cache": {
+            "readPerMToken": 0.5,
+            "writes": [
+              {
+                "ttl": "5m",
+                "perMToken": 2.5
+              },
+              {
+                "ttl": "1h",
+                "perMToken": 4.0
+              }
+            ]
+          }
+        }
+      },
+      "localPrice": {
+        "inputPerMToken": 2.0,
+        "outputPerMToken": 8.0
+      },
+      "upstreamCost": null,
+      "usage": null,
+      "at": "2026-10-19T12:00:00Z",
+      "expect": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "id": "official_v2_unavailable_no_local_fallback",
+      "note": "Official connection (not relay): the catalog entry has a pricingV2 that cannot price; unknown, the model's local price is not used (v2 unavailable = price unknown, no legacy fallback).",
+      "connection": "official",
+      "catalogMatch": {
+        "canonicalModelId": "gpt-next",
+        "pricingV2": {
+          "currencyCode": "USD",
+          "unit": "per_token",
+          "base": {
+            "inputPerMToken": 2.0,
+            "outputPerMToken": null
+          }
+        }
+      },
+      "localPrice": {
+        "inputPerMToken": 2.0,
+        "outputPerMToken": 8.0
+      },
+      "upstreamCost": null,
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 0,
+        "cacheWrite5mTokens": 0,
+        "cacheWrite1hTokens": 0,
+        "outputTokens": 500
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "expect": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "id": "official_matched_without_price_is_unknown",
+      "note": "Official connection; the matched entry is not priced at all (pricingStatus unknown, no pricingV2): unknown, the local price is not used.",
+      "connection": "official",
+      "catalogMatch": {
+        "canonicalModelId": "gpt-next",
+        "pricingStatus": "unknown",
+        "pricingV2": null
+      },
+      "localPrice": {
+        "inputPerMToken": 2.0,
+        "outputPerMToken": 8.0
+      },
+      "upstreamCost": null,
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 0,
+        "cacheWrite5mTokens": 0,
+        "cacheWrite1hTokens": 0,
+        "outputTokens": 500
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "expect": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "id": "relay_zero_token_usage_is_zero_estimate",
+      "note": "Usage was reported but every bucket is 0: a real 0 estimate. Only a missing usage object is unknown.",
+      "catalogMatch": {
+        "canonicalModelId": "gpt-next",
+        "pricingV2": {
+          "currencyCode": "USD",
+          "unit": "per_token",
+          "base": {
+            "inputPerMToken": 2.0,
+            "outputPerMToken": 8.0
+          },
+          "cache": {
+            "readPerMToken": 0.5,
+            "writes": [
+              {
+                "ttl": "5m",
+                "perMToken": 2.5
+              },
+              {
+                "ttl": "1h",
+                "perMToken": 4.0
+              }
+            ]
+          }
+        }
+      },
+      "localPrice": null,
+      "upstreamCost": null,
+      "usage": {
+        "uncachedInputTokens": 0,
+        "cacheReadTokens": 0,
+        "cacheWrite5mTokens": 0,
+        "cacheWrite1hTokens": 0,
+        "outputTokens": 0
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "expect": {
+        "estimatedCost": 0,
+        "costSource": "estimated",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "id": "relay_matched_usd_time_window",
+      "note": "Matched USD entry with a UTC window 18:00-24:00 priced at the injected instant 23:59 (not the wall clock).",
+      "catalogMatch": {
+        "canonicalModelId": "gpt-next",
+        "pricingV2": {
+          "currencyCode": "USD",
+          "unit": "per_token",
+          "base": {
+            "inputPerMToken": 2.0,
+            "outputPerMToken": 8.0
+          },
+          "cache": {
+            "readPerMToken": 0.5,
+            "writes": [
+              {
+                "ttl": "5m",
+                "perMToken": 2.5
+              },
+              {
+                "ttl": "1h",
+                "perMToken": 4.0
+              }
+            ]
+          },
+          "timeWindows": [
+            {
+              "timezone": "UTC",
+              "start": "18:00",
+              "end": "24:00",
+              "inputPerMToken": 1.0
+            }
+          ]
+        }
+      },
+      "localPrice": null,
+      "upstreamCost": null,
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 0,
+        "cacheWrite5mTokens": 0,
+        "cacheWrite1hTokens": 0,
+        "outputTokens": 1000
+      },
+      "at": "2026-10-19T23:59:00Z",
+      "expect": {
+        "estimatedCost": 0.009,
+        "costSource": "estimated",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "id": "official_matched_status_unknown_with_v2_is_unknown",
+      "note": "Official connection; the matched entry carries a pricingV2 but its legacy pricingStatus is unknown, so v2 is ignored and the entry has no price: unknown; the local price is never used once an official entry matched.",
+      "connection": "official",
+      "catalogMatch": {
+        "canonicalModelId": "gpt-next",
+        "pricingStatus": "unknown",
+        "pricingV2": {
+          "currencyCode": "USD",
+          "unit": "per_token",
+          "base": {
+            "inputPerMToken": 2.0,
+            "outputPerMToken": 8.0
+          }
+        }
+      },
+      "localPrice": {
+        "inputPerMToken": 2.0,
+        "outputPerMToken": 8.0
+      },
+      "upstreamCost": null,
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 0,
+        "cacheWrite5mTokens": 0,
+        "cacheWrite1hTokens": 0,
+        "outputTokens": 500
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "expect": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "id": "official_upstream_cost_zero_is_upstream_zero",
+      "note": "Official connection that reports upstream cost (e.g. OpenRouter :free): a reported 0 is a real upstream 0, never replaced by a local estimate.",
+      "connection": "official",
+      "catalogMatch": {
+        "canonicalModelId": "gpt-next",
+        "pricingV2": {
+          "currencyCode": "USD",
+          "unit": "per_token",
+          "base": {
+            "inputPerMToken": 2.0,
+            "outputPerMToken": 8.0
+          }
+        }
+      },
+      "localPrice": {
+        "inputPerMToken": 2.0,
+        "outputPerMToken": 8.0
+      },
+      "upstreamCost": {
+        "amount": 0
+      },
+      "usage": {
+        "uncachedInputTokens": 1000,
+        "cacheReadTokens": 0,
+        "cacheWrite5mTokens": 0,
+        "cacheWrite1hTokens": 0,
+        "outputTokens": 500
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "expect": {
+        "estimatedCost": 0,
+        "costSource": "upstream",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "id": "official_per_image_without_usage_estimates_by_units",
+      "note": "Per-unit pricing (per_image) does not depend on token usage: units x perUnit, even when no usage object was reported .",
+      "connection": "official",
+      "catalogMatch": {
+        "canonicalModelId": "img-next",
+        "pricingStatus": "priced",
+        "pricingUnit": "per_image",
+        "perUnitPrice": 0.04,
+        "pricingV2": {
+          "currencyCode": "USD",
+          "unit": "per_image",
+          "perUnit": 0.04
+        }
+      },
+      "localPrice": null,
+      "upstreamCost": null,
+      "usage": null,
+      "units": 2,
+      "at": "2026-10-19T12:00:00Z",
+      "expect": {
+        "estimatedCost": 0.08,
+        "costSource": "estimated",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "connection": "official",
+      "localPrice": null,
+      "upstreamCost": null,
+      "usage": null,
+      "at": "2026-10-19T12:00:00Z",
+      "id": "per_image_zero_units_is_unknown",
+      "note": "No image was produced (units 0): unknown, never a 1-image minimum .",
+      "catalogMatch": {
+        "canonicalModelId": "img-next",
+        "pricingStatus": "priced",
+        "pricingUnit": "per_image",
+        "perUnitPrice": 0.04,
+        "pricingV2": {
+          "currencyCode": "USD",
+          "unit": "per_image",
+          "perUnit": 0.04
+        }
+      },
+      "units": 0,
+      "expect": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "connection": "official",
+      "localPrice": null,
+      "upstreamCost": {
+        "amount": 0.05
+      },
+      "usage": null,
+      "at": "2026-10-19T12:00:00Z",
+      "id": "per_image_upstream_cost_wins",
+      "note": "Upstream-reported cost beats the per-unit estimate .",
+      "catalogMatch": {
+        "canonicalModelId": "img-next",
+        "pricingStatus": "priced",
+        "pricingUnit": "per_image",
+        "perUnitPrice": 0.04,
+        "pricingV2": {
+          "currencyCode": "USD",
+          "unit": "per_image",
+          "perUnit": 0.04
+        }
+      },
+      "units": 2,
+      "expect": {
+        "estimatedCost": 0.05,
+        "costSource": "upstream",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "connection": "official",
+      "localPrice": null,
+      "upstreamCost": null,
+      "usage": null,
+      "at": "2026-10-19T12:00:00Z",
+      "id": "per_image_free_entry_is_zero",
+      "note": "A free per-unit entry is a real 0 .",
+      "catalogMatch": {
+        "canonicalModelId": "img-next",
+        "pricingStatus": "free",
+        "pricingUnit": "per_image",
+        "perUnitPrice": 0.04,
+        "pricingV2": {
+          "currencyCode": "USD",
+          "unit": "per_image",
+          "perUnit": 0.04
+        }
+      },
+      "units": 2,
+      "expect": {
+        "estimatedCost": 0,
+        "costSource": "estimated",
+        "nonUsdCost": null
+      }
+    }
+  ],
+  "multiLegCostComment": "One assistant message produced by several upstream requests (tool loop, library first leg + answer, MCP, resend / propose tail leg). Each leg is priced on its own with the same entry (upstream cost of that leg > its estimate) and the parts are added; if any leg reported no usage (usage null) the whole message is unknown. legs[].usage null = that leg reported no usage. Ends assert through their production leg-merge entry. legs[].pricingV2 overrides the case pricingV2 for that leg. A leg's usage (cache buckets, upstream cost such as OpenRouter usage.cost or Grok ticks) comes from the provider's ordinary chat usage parser. Different currencies across legs are summed per currency (USD part + the single non-USD part); a second distinct non-USD currency follows recordCases second_non_usd_currency_marks_unknown. legs[].pricingV2 differing per leg has no production path today (all legs share one model / entry): those cases lock the per-currency summing function itself. connection 'subscription' = the whole message is recorded as subscription, decided once by the connection authMode. The USD part's costSource is upstream only when every leg's USD part came from an upstream cost, otherwise estimated.  A test builds each leg through the production leg parser and sums through the production multi-leg path (never adds legs itself). Connection: unless a case says otherwise (connection 'subscription'), multi-leg cases run on an official connection that reports upstream cost (OpenRouter), never a relay (relays ignore upstream cost,).",
+  "multiLegCostCases": [
+    {
+      "id": "all_legs_reported_sum",
+      "pricingV2": {
+        "currencyCode": "USD",
+        "unit": "per_token",
+        "base": {
+          "inputPerMToken": 2.0,
+          "outputPerMToken": 8.0
+        }
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "legs": [
+        {
+          "usage": {
+            "uncachedInputTokens": 1000,
+            "cacheReadTokens": 0,
+            "cacheWrite5mTokens": 0,
+            "cacheWrite1hTokens": 0,
+            "outputTokens": 500
+          },
+          "upstreamCost": null
+        },
+        {
+          "usage": {
+            "uncachedInputTokens": 500,
+            "cacheReadTokens": 0,
+            "cacheWrite5mTokens": 0,
+            "cacheWrite1hTokens": 0,
+            "outputTokens": 250
+          },
+          "upstreamCost": null
+        }
+      ],
+      "expect": {
+        "estimatedCost": 0.009,
+        "costSource": "estimated",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "id": "one_leg_without_usage_is_unknown",
+      "pricingV2": {
+        "currencyCode": "USD",
+        "unit": "per_token",
+        "base": {
+          "inputPerMToken": 2.0,
+          "outputPerMToken": 8.0
+        }
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "legs": [
+        {
+          "usage": {
+            "uncachedInputTokens": 1000,
+            "cacheReadTokens": 0,
+            "cacheWrite5mTokens": 0,
+            "cacheWrite1hTokens": 0,
+            "outputTokens": 500
+          },
+          "upstreamCost": null
+        },
+        {
+          "usage": null,
+          "upstreamCost": null
+        }
+      ],
+      "expect": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "id": "tail_leg_upstream_cost_added",
+      "pricingV2": {
+        "currencyCode": "USD",
+        "unit": "per_token",
+        "base": {
+          "inputPerMToken": 2.0,
+          "outputPerMToken": 8.0
+        }
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "legs": [
+        {
+          "usage": {
+            "uncachedInputTokens": 1000,
+            "cacheReadTokens": 0,
+            "cacheWrite5mTokens": 0,
+            "cacheWrite1hTokens": 0,
+            "outputTokens": 500
+          },
+          "upstreamCost": null
+        },
+        {
+          "usage": {
+            "uncachedInputTokens": 500,
+            "cacheReadTokens": 0,
+            "cacheWrite5mTokens": 0,
+            "cacheWrite1hTokens": 0,
+            "outputTokens": 250
+          },
+          "upstreamCost": {
+            "amount": 0.01
+          }
+        }
+      ],
+      "expect": {
+        "estimatedCost": 0.016,
+        "costSource": "estimated",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "id": "legs_in_two_currencies_record_both_parts",
+      "note": "Legs priced in USD and CNY (e.g. a tail leg on another entry): each currency is summed on its own and recorded as the USD part plus the single non-USD part (never converted, never dropped).",
+      "pricingV2": null,
+      "at": "2026-10-19T12:00:00Z",
+      "legs": [
+        {
+          "pricingV2": {
+            "currencyCode": "USD",
+            "unit": "per_token",
+            "base": {
+              "inputPerMToken": 2.0,
+              "outputPerMToken": 8.0
+            }
+          },
+          "usage": {
+            "uncachedInputTokens": 1000,
+            "cacheReadTokens": 0,
+            "cacheWrite5mTokens": 0,
+            "cacheWrite1hTokens": 0,
+            "outputTokens": 500
+          },
+          "upstreamCost": null
+        },
+        {
+          "pricingV2": {
+            "currencyCode": "CNY",
+            "unit": "per_token",
+            "base": {
+              "inputPerMToken": 2.0,
+              "outputPerMToken": 8.0
+            }
+          },
+          "usage": {
+            "uncachedInputTokens": 1000,
+            "cacheReadTokens": 0,
+            "cacheWrite5mTokens": 0,
+            "cacheWrite1hTokens": 0,
+            "outputTokens": 500
+          },
+          "upstreamCost": null
+        }
+      ],
+      "expect": {
+        "estimatedCost": 0.006,
+        "costSource": "estimated",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": 0.006,
+          "costSource": "estimated"
+        }
+      }
+    },
+    {
+      "id": "cached_tokens_in_tool_leg_priced_as_cache",
+      "note": "A tool-loop leg's usage is parsed by the provider's ordinary chat usage parser, so cache buckets are kept (here 2000 cache-read tokens at 0.5/M) and not priced as full input.",
+      "pricingV2": {
+        "currencyCode": "USD",
+        "unit": "per_token",
+        "base": {
+          "inputPerMToken": 2.0,
+          "outputPerMToken": 8.0
+        },
+        "cache": {
+          "readPerMToken": 0.5
+        }
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "legs": [
+        {
+          "usage": {
+            "uncachedInputTokens": 1000,
+            "cacheReadTokens": 2000,
+            "cacheWrite5mTokens": 0,
+            "cacheWrite1hTokens": 0,
+            "outputTokens": 500
+          },
+          "upstreamCost": null
+        }
+      ],
+      "expect": {
+        "estimatedCost": 0.007,
+        "costSource": "estimated",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "id": "subscription_connection_legs_are_subscription",
+      "note": "On a subscription connection every leg is covered by the subscription: the message is recorded as subscription (no per-token estimate for any leg), decided once by the connection authMode in the delivery layer.",
+      "connection": "subscription",
+      "pricingV2": {
+        "currencyCode": "USD",
+        "unit": "per_token",
+        "base": {
+          "inputPerMToken": 2.0,
+          "outputPerMToken": 8.0
+        }
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "legs": [
+        {
+          "usage": {
+            "uncachedInputTokens": 1000,
+            "cacheReadTokens": 0,
+            "cacheWrite5mTokens": 0,
+            "cacheWrite1hTokens": 0,
+            "outputTokens": 500
+          },
+          "upstreamCost": null
+        },
+        {
+          "usage": {
+            "uncachedInputTokens": 500,
+            "cacheReadTokens": 0,
+            "cacheWrite5mTokens": 0,
+            "cacheWrite1hTokens": 0,
+            "outputTokens": 250
+          },
+          "upstreamCost": null
+        }
+      ],
+      "expect": {
+        "estimatedCost": 0,
+        "costSource": "subscription",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "id": "two_non_usd_currencies_marks_non_usd_unknown",
+      "note": "Two distinct non-USD currencies across legs: same rule as recordCases second_non_usd_currency_marks_unknown — the USD part is kept, the non-USD part keeps the first non-USD currency code with amount 0 and costSource unknown; currencies are never added .",
+      "pricingV2": null,
+      "at": "2026-10-19T12:00:00Z",
+      "legs": [
+        {
+          "pricingV2": {
+            "currencyCode": "USD",
+            "unit": "per_token",
+            "base": {
+              "inputPerMToken": 2.0,
+              "outputPerMToken": 8.0
+            }
+          },
+          "usage": {
+            "uncachedInputTokens": 1000,
+            "cacheReadTokens": 0,
+            "cacheWrite5mTokens": 0,
+            "cacheWrite1hTokens": 0,
+            "outputTokens": 500
+          },
+          "upstreamCost": null
+        },
+        {
+          "pricingV2": {
+            "currencyCode": "CNY",
+            "unit": "per_token",
+            "base": {
+              "inputPerMToken": 2.0,
+              "outputPerMToken": 8.0
+            }
+          },
+          "usage": {
+            "uncachedInputTokens": 1000,
+            "cacheReadTokens": 0,
+            "cacheWrite5mTokens": 0,
+            "cacheWrite1hTokens": 0,
+            "outputTokens": 500
+          },
+          "upstreamCost": null
+        },
+        {
+          "pricingV2": {
+            "currencyCode": "EUR",
+            "unit": "per_token",
+            "base": {
+              "inputPerMToken": 2.0,
+              "outputPerMToken": 8.0
+            }
+          },
+          "usage": {
+            "uncachedInputTokens": 1000,
+            "cacheReadTokens": 0,
+            "cacheWrite5mTokens": 0,
+            "cacheWrite1hTokens": 0,
+            "outputTokens": 500
+          },
+          "upstreamCost": null
+        }
+      ],
+      "expect": {
+        "estimatedCost": 0.006,
+        "costSource": "estimated",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": 0,
+          "costSource": "unknown"
+        }
+      }
+    },
+    {
+      "id": "all_legs_upstream_is_upstream",
+      "note": "Every leg reported an upstream cost: the USD part's source is upstream; any estimated leg makes it estimated.",
+      "pricingV2": {
+        "currencyCode": "USD",
+        "unit": "per_token",
+        "base": {
+          "inputPerMToken": 2.0,
+          "outputPerMToken": 8.0
+        }
+      },
+      "at": "2026-10-19T12:00:00Z",
+      "legs": [
+        {
+          "usage": {
+            "uncachedInputTokens": 1000,
+            "cacheReadTokens": 0,
+            "cacheWrite5mTokens": 0,
+            "cacheWrite1hTokens": 0,
+            "outputTokens": 500
+          },
+          "upstreamCost": {
+            "amount": 0.01
+          }
+        },
+        {
+          "usage": {
+            "uncachedInputTokens": 500,
+            "cacheReadTokens": 0,
+            "cacheWrite5mTokens": 0,
+            "cacheWrite1hTokens": 0,
+            "outputTokens": 250
+          },
+          "upstreamCost": {
+            "amount": 0.002
+          }
+        }
+      ],
+      "expect": {
+        "estimatedCost": 0.012,
+        "costSource": "upstream",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "id": "per_image_counted_once_across_legs",
+      "note": "Per-unit pricing is charged once per message from the produced unit count, never once per leg .",
+      "pricingV2": {
+        "currencyCode": "USD",
+        "unit": "per_image",
+        "perUnit": 0.04
+      },
+      "units": 2,
+      "at": "2026-10-19T12:00:00Z",
+      "legs": [
+        {
+          "usage": null,
+          "upstreamCost": null
+        },
+        {
+          "usage": null,
+          "upstreamCost": null
+        }
+      ],
+      "expect": {
+        "estimatedCost": 0.08,
+        "costSource": "estimated",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "id": "per_image_partial_upstream_estimates_by_units",
+      "note": "Per-unit pricing across legs where only some legs reported an upstream cost: the upstream cost is adopted only when every leg reported one; otherwise the message is estimated once from the produced units .",
+      "pricingV2": {
+        "currencyCode": "USD",
+        "unit": "per_image",
+        "perUnit": 0.04
+      },
+      "units": 2,
+      "at": "2026-10-19T12:00:00Z",
+      "legs": [
+        {
+          "usage": null,
+          "upstreamCost": {
+            "amount": 0.03
+          }
+        },
+        {
+          "usage": null,
+          "upstreamCost": null
+        }
+      ],
+      "expect": {
+        "estimatedCost": 0.08,
+        "costSource": "estimated",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "id": "per_image_relay_legs_with_upstream_estimated_once",
+      "note": "Relay connection: upstream cost is never adopted; per-unit pricing is estimated once for the message, never once per leg .",
+      "connection": "relay",
+      "pricingV2": {
+        "currencyCode": "USD",
+        "unit": "per_image",
+        "perUnit": 0.04
+      },
+      "units": 2,
+      "at": "2026-10-19T12:00:00Z",
+      "legs": [
+        {
+          "usage": null,
+          "upstreamCost": {
+            "amount": 0.03
+          }
+        },
+        {
+          "usage": null,
+          "upstreamCost": {
+            "amount": 0.03
+          }
+        }
+      ],
+      "expect": {
+        "estimatedCost": 0.08,
+        "costSource": "estimated",
+        "nonUsdCost": null
+      }
     }
   ]
 }

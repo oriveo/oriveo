@@ -1951,7 +1951,7 @@
             ]
           }
         },
-        "revision": "sha256:2893ae2306d46c58560b4e32524a40df1fb2cf9418eeabcb84af09366d35d8dd",
+        "revision": "sha256:e73f7dde58142c7df2e6c3256adbd0400efba480057ed0090821b224198807f2",
         "schemaVersion": 2,
         "sourceIndex": {
           "anthropic.deprecations": {
@@ -2020,6 +2020,12 @@
             "reviewedAt": "2026-10-19",
             "officialUpdatedAt": null
           },
+          "fireworks.changelog": {
+            "kind": "official_doc",
+            "url": "https://docs.fireworks.ai/updates/changelog",
+            "reviewedAt": "2026-10-26",
+            "officialUpdatedAt": null
+          },
           "fireworks.chat_completions": {
             "kind": "official_doc",
             "url": "https://docs.fireworks.ai/api-reference/post-chatcompletions",
@@ -2030,6 +2036,12 @@
             "kind": "official_doc",
             "url": "https://docs.fireworks.ai/guides/reasoning",
             "reviewedAt": "2026-08-11",
+            "officialUpdatedAt": null
+          },
+          "fireworks.vision": {
+            "kind": "official_doc",
+            "url": "https://docs.fireworks.ai/guides/querying-vision-language-models",
+            "reviewedAt": "2026-10-26",
             "officialUpdatedAt": null
           },
           "gemini.changelog": {
@@ -5398,7 +5410,7 @@
             ]
           }
         },
-        "revision": "sha256:2893ae2306d46c58560b4e32524a40df1fb2cf9418eeabcb84af09366d35d8dd",
+        "revision": "sha256:e73f7dde58142c7df2e6c3256adbd0400efba480057ed0090821b224198807f2",
         "schemaVersion": 2,
         "sourceIndex": {
           "anthropic.deprecations": {
@@ -5467,6 +5479,12 @@
             "reviewedAt": "2026-10-19",
             "officialUpdatedAt": null
           },
+          "fireworks.changelog": {
+            "kind": "official_doc",
+            "url": "https://docs.fireworks.ai/updates/changelog",
+            "reviewedAt": "2026-10-26",
+            "officialUpdatedAt": null
+          },
           "fireworks.chat_completions": {
             "kind": "official_doc",
             "url": "https://docs.fireworks.ai/api-reference/post-chatcompletions",
@@ -5477,6 +5495,12 @@
             "kind": "official_doc",
             "url": "https://docs.fireworks.ai/guides/reasoning",
             "reviewedAt": "2026-08-11",
+            "officialUpdatedAt": null
+          },
+          "fireworks.vision": {
+            "kind": "official_doc",
+            "url": "https://docs.fireworks.ai/guides/querying-vision-language-models",
+            "reviewedAt": "2026-10-26",
             "officialUpdatedAt": null
           },
           "gemini.changelog": {
@@ -11059,7 +11083,7 @@
               ]
             }
           },
-          "revision": "sha256:2893ae2306d46c58560b4e32524a40df1fb2cf9418eeabcb84af09366d35d8dd",
+          "revision": "sha256:e73f7dde58142c7df2e6c3256adbd0400efba480057ed0090821b224198807f2",
           "schemaVersion": 2,
           "sourceIndex": {
             "anthropic.deprecations": {
@@ -11128,6 +11152,12 @@
               "reviewedAt": "2026-10-19",
               "officialUpdatedAt": null
             },
+            "fireworks.changelog": {
+              "kind": "official_doc",
+              "url": "https://docs.fireworks.ai/updates/changelog",
+              "reviewedAt": "2026-10-26",
+              "officialUpdatedAt": null
+            },
             "fireworks.chat_completions": {
               "kind": "official_doc",
               "url": "https://docs.fireworks.ai/api-reference/post-chatcompletions",
@@ -11138,6 +11168,12 @@
               "kind": "official_doc",
               "url": "https://docs.fireworks.ai/guides/reasoning",
               "reviewedAt": "2026-08-11",
+              "officialUpdatedAt": null
+            },
+            "fireworks.vision": {
+              "kind": "official_doc",
+              "url": "https://docs.fireworks.ai/guides/querying-vision-language-models",
+              "reviewedAt": "2026-10-26",
               "officialUpdatedAt": null
             },
             "gemini.changelog": {
@@ -21769,7 +21805,7 @@
               ]
             }
           },
-          "revision": "sha256:2893ae2306d46c58560b4e32524a40df1fb2cf9418eeabcb84af09366d35d8dd",
+          "revision": "sha256:e73f7dde58142c7df2e6c3256adbd0400efba480057ed0090821b224198807f2",
           "schemaVersion": 2,
           "sourceIndex": {
             "anthropic.deprecations": {
@@ -21838,6 +21874,12 @@
               "reviewedAt": "2026-10-19",
               "officialUpdatedAt": null
             },
+            "fireworks.changelog": {
+              "kind": "official_doc",
+              "url": "https://docs.fireworks.ai/updates/changelog",
+              "reviewedAt": "2026-10-26",
+              "officialUpdatedAt": null
+            },
             "fireworks.chat_completions": {
               "kind": "official_doc",
               "url": "https://docs.fireworks.ai/api-reference/post-chatcompletions",
@@ -21848,6 +21890,12 @@
               "kind": "official_doc",
               "url": "https://docs.fireworks.ai/guides/reasoning",
               "reviewedAt": "2026-08-11",
+              "officialUpdatedAt": null
+            },
+            "fireworks.vision": {
+              "kind": "official_doc",
+              "url": "https://docs.fireworks.ai/guides/querying-vision-language-models",
+              "reviewedAt": "2026-10-26",
               "officialUpdatedAt": null
             },
             "gemini.changelog": {

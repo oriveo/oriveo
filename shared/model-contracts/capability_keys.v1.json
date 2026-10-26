@@ -1,0 +1,98 @@
+{
+  "$comment": "Single source of capability keys (E-51). Every consumer enumerates against this file: Server capabilityrecipe/verdict.go CapabilityKeys, request_shape_contract.v2.json wireNaming.capabilityControlKeys, capability_result_definitions.v1.json, the four client facades and the capability lint vocabulary. Adding a key means editing this file first; the reconciliation test (G·U3, capability-matrix-gate --self-test) turns red until every consumer follows. Contract: 文档/工程/契约/Provider/模型目录与能力真相.md.",
+  "contractId": "capability_keys.v1",
+  "version": 1,
+  "stateWords": ["auto_available", "managed_only", "custom_only", "unavailable", "unknown"],
+  "keys": [
+    {
+      "key": "web",
+      "family": "control",
+      "surface": "capabilityControls",
+      "allowedStates": ["auto_available", "managed_only", "custom_only", "unavailable", "unknown"],
+      "recipeStatus": "live"
+    },
+    {
+      "key": "reasoning",
+      "family": "control",
+      "surface": "capabilityControls",
+      "allowedStates": ["auto_available", "managed_only", "custom_only", "unavailable", "unknown"],
+      "recipeStatus": "live"
+    },
+    {
+      "key": "generation",
+      "family": "control",
+      "surface": "capabilityControls",
+      "allowedStates": ["auto_available", "managed_only", "custom_only", "unavailable", "unknown"],
+      "recipeStatus": "live"
+    },
+    {
+      "key": "vision_input",
+      "family": "input",
+      "surface": "capabilityControls",
+      "allowedStates": ["auto_available", "unavailable", "unknown"],
+      "requiresWireFamily": true,
+      "catalogBit": "image",
+      "legacyFields": ["capabilities[image]", "provider.attachmentSupport.image"],
+      "recipeStatus": "live"
+    },
+    {
+      "key": "file_input",
+      "family": "input",
+      "surface": "capabilityControls",
+      "allowedStates": ["auto_available", "unavailable", "unknown"],
+      "requiresWireFamily": true,
+      "catalogBit": "file",
+      "legacyFields": ["supportsPdfInput", "nativeFileMimes", "provider.attachmentSupport.nativeFile"],
+      "recipeStatus": "live"
+    },
+    {
+      "key": "video_input",
+      "family": "input",
+      "surface": "capabilityControls",
+      "allowedStates": ["auto_available", "unavailable", "unknown"],
+      "requiresWireFamily": true,
+      "catalogBit": "video",
+      "legacyFields": ["capabilities[video]", "provider.attachmentSupport.video"],
+      "recipeStatus": "live"
+    },
+    {
+      "key": "tool_call",
+      "family": "evidence",
+      "surface": "capabilityEvidenceView",
+      "allowedStates": ["supported", "unsupported", "unknown"],
+      "recipeStatus": "not_in_recipe",
+      "note": "Server typed evidence (capability_evidence_presentation.go publicToolCallEvidenceCandidate); not migrated into the recipe by this package. Missing or expired evidence is unknown, never a fallback to top-level toolCall."
+    }
+  ],
+  "parameterKeys": [
+    { "key": "temperature", "legacyFields": ["supportsTemperature"] },
+    { "key": "top_p", "legacyFields": [] },
+    { "key": "structured_output", "legacyFields": [] }
+  ],
+  "reasonCodes": {
+    "existing": [
+      "relay_user_directory",
+      "managed_zero_payload",
+      "endpoint_route_pending",
+      "model_route_pending",
+      "no_official_managed_search",
+      "official_source_insufficient",
+      "transport_not_supported",
+      "model_capability_absent",
+      "transport_unresolved",
+      "retired_model_alias",
+      "upstream_parameter_not_declared",
+      "external_connector_only"
+    ],
+    "added": [
+      { "code": "catalog_silent", "state": "unknown", "meaning": "The catalog carries no structured fact for this input bit, or the catalog is silent on the model's reasoning control; not evidence of absence." },
+      { "code": "transport_not_implemented", "state": "unavailable", "meaning": "No client implements the wireFamily this route would need (wire_families.v1.json implementedBy is empty)." },
+      { "code": "provider_kill_switch", "state": "unavailable", "meaning": "Operator kill switch for this provider and key; ordinary chat unaffected." },
+      { "code": "operator_override", "state": "unavailable", "meaning": "Operator override explicitly turned this parameter off (supportsTemperatureOverride=false)." }
+    ],
+    "inputKeyRules": {
+      "forbiddenStates": ["custom_only", "managed_only"],
+      "unavailableRequiresEvidence": ["model_capability_absent needs an official machine field or an Exact with sourceRefs; otherwise the verdict is unknown"]
+    }
+  }
+}

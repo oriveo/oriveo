@@ -1,0 +1,1240 @@
+{
+  "$comment": "Chat attachment delivery golden, generated from the Web production path (UPDATE_GOLDEN=1 in apps/app/lib/core/attachments/__tests__/delivery-golden.contract.test.ts). Each case: input.text is the user text; input.attachments are files as picked (content = raw extracted text, or gen = {line, count, repeat?}: count lines, each line = `line` with {n} replaced by the 1-based line number, repeated `repeat` times, joined by \"\\n\"; fileBytes = original file size, defaults to the UTF-8 length of the raw text; originalBytes = size of the kept original binary, used for native upload and judged on that raw byte length against the route cap; extractionErrorCode = extraction failed with no text); input.line is the Web transport name (attachment-transport.ts); input.model holds the model fields that drive delivery (nativeFileMimes, pdfNativeDefault, attachmentExtraction overrides). The raw text is truncated at import with the model limits (500 lines / 204800 UTF-8 bytes by default, a single over-long line is cut at a UTF-8 character boundary). expect.native / expect.text list attachment ids uploaded natively / injected as text blocks; expect.blocked lists files the injector cannot fit (too_many_files / total_cap_exceeded): the request is not sent, and body is then the injector output with the blocked files left out. body is the final user message text sent to the model: user text plus injected blocks (xml-v1 or markdown-v1 per route), image parts replaced by the route image placeholder when the route declares one, text parts joined by a blank line; native file and image blocks are not part of body. Bodies over 4096 bytes are stored as bodySha256 (hex of UTF-8) + bodyBytes. systemSuffix is appended to the system prompt (after a blank line) when the user turn has attachments.",
+  "v": 1,
+  "cases": [
+    {
+      "id": "delivery-no-attachments",
+      "input": {
+        "text": "hello",
+        "attachments": [],
+        "line": "openai_responses",
+        "model": {}
+      },
+      "expect": {
+        "native": [],
+        "text": [],
+        "blocked": [],
+        "body": "hello"
+      }
+    },
+    {
+      "id": "delivery-two-100kb-fit",
+      "input": {
+        "text": "compare",
+        "attachments": [
+          {
+            "id": "a.txt",
+            "kind": "file",
+            "fileName": "a.txt",
+            "mimeType": "text/plain",
+            "gen": {
+              "line": "x",
+              "count": 1,
+              "repeat": 102400
+            }
+          },
+          {
+            "id": "b.txt",
+            "kind": "file",
+            "fileName": "b.txt",
+            "mimeType": "text/plain",
+            "gen": {
+              "line": "x",
+              "count": 1,
+              "repeat": 102400
+            }
+          }
+        ],
+        "line": "openai_responses",
+        "model": {}
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "a.txt",
+          "b.txt"
+        ],
+        "blocked": [],
+        "bodySha256": "0e73818be6fdd386af9f7e49acd78990e4ed66679a9f8a6719cc50f0fdd43131",
+        "bodyBytes": 205233,
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "delivery-two-150kb-second-total-cap",
+      "input": {
+        "text": "compare",
+        "attachments": [
+          {
+            "id": "a.txt",
+            "kind": "file",
+            "fileName": "a.txt",
+            "mimeType": "text/plain",
+            "gen": {
+              "line": "x",
+              "count": 1,
+              "repeat": 153600
+            }
+          },
+          {
+            "id": "b.txt",
+            "kind": "file",
+            "fileName": "b.txt",
+            "mimeType": "text/plain",
+            "gen": {
+              "line": "x",
+              "count": 1,
+              "repeat": 153600
+            }
+          }
+        ],
+        "line": "openai_responses",
+        "model": {}
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "a.txt"
+        ],
+        "blocked": [
+          {
+            "id": "b.txt",
+            "reason": "total_cap_exceeded"
+          }
+        ],
+        "bodySha256": "5b37e3ac2baad5e4206cd03433849cf94c6bddc35a8f989f7c9b15204ca0f8bc",
+        "bodyBytes": 153820,
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "delivery-native-pdf-gemini-not-budgeted",
+      "input": {
+        "text": "summarize",
+        "attachments": [
+          {
+            "id": "notes.txt",
+            "kind": "file",
+            "fileName": "notes.txt",
+            "mimeType": "text/plain",
+            "gen": {
+              "line": "x",
+              "count": 1,
+              "repeat": 153600
+            }
+          },
+          {
+            "id": "report.pdf",
+            "kind": "file",
+            "fileName": "report.pdf",
+            "mimeType": "application/pdf",
+            "gen": {
+              "line": "x",
+              "count": 1,
+              "repeat": 153600
+            },
+            "fileBytes": 4096,
+            "originalBytes": 5
+          }
+        ],
+        "line": "gemini_generate",
+        "model": {
+          "nativeFileMimes": [
+            "application/pdf"
+          ],
+          "pdfNativeDefault": true
+        }
+      },
+      "expect": {
+        "native": [
+          "report.pdf"
+        ],
+        "text": [
+          "notes.txt"
+        ],
+        "blocked": [],
+        "bodySha256": "9c87305260b8d8bbaeeb4ed72ea9bf04546a24ab4a9bd2d5036c46e692a09c0f",
+        "bodyBytes": 153826,
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "delivery-pdf-text-route-deepseek-budgeted",
+      "input": {
+        "text": "summarize",
+        "attachments": [
+          {
+            "id": "notes.txt",
+            "kind": "file",
+            "fileName": "notes.txt",
+            "mimeType": "text/plain",
+            "gen": {
+              "line": "x",
+              "count": 1,
+              "repeat": 153600
+            }
+          },
+          {
+            "id": "report.pdf",
+            "kind": "file",
+            "fileName": "report.pdf",
+            "mimeType": "application/pdf",
+            "gen": {
+              "line": "x",
+              "count": 1,
+              "repeat": 153600
+            },
+            "fileBytes": 4096,
+            "originalBytes": 5
+          }
+        ],
+        "line": "deepseek_chat",
+        "model": {}
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "notes.txt"
+        ],
+        "blocked": [
+          {
+            "id": "report.pdf",
+            "reason": "total_cap_exceeded"
+          }
+        ],
+        "bodySha256": "84a9416bd9c7b77d9ca020bcbb270f2e33a71a6c1a44fcf74b3f736d6869f230",
+        "bodyBytes": 153693,
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "delivery-two-60kb-default-fit",
+      "input": {
+        "text": "q",
+        "attachments": [
+          {
+            "id": "a.txt",
+            "kind": "file",
+            "fileName": "a.txt",
+            "mimeType": "text/plain",
+            "gen": {
+              "line": "x",
+              "count": 1,
+              "repeat": 61440
+            }
+          },
+          {
+            "id": "b.txt",
+            "kind": "file",
+            "fileName": "b.txt",
+            "mimeType": "text/plain",
+            "gen": {
+              "line": "x",
+              "count": 1,
+              "repeat": 61440
+            }
+          }
+        ],
+        "line": "openai_responses",
+        "model": {}
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "a.txt",
+          "b.txt"
+        ],
+        "blocked": [],
+        "bodySha256": "49994041d635b26588f7d42b8671fe643794d85793e1d1dacd7c1fb4367ad5bf",
+        "bodyBytes": 123305,
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "delivery-two-60kb-total-cap-100kb",
+      "input": {
+        "text": "q",
+        "attachments": [
+          {
+            "id": "a.txt",
+            "kind": "file",
+            "fileName": "a.txt",
+            "mimeType": "text/plain",
+            "gen": {
+              "line": "x",
+              "count": 1,
+              "repeat": 61440
+            }
+          },
+          {
+            "id": "b.txt",
+            "kind": "file",
+            "fileName": "b.txt",
+            "mimeType": "text/plain",
+            "gen": {
+              "line": "x",
+              "count": 1,
+              "repeat": 61440
+            }
+          }
+        ],
+        "line": "openai_responses",
+        "model": {
+          "attachmentExtraction": {
+            "totalCap": 102400
+          }
+        }
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "a.txt"
+        ],
+        "blocked": [
+          {
+            "id": "b.txt",
+            "reason": "total_cap_exceeded"
+          }
+        ],
+        "bodySha256": "6b7707df293483f7bcbf73a6d042fce64616087e7bb9a66ff7261392d5a6c999",
+        "bodyBytes": 61653,
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "delivery-image-not-budgeted",
+      "input": {
+        "text": "look",
+        "attachments": [
+          {
+            "id": "i.png",
+            "kind": "image",
+            "fileName": "i.png",
+            "mimeType": "image/png"
+          },
+          {
+            "id": "a.txt",
+            "kind": "file",
+            "fileName": "a.txt",
+            "mimeType": "text/plain",
+            "gen": {
+              "line": "x",
+              "count": 1,
+              "repeat": 10240
+            }
+          }
+        ],
+        "line": "openai_responses",
+        "model": {}
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "a.txt"
+        ],
+        "blocked": [],
+        "bodySha256": "10718fae69a53626dc79a25ab35d9564efe8afc03ad63ccf8a4398dba3c20c1e",
+        "bodyBytes": 10456,
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "delivery-tight-cap-mixed",
+      "input": {
+        "text": "question",
+        "attachments": [
+          {
+            "id": "a.txt",
+            "kind": "file",
+            "fileName": "a.txt",
+            "mimeType": "text/plain",
+            "gen": {
+              "line": "x",
+              "count": 1,
+              "repeat": 92160
+            }
+          },
+          {
+            "id": "scan.pdf",
+            "kind": "file",
+            "fileName": "scan.pdf",
+            "mimeType": "application/pdf",
+            "gen": {
+              "line": "x",
+              "count": 1,
+              "repeat": 92160
+            },
+            "fileBytes": 4096,
+            "originalBytes": 5
+          },
+          {
+            "id": "b.txt",
+            "kind": "file",
+            "fileName": "b.txt",
+            "mimeType": "text/plain",
+            "gen": {
+              "line": "x",
+              "count": 1,
+              "repeat": 92160
+            }
+          },
+          {
+            "id": "c.txt",
+            "kind": "file",
+            "fileName": "c.txt",
+            "mimeType": "text/plain",
+            "gen": {
+              "line": "x",
+              "count": 1,
+              "repeat": 10240
+            }
+          }
+        ],
+        "line": "openai_responses",
+        "model": {
+          "attachmentExtraction": {
+            "totalCap": 194560
+          }
+        }
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "a.txt",
+          "scan.pdf",
+          "c.txt"
+        ],
+        "blocked": [
+          {
+            "id": "b.txt",
+            "reason": "total_cap_exceeded"
+          }
+        ],
+        "bodySha256": "93b4358863b47ee82e5dca1ec78c7b004c3b7a73419c8b21b882aef1273b6b62",
+        "bodyBytes": 195206,
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "injector-xml-two-lines",
+      "input": {
+        "text": "Summarize this",
+        "attachments": [
+          {
+            "id": "a.txt",
+            "kind": "file",
+            "fileName": "a.txt",
+            "mimeType": "text/plain",
+            "content": "hello\nworld"
+          }
+        ],
+        "line": "openai_chat",
+        "model": {}
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "a.txt"
+        ],
+        "blocked": [],
+        "body": "Summarize this\n\n<ATTACHMENT_FILE>\n<FILE_INDEX>1</FILE_INDEX>\n<FILE_NAME>a.txt</FILE_NAME>\n<FILE_TYPE>txt</FILE_TYPE>\n<FILE_LINES>2</FILE_LINES>\n<FILE_SIZE_KB>1</FILE_SIZE_KB>\n<FILE_CONTENT>\nhello\nworld\n</FILE_CONTENT>\n</ATTACHMENT_FILE>",
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "injector-xml-truncated-700-lines",
+      "input": {
+        "text": "read",
+        "attachments": [
+          {
+            "id": "big.md",
+            "kind": "file",
+            "fileName": "big.md",
+            "mimeType": "text/markdown",
+            "gen": {
+              "line": "L{n}",
+              "count": 700
+            }
+          }
+        ],
+        "line": "openai_chat",
+        "model": {}
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "big.md"
+        ],
+        "blocked": [],
+        "body": "read\n\n<ATTACHMENT_FILE>\n<FILE_INDEX>1</FILE_INDEX>\n<FILE_NAME>big.md</FILE_NAME>\n<FILE_TYPE>md</FILE_TYPE>\n<FILE_LINES>700</FILE_LINES>\n<FILE_SIZE_KB>4</FILE_SIZE_KB>\n<FILE_CONTENT>\nL1\nL2\nL3\nL4\nL5\nL6\nL7\nL8\nL9\nL10\nL11\nL12\nL13\nL14\nL15\nL16\nL17\nL18\nL19\nL20\nL21\nL22\nL23\nL24\nL25\nL26\nL27\nL28\nL29\nL30\nL31\nL32\nL33\nL34\nL35\nL36\nL37\nL38\nL39\nL40\nL41\nL42\nL43\nL44\nL45\nL46\nL47\nL48\nL49\nL50\nL51\nL52\nL53\nL54\nL55\nL56\nL57\nL58\nL59\nL60\nL61\nL62\nL63\nL64\nL65\nL66\nL67\nL68\nL69\nL70\nL71\nL72\nL73\nL74\nL75\nL76\nL77\nL78\nL79\nL80\nL81\nL82\nL83\nL84\nL85\nL86\nL87\nL88\nL89\nL90\nL91\nL92\nL93\nL94\nL95\nL96\nL97\nL98\nL99\nL100\nL101\nL102\nL103\nL104\nL105\nL106\nL107\nL108\nL109\nL110\nL111\nL112\nL113\nL114\nL115\nL116\nL117\nL118\nL119\nL120\nL121\nL122\nL123\nL124\nL125\nL126\nL127\nL128\nL129\nL130\nL131\nL132\nL133\nL134\nL135\nL136\nL137\nL138\nL139\nL140\nL141\nL142\nL143\nL144\nL145\nL146\nL147\nL148\nL149\nL150\nL151\nL152\nL153\nL154\nL155\nL156\nL157\nL158\nL159\nL160\nL161\nL162\nL163\nL164\nL165\nL166\nL167\nL168\nL169\nL170\nL171\nL172\nL173\nL174\nL175\nL176\nL177\nL178\nL179\nL180\nL181\nL182\nL183\nL184\nL185\nL186\nL187\nL188\nL189\nL190\nL191\nL192\nL193\nL194\nL195\nL196\nL197\nL198\nL199\nL200\nL201\nL202\nL203\nL204\nL205\nL206\nL207\nL208\nL209\nL210\nL211\nL212\nL213\nL214\nL215\nL216\nL217\nL218\nL219\nL220\nL221\nL222\nL223\nL224\nL225\nL226\nL227\nL228\nL229\nL230\nL231\nL232\nL233\nL234\nL235\nL236\nL237\nL238\nL239\nL240\nL241\nL242\nL243\nL244\nL245\nL246\nL247\nL248\nL249\nL250\nL251\nL252\nL253\nL254\nL255\nL256\nL257\nL258\nL259\nL260\nL261\nL262\nL263\nL264\nL265\nL266\nL267\nL268\nL269\nL270\nL271\nL272\nL273\nL274\nL275\nL276\nL277\nL278\nL279\nL280\nL281\nL282\nL283\nL284\nL285\nL286\nL287\nL288\nL289\nL290\nL291\nL292\nL293\nL294\nL295\nL296\nL297\nL298\nL299\nL300\nL301\nL302\nL303\nL304\nL305\nL306\nL307\nL308\nL309\nL310\nL311\nL312\nL313\nL314\nL315\nL316\nL317\nL318\nL319\nL320\nL321\nL322\nL323\nL324\nL325\nL326\nL327\nL328\nL329\nL330\nL331\nL332\nL333\nL334\nL335\nL336\nL337\nL338\nL339\nL340\nL341\nL342\nL343\nL344\nL345\nL346\nL347\nL348\nL349\nL350\nL351\nL352\nL353\nL354\nL355\nL356\nL357\nL358\nL359\nL360\nL361\nL362\nL363\nL364\nL365\nL366\nL367\nL368\nL369\nL370\nL371\nL372\nL373\nL374\nL375\nL376\nL377\nL378\nL379\nL380\nL381\nL382\nL383\nL384\nL385\nL386\nL387\nL388\nL389\nL390\nL391\nL392\nL393\nL394\nL395\nL396\nL397\nL398\nL399\nL400\nL401\nL402\nL403\nL404\nL405\nL406\nL407\nL408\nL409\nL410\nL411\nL412\nL413\nL414\nL415\nL416\nL417\nL418\nL419\nL420\nL421\nL422\nL423\nL424\nL425\nL426\nL427\nL428\nL429\nL430\nL431\nL432\nL433\nL434\nL435\nL436\nL437\nL438\nL439\nL440\nL441\nL442\nL443\nL444\nL445\nL446\nL447\nL448\nL449\nL450\nL451\nL452\nL453\nL454\nL455\nL456\nL457\nL458\nL459\nL460\nL461\nL462\nL463\nL464\nL465\nL466\nL467\nL468\nL469\nL470\nL471\nL472\nL473\nL474\nL475\nL476\nL477\nL478\nL479\nL480\nL481\nL482\nL483\nL484\nL485\nL486\nL487\nL488\nL489\nL490\nL491\nL492\nL493\nL494\nL495\nL496\nL497\nL498\nL499\nL500\n</FILE_CONTENT>\n<TRUNCATED>showing first 500 of 700 lines</TRUNCATED>\n</ATTACHMENT_FILE>",
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "injector-markdown-truncated-700-lines",
+      "input": {
+        "text": "read",
+        "attachments": [
+          {
+            "id": "big.md",
+            "kind": "file",
+            "fileName": "big.md",
+            "mimeType": "text/markdown",
+            "gen": {
+              "line": "L{n}",
+              "count": 700
+            }
+          }
+        ],
+        "line": "deepseek_chat",
+        "model": {}
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "big.md"
+        ],
+        "blocked": [],
+        "body": "read\n\n---\n## Attachment 1: big.md\n- Type: md\n- Size: 4 KB\n- Lines: 700 (showing first 500)\n\n```\nL1\nL2\nL3\nL4\nL5\nL6\nL7\nL8\nL9\nL10\nL11\nL12\nL13\nL14\nL15\nL16\nL17\nL18\nL19\nL20\nL21\nL22\nL23\nL24\nL25\nL26\nL27\nL28\nL29\nL30\nL31\nL32\nL33\nL34\nL35\nL36\nL37\nL38\nL39\nL40\nL41\nL42\nL43\nL44\nL45\nL46\nL47\nL48\nL49\nL50\nL51\nL52\nL53\nL54\nL55\nL56\nL57\nL58\nL59\nL60\nL61\nL62\nL63\nL64\nL65\nL66\nL67\nL68\nL69\nL70\nL71\nL72\nL73\nL74\nL75\nL76\nL77\nL78\nL79\nL80\nL81\nL82\nL83\nL84\nL85\nL86\nL87\nL88\nL89\nL90\nL91\nL92\nL93\nL94\nL95\nL96\nL97\nL98\nL99\nL100\nL101\nL102\nL103\nL104\nL105\nL106\nL107\nL108\nL109\nL110\nL111\nL112\nL113\nL114\nL115\nL116\nL117\nL118\nL119\nL120\nL121\nL122\nL123\nL124\nL125\nL126\nL127\nL128\nL129\nL130\nL131\nL132\nL133\nL134\nL135\nL136\nL137\nL138\nL139\nL140\nL141\nL142\nL143\nL144\nL145\nL146\nL147\nL148\nL149\nL150\nL151\nL152\nL153\nL154\nL155\nL156\nL157\nL158\nL159\nL160\nL161\nL162\nL163\nL164\nL165\nL166\nL167\nL168\nL169\nL170\nL171\nL172\nL173\nL174\nL175\nL176\nL177\nL178\nL179\nL180\nL181\nL182\nL183\nL184\nL185\nL186\nL187\nL188\nL189\nL190\nL191\nL192\nL193\nL194\nL195\nL196\nL197\nL198\nL199\nL200\nL201\nL202\nL203\nL204\nL205\nL206\nL207\nL208\nL209\nL210\nL211\nL212\nL213\nL214\nL215\nL216\nL217\nL218\nL219\nL220\nL221\nL222\nL223\nL224\nL225\nL226\nL227\nL228\nL229\nL230\nL231\nL232\nL233\nL234\nL235\nL236\nL237\nL238\nL239\nL240\nL241\nL242\nL243\nL244\nL245\nL246\nL247\nL248\nL249\nL250\nL251\nL252\nL253\nL254\nL255\nL256\nL257\nL258\nL259\nL260\nL261\nL262\nL263\nL264\nL265\nL266\nL267\nL268\nL269\nL270\nL271\nL272\nL273\nL274\nL275\nL276\nL277\nL278\nL279\nL280\nL281\nL282\nL283\nL284\nL285\nL286\nL287\nL288\nL289\nL290\nL291\nL292\nL293\nL294\nL295\nL296\nL297\nL298\nL299\nL300\nL301\nL302\nL303\nL304\nL305\nL306\nL307\nL308\nL309\nL310\nL311\nL312\nL313\nL314\nL315\nL316\nL317\nL318\nL319\nL320\nL321\nL322\nL323\nL324\nL325\nL326\nL327\nL328\nL329\nL330\nL331\nL332\nL333\nL334\nL335\nL336\nL337\nL338\nL339\nL340\nL341\nL342\nL343\nL344\nL345\nL346\nL347\nL348\nL349\nL350\nL351\nL352\nL353\nL354\nL355\nL356\nL357\nL358\nL359\nL360\nL361\nL362\nL363\nL364\nL365\nL366\nL367\nL368\nL369\nL370\nL371\nL372\nL373\nL374\nL375\nL376\nL377\nL378\nL379\nL380\nL381\nL382\nL383\nL384\nL385\nL386\nL387\nL388\nL389\nL390\nL391\nL392\nL393\nL394\nL395\nL396\nL397\nL398\nL399\nL400\nL401\nL402\nL403\nL404\nL405\nL406\nL407\nL408\nL409\nL410\nL411\nL412\nL413\nL414\nL415\nL416\nL417\nL418\nL419\nL420\nL421\nL422\nL423\nL424\nL425\nL426\nL427\nL428\nL429\nL430\nL431\nL432\nL433\nL434\nL435\nL436\nL437\nL438\nL439\nL440\nL441\nL442\nL443\nL444\nL445\nL446\nL447\nL448\nL449\nL450\nL451\nL452\nL453\nL454\nL455\nL456\nL457\nL458\nL459\nL460\nL461\nL462\nL463\nL464\nL465\nL466\nL467\nL468\nL469\nL470\nL471\nL472\nL473\nL474\nL475\nL476\nL477\nL478\nL479\nL480\nL481\nL482\nL483\nL484\nL485\nL486\nL487\nL488\nL489\nL490\nL491\nL492\nL493\nL494\nL495\nL496\nL497\nL498\nL499\nL500\n```\n---",
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "injector-xml-error-scanned-pdf",
+      "input": {
+        "text": "what is this",
+        "attachments": [
+          {
+            "id": "p.pdf",
+            "kind": "file",
+            "fileName": "p.pdf",
+            "mimeType": "application/pdf",
+            "fileBytes": 12345,
+            "extractionErrorCode": "scanned_pdf"
+          }
+        ],
+        "line": "openai_chat",
+        "model": {}
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "p.pdf"
+        ],
+        "blocked": [],
+        "body": "what is this\n\n<ATTACHMENT_FILE>\n<FILE_INDEX>1</FILE_INDEX>\n<FILE_NAME>p.pdf</FILE_NAME>\n<FILE_TYPE>pdf</FILE_TYPE>\n<FILE_SIZE_KB>13</FILE_SIZE_KB>\n<FILE_CONTENT>\n[ERROR: extraction failed - scanned_pdf]\n[INSTRUCTION: This is a scanned PDF without a text layer. The current model cannot OCR it. DO NOT fabricate content. Tell the user to switch to a vision-capable model (e.g., GPT-4o, Claude 3.5 Sonnet, Gemini 2.5 Pro) and re-upload.]\n</FILE_CONTENT>\n</ATTACHMENT_FILE>",
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "injector-xml-error-encrypted-pdf",
+      "input": {
+        "text": "open it",
+        "attachments": [
+          {
+            "id": "enc.pdf",
+            "kind": "file",
+            "fileName": "enc.pdf",
+            "mimeType": "application/pdf",
+            "fileBytes": 5000,
+            "extractionErrorCode": "encrypted_pdf"
+          }
+        ],
+        "line": "openai_chat",
+        "model": {}
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "enc.pdf"
+        ],
+        "blocked": [],
+        "body": "open it\n\n<ATTACHMENT_FILE>\n<FILE_INDEX>1</FILE_INDEX>\n<FILE_NAME>enc.pdf</FILE_NAME>\n<FILE_TYPE>pdf</FILE_TYPE>\n<FILE_SIZE_KB>5</FILE_SIZE_KB>\n<FILE_CONTENT>\n[ERROR: extraction failed - encrypted_pdf]\n[INSTRUCTION: This file is encrypted and cannot be read. DO NOT fabricate or guess content. Tell the user the file is encrypted and ask them to decrypt it before uploading.]\n</FILE_CONTENT>\n</ATTACHMENT_FILE>",
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "injector-markdown-error-scanned-pdf",
+      "input": {
+        "text": "what is this",
+        "attachments": [
+          {
+            "id": "p.pdf",
+            "kind": "file",
+            "fileName": "p.pdf",
+            "mimeType": "application/pdf",
+            "fileBytes": 12345,
+            "extractionErrorCode": "scanned_pdf"
+          }
+        ],
+        "line": "qwen_chat",
+        "model": {}
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "p.pdf"
+        ],
+        "blocked": [],
+        "body": "what is this\n\n---\n## Attachment 1: p.pdf\n- Type: pdf\n- Size: 13 KB\n- Status: **EXTRACTION FAILED** (error: scanned_pdf)\n\n> **Instruction to model:** This is a scanned PDF without a text layer. The current model cannot OCR it. DO NOT fabricate content. Tell the user to switch to a vision-capable model (e.g., GPT-4o, Claude 3.5 Sonnet, Gemini 2.5 Pro) and re-upload.\n---",
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "injector-markdown-pdf-text",
+      "input": {
+        "text": "summarize",
+        "attachments": [
+          {
+            "id": "doc.pdf",
+            "kind": "file",
+            "fileName": "doc.pdf",
+            "mimeType": "application/pdf",
+            "content": "Some PDF text",
+            "fileBytes": 1000
+          }
+        ],
+        "line": "qwen_chat",
+        "model": {}
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "doc.pdf"
+        ],
+        "blocked": [],
+        "body": "summarize\n\n---\n## Attachment 1: doc.pdf\n- Type: pdf\n- Size: 1 KB\n- Lines: 1\n\n```\nSome PDF text\n```\n---",
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "injector-three-half-cap-third-total-cap",
+      "input": {
+        "text": "prompt",
+        "attachments": [
+          {
+            "id": "a.txt",
+            "kind": "file",
+            "fileName": "a.txt",
+            "mimeType": "text/plain",
+            "gen": {
+              "line": "x",
+              "count": 1,
+              "repeat": 102400
+            }
+          },
+          {
+            "id": "b.txt",
+            "kind": "file",
+            "fileName": "b.txt",
+            "mimeType": "text/plain",
+            "gen": {
+              "line": "x",
+              "count": 1,
+              "repeat": 102400
+            }
+          },
+          {
+            "id": "c.txt",
+            "kind": "file",
+            "fileName": "c.txt",
+            "mimeType": "text/plain",
+            "gen": {
+              "line": "x",
+              "count": 1,
+              "repeat": 102400
+            }
+          }
+        ],
+        "line": "openai_chat",
+        "model": {}
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "a.txt",
+          "b.txt"
+        ],
+        "blocked": [
+          {
+            "id": "c.txt",
+            "reason": "total_cap_exceeded"
+          }
+        ],
+        "bodySha256": "0982da0c2b3f7f7787901d0c10750688a4e28a90ed4927467b6a1a9d9e7b0937",
+        "bodyBytes": 205232,
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "injector-xml-exact-extraction-cap",
+      "input": {
+        "text": "prompt",
+        "attachments": [
+          {
+            "id": "full.txt",
+            "kind": "file",
+            "fileName": "full.txt",
+            "mimeType": "text/plain",
+            "gen": {
+              "line": "x",
+              "count": 1,
+              "repeat": 204800
+            }
+          }
+        ],
+        "line": "openai_chat",
+        "model": {}
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "full.txt"
+        ],
+        "blocked": [],
+        "bodySha256": "25f3c4a1bb81e3c47ee17b64465fe66bf59a668a8690032fcadbd75bf0a4c14b",
+        "bodyBytes": 205022,
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "injector-markdown-exact-extraction-cap",
+      "input": {
+        "text": "prompt",
+        "attachments": [
+          {
+            "id": "full.txt",
+            "kind": "file",
+            "fileName": "full.txt",
+            "mimeType": "text/plain",
+            "gen": {
+              "line": "x",
+              "count": 1,
+              "repeat": 204800
+            }
+          }
+        ],
+        "line": "deepseek_chat",
+        "model": {}
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "full.txt"
+        ],
+        "blocked": [],
+        "bodySha256": "2672b8a1d6a2156c6d4cf7da44782ca06a1755eaf6551e7e8772985415c7b80f",
+        "bodyBytes": 204889,
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "injector-zh-budget-exact-fit",
+      "input": {
+        "text": "",
+        "attachments": [
+          {
+            "id": "zh.txt",
+            "kind": "file",
+            "fileName": "zh.txt",
+            "mimeType": "text/plain",
+            "gen": {
+              "line": "中",
+              "count": 1,
+              "repeat": 68266
+            }
+          }
+        ],
+        "line": "openai_chat",
+        "model": {}
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "zh.txt"
+        ],
+        "blocked": [],
+        "bodySha256": "786a5e14e79cdc19098eca1c43b4601e3798516f6d9181f87a612c2c6e0bfddf",
+        "bodyBytes": 205010,
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "injector-zh-one-over-truncated",
+      "input": {
+        "text": "",
+        "attachments": [
+          {
+            "id": "zh.txt",
+            "kind": "file",
+            "fileName": "zh.txt",
+            "mimeType": "text/plain",
+            "gen": {
+              "line": "中",
+              "count": 1,
+              "repeat": 68267
+            }
+          }
+        ],
+        "line": "openai_chat",
+        "model": {}
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "zh.txt"
+        ],
+        "blocked": [],
+        "bodySha256": "0d5758671114b044827fb8200f1d32f31b4b475cda8db5368fe4911e95ab2653",
+        "bodyBytes": 205060,
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "injector-fourth-file-too-many",
+      "input": {
+        "text": "msg",
+        "attachments": [
+          {
+            "id": "a.txt",
+            "kind": "file",
+            "fileName": "a.txt",
+            "mimeType": "text/plain",
+            "content": "hi"
+          },
+          {
+            "id": "b.txt",
+            "kind": "file",
+            "fileName": "b.txt",
+            "mimeType": "text/plain",
+            "content": "hi"
+          },
+          {
+            "id": "c.txt",
+            "kind": "file",
+            "fileName": "c.txt",
+            "mimeType": "text/plain",
+            "content": "hi"
+          },
+          {
+            "id": "d.txt",
+            "kind": "file",
+            "fileName": "d.txt",
+            "mimeType": "text/plain",
+            "content": "hi"
+          }
+        ],
+        "line": "openai_chat",
+        "model": {}
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "a.txt",
+          "b.txt",
+          "c.txt"
+        ],
+        "blocked": [
+          {
+            "id": "d.txt",
+            "reason": "too_many_files"
+          }
+        ],
+        "body": "msg\n\n<ATTACHMENT_FILE>\n<FILE_INDEX>1</FILE_INDEX>\n<FILE_NAME>a.txt</FILE_NAME>\n<FILE_TYPE>txt</FILE_TYPE>\n<FILE_LINES>1</FILE_LINES>\n<FILE_SIZE_KB>1</FILE_SIZE_KB>\n<FILE_CONTENT>\nhi\n</FILE_CONTENT>\n</ATTACHMENT_FILE>\n\n<ATTACHMENT_FILE>\n<FILE_INDEX>2</FILE_INDEX>\n<FILE_NAME>b.txt</FILE_NAME>\n<FILE_TYPE>txt</FILE_TYPE>\n<FILE_LINES>1</FILE_LINES>\n<FILE_SIZE_KB>1</FILE_SIZE_KB>\n<FILE_CONTENT>\nhi\n</FILE_CONTENT>\n</ATTACHMENT_FILE>\n\n<ATTACHMENT_FILE>\n<FILE_INDEX>3</FILE_INDEX>\n<FILE_NAME>c.txt</FILE_NAME>\n<FILE_TYPE>txt</FILE_TYPE>\n<FILE_LINES>1</FILE_LINES>\n<FILE_SIZE_KB>1</FILE_SIZE_KB>\n<FILE_CONTENT>\nhi\n</FILE_CONTENT>\n</ATTACHMENT_FILE>",
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "injector-empty-user-text",
+      "input": {
+        "text": "",
+        "attachments": [
+          {
+            "id": "f.txt",
+            "kind": "file",
+            "fileName": "f.txt",
+            "mimeType": "text/plain",
+            "content": "hello"
+          }
+        ],
+        "line": "openai_chat",
+        "model": {}
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "f.txt"
+        ],
+        "blocked": [],
+        "body": "<ATTACHMENT_FILE>\n<FILE_INDEX>1</FILE_INDEX>\n<FILE_NAME>f.txt</FILE_NAME>\n<FILE_TYPE>txt</FILE_TYPE>\n<FILE_LINES>1</FILE_LINES>\n<FILE_SIZE_KB>1</FILE_SIZE_KB>\n<FILE_CONTENT>\nhello\n</FILE_CONTENT>\n</ATTACHMENT_FILE>",
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "extractor-100-lines-not-truncated",
+      "input": {
+        "text": "read",
+        "attachments": [
+          {
+            "id": "a.txt",
+            "kind": "file",
+            "fileName": "a.txt",
+            "mimeType": "text/plain",
+            "gen": {
+              "line": "line {n}",
+              "count": 100
+            }
+          }
+        ],
+        "line": "openai_chat",
+        "model": {}
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "a.txt"
+        ],
+        "blocked": [],
+        "body": "read\n\n<ATTACHMENT_FILE>\n<FILE_INDEX>1</FILE_INDEX>\n<FILE_NAME>a.txt</FILE_NAME>\n<FILE_TYPE>txt</FILE_TYPE>\n<FILE_LINES>100</FILE_LINES>\n<FILE_SIZE_KB>1</FILE_SIZE_KB>\n<FILE_CONTENT>\nline 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8\nline 9\nline 10\nline 11\nline 12\nline 13\nline 14\nline 15\nline 16\nline 17\nline 18\nline 19\nline 20\nline 21\nline 22\nline 23\nline 24\nline 25\nline 26\nline 27\nline 28\nline 29\nline 30\nline 31\nline 32\nline 33\nline 34\nline 35\nline 36\nline 37\nline 38\nline 39\nline 40\nline 41\nline 42\nline 43\nline 44\nline 45\nline 46\nline 47\nline 48\nline 49\nline 50\nline 51\nline 52\nline 53\nline 54\nline 55\nline 56\nline 57\nline 58\nline 59\nline 60\nline 61\nline 62\nline 63\nline 64\nline 65\nline 66\nline 67\nline 68\nline 69\nline 70\nline 71\nline 72\nline 73\nline 74\nline 75\nline 76\nline 77\nline 78\nline 79\nline 80\nline 81\nline 82\nline 83\nline 84\nline 85\nline 86\nline 87\nline 88\nline 89\nline 90\nline 91\nline 92\nline 93\nline 94\nline 95\nline 96\nline 97\nline 98\nline 99\nline 100\n</FILE_CONTENT>\n</ATTACHMENT_FILE>",
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "extractor-single-line-over-max-bytes",
+      "input": {
+        "text": "read",
+        "attachments": [
+          {
+            "id": "one.txt",
+            "kind": "file",
+            "fileName": "one.txt",
+            "mimeType": "text/plain",
+            "gen": {
+              "line": "x",
+              "count": 1,
+              "repeat": 204900
+            }
+          }
+        ],
+        "line": "openai_chat",
+        "model": {}
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "one.txt"
+        ],
+        "blocked": [],
+        "bodySha256": "8a2c6e5bc1bbd08a4cfc3c36ec3363295efbc48e8525b05ab682f9944b893aa7",
+        "bodyBytes": 205069,
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "extractor-bytes-50-lines-of-5000",
+      "input": {
+        "text": "read",
+        "attachments": [
+          {
+            "id": "wide.txt",
+            "kind": "file",
+            "fileName": "wide.txt",
+            "mimeType": "text/plain",
+            "gen": {
+              "line": "a",
+              "count": 50,
+              "repeat": 5000
+            }
+          }
+        ],
+        "line": "openai_chat",
+        "model": {}
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "wide.txt"
+        ],
+        "blocked": [],
+        "bodySha256": "a44955c7bf85d27651a2fe0d8816bb5d37dc8dfe24089248be9300b72a685c6a",
+        "bodyBytes": 200312,
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "extractor-custom-max-lines-10",
+      "input": {
+        "text": "read",
+        "attachments": [
+          {
+            "id": "a.txt",
+            "kind": "file",
+            "fileName": "a.txt",
+            "mimeType": "text/plain",
+            "gen": {
+              "line": "L{n}",
+              "count": 20
+            }
+          }
+        ],
+        "line": "openai_chat",
+        "model": {
+          "attachmentExtraction": {
+            "maxLines": 10
+          }
+        }
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "a.txt"
+        ],
+        "blocked": [],
+        "body": "read\n\n<ATTACHMENT_FILE>\n<FILE_INDEX>1</FILE_INDEX>\n<FILE_NAME>a.txt</FILE_NAME>\n<FILE_TYPE>txt</FILE_TYPE>\n<FILE_LINES>20</FILE_LINES>\n<FILE_SIZE_KB>1</FILE_SIZE_KB>\n<FILE_CONTENT>\nL1\nL2\nL3\nL4\nL5\nL6\nL7\nL8\nL9\nL10\n</FILE_CONTENT>\n<TRUNCATED>showing first 10 of 20 lines</TRUNCATED>\n</ATTACHMENT_FILE>",
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "extractor-first-line-over-max-bytes-8",
+      "input": {
+        "text": "read",
+        "attachments": [
+          {
+            "id": "a.txt",
+            "kind": "file",
+            "fileName": "a.txt",
+            "mimeType": "text/plain",
+            "content": "0123456789\nsecond"
+          }
+        ],
+        "line": "openai_chat",
+        "model": {
+          "attachmentExtraction": {
+            "maxBytes": 8
+          }
+        }
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "a.txt"
+        ],
+        "blocked": [],
+        "body": "read\n\n<ATTACHMENT_FILE>\n<FILE_INDEX>1</FILE_INDEX>\n<FILE_NAME>a.txt</FILE_NAME>\n<FILE_TYPE>txt</FILE_TYPE>\n<FILE_LINES>2</FILE_LINES>\n<FILE_SIZE_KB>1</FILE_SIZE_KB>\n<FILE_CONTENT>\n01234567\n</FILE_CONTENT>\n<TRUNCATED>showing first 1 of 2 lines</TRUNCATED>\n</ATTACHMENT_FILE>",
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "extractor-zh-max-bytes-10",
+      "input": {
+        "text": "read",
+        "attachments": [
+          {
+            "id": "zh.txt",
+            "kind": "file",
+            "fileName": "zh.txt",
+            "mimeType": "text/plain",
+            "content": "中文字符截断"
+          }
+        ],
+        "line": "openai_chat",
+        "model": {
+          "attachmentExtraction": {
+            "maxBytes": 10
+          }
+        }
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "zh.txt"
+        ],
+        "blocked": [],
+        "body": "read\n\n<ATTACHMENT_FILE>\n<FILE_INDEX>1</FILE_INDEX>\n<FILE_NAME>zh.txt</FILE_NAME>\n<FILE_TYPE>txt</FILE_TYPE>\n<FILE_LINES>1</FILE_LINES>\n<FILE_SIZE_KB>1</FILE_SIZE_KB>\n<FILE_CONTENT>\n中文字\n</FILE_CONTENT>\n<TRUNCATED>showing first 1 of 1 lines</TRUNCATED>\n</ATTACHMENT_FILE>",
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "extractor-emoji-max-bytes-7",
+      "input": {
+        "text": "read",
+        "attachments": [
+          {
+            "id": "e.txt",
+            "kind": "file",
+            "fileName": "e.txt",
+            "mimeType": "text/plain",
+            "content": "ab😀😀😀"
+          }
+        ],
+        "line": "openai_chat",
+        "model": {
+          "attachmentExtraction": {
+            "maxBytes": 7
+          }
+        }
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "e.txt"
+        ],
+        "blocked": [],
+        "body": "read\n\n<ATTACHMENT_FILE>\n<FILE_INDEX>1</FILE_INDEX>\n<FILE_NAME>e.txt</FILE_NAME>\n<FILE_TYPE>txt</FILE_TYPE>\n<FILE_LINES>1</FILE_LINES>\n<FILE_SIZE_KB>1</FILE_SIZE_KB>\n<FILE_CONTENT>\nab😀\n</FILE_CONTENT>\n<TRUNCATED>showing first 1 of 1 lines</TRUNCATED>\n</ATTACHMENT_FILE>",
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "lines-501-truncated-to-500",
+      "input": {
+        "text": "read",
+        "attachments": [
+          {
+            "id": "log.txt",
+            "kind": "file",
+            "fileName": "log.txt",
+            "mimeType": "text/plain",
+            "gen": {
+              "line": "L{n}",
+              "count": 501
+            }
+          }
+        ],
+        "line": "openai_chat",
+        "model": {}
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "log.txt"
+        ],
+        "blocked": [],
+        "body": "read\n\n<ATTACHMENT_FILE>\n<FILE_INDEX>1</FILE_INDEX>\n<FILE_NAME>log.txt</FILE_NAME>\n<FILE_TYPE>txt</FILE_TYPE>\n<FILE_LINES>501</FILE_LINES>\n<FILE_SIZE_KB>3</FILE_SIZE_KB>\n<FILE_CONTENT>\nL1\nL2\nL3\nL4\nL5\nL6\nL7\nL8\nL9\nL10\nL11\nL12\nL13\nL14\nL15\nL16\nL17\nL18\nL19\nL20\nL21\nL22\nL23\nL24\nL25\nL26\nL27\nL28\nL29\nL30\nL31\nL32\nL33\nL34\nL35\nL36\nL37\nL38\nL39\nL40\nL41\nL42\nL43\nL44\nL45\nL46\nL47\nL48\nL49\nL50\nL51\nL52\nL53\nL54\nL55\nL56\nL57\nL58\nL59\nL60\nL61\nL62\nL63\nL64\nL65\nL66\nL67\nL68\nL69\nL70\nL71\nL72\nL73\nL74\nL75\nL76\nL77\nL78\nL79\nL80\nL81\nL82\nL83\nL84\nL85\nL86\nL87\nL88\nL89\nL90\nL91\nL92\nL93\nL94\nL95\nL96\nL97\nL98\nL99\nL100\nL101\nL102\nL103\nL104\nL105\nL106\nL107\nL108\nL109\nL110\nL111\nL112\nL113\nL114\nL115\nL116\nL117\nL118\nL119\nL120\nL121\nL122\nL123\nL124\nL125\nL126\nL127\nL128\nL129\nL130\nL131\nL132\nL133\nL134\nL135\nL136\nL137\nL138\nL139\nL140\nL141\nL142\nL143\nL144\nL145\nL146\nL147\nL148\nL149\nL150\nL151\nL152\nL153\nL154\nL155\nL156\nL157\nL158\nL159\nL160\nL161\nL162\nL163\nL164\nL165\nL166\nL167\nL168\nL169\nL170\nL171\nL172\nL173\nL174\nL175\nL176\nL177\nL178\nL179\nL180\nL181\nL182\nL183\nL184\nL185\nL186\nL187\nL188\nL189\nL190\nL191\nL192\nL193\nL194\nL195\nL196\nL197\nL198\nL199\nL200\nL201\nL202\nL203\nL204\nL205\nL206\nL207\nL208\nL209\nL210\nL211\nL212\nL213\nL214\nL215\nL216\nL217\nL218\nL219\nL220\nL221\nL222\nL223\nL224\nL225\nL226\nL227\nL228\nL229\nL230\nL231\nL232\nL233\nL234\nL235\nL236\nL237\nL238\nL239\nL240\nL241\nL242\nL243\nL244\nL245\nL246\nL247\nL248\nL249\nL250\nL251\nL252\nL253\nL254\nL255\nL256\nL257\nL258\nL259\nL260\nL261\nL262\nL263\nL264\nL265\nL266\nL267\nL268\nL269\nL270\nL271\nL272\nL273\nL274\nL275\nL276\nL277\nL278\nL279\nL280\nL281\nL282\nL283\nL284\nL285\nL286\nL287\nL288\nL289\nL290\nL291\nL292\nL293\nL294\nL295\nL296\nL297\nL298\nL299\nL300\nL301\nL302\nL303\nL304\nL305\nL306\nL307\nL308\nL309\nL310\nL311\nL312\nL313\nL314\nL315\nL316\nL317\nL318\nL319\nL320\nL321\nL322\nL323\nL324\nL325\nL326\nL327\nL328\nL329\nL330\nL331\nL332\nL333\nL334\nL335\nL336\nL337\nL338\nL339\nL340\nL341\nL342\nL343\nL344\nL345\nL346\nL347\nL348\nL349\nL350\nL351\nL352\nL353\nL354\nL355\nL356\nL357\nL358\nL359\nL360\nL361\nL362\nL363\nL364\nL365\nL366\nL367\nL368\nL369\nL370\nL371\nL372\nL373\nL374\nL375\nL376\nL377\nL378\nL379\nL380\nL381\nL382\nL383\nL384\nL385\nL386\nL387\nL388\nL389\nL390\nL391\nL392\nL393\nL394\nL395\nL396\nL397\nL398\nL399\nL400\nL401\nL402\nL403\nL404\nL405\nL406\nL407\nL408\nL409\nL410\nL411\nL412\nL413\nL414\nL415\nL416\nL417\nL418\nL419\nL420\nL421\nL422\nL423\nL424\nL425\nL426\nL427\nL428\nL429\nL430\nL431\nL432\nL433\nL434\nL435\nL436\nL437\nL438\nL439\nL440\nL441\nL442\nL443\nL444\nL445\nL446\nL447\nL448\nL449\nL450\nL451\nL452\nL453\nL454\nL455\nL456\nL457\nL458\nL459\nL460\nL461\nL462\nL463\nL464\nL465\nL466\nL467\nL468\nL469\nL470\nL471\nL472\nL473\nL474\nL475\nL476\nL477\nL478\nL479\nL480\nL481\nL482\nL483\nL484\nL485\nL486\nL487\nL488\nL489\nL490\nL491\nL492\nL493\nL494\nL495\nL496\nL497\nL498\nL499\nL500\n</FILE_CONTENT>\n<TRUNCATED>showing first 500 of 501 lines</TRUNCATED>\n</ATTACHMENT_FILE>",
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "single-line-300kb-multibyte-utf8-boundary",
+      "input": {
+        "text": "read",
+        "attachments": [
+          {
+            "id": "min.json",
+            "kind": "file",
+            "fileName": "min.json",
+            "mimeType": "application/json",
+            "gen": {
+              "line": "中abc",
+              "count": 1,
+              "repeat": 51200
+            }
+          }
+        ],
+        "line": "openai_chat",
+        "model": {}
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "min.json"
+        ],
+        "blocked": [],
+        "bodySha256": "3608a3b857bd124aca5eb26aa3a9916318abafd7842bc97a5399e9e579bfdb11",
+        "bodyBytes": 205069,
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "openai-responses-pdf-5mb-native",
+      "input": {
+        "text": "summarize the report",
+        "attachments": [
+          {
+            "id": "report.pdf",
+            "kind": "file",
+            "fileName": "report.pdf",
+            "mimeType": "application/pdf",
+            "content": "Quarterly report",
+            "fileBytes": 5242880,
+            "originalBytes": 5242880
+          }
+        ],
+        "line": "openai_responses",
+        "model": {
+          "nativeFileMimes": [
+            "application/pdf"
+          ],
+          "pdfNativeDefault": true
+        }
+      },
+      "expect": {
+        "native": [
+          "report.pdf"
+        ],
+        "text": [],
+        "blocked": [],
+        "body": "summarize the report",
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "gemini-pdf-over-native-cap-text",
+      "input": {
+        "text": "summarize the report",
+        "attachments": [
+          {
+            "id": "report.pdf",
+            "kind": "file",
+            "fileName": "report.pdf",
+            "mimeType": "application/pdf",
+            "content": "Quarterly report",
+            "fileBytes": 20971521,
+            "originalBytes": 20971521
+          }
+        ],
+        "line": "gemini_generate",
+        "model": {
+          "nativeFileMimes": [
+            "application/pdf"
+          ],
+          "pdfNativeDefault": true
+        }
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "report.pdf"
+        ],
+        "blocked": [],
+        "body": "summarize the report\n\n<ATTACHMENT_FILE>\n<FILE_INDEX>1</FILE_INDEX>\n<FILE_NAME>report.pdf</FILE_NAME>\n<FILE_TYPE>pdf</FILE_TYPE>\n<FILE_LINES>1</FILE_LINES>\n<FILE_SIZE_KB>20481</FILE_SIZE_KB>\n<FILE_CONTENT>\nQuarterly report\n</FILE_CONTENT>\n</ATTACHMENT_FILE>",
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    },
+    {
+      "id": "minimax-markdown",
+      "input": {
+        "text": "summarize",
+        "attachments": [
+          {
+            "id": "notes.md",
+            "kind": "file",
+            "fileName": "notes.md",
+            "mimeType": "text/markdown",
+            "content": "# Title\nbody line"
+          }
+        ],
+        "line": "minimax_chat",
+        "model": {}
+      },
+      "expect": {
+        "native": [],
+        "text": [
+          "notes.md"
+        ],
+        "blocked": [],
+        "body": "summarize\n\n---\n## Attachment 1: notes.md\n- Type: md\n- Size: 1 KB\n- Lines: 2\n\n```\n# Title\nbody line\n```\n---",
+        "systemSuffix": "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
+      }
+    }
+  ]
+}
