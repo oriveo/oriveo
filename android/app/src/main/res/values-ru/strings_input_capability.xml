@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capability_input_hint_first_attach_image">Ещё не проверено, распознаёт ли эта модель изображения. Если не получится, мы сообщим вам</string>
+    <string name="capability_input_hint_first_attach_file">Ещё не проверено, читает ли эта модель файлы. Если не получится, мы сообщим вам</string>
+    <string name="capability_input_hint_first_attach_video">Ещё не проверено, понимает ли эта модель видео. Если не получится, мы сообщим вам</string>
+    <string name="capability_input_disabled_model_absent_image">Эта модель не принимает изображения</string>
+    <string name="capability_input_disabled_model_absent_file">Эта модель не принимает файлы</string>
+    <string name="capability_input_disabled_model_absent_video">Эта модель не принимает видео</string>
+    <string name="capability_input_disabled_wire_not_implemented_image">Через это подключение пока нельзя отправлять изображения</string>
+    <string name="capability_input_disabled_wire_not_implemented_file">Через это подключение пока нельзя отправлять файлы</string>
+    <string name="capability_input_disabled_wire_not_implemented_video">Через это подключение пока нельзя отправлять видео</string>
+    <string name="capability_input_disabled_kill_switch_image">Отправка изображений этому провайдеру временно отключена</string>
+    <string name="capability_input_disabled_kill_switch_file">Отправка файлов этому провайдеру временно отключена</string>
+    <string name="capability_input_disabled_kill_switch_video">Отправка видео этому провайдеру временно отключена</string>
+    <string name="capability_input_disabled_rejected_recently_image">Эта модель только что отклонила изображение</string>
+    <string name="capability_input_disabled_rejected_recently_file">Эта модель только что отклонила файл</string>
+    <string name="capability_input_disabled_rejected_recently_video">Эта модель только что отклонила видео</string>
+    <string name="capability_input_disabled_user_removed_image">Вы отключили отправку изображений для этой модели</string>
+    <string name="capability_input_disabled_user_removed_file">Вы отключили отправку файлов для этой модели</string>
+    <string name="capability_input_disabled_user_removed_video">Вы отключили отправку видео для этой модели</string>
+    <string name="capability_input_resend_without_image">Отправить заново без изображений</string>
+    <string name="capability_input_resend_without_file">Отправить заново без файлов</string>
+    <string name="capability_input_resend_without_video">Отправить заново без видео</string>
+    <string name="capability_input_bubble_not_sent_to_model">Не отправлено этой модели</string>
+</resources>

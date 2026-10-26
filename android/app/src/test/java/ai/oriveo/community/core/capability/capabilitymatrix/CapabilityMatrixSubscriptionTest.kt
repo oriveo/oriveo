@@ -6,7 +6,6 @@ import ai.oriveo.community.core.attachments.AttachmentTransportProfile
 import ai.oriveo.community.core.attachments.NativeFileFallback
 import ai.oriveo.community.core.attachments.NativeFileMode
 import ai.oriveo.community.core.data.attachment.AttachmentStore
-import ai.oriveo.community.core.data.dao.ConversationDao
 import ai.oriveo.community.core.data.dao.ProviderDao
 import ai.oriveo.community.core.data.entity.ProviderEntity
 import ai.oriveo.community.core.data.remote.MetadataRefreshEventBus
@@ -291,7 +290,6 @@ class CapabilityMatrixSubscriptionTest {
         private val credentials = mutableMapOf<String, String>()
         private val secureKeyStore = mockk<SecureKeyStore>()
         private val dao = mockk<ProviderDao>()
-        private val conversationDao = mockk<ConversationDao>()
         val repository: ProviderRepository
 
         private val upstream = HttpClient(
@@ -316,7 +314,6 @@ class CapabilityMatrixSubscriptionTest {
 
         init {
             coEvery { dao.getAll(any()) } returns emptyList()
-            coEvery { conversationDao.getAll(any()) } returns emptyList()
             coEvery { secureKeyStore.getApiKey(any(), any()) } returns ""
             every { secureKeyStore.saveApiKey(any(), any(), any()) } returns Unit
             every { secureKeyStore.beginCapabilityConnection(any(), any()) } returns SecureKeyStore.CapabilityEpochs("cg", "ce")
@@ -331,7 +328,6 @@ class CapabilityMatrixSubscriptionTest {
             coEvery { dao.upsert(any()) } answers { firstArg<ProviderEntity>().let { persisted[it.id] = it } }
             repository = ProviderRepository(
                 dao = dao,
-                conversationDao = conversationDao,
                 secureKeyStore = secureKeyStore,
                 openRouterService = mockk<OpenRouterService>(),
                 openAIService = mockk<OpenAIService>(),

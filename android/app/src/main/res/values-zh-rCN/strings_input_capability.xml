@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capability_input_hint_first_attach_image">尚未确认该模型能否识图，失败会告诉你</string>
+    <string name="capability_input_hint_first_attach_file">尚未确认该模型能否读文件，失败会告诉你</string>
+    <string name="capability_input_hint_first_attach_video">尚未确认该模型能否看视频，失败会告诉你</string>
+    <string name="capability_input_disabled_model_absent_image">此模型不支持图片输入</string>
+    <string name="capability_input_disabled_model_absent_file">此模型不支持文件输入</string>
+    <string name="capability_input_disabled_model_absent_video">此模型不支持视频输入</string>
+    <string name="capability_input_disabled_wire_not_implemented_image">当前连接还不能发送图片</string>
+    <string name="capability_input_disabled_wire_not_implemented_file">当前连接还不能发送文件</string>
+    <string name="capability_input_disabled_wire_not_implemented_video">当前连接还不能发送视频</string>
+    <string name="capability_input_disabled_kill_switch_image">该供应商的图片输入暂时关闭</string>
+    <string name="capability_input_disabled_kill_switch_file">该供应商的文件输入暂时关闭</string>
+    <string name="capability_input_disabled_kill_switch_video">该供应商的视频输入暂时关闭</string>
+    <string name="capability_input_disabled_rejected_recently_image">该模型刚拒绝过图片</string>
+    <string name="capability_input_disabled_rejected_recently_file">该模型刚拒绝过文件</string>
+    <string name="capability_input_disabled_rejected_recently_video">该模型刚拒绝过视频</string>
+    <string name="capability_input_disabled_user_removed_image">你已为此模型关闭图片输入</string>
+    <string name="capability_input_disabled_user_removed_file">你已为此模型关闭文件输入</string>
+    <string name="capability_input_disabled_user_removed_video">你已为此模型关闭视频输入</string>
+    <string name="capability_input_resend_without_image">去掉图片重发</string>
+    <string name="capability_input_resend_without_file">去掉文件重发</string>
+    <string name="capability_input_resend_without_video">去掉视频重发</string>
+    <string name="capability_input_bubble_not_sent_to_model">未发送给此模型</string>
+</resources>

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capability_input_hint_first_attach_image">Chưa xác nhận được mô hình này có đọc được ảnh hay không. Nếu thất bại, bạn sẽ được thông báo</string>
+    <string name="capability_input_hint_first_attach_file">Chưa xác nhận được mô hình này có đọc được tệp hay không. Nếu thất bại, bạn sẽ được thông báo</string>
+    <string name="capability_input_hint_first_attach_video">Chưa xác nhận được mô hình này có hiểu được video hay không. Nếu thất bại, bạn sẽ được thông báo</string>
+    <string name="capability_input_disabled_model_absent_image">Mô hình này không hỗ trợ đầu vào hình ảnh</string>
+    <string name="capability_input_disabled_model_absent_file">Mô hình này không hỗ trợ đầu vào tệp</string>
+    <string name="capability_input_disabled_model_absent_video">Mô hình này không hỗ trợ đầu vào video</string>
+    <string name="capability_input_disabled_wire_not_implemented_image">Kết nối này chưa gửi được ảnh</string>
+    <string name="capability_input_disabled_wire_not_implemented_file">Kết nối này chưa gửi được tệp</string>
+    <string name="capability_input_disabled_wire_not_implemented_video">Kết nối này chưa gửi được video</string>
+    <string name="capability_input_disabled_kill_switch_image">Tính năng gửi hình ảnh cho nhà cung cấp này đang tạm tắt</string>
+    <string name="capability_input_disabled_kill_switch_file">Tính năng gửi tệp cho nhà cung cấp này đang tạm tắt</string>
+    <string name="capability_input_disabled_kill_switch_video">Tính năng gửi video cho nhà cung cấp này đang tạm tắt</string>
+    <string name="capability_input_disabled_rejected_recently_image">Mô hình này vừa từ chối một ảnh</string>
+    <string name="capability_input_disabled_rejected_recently_file">Mô hình này vừa từ chối một tệp</string>
+    <string name="capability_input_disabled_rejected_recently_video">Mô hình này vừa từ chối một video</string>
+    <string name="capability_input_disabled_user_removed_image">Bạn đã tắt tính năng gửi hình ảnh cho mô hình này</string>
+    <string name="capability_input_disabled_user_removed_file">Bạn đã tắt tính năng gửi tệp cho mô hình này</string>
+    <string name="capability_input_disabled_user_removed_video">Bạn đã tắt tính năng gửi video cho mô hình này</string>
+    <string name="capability_input_resend_without_image">Gửi lại không kèm ảnh</string>
+    <string name="capability_input_resend_without_file">Gửi lại không kèm tệp</string>
+    <string name="capability_input_resend_without_video">Gửi lại không kèm video</string>
+    <string name="capability_input_bubble_not_sent_to_model">Không gửi cho mô hình này</string>
+</resources>

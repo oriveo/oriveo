@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capability_input_hint_first_attach_image">Aún no confirmamos si este modelo puede ver imágenes. Si falla, te avisaremos</string>
+    <string name="capability_input_hint_first_attach_file">Aún no confirmamos si este modelo puede leer archivos. Si falla, te avisaremos</string>
+    <string name="capability_input_hint_first_attach_video">Aún no confirmamos si este modelo puede ver videos. Si falla, te avisaremos</string>
+    <string name="capability_input_disabled_model_absent_image">Este modelo no admite imágenes como entrada</string>
+    <string name="capability_input_disabled_model_absent_file">Este modelo no admite archivos como entrada</string>
+    <string name="capability_input_disabled_model_absent_video">Este modelo no admite videos como entrada</string>
+    <string name="capability_input_disabled_wire_not_implemented_image">Esta conexión todavía no puede enviar imágenes</string>
+    <string name="capability_input_disabled_wire_not_implemented_file">Esta conexión todavía no puede enviar archivos</string>
+    <string name="capability_input_disabled_wire_not_implemented_video">Esta conexión todavía no puede enviar videos</string>
+    <string name="capability_input_disabled_kill_switch_image">El envío de imágenes está desactivado temporalmente para este proveedor</string>
+    <string name="capability_input_disabled_kill_switch_file">El envío de archivos está desactivado temporalmente para este proveedor</string>
+    <string name="capability_input_disabled_kill_switch_video">El envío de videos está desactivado temporalmente para este proveedor</string>
+    <string name="capability_input_disabled_rejected_recently_image">Este modelo acaba de rechazar una imagen</string>
+    <string name="capability_input_disabled_rejected_recently_file">Este modelo acaba de rechazar un archivo</string>
+    <string name="capability_input_disabled_rejected_recently_video">Este modelo acaba de rechazar un video</string>
+    <string name="capability_input_disabled_user_removed_image">Desactivaste el envío de imágenes para este modelo</string>
+    <string name="capability_input_disabled_user_removed_file">Desactivaste el envío de archivos para este modelo</string>
+    <string name="capability_input_disabled_user_removed_video">Desactivaste el envío de videos para este modelo</string>
+    <string name="capability_input_resend_without_image">Reenviar sin imágenes</string>
+    <string name="capability_input_resend_without_file">Reenviar sin archivos</string>
+    <string name="capability_input_resend_without_video">Reenviar sin videos</string>
+    <string name="capability_input_bubble_not_sent_to_model">No se envió a este modelo</string>
+</resources>

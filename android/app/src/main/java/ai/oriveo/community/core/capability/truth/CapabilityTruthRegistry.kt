@@ -30,6 +30,19 @@ internal interface CapabilityTruthAdapter {
      * so they declare false and the explicit intent is dropped before reaching the facade.
      */
     val acceptsUnverifiedExplicitIntent: Boolean get() = true
+
+    /** Inputs for reading display facts: the connection, the model and the persisted metadata cache; no network, no credentials. */
+    data class FactInput(
+        val provider: Provider,
+        val model: AIModel,
+        val metadataClient: MetadataClient,
+    )
+
+    /**
+     * Display fact: `thinking` under the `reasoning` key, i.e. whether this model shows its thinking process, separate from the reasoning_level tiers.
+     * Each form reads only its own source; a missing source means false (not shown, no guessing). There is no default implementation: a new form must state its source.
+     */
+    fun thinking(input: FactInput): Boolean
 }
 
 /** Form -> truth adapter: the single registry (the contract `forms.adapters`). */
@@ -40,4 +53,12 @@ internal object CapabilityTruthRegistry {
         ProviderForm.Relay -> RelayTruthAdapter
         ProviderForm.Official -> OfficialTruthAdapter
     }
+
+    /** The single entry for the reasoning.thinking display fact: the thinking row reads only this, and nothing outside the facade reads the legacy reasoning capability bit. */
+    fun thinking(
+        provider: Provider,
+        model: AIModel,
+        metadataClient: MetadataClient = MetadataClient.instance,
+    ): Boolean = adapterFor(ProviderForm.of(provider))
+        .thinking(CapabilityTruthAdapter.FactInput(provider, model, metadataClient))
 }

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capability_input_hint_first_attach_image">We haven\'t confirmed this model can see images yet. If it can\'t, we\'ll let you know</string>
+    <string name="capability_input_hint_first_attach_file">We haven\'t confirmed this model can read files yet. If it can\'t, we\'ll let you know</string>
+    <string name="capability_input_hint_first_attach_video">We haven\'t confirmed this model can watch videos yet. If it can\'t, we\'ll let you know</string>
+    <string name="capability_input_disabled_model_absent_image">This model doesn\'t support image input</string>
+    <string name="capability_input_disabled_model_absent_file">This model doesn\'t support file input</string>
+    <string name="capability_input_disabled_model_absent_video">This model doesn\'t support video input</string>
+    <string name="capability_input_disabled_wire_not_implemented_image">This connection can\'t send images yet</string>
+    <string name="capability_input_disabled_wire_not_implemented_file">This connection can\'t send files yet</string>
+    <string name="capability_input_disabled_wire_not_implemented_video">This connection can\'t send videos yet</string>
+    <string name="capability_input_disabled_kill_switch_image">Image input is temporarily off for this provider</string>
+    <string name="capability_input_disabled_kill_switch_file">File input is temporarily off for this provider</string>
+    <string name="capability_input_disabled_kill_switch_video">Video input is temporarily off for this provider</string>
+    <string name="capability_input_disabled_rejected_recently_image">This model just rejected an image</string>
+    <string name="capability_input_disabled_rejected_recently_file">This model just rejected a file</string>
+    <string name="capability_input_disabled_rejected_recently_video">This model just rejected a video</string>
+    <string name="capability_input_disabled_user_removed_image">You turned off image input for this model</string>
+    <string name="capability_input_disabled_user_removed_file">You turned off file input for this model</string>
+    <string name="capability_input_disabled_user_removed_video">You turned off video input for this model</string>
+    <string name="capability_input_resend_without_image">Resend without images</string>
+    <string name="capability_input_resend_without_file">Resend without files</string>
+    <string name="capability_input_resend_without_video">Resend without videos</string>
+    <string name="capability_input_bubble_not_sent_to_model">Not sent to this model</string>
+</resources>

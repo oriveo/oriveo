@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capability_input_hint_first_attach_image">Wir wissen noch nicht, ob dieses Modell Bilder verarbeiten kann. Falls nicht, sagen wir dir Bescheid</string>
+    <string name="capability_input_hint_first_attach_file">Wir wissen noch nicht, ob dieses Modell Dateien lesen kann. Falls nicht, sagen wir dir Bescheid</string>
+    <string name="capability_input_hint_first_attach_video">Wir wissen noch nicht, ob dieses Modell Videos verarbeiten kann. Falls nicht, sagen wir dir Bescheid</string>
+    <string name="capability_input_disabled_model_absent_image">Dieses Modell unterstützt keine Bildeingabe</string>
+    <string name="capability_input_disabled_model_absent_file">Dieses Modell unterstützt keine Dateieingabe</string>
+    <string name="capability_input_disabled_model_absent_video">Dieses Modell unterstützt keine Videoeingabe</string>
+    <string name="capability_input_disabled_wire_not_implemented_image">Über diese Verbindung können noch keine Bilder gesendet werden</string>
+    <string name="capability_input_disabled_wire_not_implemented_file">Über diese Verbindung können noch keine Dateien gesendet werden</string>
+    <string name="capability_input_disabled_wire_not_implemented_video">Über diese Verbindung können noch keine Videos gesendet werden</string>
+    <string name="capability_input_disabled_kill_switch_image">Die Bildeingabe ist für diesen Anbieter vorübergehend deaktiviert</string>
+    <string name="capability_input_disabled_kill_switch_file">Die Dateieingabe ist für diesen Anbieter vorübergehend deaktiviert</string>
+    <string name="capability_input_disabled_kill_switch_video">Die Videoeingabe ist für diesen Anbieter vorübergehend deaktiviert</string>
+    <string name="capability_input_disabled_rejected_recently_image">Dieses Modell hat gerade ein Bild abgelehnt</string>
+    <string name="capability_input_disabled_rejected_recently_file">Dieses Modell hat gerade eine Datei abgelehnt</string>
+    <string name="capability_input_disabled_rejected_recently_video">Dieses Modell hat gerade ein Video abgelehnt</string>
+    <string name="capability_input_disabled_user_removed_image">Du hast die Bildeingabe für dieses Modell deaktiviert</string>
+    <string name="capability_input_disabled_user_removed_file">Du hast die Dateieingabe für dieses Modell deaktiviert</string>
+    <string name="capability_input_disabled_user_removed_video">Du hast die Videoeingabe für dieses Modell deaktiviert</string>
+    <string name="capability_input_resend_without_image">Ohne Bilder erneut senden</string>
+    <string name="capability_input_resend_without_file">Ohne Dateien erneut senden</string>
+    <string name="capability_input_resend_without_video">Ohne Videos erneut senden</string>
+    <string name="capability_input_bubble_not_sent_to_model">Nicht an dieses Modell gesendet</string>
+</resources>

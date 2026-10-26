@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capability_input_hint_first_attach_image">لم يُتحقَّق بعد من قدرة هذا النموذج على فهم الصور، وسيظهر تنبيه عند الفشل</string>
+    <string name="capability_input_hint_first_attach_file">لم يُتحقَّق بعد من قدرة هذا النموذج على قراءة الملفات، وسيظهر تنبيه عند الفشل</string>
+    <string name="capability_input_hint_first_attach_video">لم يُتحقَّق بعد من قدرة هذا النموذج على فهم الفيديو، وسيظهر تنبيه عند الفشل</string>
+    <string name="capability_input_disabled_model_absent_image">هذا النموذج لا يدعم إدخال الصور</string>
+    <string name="capability_input_disabled_model_absent_file">هذا النموذج لا يدعم إدخال الملفات</string>
+    <string name="capability_input_disabled_model_absent_video">هذا النموذج لا يدعم إدخال الفيديو</string>
+    <string name="capability_input_disabled_wire_not_implemented_image">إرسال الصور غير متاح بعد عبر هذا الاتصال</string>
+    <string name="capability_input_disabled_wire_not_implemented_file">إرسال الملفات غير متاح بعد عبر هذا الاتصال</string>
+    <string name="capability_input_disabled_wire_not_implemented_video">إرسال الفيديو غير متاح بعد عبر هذا الاتصال</string>
+    <string name="capability_input_disabled_kill_switch_image">إدخال الصور متوقف مؤقتًا لدى هذا المزوّد</string>
+    <string name="capability_input_disabled_kill_switch_file">إدخال الملفات متوقف مؤقتًا لدى هذا المزوّد</string>
+    <string name="capability_input_disabled_kill_switch_video">إدخال الفيديو متوقف مؤقتًا لدى هذا المزوّد</string>
+    <string name="capability_input_disabled_rejected_recently_image">رفض هذا النموذج صورة للتو</string>
+    <string name="capability_input_disabled_rejected_recently_file">رفض هذا النموذج ملفًا للتو</string>
+    <string name="capability_input_disabled_rejected_recently_video">رفض هذا النموذج مقطع فيديو للتو</string>
+    <string name="capability_input_disabled_user_removed_image">إدخال الصور مُعطَّل لهذا النموذج حسب إعداداتك</string>
+    <string name="capability_input_disabled_user_removed_file">إدخال الملفات مُعطَّل لهذا النموذج حسب إعداداتك</string>
+    <string name="capability_input_disabled_user_removed_video">إدخال الفيديو مُعطَّل لهذا النموذج حسب إعداداتك</string>
+    <string name="capability_input_resend_without_image">إعادة الإرسال دون الصور</string>
+    <string name="capability_input_resend_without_file">إعادة الإرسال دون الملفات</string>
+    <string name="capability_input_resend_without_video">إعادة الإرسال دون الفيديو</string>
+    <string name="capability_input_bubble_not_sent_to_model">لم يُرسَل إلى هذا النموذج</string>
+</resources>

@@ -16,6 +16,7 @@ import ai.oriveo.community.core.provider.CapabilityEvidenceFacade
 import ai.oriveo.community.core.provider.CapabilityEvidenceProductionAdapter
 import ai.oriveo.community.core.provider.ProviderTestFixtures
 import ai.oriveo.community.core.provider.relay.RelayNegativeCache
+import ai.oriveo.community.core.provider.routeImagePlaceholder
 import ai.oriveo.community.core.provider.relay.RelayTransportCoordinator
 import ai.oriveo.community.feature.chat.ChatCapabilityOutboundDecision
 import ai.oriveo.community.feature.chat.ChatModelCapabilityResolver
@@ -285,6 +286,37 @@ class CapabilityMatrixRelayTest {
         assertFalse("Image negative cache recorded -> hidden", resolver.supportsImage(provider, model, identity))
     }
 
+    @Test
+    fun CAP_RELAY_ATTACH_04_unknown_vision_sends_the_real_image_part() = runTest {
+        val bodies = mutableListOf<String>()
+
+        relayVisionStream(statusClient(bodies), imageEnvelope = true)
+
+        assertTrue("Image input unknown + envelope accepts images -> real image is sent: ${bodies.first()}", bodies.first().contains(""""image_url""""))
+        assertFalse(bodies.first(), bodies.first().contains(routeImagePlaceholder(ProviderKind.Relay.rawValue)))
+    }
+
+    @Test
+    fun CAP_RELAY_ATTACH_05_envelope_without_image_replaces_the_image_with_a_placeholder_line() = runTest {
+        val bodies = mutableListOf<String>()
+
+        relayVisionStream(statusClient(bodies), imageEnvelope = false)
+
+        assertFalse("Envelope image=false -> no image sent: ${bodies.first()}", bodies.first().contains(""""image_url""""))
+        assertTrue("Replaced by a placeholder line, not silently dropped: ${bodies.first()}", bodies.first().contains(routeImagePlaceholder(ProviderKind.Relay.rawValue)))
+    }
+
+    @Test
+    fun CAP_RELAY_ATTACH_06_request_without_dispatch_identity_replaces_the_image_with_a_placeholder_line() = runTest {
+        val bodies = mutableListOf<String>()
+
+        relayVisionStream(statusClient(bodies), imageEnvelope = true, withIdentity = false)
+
+        // no dispatch identity is a hard block (wire_not_implemented), never a silent send.
+        assertFalse("No dispatch identity -> no image sent: ${bodies.first()}", bodies.first().contains(""""image_url""""))
+        assertTrue("Replaced by a placeholder line, not silently dropped: ${bodies.first()}", bodies.first().contains(routeImagePlaceholder(ProviderKind.Relay.rawValue)))
+    }
+
     // ── TOOL ──
 
     @Test
@@ -451,6 +483,49 @@ class CapabilityMatrixRelayTest {
                         activeModel = model,
                     ),
                 ).toList()
+        }
+    }
+
+    /** Production send entry (RelayTransportCoordinator.sendMessageStream): a Chat Completions model with unknown image input gets one image and has a dispatch identity. */
+    private suspend fun relayVisionStream(client: HttpClient, imageEnvelope: Boolean, withIdentity: Boolean = true) {
+        MetadataTestFixtures.applyRaw(
+            """{"version":1,"providers":{},"relayRuntimeConfig":{"transportEnvelopes":""" +
+                """{"openai_chat_completions":{"image":$imageEnvelope,"textFileInline":true}}}}""",
+        )
+        val model = AIModel(
+            id = "relay-model",
+            name = "Relay Model",
+            capabilities = listOf(ModelCapability.Text),
+            relayTransport = RelayTransport.OpenAIChatCompletions,
+        )
+        val provider = relay(RelayTransport.OpenAIChatCompletions, model = model)
+        val image = Attachment(
+            id = "photo",
+            kind = AttachmentKind.Image,
+            fileName = "photo.png",
+            mimeType = "image/png",
+            base64Data = "iVBORw0KGgo=",
+        )
+        runCatching {
+            RelayTransportCoordinator(
+                client = client,
+                json = json,
+                transportRegistry = TransportRegistry(json),
+                negativeCache = RelayNegativeCache(RelayNegativeCache.MemoryStore()),
+            ).sendMessageStream(
+                apiKey = "relay-key",
+                modelID = model.id,
+                messages = listOf(ProviderTestFixtures.userMessage("look", ProviderKind.Relay, model.id).copy(attachments = listOf(image))),
+                baseUrl = "https://relay.test/v1",
+                supportsImageGen = false,
+                reasoningMode = ReasoningMode.Automatic,
+                webSearchEnabled = false,
+                requestOptions = ChatRequestOptions(
+                    relayRequested = RelayRequestedConfig(transport = RelayTransport.OpenAIChatCompletions),
+                    activeModel = model,
+                    capabilityEvidenceIdentity = evidenceIdentity(provider).takeIf { withIdentity },
+                ),
+            ).toList()
         }
     }
 

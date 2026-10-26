@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capability_input_hint_first_attach_image">ยังไม่ได้ยืนยันว่าโมเดลนี้อ่านภาพได้หรือไม่ หากไม่สำเร็จจะแจ้งให้ทราบ</string>
+    <string name="capability_input_hint_first_attach_file">ยังไม่ได้ยืนยันว่าโมเดลนี้อ่านไฟล์ได้หรือไม่ หากไม่สำเร็จจะแจ้งให้ทราบ</string>
+    <string name="capability_input_hint_first_attach_video">ยังไม่ได้ยืนยันว่าโมเดลนี้เข้าใจวิดีโอได้หรือไม่ หากไม่สำเร็จจะแจ้งให้ทราบ</string>
+    <string name="capability_input_disabled_model_absent_image">โมเดลนี้ไม่รองรับการป้อนภาพ</string>
+    <string name="capability_input_disabled_model_absent_file">โมเดลนี้ไม่รองรับการป้อนไฟล์</string>
+    <string name="capability_input_disabled_model_absent_video">โมเดลนี้ไม่รองรับการป้อนวิดีโอ</string>
+    <string name="capability_input_disabled_wire_not_implemented_image">การเชื่อมต่อนี้ยังส่งภาพไม่ได้</string>
+    <string name="capability_input_disabled_wire_not_implemented_file">การเชื่อมต่อนี้ยังส่งไฟล์ไม่ได้</string>
+    <string name="capability_input_disabled_wire_not_implemented_video">การเชื่อมต่อนี้ยังส่งวิดีโอไม่ได้</string>
+    <string name="capability_input_disabled_kill_switch_image">การป้อนภาพถูกปิดชั่วคราวสำหรับผู้ให้บริการนี้</string>
+    <string name="capability_input_disabled_kill_switch_file">การป้อนไฟล์ถูกปิดชั่วคราวสำหรับผู้ให้บริการนี้</string>
+    <string name="capability_input_disabled_kill_switch_video">การป้อนวิดีโอถูกปิดชั่วคราวสำหรับผู้ให้บริการนี้</string>
+    <string name="capability_input_disabled_rejected_recently_image">โมเดลนี้เพิ่งปฏิเสธภาพ</string>
+    <string name="capability_input_disabled_rejected_recently_file">โมเดลนี้เพิ่งปฏิเสธไฟล์</string>
+    <string name="capability_input_disabled_rejected_recently_video">โมเดลนี้เพิ่งปฏิเสธวิดีโอ</string>
+    <string name="capability_input_disabled_user_removed_image">คุณปิดการป้อนภาพสำหรับโมเดลนี้แล้ว</string>
+    <string name="capability_input_disabled_user_removed_file">คุณปิดการป้อนไฟล์สำหรับโมเดลนี้แล้ว</string>
+    <string name="capability_input_disabled_user_removed_video">คุณปิดการป้อนวิดีโอสำหรับโมเดลนี้แล้ว</string>
+    <string name="capability_input_resend_without_image">ส่งใหม่โดยไม่มีภาพ</string>
+    <string name="capability_input_resend_without_file">ส่งใหม่โดยไม่มีไฟล์</string>
+    <string name="capability_input_resend_without_video">ส่งใหม่โดยไม่มีวิดีโอ</string>
+    <string name="capability_input_bubble_not_sent_to_model">ไม่ได้ส่งให้โมเดลนี้</string>
+</resources>

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capability_input_hint_first_attach_image">尚未確認此模型能否識圖，失敗時會告訴你</string>
+    <string name="capability_input_hint_first_attach_file">尚未確認此模型能否讀取檔案，失敗時會告訴你</string>
+    <string name="capability_input_hint_first_attach_video">尚未確認此模型能否看影片，失敗時會告訴你</string>
+    <string name="capability_input_disabled_model_absent_image">此模型不支援圖片輸入</string>
+    <string name="capability_input_disabled_model_absent_file">此模型不支援檔案輸入</string>
+    <string name="capability_input_disabled_model_absent_video">此模型不支援影片輸入</string>
+    <string name="capability_input_disabled_wire_not_implemented_image">目前連線還無法傳送圖片</string>
+    <string name="capability_input_disabled_wire_not_implemented_file">目前連線還無法傳送檔案</string>
+    <string name="capability_input_disabled_wire_not_implemented_video">目前連線還無法傳送影片</string>
+    <string name="capability_input_disabled_kill_switch_image">此供應商的圖片輸入暫時關閉</string>
+    <string name="capability_input_disabled_kill_switch_file">此供應商的檔案輸入暫時關閉</string>
+    <string name="capability_input_disabled_kill_switch_video">此供應商的影片輸入暫時關閉</string>
+    <string name="capability_input_disabled_rejected_recently_image">此模型剛拒絕過圖片</string>
+    <string name="capability_input_disabled_rejected_recently_file">此模型剛拒絕過檔案</string>
+    <string name="capability_input_disabled_rejected_recently_video">此模型剛拒絕過影片</string>
+    <string name="capability_input_disabled_user_removed_image">你已為此模型關閉圖片輸入</string>
+    <string name="capability_input_disabled_user_removed_file">你已為此模型關閉檔案輸入</string>
+    <string name="capability_input_disabled_user_removed_video">你已為此模型關閉影片輸入</string>
+    <string name="capability_input_resend_without_image">移除圖片後重新傳送</string>
+    <string name="capability_input_resend_without_file">移除檔案後重新傳送</string>
+    <string name="capability_input_resend_without_video">移除影片後重新傳送</string>
+    <string name="capability_input_bubble_not_sent_to_model">未傳送給此模型</string>
+</resources>

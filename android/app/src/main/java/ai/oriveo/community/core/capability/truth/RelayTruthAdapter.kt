@@ -14,6 +14,10 @@ import ai.oriveo.community.core.provider.CapabilityEvidenceFacade
  * they are an overlay of the outbound policy and need the cache, so the caller appends them and the adapter stays a pure function.
  */
 internal object RelayTruthAdapter : CapabilityTruthAdapter {
+    /** Whether thinking is shown: only whether the capabilities declared for this model on this connection include reasoning; missing means false. */
+    override fun thinking(input: CapabilityTruthAdapter.FactInput): Boolean =
+        ModelCapability.Reasoning in input.model.capabilities
+
     override fun candidates(input: CapabilityTruthAdapter.Input): List<CapabilityEvidenceFacade.Candidate> =
         relayCandidates(input.provider, input.model, input.queryIdentity, input.key)
 
@@ -100,7 +104,7 @@ internal object RelayTruthAdapter : CapabilityTruthAdapter {
     private fun engineDeclaration(provider: Provider, model: AIModel, key: String): String? {
         if (provider.relayRequested?.engineProfile.isNullOrBlank()) return null
         val declared = when (key) {
-            "vision_input" -> model.engineDeclaration?.image
+            CapabilityEvidenceFacade.VISION_INPUT -> model.engineDeclaration?.image
             "tool_call" -> model.engineDeclaration?.toolCall
             else -> null
         } ?: return null
@@ -117,7 +121,7 @@ internal object RelayTruthAdapter : CapabilityTruthAdapter {
     private fun overrideDeclaration(model: AIModel, key: String): String? {
         val overrides = model.relayCapabilityOverrides ?: return null
         val overrideKey = when (key) {
-            "vision_input" -> "image"
+            CapabilityEvidenceFacade.VISION_INPUT -> "image"
             "tool_call" -> "toolCall"
             else -> return null
         }
@@ -136,7 +140,7 @@ internal object RelayTruthAdapter : CapabilityTruthAdapter {
             null -> null
         }
         key == "web_search" -> webSearchDeclaration(provider, model)
-        key == "vision_input" && ModelCapability.Image in model.capabilities -> "accepted"
+        key == CapabilityEvidenceFacade.VISION_INPUT && ModelCapability.Image in model.capabilities -> "accepted"
         key.startsWith("reasoning_level/") && model.reasoningModeAvailable &&
             !model.reasoningProfile.isNullOrBlank() -> "accepted"
         else -> null

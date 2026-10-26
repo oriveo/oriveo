@@ -18,6 +18,13 @@ import kotlinx.serialization.json.contentOrNull
  * and the legacy capabilities / webSearch profile are not read (the contract `rules.official.web_search`).
  */
 internal object OfficialTruthAdapter : CapabilityTruthAdapter {
+    /** Whether thinking is shown: the catalog entry capabilities include reasoning; when the catalog lacks this model, read reasoning from the model facts, and false if that is missing too. */
+    override fun thinking(input: CapabilityTruthAdapter.FactInput): Boolean {
+        val entry = input.metadataClient.currentCapabilityEvidenceModel(input.model.id, input.provider.kind)
+        if (entry != null) return ModelCapability.Reasoning in entry.metadata.capabilities
+        return input.metadataClient.modelFacts(input.provider.kind, input.model.id)?.reasoning == true
+    }
+
     override fun candidates(input: CapabilityTruthAdapter.Input): List<CapabilityEvidenceFacade.Candidate> {
         val provider = input.provider
         val persistedModel = input.model
@@ -58,6 +65,14 @@ internal object OfficialTruthAdapter : CapabilityTruthAdapter {
             .map(::facadeCandidate)
         if (current.metadata.capabilityEvidenceViewMalformed == true && isGovernedCapabilityKey(key)) {
             return emptyList()
+        }
+        // Three-state namespace for tool_call: presence is authoritative, and an empty list or only expired candidates both mean unknown, so the top-level `toolCall` is not revived.
+        // When the view is absent (null), only an older server with a missing or v1 capability contract version may fall back to legacy; a server at >= 2 omits the view key
+        // for models without evidence, which means unknown (the same threshold as iOS authoritativeCapabilityContractVersion).
+        if (key == "tool_call" &&
+            (current.metadata.capabilityEvidenceCandidates != null || current.metadata.capabilityContractVersion >= 2)
+        ) {
+            return safe
         }
         if (safe.isNotEmpty() || current.metadata.capabilityEvidenceOwnedKeys?.contains(key) == true) return safe
         return officialLegacyCandidates(provider, current, persistedModel, key, finalTransport)
@@ -130,7 +145,11 @@ internal object OfficialTruthAdapter : CapabilityTruthAdapter {
                 false -> "unsupported"
                 null -> "unknown"
             }
-            key == "vision_input" -> if (ModelCapability.Image in model.capabilities) "supported" else "unknown"
+            // Vision input trusts only the Server recipe verdict: a missing key is unknown, and Image in capabilities is no longer consulted.
+            key == CapabilityEvidenceFacade.VISION_INPUT -> CapabilityControlResolution.evidenceSupport(
+                ((model.capabilityControls?.get(CapabilityEvidenceFacade.VISION_INPUT) as? JsonObject)?.get("state") as? JsonPrimitive)
+                    ?.contentOrNull,
+            )
             key.startsWith("reasoning_level/") -> if (
                 key.substringAfter('/') in current.declaredReasoningLevels
             ) "supported" else "unknown"
@@ -150,7 +169,7 @@ internal object OfficialTruthAdapter : CapabilityTruthAdapter {
 
     /** When the whole public namespace is malformed, no capability key may be revived from legacy metadata. */
     private fun isGovernedCapabilityKey(key: String): Boolean =
-        key in setOf("tool_call", "web_search", "vision_input") ||
+        key in setOf("tool_call", "web_search", CapabilityEvidenceFacade.VISION_INPUT) ||
             key.startsWith("generation_parameter/") ||
             key.startsWith("reasoning_level/")
 

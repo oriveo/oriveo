@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capability_input_hint_first_attach_image">अभी पुष्टि नहीं हुई है कि यह मॉडल इमेज समझ सकता है या नहीं। विफल होने पर आपको बताया जाएगा</string>
+    <string name="capability_input_hint_first_attach_file">अभी पुष्टि नहीं हुई है कि यह मॉडल फ़ाइलें पढ़ सकता है या नहीं। विफल होने पर आपको बताया जाएगा</string>
+    <string name="capability_input_hint_first_attach_video">अभी पुष्टि नहीं हुई है कि यह मॉडल वीडियो समझ सकता है या नहीं। विफल होने पर आपको बताया जाएगा</string>
+    <string name="capability_input_disabled_model_absent_image">यह मॉडल इमेज इनपुट सपोर्ट नहीं करता</string>
+    <string name="capability_input_disabled_model_absent_file">यह मॉडल फ़ाइल इनपुट सपोर्ट नहीं करता</string>
+    <string name="capability_input_disabled_model_absent_video">यह मॉडल वीडियो इनपुट सपोर्ट नहीं करता</string>
+    <string name="capability_input_disabled_wire_not_implemented_image">इस कनेक्शन से अभी इमेज नहीं भेजी जा सकतीं</string>
+    <string name="capability_input_disabled_wire_not_implemented_file">इस कनेक्शन से अभी फ़ाइलें नहीं भेजी जा सकतीं</string>
+    <string name="capability_input_disabled_wire_not_implemented_video">इस कनेक्शन से अभी वीडियो नहीं भेजे जा सकते</string>
+    <string name="capability_input_disabled_kill_switch_image">इस प्रोवाइडर के लिए इमेज इनपुट अस्थायी रूप से बंद है</string>
+    <string name="capability_input_disabled_kill_switch_file">इस प्रोवाइडर के लिए फ़ाइल इनपुट अस्थायी रूप से बंद है</string>
+    <string name="capability_input_disabled_kill_switch_video">इस प्रोवाइडर के लिए वीडियो इनपुट अस्थायी रूप से बंद है</string>
+    <string name="capability_input_disabled_rejected_recently_image">इस मॉडल ने अभी-अभी एक इमेज अस्वीकार की</string>
+    <string name="capability_input_disabled_rejected_recently_file">इस मॉडल ने अभी-अभी एक फ़ाइल अस्वीकार की</string>
+    <string name="capability_input_disabled_rejected_recently_video">इस मॉडल ने अभी-अभी एक वीडियो अस्वीकार किया</string>
+    <string name="capability_input_disabled_user_removed_image">आपने इस मॉडल के लिए इमेज इनपुट बंद किया है</string>
+    <string name="capability_input_disabled_user_removed_file">आपने इस मॉडल के लिए फ़ाइल इनपुट बंद किया है</string>
+    <string name="capability_input_disabled_user_removed_video">आपने इस मॉडल के लिए वीडियो इनपुट बंद किया है</string>
+    <string name="capability_input_resend_without_image">इमेज हटाकर फिर से भेजें</string>
+    <string name="capability_input_resend_without_file">फ़ाइलें हटाकर फिर से भेजें</string>
+    <string name="capability_input_resend_without_video">वीडियो हटाकर फिर से भेजें</string>
+    <string name="capability_input_bubble_not_sent_to_model">इस मॉडल को नहीं भेजा गया</string>
+</resources>

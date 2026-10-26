@@ -15,6 +15,7 @@ class FullwidthPunctuationLocalizationTest {
 
     private val cjkDirs = setOf("values-zh-rCN", "values-zh-rTW", "values-ja")
     private val fullwidth = Regex("[（）。，：；！？「」、]")
+    private val stringFileNames = listOf("strings.xml", "strings_voice.xml")
 
     private val resDir: File by lazy {
         var dir = File(System.getProperty("user.dir") ?: ".")
@@ -38,18 +39,22 @@ class FullwidthPunctuationLocalizationTest {
         assertTrue("only ${dirs.size} non-CJK values directories found", dirs.size >= 13)
 
         dirs.forEach { valuesDir ->
-            val document = factory.newDocumentBuilder().parse(File(valuesDir, "strings.xml"))
-            // Check string, string-array items and plurals items alike.
-            listOf("string", "item").forEach { tag ->
-                val nodes = document.getElementsByTagName(tag)
-                for (i in 0 until nodes.length) {
-                    val element = nodes.item(i) as Element
-                    val value = element.textContent.orEmpty()
-                    if (fullwidth.containsMatchIn(value)) {
-                        val name = element.getAttribute("name").ifEmpty {
-                            (element.parentNode as? Element)?.getAttribute("name").orEmpty()
+            stringFileNames.forEach fileLoop@{ fileName ->
+                val file = File(valuesDir, fileName)
+                if (!file.exists()) return@fileLoop
+                val document = factory.newDocumentBuilder().parse(file)
+                // Check string, string-array items and plurals items alike.
+                listOf("string", "item").forEach { tag ->
+                    val nodes = document.getElementsByTagName(tag)
+                    for (i in 0 until nodes.length) {
+                        val element = nodes.item(i) as Element
+                        val value = element.textContent.orEmpty()
+                        if (fullwidth.containsMatchIn(value)) {
+                            val name = element.getAttribute("name").ifEmpty {
+                                (element.parentNode as? Element)?.getAttribute("name").orEmpty()
+                            }
+                            failures += "${valuesDir.name}/$fileName/$name: $value"
                         }
-                        failures += "${valuesDir.name}/$name: $value"
                     }
                 }
             }

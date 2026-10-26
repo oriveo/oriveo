@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capability_input_hint_first_attach_image">Bu modelin görselleri tanıyıp tanıyamadığı henüz doğrulanmadı. Başarısız olursa size bildireceğiz</string>
+    <string name="capability_input_hint_first_attach_file">Bu modelin dosyaları okuyup okuyamadığı henüz doğrulanmadı. Başarısız olursa size bildireceğiz</string>
+    <string name="capability_input_hint_first_attach_video">Bu modelin videoları anlayıp anlayamadığı henüz doğrulanmadı. Başarısız olursa size bildireceğiz</string>
+    <string name="capability_input_disabled_model_absent_image">Bu model görselleri desteklemiyor</string>
+    <string name="capability_input_disabled_model_absent_file">Bu model dosyaları desteklemiyor</string>
+    <string name="capability_input_disabled_model_absent_video">Bu model videoları desteklemiyor</string>
+    <string name="capability_input_disabled_wire_not_implemented_image">Bu bağlantı henüz görsel gönderemiyor</string>
+    <string name="capability_input_disabled_wire_not_implemented_file">Bu bağlantı henüz dosya gönderemiyor</string>
+    <string name="capability_input_disabled_wire_not_implemented_video">Bu bağlantı henüz video gönderemiyor</string>
+    <string name="capability_input_disabled_kill_switch_image">Bu sağlayıcıya görsel gönderimi geçici olarak kapalı</string>
+    <string name="capability_input_disabled_kill_switch_file">Bu sağlayıcıya dosya gönderimi geçici olarak kapalı</string>
+    <string name="capability_input_disabled_kill_switch_video">Bu sağlayıcıya video gönderimi geçici olarak kapalı</string>
+    <string name="capability_input_disabled_rejected_recently_image">Bu model az önce bir görseli reddetti</string>
+    <string name="capability_input_disabled_rejected_recently_file">Bu model az önce bir dosyayı reddetti</string>
+    <string name="capability_input_disabled_rejected_recently_video">Bu model az önce bir videoyu reddetti</string>
+    <string name="capability_input_disabled_user_removed_image">Bu model için görsel gönderimini kapattınız</string>
+    <string name="capability_input_disabled_user_removed_file">Bu model için dosya gönderimini kapattınız</string>
+    <string name="capability_input_disabled_user_removed_video">Bu model için video gönderimini kapattınız</string>
+    <string name="capability_input_resend_without_image">Görsel olmadan yeniden gönder</string>
+    <string name="capability_input_resend_without_file">Dosya olmadan yeniden gönder</string>
+    <string name="capability_input_resend_without_video">Video olmadan yeniden gönder</string>
+    <string name="capability_input_bubble_not_sent_to_model">Bu modele gönderilmedi</string>
+</resources>

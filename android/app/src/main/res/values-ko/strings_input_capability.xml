@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capability_input_hint_first_attach_image">이 모델이 이미지를 인식할 수 있는지 아직 확인하지 못했어요. 실패하면 알려 드릴게요</string>
+    <string name="capability_input_hint_first_attach_file">이 모델이 파일을 읽을 수 있는지 아직 확인하지 못했어요. 실패하면 알려 드릴게요</string>
+    <string name="capability_input_hint_first_attach_video">이 모델이 동영상을 볼 수 있는지 아직 확인하지 못했어요. 실패하면 알려 드릴게요</string>
+    <string name="capability_input_disabled_model_absent_image">이 모델은 이미지 입력을 지원하지 않아요</string>
+    <string name="capability_input_disabled_model_absent_file">이 모델은 파일 입력을 지원하지 않아요</string>
+    <string name="capability_input_disabled_model_absent_video">이 모델은 동영상 입력을 지원하지 않아요</string>
+    <string name="capability_input_disabled_wire_not_implemented_image">현재 연결로는 아직 이미지를 보낼 수 없어요</string>
+    <string name="capability_input_disabled_wire_not_implemented_file">현재 연결로는 아직 파일을 보낼 수 없어요</string>
+    <string name="capability_input_disabled_wire_not_implemented_video">현재 연결로는 아직 동영상을 보낼 수 없어요</string>
+    <string name="capability_input_disabled_kill_switch_image">이 제공업체의 이미지 입력이 일시적으로 꺼져 있어요</string>
+    <string name="capability_input_disabled_kill_switch_file">이 제공업체의 파일 입력이 일시적으로 꺼져 있어요</string>
+    <string name="capability_input_disabled_kill_switch_video">이 제공업체의 동영상 입력이 일시적으로 꺼져 있어요</string>
+    <string name="capability_input_disabled_rejected_recently_image">이 모델이 방금 이미지를 거부했어요</string>
+    <string name="capability_input_disabled_rejected_recently_file">이 모델이 방금 파일을 거부했어요</string>
+    <string name="capability_input_disabled_rejected_recently_video">이 모델이 방금 동영상을 거부했어요</string>
+    <string name="capability_input_disabled_user_removed_image">이 모델에서 이미지 입력을 꺼 두셨어요</string>
+    <string name="capability_input_disabled_user_removed_file">이 모델에서 파일 입력을 꺼 두셨어요</string>
+    <string name="capability_input_disabled_user_removed_video">이 모델에서 동영상 입력을 꺼 두셨어요</string>
+    <string name="capability_input_resend_without_image">이미지 없이 다시 보내기</string>
+    <string name="capability_input_resend_without_file">파일 없이 다시 보내기</string>
+    <string name="capability_input_resend_without_video">동영상 없이 다시 보내기</string>
+    <string name="capability_input_bubble_not_sent_to_model">이 모델에는 전송되지 않음</string>
+</resources>

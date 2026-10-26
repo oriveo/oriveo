@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capability_input_hint_first_attach_image">このモデルが画像を認識できるかはまだ確認できていません。失敗した場合はお知らせします</string>
+    <string name="capability_input_hint_first_attach_file">このモデルがファイルを読めるかはまだ確認できていません。失敗した場合はお知らせします</string>
+    <string name="capability_input_hint_first_attach_video">このモデルが動画を理解できるかはまだ確認できていません。失敗した場合はお知らせします</string>
+    <string name="capability_input_disabled_model_absent_image">このモデルは画像入力に対応していません</string>
+    <string name="capability_input_disabled_model_absent_file">このモデルはファイル入力に対応していません</string>
+    <string name="capability_input_disabled_model_absent_video">このモデルは動画入力に対応していません</string>
+    <string name="capability_input_disabled_wire_not_implemented_image">現在の接続ではまだ画像を送信できません</string>
+    <string name="capability_input_disabled_wire_not_implemented_file">現在の接続ではまだファイルを送信できません</string>
+    <string name="capability_input_disabled_wire_not_implemented_video">現在の接続ではまだ動画を送信できません</string>
+    <string name="capability_input_disabled_kill_switch_image">このプロバイダーの画像入力は一時的に停止しています</string>
+    <string name="capability_input_disabled_kill_switch_file">このプロバイダーのファイル入力は一時的に停止しています</string>
+    <string name="capability_input_disabled_kill_switch_video">このプロバイダーの動画入力は一時的に停止しています</string>
+    <string name="capability_input_disabled_rejected_recently_image">このモデルは先ほど画像を受け付けませんでした</string>
+    <string name="capability_input_disabled_rejected_recently_file">このモデルは先ほどファイルを受け付けませんでした</string>
+    <string name="capability_input_disabled_rejected_recently_video">このモデルは先ほど動画を受け付けませんでした</string>
+    <string name="capability_input_disabled_user_removed_image">このモデルの画像入力はオフに設定されています</string>
+    <string name="capability_input_disabled_user_removed_file">このモデルのファイル入力はオフに設定されています</string>
+    <string name="capability_input_disabled_user_removed_video">このモデルの動画入力はオフに設定されています</string>
+    <string name="capability_input_resend_without_image">画像を外して再送信</string>
+    <string name="capability_input_resend_without_file">ファイルを外して再送信</string>
+    <string name="capability_input_resend_without_video">動画を外して再送信</string>
+    <string name="capability_input_bubble_not_sent_to_model">このモデルには送信されていません</string>
+</resources>

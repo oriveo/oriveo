@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capability_input_hint_first_attach_image">Belum dipastikan apakah model ini bisa membaca gambar. Jika gagal, Anda akan diberi tahu</string>
+    <string name="capability_input_hint_first_attach_file">Belum dipastikan apakah model ini bisa membaca file. Jika gagal, Anda akan diberi tahu</string>
+    <string name="capability_input_hint_first_attach_video">Belum dipastikan apakah model ini bisa memahami video. Jika gagal, Anda akan diberi tahu</string>
+    <string name="capability_input_disabled_model_absent_image">Model ini tidak mendukung input gambar</string>
+    <string name="capability_input_disabled_model_absent_file">Model ini tidak mendukung input file</string>
+    <string name="capability_input_disabled_model_absent_video">Model ini tidak mendukung input video</string>
+    <string name="capability_input_disabled_wire_not_implemented_image">Koneksi ini belum bisa mengirim gambar</string>
+    <string name="capability_input_disabled_wire_not_implemented_file">Koneksi ini belum bisa mengirim file</string>
+    <string name="capability_input_disabled_wire_not_implemented_video">Koneksi ini belum bisa mengirim video</string>
+    <string name="capability_input_disabled_kill_switch_image">Input gambar untuk penyedia ini dinonaktifkan sementara</string>
+    <string name="capability_input_disabled_kill_switch_file">Input file untuk penyedia ini dinonaktifkan sementara</string>
+    <string name="capability_input_disabled_kill_switch_video">Input video untuk penyedia ini dinonaktifkan sementara</string>
+    <string name="capability_input_disabled_rejected_recently_image">Model ini baru saja menolak gambar</string>
+    <string name="capability_input_disabled_rejected_recently_file">Model ini baru saja menolak file</string>
+    <string name="capability_input_disabled_rejected_recently_video">Model ini baru saja menolak video</string>
+    <string name="capability_input_disabled_user_removed_image">Anda telah menonaktifkan input gambar untuk model ini</string>
+    <string name="capability_input_disabled_user_removed_file">Anda telah menonaktifkan input file untuk model ini</string>
+    <string name="capability_input_disabled_user_removed_video">Anda telah menonaktifkan input video untuk model ini</string>
+    <string name="capability_input_resend_without_image">Kirim ulang tanpa gambar</string>
+    <string name="capability_input_resend_without_file">Kirim ulang tanpa file</string>
+    <string name="capability_input_resend_without_video">Kirim ulang tanpa video</string>
+    <string name="capability_input_bubble_not_sent_to_model">Tidak dikirim ke model ini</string>
+</resources>
