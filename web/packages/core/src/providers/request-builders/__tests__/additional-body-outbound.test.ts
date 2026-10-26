@@ -51,10 +51,8 @@ describe('official path (dispatch buildProviderRequest)', () => {
     }, metadata);
     expectMerged(request.body);
     expect(request.body.model).toBe('claude-sonnet-4-6');
-    // The single block-level breakpoint sits on the last block of the last user message (no top-level cache_control).
-    expect(request.body.messages).toEqual([
-      { role: 'user', content: [{ type: 'text', text: 'hello', cache_control: { type: 'ephemeral' } }] },
-    ]);
+    // The fixture model has no promptCache.policyRef (not anthropic.explicit): no cache_control breakpoint is added.
+    expect(request.body.messages).toEqual([{ role: 'user', content: 'hello' }]);
   });
 
   it('protected fields are rejected locally: throws AdditionalBodyRejectedError with a safe code', async () => {

@@ -1,7 +1,7 @@
 // MiniMax request builder - OpenAI compatible for chat, with a dedicated /image_generation endpoint for images
 import { resolveProviderBaseURL } from "../url-utils";
 import { attachmentTransportProfile } from "../attachment-transport";
-import { buildOpenAIChatMessages, deepMerge, withImagePlaceholders } from "./runtime";
+import { buildOpenAIChatMessages, deepMerge } from "./runtime";
 import {
   JSON_HEADERS,
   STREAM_HEADERS,
@@ -49,9 +49,10 @@ export function buildMiniMaxRequest(
     model: params.modelID,
     stream: params.stream !== false,
     ...(params.stream !== false ? { stream_options: { include_usage: true } } : {}),
-    messages: buildOpenAIChatMessages(
-      withImagePlaceholders(params.messages, attachmentTransportProfile('minimax_chat').imagePlaceholderText),
-    ),
+    // Images go out as OpenAI Chat image_url; when the model does not accept images the outbound sanitizer has already replaced them with a placeholder line. MiniMax does not accept video, so the route placeholder is written.
+    messages: buildOpenAIChatMessages(params.messages, {
+      videoPlaceholder: attachmentTransportProfile("minimax_chat").videoPlaceholderText,
+    }),
   };
 
   deepMerge(body, reasoningParams);

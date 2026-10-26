@@ -23,6 +23,8 @@ export {
 
 export type {
   AIModel,
+  InputCapabilityOverrideEntry,
+  InputCapabilityOverrides,
   Provider,
   ProviderAuthMode,
   ProviderSubscriptionCredential,

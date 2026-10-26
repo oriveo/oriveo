@@ -149,7 +149,7 @@ export async function buildProviderRequest(
     : effectiveParams;
 
   const bypassOfficialImageDispatch =
-    withGenerationProfile.providerKind === "relay";
+    withGenerationProfile.providerKind === "relay"; // capability-lint-allow R2: image generation route bypass, does not decide attachment shape
   if (!bypassOfficialImageDispatch) {
     const metadataDeclaresImageGeneration =
       runtimeModel?.model.capabilities?.includes("imageGeneration") === true;
@@ -182,19 +182,19 @@ export async function buildProviderRequest(
             capabilityPlan.customDeclaredOwners ?? {},
           );
         case "dashscope_multimodal":
-          if (withGenerationProfile.providerKind !== "qwen") {
+          if (withGenerationProfile.providerKind !== "qwen") { // capability-lint-allow R2: route ownership check, does not decide attachment shape
             throw new Error(`Image generation route ${route} is invalid for ${withGenerationProfile.providerKind}`);
           }
           break;
         case "minimax_image_generation":
-          if (withGenerationProfile.providerKind !== "miniMax") {
+          if (withGenerationProfile.providerKind !== "miniMax") { // capability-lint-allow R2: route ownership check, does not decide attachment shape
             throw new Error(`Image generation route ${route} is invalid for ${withGenerationProfile.providerKind}`);
           }
           break;
         case "chat_api":
           if (
-            withGenerationProfile.providerKind !== "openRouter" &&
-            withGenerationProfile.providerKind !== "gemini"
+            withGenerationProfile.providerKind !== "openRouter" && // capability-lint-allow R2: route ownership check, does not decide attachment shape
+            withGenerationProfile.providerKind !== "gemini" // capability-lint-allow R2: route ownership check, does not decide attachment shape
           ) {
             throw new Error(`Image generation route ${route} is invalid for ${withGenerationProfile.providerKind}`);
           }
@@ -250,7 +250,7 @@ export async function buildProviderRequest(
     // (customControlRefs resolved against the same runtime envelope). Relay's generation
     // exception is derived solely from its exact local transport profile.
     const declaredOwners = {
-      ...(effectiveParams.providerKind === 'relay' && customGenerationSelected
+      ...(effectiveParams.providerKind === 'relay' && customGenerationSelected // capability-lint-allow R2: relay custom field ownership, does not decide attachment shape
         ? safeCustomOwners(resolvedGenerationProfile)
         : {}),
       ...(plan.customDeclaredOwners ?? {}),
@@ -380,7 +380,7 @@ export async function buildProviderRequest(
         reasoningParams,
         imageGenProfile,
         webSearchProfile,
-        capabilityPlan.recipes.find((recipe) => recipe.providerKind === 'openAI')?.transport?.endpointClass,
+        capabilityPlan.recipes.find((recipe) => recipe.providerKind === 'openAI')?.transport?.endpointClass, // capability-lint-allow R2: the recipe carries its own providerKind, does not decide attachment shape
         runtimeModel?.model.transport,
       ));
     case "miniMax":
@@ -426,6 +426,7 @@ export async function buildProviderRequest(
         reasoningParams,
         webSearchProfile,
         chatOutputLimit ?? runtimeModel?.model.maxOutputTokens,
+        runtimeModel?.model.promptCache?.policyRef,
       ));
     case "gemini":
       // The tools in the gem_web / gem_web_retrieval profiles use the generateContent schema,

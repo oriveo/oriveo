@@ -66,7 +66,6 @@ export interface ResolvedModelLite {
   id: string;
   canonicalModelId?: string;
   providerKind: string;
-  capabilities?: readonly string[];
   reasoningProfile?: string;
   webSearchProfile?: string;
   imageGenProfile?: string;
@@ -94,23 +93,12 @@ export interface MetadataProviderConfig {
   regionOptions?: readonly unknown[];
   /** Extra fields for the site-setup page (closed set `workspaceId`); missing / null = none. */
   setupFields?: readonly unknown[] | null;
-  attachmentSupport?: unknown;
   validation?: MetadataValidationContract;
   models?: readonly AIModel[];
-  [key: string]: unknown;
 }
 
 /** Runtime metadata only describes the remote protocols; the native llama.cpp /completion path is a local engine path and is not in this table. */
 export type RelayRuntimeTransportKey = Exclude<RelayTransport, 'auto' | 'llamacpp_native'>;
-
-export interface RelayTransportEnvelope {
-  image: boolean;
-  nativeFile: boolean;
-  textFileInline: boolean;
-  webSearch: boolean;
-  imageGeneration: boolean;
-  reasoning: boolean;
-}
 
 export interface RelayTransportRule {
   providerPriority: string | null;
@@ -139,10 +127,16 @@ export interface RelayFeatureGatingPolicy {
   showSoftFailHint: boolean;
 }
 
+/**
+ * The transport-level legacy capability bits are opaque on ports: fields such as image / nativeFile cannot be read outside the facade,
+ * and can only be unpacked through resolveRelayEnvelope in providers/relay-runtime-support.
+ */
+export type OpaqueRelayTransportEnvelope = object;
+
 export interface RelayRuntimeConfig {
   version: string;
   officialProviderWhitelist: readonly string[];
-  transportEnvelopes: Record<RelayRuntimeTransportKey, RelayTransportEnvelope>;
+  transportEnvelopes: Record<RelayRuntimeTransportKey, OpaqueRelayTransportEnvelope>;
   transportRules: Record<RelayRuntimeTransportKey, RelayTransportRule>;
   verificationPolicy: RelayVerificationPolicy;
   featureGatingPolicy: RelayFeatureGatingPolicy;

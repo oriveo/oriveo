@@ -14,6 +14,7 @@
  */
 
 import type { ContentPart, StreamEvent } from '../../types';
+import { mediaTextFallback } from '../../attachment-transport';
 import type {
   BuildRequestInput,
   StreamContext,
@@ -25,6 +26,7 @@ import { chatMaxOutputTokens, resolveRelayAnthropicThinking } from '../../reques
 import { parseUsageAnthropic } from '../usage-parsers';
 import { nativeToolCallEvents } from '../../tool-call-protocol';
 import { markAnthropicCacheBreakpoint } from '../../relay-adapter';
+import { ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS } from '../../protocol-implementations';
 
 /**
  * Image and document blocks carry no cache_control of their own: Anthropic allows at most 4 breakpoints
@@ -33,7 +35,7 @@ import { markAnthropicCacheBreakpoint } from '../../relay-adapter';
  * non-[D] block of the last user message).
  */
 
-function convertToAnthropicParts(parts: ContentPart[]): Array<Record<string, unknown>> {
+export function convertToAnthropicParts(parts: ContentPart[]): Array<Record<string, unknown>> {
   return parts.map((p) => {
     if (p.type === 'text') {
       return { type: 'text', text: p.text };
@@ -47,10 +49,10 @@ function convertToAnthropicParts(parts: ContentPart[]): Array<Record<string, unk
           source: { type: 'base64', media_type: match[1], data: match[2] },
         };
       }
-      return { type: 'text', text: `[image: ${url}]` };
+      return { type: 'text', text: mediaTextFallback('image', url, 'relay_anthropic_messages') };
     }
     if (p.type === 'video_url') {
-      return { type: 'text', text: `[video: ${p.video_url.url}]` };
+      return { type: 'text', text: mediaTextFallback('video', p.video_url.url, 'relay_anthropic_messages') };
     }
     if (p.type === 'file') {
       // A file part only appears when route=native; that decision is made upstream in chat-stream-utils.
@@ -101,8 +103,8 @@ export const anthropicMessagesStrategy: TransportStrategy = {
     const chatOutputLimit = chatMaxOutputTokens(input.options?.maxOutputTokens);
     const body: Record<string, unknown> = {
       model: input.modelID,
-      // The main chat path = oWire; other paths keep 8192 as the Relay-only heuristic fallback (official Anthropic goes through request-builders plus provider metadata).
-      max_tokens: chatOutputLimit ?? 8192,
+      // The main chat path = oWire; other paths keep the 8192 default as the Relay-only heuristic fallback (official Anthropic goes through request-builders plus provider metadata).
+      max_tokens: chatOutputLimit ?? ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS,
       stream: true,
       messages: apiMessages,
     };
@@ -142,15 +144,15 @@ export const anthropicMessagesStrategy: TransportStrategy = {
 
     switch (type) {
       case 'message_start': {
-        const usage = ((event.message as Record<string, unknown> | undefined)?.usage ?? {}) as Record<
-          string,
-          unknown
-        >;
-        const inputTokens = typeof usage.input_tokens === 'number' ? usage.input_tokens : 0;
+        const rawUsage = (event.message as Record<string, unknown> | undefined)?.usage;
+        const usage =
+          rawUsage && typeof rawUsage === 'object' ? (rawUsage as Record<string, unknown>) : undefined;
+        const inputTokens = typeof usage?.input_tokens === 'number' ? usage.input_tokens : 0;
         ctx.inputTokens = inputTokens;
         // Keep the full message_start usage, including the nested cache_read / cache_creation counts, and
-        // merge output_tokens at message_delta time to compute the breakdown.
-        ctx.state.anthropicUsage = usage;
+        // merge output_tokens at message_delta time to compute the breakdown. Nothing is stored when there is no
+        // usage object, so message_delta can tell that upstream reported no usage.
+        if (usage) ctx.state.anthropicUsage = usage;
         return events.length > 0 ? events : null;
       }
       case 'content_block_start': {
@@ -178,11 +180,18 @@ export const anthropicMessagesStrategy: TransportStrategy = {
         break;
       }
       case 'message_delta': {
-        const usage = event.usage as Record<string, unknown> | undefined;
+        const rawDeltaUsage = event.usage;
+        const usage =
+          rawDeltaUsage && typeof rawDeltaUsage === 'object'
+            ? (rawDeltaUsage as Record<string, unknown>)
+            : undefined;
+        const savedStartUsage = ctx.state.anthropicUsage as Record<string, unknown> | undefined;
+        // When both message_start.usage and the delta usage are missing, upstream reported no usage: no usage event is
+        // sent, so downstream records unknown instead of an estimated 0.
+        if (!usage && !savedStartUsage) break;
         const outputTokens = typeof usage?.output_tokens === 'number' ? usage.output_tokens : 0;
         // Merge the usage saved at message_start (with cache_read / cache_creation) with the current output_tokens.
-        const startUsage =
-          (ctx.state.anthropicUsage as Record<string, unknown> | undefined) ?? {};
+        const startUsage = savedStartUsage ?? {};
         const merged: Record<string, unknown> = {
           ...startUsage,
           output_tokens: outputTokens,

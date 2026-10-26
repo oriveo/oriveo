@@ -22,6 +22,8 @@ export interface PricingInput {
   completionPerToken?: number | null;
   promptPerMToken?: number | null;
   completionPerMToken?: number | null;
+  /** New cache-read price field (per million); takes precedence over the legacy field cachedInputPerMToken. */
+  cacheReadInputPerMToken?: number | null;
   cachedInputPerMToken?: number | null;
   cacheCreationInputPerMToken?: number | null;
   cacheWrite5mPerMToken?: number | null;
@@ -49,7 +51,7 @@ export interface CalcCostResult {
  *   + cacheCreation5mTokens x write5m + cacheCreation1hTokens x write1h
  *   + completionTokens x output.
  * - Cache write price fallbacks when metadata does not carry them:
- *   cachedRead = cachedInput ?? input x 0.5
+ *   cachedRead = cacheReadInput ?? cachedInput ?? input x 0.5
  *   write5m = cacheWrite5m ?? cacheCreationInput ?? input x 1.25
  *   write1h = cacheWrite1h ?? input x 2.0
  * - Returns source='unknown' when pricing is missing or the main input/output prices are absent.
@@ -90,10 +92,13 @@ export function calcCost(
   const inputRate = inputPerToken ?? 0;
   const outputRate = outputPerToken ?? 0;
 
-  // Cache read price: metadata first, otherwise input x 0.5, which is far closer to the real bill than 0.
-  const cachedReadPerToken = pricing.cachedInputPerMToken != null
-    ? pricing.cachedInputPerMToken / 1_000_000
-    : inputRate * 0.5;
+  // Cache read price: new field cacheReadInput > legacy cachedInput > input x 0.5, which is far closer to the real bill than 0.
+  const cachedReadPerToken =
+    pricing.cacheReadInputPerMToken != null
+      ? pricing.cacheReadInputPerMToken / 1_000_000
+      : pricing.cachedInputPerMToken != null
+        ? pricing.cachedInputPerMToken / 1_000_000
+        : inputRate * 0.5;
 
   // Anthropic 5m write price: cacheWrite5m -> cacheCreationInput -> input x 1.25.
   const write5mPerToken =

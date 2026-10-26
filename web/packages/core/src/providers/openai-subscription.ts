@@ -691,6 +691,8 @@ export interface CodexModelDescriptor {
   supportedReasoningLevels: string[];
   defaultReasoningLevel?: string;
   supportsImageInput: boolean;
+  /** Input modalities (lowercase) the upstream declares per model; absent when upstream gives no `input_modalities` array (= undeclared, not unsupported). */
+  inputModalities?: string[];
   contextWindow?: number;
 }
 
@@ -761,6 +763,9 @@ export function decodeCodexModelDescriptors(payload: unknown): CodexModelDescrip
       supportedReasoningLevels: levels,
       defaultReasoningLevel: readString(raw.default_reasoning_level),
       supportsImageInput: modalities.includes('image'),
+      ...(Array.isArray(raw.input_modalities)
+        ? { inputModalities: modalities.filter((item): item is string => Boolean(item)) }
+        : {}),
       contextWindow:
         typeof raw.context_window === 'number' && Number.isFinite(raw.context_window)
           ? Math.trunc(raw.context_window)

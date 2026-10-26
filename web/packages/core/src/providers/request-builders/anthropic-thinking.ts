@@ -1,5 +1,6 @@
 import type { ReasoningMode } from '@oriveo/shared/pure-types';
 
+import { ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS } from '../protocol-implementations';
 import type { DroppedGenerationParameter } from './generation-parameters';
 import type { GenerationParameterProfile } from './types';
 
@@ -9,7 +10,7 @@ export interface AnthropicThinkingDecision {
 }
 
 /** Default max_tokens of the builder (a Relay exception: a user-defined endpoint has no official profile to rely on). */
-const RELAY_ANTHROPIC_DEFAULT_MAX_TOKENS = 8192;
+const RELAY_ANTHROPIC_DEFAULT_MAX_TOKENS = ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS;
 /** Shared contract outboundRules.anthropicThinking.maxTokensFloorHeadroom. */
 const THINKING_MAX_TOKENS_HEADROOM = 4096;
 /** Shared contract outboundRules.anthropicThinking.topPMin. */

@@ -79,4 +79,17 @@ describe('ContextContractDirectiveDetector', () => {
     for (let i = 0; i < 100; i++) detectDirective(message);
     expect(performance.now() - started).toBeLessThan(1500);
   });
+
+  // Near markers sweep tokens once per term: a 4000-code-point sentence dense with `a` terms and no `b`
+  // must stay cheap (no pairwise or backtracking search).
+  it('near_markers_stay_linear', () => {
+    const ko = '꼭 계속해서 '.repeat(600);
+    const ar = 'اكتب لا تستخدم دائما '.repeat(300);
+    const started = performance.now();
+    for (let i = 0; i < 100; i++) {
+      detectDirective(ko);
+      detectDirective(ar);
+    }
+    expect(performance.now() - started).toBeLessThan(1500);
+  });
 });

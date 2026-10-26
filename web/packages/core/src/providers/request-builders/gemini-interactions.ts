@@ -7,7 +7,7 @@
  * reasoning recipe compiled by the shared capability compiler.
  */
 import { resolveProviderBaseURL } from '../url-utils';
-import { attachmentTransportProfile } from '../attachment-transport';
+import { attachmentTransportProfile, mediaTextFallback } from '../attachment-transport';
 import type { ContentPart } from '../types';
 import { parseDataURL, withImagePlaceholders, type ProxyMessage } from './runtime';
 import { credentialHeader } from './generation-parameters';
@@ -110,7 +110,11 @@ function userContent(content: string | ContentPart[], activated: boolean): Inter
     const data = part.type === 'image_url' ? parseDataURL(part.image_url.url)
       : part.type === 'file' ? parseDataURL(part.file.file_data)
         : null;
-    if (!data) continue;
+    if (!data) {
+      // A data URL image that cannot be parsed is written as a placeholder, same as Anthropic, and not silently dropped; files are still skipped.
+      if (part.type === 'image_url') media.push({ type: 'text', text: mediaTextFallback('image', part.image_url.url, 'gemini_interactions') });
+      continue;
+    }
     media.push({ type: part.type === 'image_url' ? 'image' : 'document', data: data.base64, mime_type: data.mimeType });
   }
   // Text first and media after within one turn (the official image understanding guide).

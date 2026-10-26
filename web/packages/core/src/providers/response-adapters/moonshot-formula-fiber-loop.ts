@@ -46,10 +46,15 @@ export async function adaptMoonshotFormulaFiberResponse(
       const emit = (payload: string) => controller.enqueue(encoder.encode(`data: ${payload}\n\n`));
       const messages = Array.isArray(request.body.messages) ? [...request.body.messages as Array<Record<string, unknown>>] : [];
       const completedMessages: Array<Record<string, unknown>> = [];
+      // Per-leg usage is intercepted (never forwarded); one closing usage event carries the
+      // cross-leg totals plus raw per-leg usage (`legs`, null = leg reported none), same as moonshot-tool-loop.
+      const totals: UsageTotals = { prompt: 0, completion: 0, cached: 0, seen: false };
+      const legUsages: Array<Record<string, unknown> | null> = [];
       let response = upstream;
       try {
         for (let leg = 0; leg <= maxLoops; leg += 1) {
-          const outcome = await pumpLeg(response, emit);
+          const outcome = await pumpLeg(response, emit, totals);
+          legUsages.push(outcome.usage);
           if (outcome.toolCalls.length === 0) break;
           // A tool call without a matching Fiber replay is an incomplete assistant turn.
           // Never emit [DONE] as if this were a successful answer when the bounded loop is spent.
@@ -83,6 +88,12 @@ export async function adaptMoonshotFormulaFiberResponse(
             method: 'POST', headers: next.headers, body: JSON.stringify(next.body), signal,
           });
           if (!response.ok) throw new FormulaError(toProviderError(response.status, await response.text().catch(() => ''), response.url).message, 'provider');
+        }
+        if (totals.seen) {
+          emit(JSON.stringify({ type: 'usage', usage: {
+            prompt_tokens: totals.prompt, completion_tokens: totals.completion,
+            total_tokens: totals.prompt + totals.completion, cached_tokens: totals.cached, legs: legUsages,
+          } }));
         }
       } catch (error) {
         if (!signal?.aborted) emit(JSON.stringify({ type: 'error', error: error instanceof Error ? error.message : 'Moonshot Formula loop failed', errorKind: 'upstream', source: error instanceof FormulaError ? error.source : 'network' }));
@@ -167,13 +178,26 @@ function fiberOutput(value: unknown): { output: string; encrypted: boolean } | n
   return null;
 }
 
-async function pumpLeg(response: Response, emit: (payload: string) => void): Promise<{ text: string; reasoning: string; toolCalls: ToolCall[] }> {
+async function pumpLeg(response: Response, emit: (payload: string) => void, totals: UsageTotals): Promise<LegOutcome> {
   if (!response.body) throw new FormulaError('Moonshot response has no body', 'provider');
   const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ''; let text = ''; let reasoning = '';
   const calls = new Map<number, ToolCallBuilder>();
+  let usage: Record<string, unknown> | null = null;
   const consume = (payload: string) => {
     let chunk: StreamChunk; try { chunk = JSON.parse(payload) as StreamChunk; } catch { return; }
     const delta = chunk.choices?.[0]?.delta;
+    let outgoing: string | null = payload;
+    // Top-level usage first; Kimi streams may carry it in choices[0].usage instead (recorded moonshot*.sse).
+    const legUsage = isRecord(chunk.usage) ? chunk.usage : isRecord(chunk.choices?.[0]?.usage) ? chunk.choices[0].usage : null;
+    if (legUsage) {
+      // Keep this leg's last raw usage and add it to the totals; strip it from the forwarded
+      // chunk so the client never prices a single leg (or the last leg) as the whole message.
+      // A frame that still carries a delta or a finish_reason is forwarded without its usage.
+      usage = legUsage; totals.seen = true;
+      totals.prompt += numberOrZero(legUsage.prompt_tokens); totals.completion += numberOrZero(legUsage.completion_tokens); totals.cached += numberOrZero(legUsage.cached_tokens);
+      const finishReason = chunk.choices?.[0]?.finish_reason;
+      outgoing = (delta && (delta.content || delta.reasoning_content || delta.tool_calls?.length)) || finishReason != null ? JSON.stringify(withoutUsage(chunk)) : null;
+    }
     if (typeof delta?.content === 'string') text += delta.content;
     if (typeof delta?.reasoning_content === 'string') reasoning += delta.reasoning_content;
     for (const piece of delta?.tool_calls ?? []) {
@@ -183,15 +207,28 @@ async function pumpLeg(response: Response, emit: (payload: string) => void): Pro
       if (typeof piece.function?.arguments === 'string') current.arguments += piece.function.arguments;
       calls.set(index, current);
     }
-    emit(payload);
+    if (outgoing) emit(outgoing);
   };
-  while (true) { const { done, value } = await reader.read(); if (done) break; buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop() ?? ''; for (const line of lines) { const part = line.trim(); if (!part.startsWith('data: ')) continue; const payload = part.slice(6); if (payload === '[DONE]') return { text, reasoning, toolCalls: finalize(calls) }; consume(payload); } }
-  return { text, reasoning, toolCalls: finalize(calls) };
+  while (true) { const { done, value } = await reader.read(); if (done) break; buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop() ?? ''; for (const line of lines) { const part = line.trim(); if (!part.startsWith('data: ')) continue; const payload = part.slice(6); if (payload === '[DONE]') return { text, reasoning, toolCalls: finalize(calls), usage }; consume(payload); } }
+  return { text, reasoning, toolCalls: finalize(calls), usage };
 }
+
+/** Strips usage from the top level and from choices[0]; every other field (finish_reason included) is kept. */
+function withoutUsage(chunk: StreamChunk): Record<string, unknown> {
+  const { usage: _usage, ...rest } = chunk as Record<string, unknown>;
+  if (!Array.isArray(chunk.choices) || chunk.choices.length === 0) return rest;
+  const [first, ...others] = chunk.choices;
+  const { usage: _choiceUsage, ...firstRest } = (first ?? {}) as Record<string, unknown>;
+  return { ...rest, choices: [firstRest, ...others] };
+}
+
+function numberOrZero(value: unknown): number { return typeof value === 'number' && Number.isFinite(value) ? value : 0; }
 
 function finalize(builders: Map<number, ToolCallBuilder>): ToolCall[] { return [...builders.entries()].sort(([a], [b]) => a - b).flatMap(([, value]) => value.name ? [{ id: value.id, type: value.type, function: { name: value.name, arguments: value.arguments } }] : []); }
 function isRecord(value: unknown): value is Record<string, any> { return typeof value === 'object' && value != null && !Array.isArray(value); }
 class FormulaError extends Error { constructor(message: string, readonly source: 'provider' | 'network') { super(message); this.name = 'FormulaError'; } }
 interface ToolCall { id?: string; type?: string; function: { name: string; arguments: string } }
 interface ToolCallBuilder { id?: string; type?: string; name?: string; arguments: string }
-interface StreamChunk { choices?: Array<{ delta?: { content?: string; reasoning_content?: string; tool_calls?: Array<{ index?: number; id?: string; type?: string; function?: { name?: string; arguments?: string } }> } }> }
+interface UsageTotals { prompt: number; completion: number; cached: number; seen: boolean }
+interface LegOutcome { text: string; reasoning: string; toolCalls: ToolCall[]; /** This leg's last raw usage; null = none reported. */ usage: Record<string, unknown> | null }
+interface StreamChunk { usage?: unknown; choices?: Array<{ finish_reason?: string | null; usage?: unknown; delta?: { content?: string; reasoning_content?: string; tool_calls?: Array<{ index?: number; id?: string; type?: string; function?: { name?: string; arguments?: string } }> } }> }

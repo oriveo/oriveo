@@ -9,6 +9,7 @@
  */
 
 import type { ContentPart, StreamEvent, StreamOptions } from './types';
+import { mediaTextFallback } from './attachment-transport';
 import { sha256Hex } from '../mcp/mcp-pure';
 import { codexIdentityUserAgent, relayInjectsCodexIdentity } from './relay-codex-identity';
 
@@ -362,7 +363,7 @@ export function convertToAnthropicParts(parts: ContentPart[]) {
       }
     }
     if (part.type === 'video_url') {
-      return { type: 'text' as const, text: `[video: ${part.video_url.url}]` };
+      return { type: 'text' as const, text: mediaTextFallback('video', part.video_url.url, 'relay_anthropic_messages') };
     }
     if (part.type === 'file') {
       const matched = part.file.file_data.match(/^data:([^;]+);base64,(.+)$/);
@@ -393,7 +394,7 @@ export function convertToGeminiParts(parts: ContentPart[]) {
       if (matched) {
         return { inlineData: { mimeType: matched[1], data: matched[2] } };
       }
-      return { text: `[video: ${part.video_url.url}]` };
+      return { text: mediaTextFallback('video', part.video_url.url, 'relay_gemini_generate') };
     }
     if (part.type === 'file') {
       const matched = part.file.file_data.match(/^data:([^;]+);base64,(.+)$/);
@@ -648,13 +649,19 @@ export function parseImagesGenerationsResponse(payload: unknown): StreamEvent[] 
 
 export function parseAnthropicResponse(payload: unknown): StreamEvent[] {
   const response = payload as {
-    content?: Array<{ type?: string; text?: string }>;
+    content?: Array<{ type?: string; text?: string; thinking?: string }>;
     usage?: {
       input_tokens?: number;
       output_tokens?: number;
     };
   };
   const events: StreamEvent[] = [];
+  // Aligned with the official non-streaming path (the message branch of proxy-chunk-parser): each thinking block emits its own reasoning event.
+  for (const part of response.content ?? []) {
+    if (part.type === 'thinking' && typeof part.thinking === 'string') {
+      events.push({ type: 'reasoning', content: part.thinking });
+    }
+  }
   const text = response.content
     ?.filter((part) => part.type === 'text' && typeof part.text === 'string')
     .map((part) => part.text as string)

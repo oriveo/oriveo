@@ -2,8 +2,9 @@
 // Upstream SSE chunks pass through unchanged in OpenAI format (the client's parseProxyChunk
 // reads reasoning_content / content / model). If a leg ends with accumulated tool_calls, the
 // $web_search arguments are fed back locally and the next streamed leg starts, up to
-// maxLoops rounds. usage is intercepted per leg and summed across legs, since each leg is
-// billed separately, and one total is emitted at the end.
+// maxLoops rounds. usage is intercepted per leg and one usage is emitted at the end: the top level is
+// the cross-leg total (older clients read it as before), and `legs` keeps each leg's raw usage (null when
+// not reported); the client parses and prices per leg, and one unreported leg makes the whole cost unknown.
 //
 // This loop deliberately does not use the generic tool loop in packages/core/src/tools:
 // 1. It runs somewhere else. This loop lives in the Next server route (Response in, Response
@@ -52,6 +53,7 @@ export async function adaptMoonshotToolLoopResponse(
         ? [...(req.body.messages as Array<Record<string, unknown>>)]
         : [];
       const totals = { prompt: 0, completion: 0, cached: 0, seen: false };
+      const legUsages: Array<Record<string, unknown> | null> = [];
       const completedMessages: Array<Record<string, unknown>> = [];
       let anyReasoning = false;
       let response = upstream;
@@ -59,6 +61,7 @@ export async function adaptMoonshotToolLoopResponse(
       try {
         for (let leg = 0; leg <= maxLoops; leg += 1) {
           const outcome = await pumpMoonshotLeg(response, emit, totals, anyReasoning);
+          legUsages.push(outcome.usage);
           anyReasoning = anyReasoning || outcome.reasoning.length > 0;
           if (outcome.toolCalls.length === 0) break;
           if (leg === maxLoops) {
@@ -138,6 +141,7 @@ export async function adaptMoonshotToolLoopResponse(
               completion_tokens: totals.completion,
               total_tokens: totals.prompt + totals.completion,
               cached_tokens: totals.cached,
+              legs: legUsages,
             },
           }));
         }
@@ -177,6 +181,8 @@ interface MoonshotLegOutcome {
   text: string;
   reasoning: string;
   toolCalls: MoonshotToolCall[];
+  /** The raw usage of the last frame of this leg; null when not reported. */
+  usage: Record<string, unknown> | null;
 }
 
 /**
@@ -199,6 +205,7 @@ async function pumpMoonshotLeg(
   let text = "";
   let reasoning = "";
   const builders = new Map<number, MoonshotToolCallBuilder>();
+  let legUsage: Record<string, unknown> | null = null;
 
   const handlePayload = (payload: string) => {
     let chunk: MoonshotStreamChunk;
@@ -209,18 +216,19 @@ async function pumpMoonshotLeg(
     }
     const delta = chunk.choices?.[0]?.delta;
     let outgoing: string | null = payload;
-    if (chunk.usage && typeof chunk.usage === "object") {
+    // When the top level has no usage, read choices[0].usage (recorded Kimi streams)
+    const usage = chunkUsage(chunk);
+    if (usage) {
       totals.seen = true;
-      totals.prompt += numberOrZero(chunk.usage.prompt_tokens);
-      totals.completion += numberOrZero(chunk.usage.completion_tokens);
-      totals.cached += numberOrZero(chunk.usage.cached_tokens);
-      // usage is intercepted and summed across legs: it is stripped before forwarding so the client does not count each leg twice, and a chunk with nothing left after stripping is not sent
-      if (delta && (delta.content || delta.reasoning_content || delta.tool_calls?.length)) {
-        const { usage: _usage, ...rest } = chunk as Record<string, unknown>;
-        outgoing = JSON.stringify(rest);
-      } else {
-        outgoing = null;
-      }
+      legUsage = usage;
+      totals.prompt += numberOrZero(usage.prompt_tokens);
+      totals.completion += numberOrZero(usage.completion_tokens);
+      totals.cached += numberOrZero(usage.cached_tokens);
+      // usage is intercepted and summed across legs: it is stripped before forwarding so the client does not count each leg twice; a frame with a delta or finish_reason is still sent, and one with neither is not
+      const finishReason = chunk.choices?.[0]?.finish_reason;
+      outgoing = (delta && (delta.content || delta.reasoning_content || delta.tool_calls?.length)) || finishReason != null
+        ? JSON.stringify(withoutUsage(chunk))
+        : null;
     }
     for (const toolDelta of delta?.tool_calls ?? []) {
       const index = toolDelta.index ?? 0;
@@ -259,12 +267,12 @@ async function pumpMoonshotLeg(
       if (!trimmed.startsWith("data: ")) continue;
       const payload = trimmed.slice(6);
       if (payload === "[DONE]") {
-        return { text, reasoning, toolCalls: finalizeToolCalls(builders) };
+        return { text, reasoning, toolCalls: finalizeToolCalls(builders), usage: legUsage };
       }
       handlePayload(payload);
     }
   }
-  return { text, reasoning, toolCalls: finalizeToolCalls(builders) };
+  return { text, reasoning, toolCalls: finalizeToolCalls(builders), usage: legUsage };
 }
 
 export function runMoonshotBuiltinTool(toolCall: MoonshotToolCall): string {
@@ -304,6 +312,23 @@ function numberOrZero(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
+/** This frame's usage: top level first; when the top level is missing, read choices[0].usage. */
+function chunkUsage(chunk: MoonshotStreamChunk): Record<string, unknown> | null {
+  const top = chunk.usage;
+  if (top && typeof top === "object" && !Array.isArray(top)) return top as Record<string, unknown>;
+  const nested = chunk.choices?.[0]?.usage;
+  return nested && typeof nested === "object" && !Array.isArray(nested) ? nested as Record<string, unknown> : null;
+}
+
+/** Strip usage from the top level and choices[0], keeping every other field (including finish_reason) as is. */
+function withoutUsage(chunk: MoonshotStreamChunk): Record<string, unknown> {
+  const { usage: _usage, ...rest } = chunk as Record<string, unknown>;
+  if (!Array.isArray(chunk.choices) || chunk.choices.length === 0) return rest;
+  const [first, ...others] = chunk.choices;
+  const { usage: _choiceUsage, ...firstRest } = (first ?? {}) as Record<string, unknown>;
+  return { ...rest, choices: [firstRest, ...others] };
+}
+
 interface MoonshotStreamChunk {
   choices?: Array<{
     delta?: {
@@ -311,6 +336,8 @@ interface MoonshotStreamChunk {
       reasoning_content?: string;
       tool_calls?: MoonshotToolCallDelta[];
     };
+    finish_reason?: string | null;
+    usage?: unknown;
   }>;
   usage?: {
     prompt_tokens?: unknown;

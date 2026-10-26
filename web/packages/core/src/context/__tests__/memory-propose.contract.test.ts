@@ -7,6 +7,7 @@ import { functionToolsForProtocol, type WireProtocol } from '../../providers/req
 import type { ProxyToolDefinition } from '../../providers/request-builders/runtime';
 import type { MemoryCandidateRecord } from '../memory-intent';
 import {
+  PROPOSE_MEMORY_MAX_INSTRUCT_PER_TURN,
   PROPOSE_MEMORY_MAX_PER_TURN,
   PROPOSE_MEMORY_TOOL,
   PROPOSE_MEMORY_TOOL_RESULT,
@@ -22,11 +23,12 @@ interface MemoryProposeContract {
   tool: unknown;
   toolResult: string;
   projections: Record<WireProtocol, unknown[]>;
-  constants: { maxProposalsPerTurn: number };
+  constants: { maxProposalsPerTurn: number; maxInstructPerTurn: number };
   proposeCases: Array<{
     id: string;
     context: Omit<ProposeMemoryContext, 'records'> & { records: MemoryCandidateRecord[] };
     priorInTurn: number;
+    priorInstructInTurn: number;
     arguments: string;
     expected: unknown;
   }>;
@@ -41,10 +43,10 @@ interface MemoryProposeContract {
   }>;
 }
 
-const contract = ContextContractFixture.load<MemoryProposeContract>('memory-propose.v2.json');
+const contract = ContextContractFixture.load<MemoryProposeContract>('memory-propose.v3.json');
 const toolUnsupported = JSON.parse(
   readFileSync(
-    path.join(path.dirname(ContextContractFixture.path('memory-propose.v2.json')), '..', 'test-fixtures', 'provider-toolcall', 'tool-unsupported-4xx.json'),
+    path.join(path.dirname(ContextContractFixture.path('memory-propose.v3.json')), '..', 'test-fixtures', 'provider-toolcall', 'tool-unsupported-4xx.json'),
     'utf8',
   ),
 ) as { cases: Array<{ id: string; expect: boolean }> };
@@ -54,6 +56,7 @@ describe('ContextContractMemoryPropose', () => {
     expect(JSON.stringify(PROPOSE_MEMORY_TOOL)).toBe(JSON.stringify(contract.tool));
     expect(PROPOSE_MEMORY_TOOL_RESULT).toBe(contract.toolResult);
     expect(PROPOSE_MEMORY_MAX_PER_TURN).toBe(contract.constants.maxProposalsPerTurn);
+    expect(PROPOSE_MEMORY_MAX_INSTRUCT_PER_TURN).toBe(contract.constants.maxInstructPerTurn);
   });
 
   it.each(Object.keys(contract.projections) as WireProtocol[])('production projection %s', (protocol) => {
@@ -62,7 +65,7 @@ describe('ContextContractMemoryPropose', () => {
   });
 
   it.each(contract.proposeCases.map((c) => [c.id, c] as const))('propose %s', (_id, c) => {
-    expect(proposeMemoryCandidate(c.arguments, c.context, c.priorInTurn)).toStrictEqual(c.expected);
+    expect(proposeMemoryCandidate(c.arguments, c.context, c.priorInTurn, c.priorInstructInTurn)).toStrictEqual(c.expected);
   });
 
   it.each(contract.modeCases.map((c) => [c.id, c] as const))('mode %s', (_id, c) => {

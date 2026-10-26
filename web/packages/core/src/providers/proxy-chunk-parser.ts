@@ -27,6 +27,7 @@ import { detectGeminiBlockEvent } from './transport/strategies/gemini-generate';
 import { mergeCitation } from './transport/citation-utils';
 import { parseContentBlockArray } from './transport/content-block-parser';
 import type { UsageBreakdown } from '../chat/usage-breakdown';
+import { mergeToolLoopUsage } from '../tools/tool-call-loop';
 import {
   normalizeResponsesUsage,
   parseUsageAnthropic,
@@ -216,9 +217,11 @@ export function createProxyChunkParser(providerKind?: ProviderKind, continuation
       });
     }
 
-    // OpenAI/OpenRouter format
-    if (!_eventType && chunk.usage) {
-      events.push({ type: 'usage', usage: buildUsageEvent(chunk.usage, pickUsage) });
+    // OpenAI/OpenRouter format; when Kimi's top level has none, read choices[0].usage (recorded streams moonshot*.sse)
+    const openAIStyleUsage = chunk.usage
+      ?? (providerKind === 'moonshot' && isRecord(chunk.choices?.[0]?.usage) ? chunk.choices[0].usage : undefined);
+    if (!_eventType && openAIStyleUsage) {
+      events.push({ type: 'usage', usage: buildUsageEvent(openAIStyleUsage, pickUsage) });
     }
     if (!_eventType && chunk.model) {
       events.push({ type: 'model', modelID: chunk.model });
@@ -279,11 +282,11 @@ export function createProxyChunkParser(providerKind?: ProviderKind, continuation
 
     // Anthropic format.
     // message_start: cache input_tokens and the full usage object so message_delta can merge in
-    // output_tokens and compute the breakdown.
+    // output_tokens and compute the breakdown. Nothing is stored when there is no usage object, so message_delta can tell that upstream reported no usage (same rule as the strategy).
     if (chunk.type === 'message_start') {
-      const usage = (chunk.message?.usage ?? {}) as Record<string, unknown>;
-      anthropicUsage = usage;
-      anthropicInputTokens = typeof usage.input_tokens === 'number' ? usage.input_tokens : 0;
+      const usage = isRecord(chunk.message?.usage) ? chunk.message.usage as Record<string, unknown> : undefined;
+      if (usage) anthropicUsage = usage;
+      anthropicInputTokens = typeof usage?.input_tokens === 'number' ? usage.input_tokens : 0;
     }
     if (chunk.type === 'content_block_delta') {
       const delta = chunk.delta;
@@ -328,9 +331,10 @@ export function createProxyChunkParser(providerKind?: ProviderKind, continuation
         }
       }
     }
-    if (chunk.type === 'message_delta' && chunk.usage) {
+    // Also emitted when only message_start carries usage (message_delta does not): input is reported, output is recorded as 0 (aligned with the strategy).
+    if (chunk.type === 'message_delta' && (chunk.usage || anthropicUsage)) {
       const outputTokens =
-        typeof chunk.usage.output_tokens === 'number' ? chunk.usage.output_tokens : 0;
+        typeof chunk.usage?.output_tokens === 'number' ? chunk.usage.output_tokens : 0;
       // Merge the usage cached at message_start (including cache_read / cache_creation) with this frame's output_tokens.
       const merged: Record<string, unknown> = {
         ...(anthropicUsage ?? {}),
@@ -1166,6 +1170,13 @@ function buildUsageEvent(
   usage: Record<string, unknown>,
   pickUsage: (usage: Record<string, unknown>) => UsageBreakdown,
 ): StreamUsage {
+  // The closing frame of a server-side multi-leg loop (Kimi built-in $web_search) carries each leg's raw usage (null when not reported):
+  // each leg goes through the same parser and is priced per leg through the multi-leg merge entry; one unreported leg makes the whole cost unknown.
+  if (Array.isArray(usage.legs) && usage.legs.length > 0) {
+    const legs = usage.legs.map((leg) => (isRecord(leg) ? buildUsageEvent(leg, pickUsage) : undefined));
+    const merged = legs.slice(1).reduce((acc, leg) => mergeToolLoopUsage(acc, leg), legs[0]);
+    if (merged) return merged;
+  }
   const breakdown = pickUsage(usage);
   return {
     prompt_tokens: typeof usage.prompt_tokens === 'number' ? usage.prompt_tokens : undefined,

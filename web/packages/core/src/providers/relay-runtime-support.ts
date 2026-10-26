@@ -18,9 +18,9 @@ import { isDedicatedImageModel } from '@oriveo/shared/relay/image-models';
 import type {
   RelayRuntimeConfig,
   RelayRuntimeTransportKey,
-  RelayTransportEnvelope,
   RelayTransportRule,
 } from '../ports';
+import type { RelayTransportEnvelope } from '../ports/legacy-relay-envelope';
 import type { StreamOptions } from './types';
 import { resolveCodexClientVersion } from './relay-codex-identity';
 
@@ -155,10 +155,19 @@ function isRuntimeTransport(transport: RelayTransport): transport is RelayRuntim
 
 export function resolveRelayEnvelope(
   transport: RelayTransport | null | undefined,
-  runtimeConfig: RelayRuntimeConfig,
+  runtimeConfig: Pick<RelayRuntimeConfig, 'transportEnvelopes'>,
 ): RelayTransportEnvelope | null {
   if (!transport || !isRuntimeTransport(transport)) return null;
-  return runtimeConfig.transportEnvelopes[transport] ?? null;
+  const envelope = runtimeConfig.transportEnvelopes[transport];
+  return isLegacyRelayEnvelope(envelope) ? envelope : null;
+}
+
+/**
+ * The envelope on ports is an opaque object; this is the only place that unpacks it. It only checks for a non-empty object and does not validate field by field,
+ * matching the runtime behavior from before the tightening, which returned the original object directly.
+ */
+function isLegacyRelayEnvelope(value: object | null | undefined): value is RelayTransportEnvelope {
+  return typeof value === 'object' && value !== null;
 }
 
 export function resolveRelayTransportRule(

@@ -14,6 +14,7 @@
 
 import { StopReasonResolver } from '../../../context/stop-reason';
 import type { ContentPart, StreamEvent } from '../../types';
+import { mediaTextFallback } from '../../attachment-transport';
 import type {
   BuildRequestInput,
   StreamContext,
@@ -26,7 +27,7 @@ import { nativeToolCallEvents } from '../../tool-call-protocol';
 // Relay special case: custom Gemini-compatible endpoints have no official profile, so the budget uses the same mapping as the relay builders.
 import { mapGeminiReasoningBudget } from '../../relay-adapter';
 
-function convertToGeminiParts(parts: ContentPart[]): Array<Record<string, unknown>> {
+export function convertToGeminiParts(parts: ContentPart[]): Array<Record<string, unknown>> {
   return parts.map((p) => {
     if (p.type === 'text') {
       return { text: p.text };
@@ -35,12 +36,12 @@ function convertToGeminiParts(parts: ContentPart[]): Array<Record<string, unknow
       const url = p.image_url.url;
       const match = url.match(/^data:([^;]+);base64,(.+)$/);
       if (match) return { inlineData: { mimeType: match[1], data: match[2] } };
-      return { text: `[image: ${url}]` };
+      return { text: mediaTextFallback('image', url, 'relay_gemini_generate') };
     }
     if (p.type === 'video_url') {
       const match = p.video_url.url.match(/^data:([^;]+);base64,(.+)$/);
       if (match) return { inlineData: { mimeType: match[1], data: match[2] } };
-      return { text: `[video: ${p.video_url.url}]` };
+      return { text: mediaTextFallback('video', p.video_url.url, 'relay_gemini_generate') };
     }
     if (p.type === 'file') {
       // Any file part with route=native goes through inlineData, which covers both the

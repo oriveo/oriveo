@@ -21,6 +21,12 @@ export type ValueMode = 'preset' | 'custom';
 /** Availability of a capability for the current provider and model. Same source as the controlStates section of the shape contract. */
 export type ControlAvailability = 'auto_available' | 'managed_only' | 'custom_only' | 'unavailable' | 'unknown';
 
+/** Single source of the "auto available" state word: decision surfaces outside the vocabulary (input-capability projection) reference it instead of writing a literal. */
+export const CONTROL_AUTO_AVAILABLE = 'auto_available' as const satisfies ControlAvailability;
+
+/** Single source of the "unavailable" state word: the parameterSupport three-valued gate references it instead of writing a literal. */
+export const CONTROL_UNAVAILABLE = 'unavailable' as const satisfies ControlAvailability;
+
 /** Access identity behind a connection: managed, BYOK developer, or relay developer. */
 export type ConnectionAccess = 'managed' | 'byok_developer' | 'relay_developer';
 

@@ -15,6 +15,7 @@
  */
 
 import type { ContentPart, StreamEvent } from '../../types';
+import { mediaTextFallback } from '../../attachment-transport';
 import type {
   BuildRequestInput,
   StreamContext,
@@ -25,7 +26,7 @@ import { deepMerge } from '../merge-utils';
 import { normalizeResponsesUsage, parseUsageGrok, parseUsageOpenAI } from '../usage-parsers';
 import { nativeToolCallEvents } from '../../tool-call-protocol';
 
-function buildResponsesContent(
+export function buildResponsesContent(
   role: 'user' | 'assistant' | 'system',
   content: string | ContentPart[],
 ): Array<Record<string, unknown>> {
@@ -60,7 +61,7 @@ function buildResponsesContent(
     }
     // video_url and other fallbacks: describe it in text
     if (p.type === 'video_url') {
-      return { type: inputTextType, text: `[video: ${p.video_url.url}]` };
+      return { type: inputTextType, text: mediaTextFallback('video', p.video_url.url, 'relay_openai_responses') };
     }
     return { type: inputTextType, text: '[unsupported]' };
   });

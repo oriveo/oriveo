@@ -1,12 +1,13 @@
 /**
  * WireAdapter: projects a ContextPlan onto each protocol family's request-body subset
- * (contract: context-contracts/wire-system.v1.json). Pure; attachments keep each
+ * (contract: shared/context-contracts/wire-system.v1.json). Pure; attachments keep each
  * provider's own part builders and are not handled here.
  */
 
 import type { ContextRole } from './message';
 import type { ContextBlock } from './plan';
 import { trimWhiteSpace } from './white-space';
+import { usesAnthropicExplicitPromptCache } from '../providers/protocol-implementations';
 
 export type WireFamily =
   | 'openai_chat'
@@ -59,6 +60,11 @@ export interface WireToolLeg {
 }
 
 export type WireBody = Record<string, unknown>;
+
+/** The model catalog's prompt-cache verdict; absent means there is no catalog verdict. */
+export interface WirePromptCache {
+  policyRef?: string;
+}
 
 const STRING_ONLY: ReadonlySet<WireFamily> = new Set(['openai_chat_string_only', 'free', 'llamacpp']);
 const BLOCK_SEPARATOR = '\n\n';
@@ -134,7 +140,7 @@ interface AnthropicBlock {
   dynamic: boolean;
 }
 
-function projectAnthropic(plan: WirePlan, leg: WireToolLeg | undefined): WireBody {
+function projectAnthropic(plan: WirePlan, leg: WireToolLeg | undefined, promptCache: WirePromptCache | undefined): WireBody {
   const turns: Array<{ role: ContextRole; blocks: AnthropicBlock[] }> = planMessages(plan).map((m) => ({
     role: m.role,
     blocks: m.blocks.map((b) => ({ block: { type: 'text', text: b.text }, dynamic: b.kind === 'dynamic' })),
@@ -155,7 +161,9 @@ function projectAnthropic(plan: WirePlan, leg: WireToolLeg | undefined): WireBod
     turns.push({ role: 'user', blocks });
   }
   // Exactly one breakpoint: the last non-dynamic block of the last user message.
-  const lastUser = [...turns].reverse().find((t) => t.role === 'user');
+  // With a catalog verdict only anthropic.explicit marks; without one (no catalog verdict, e.g. Relay / contract fixtures) it marks as before.
+  const marks = promptCache === undefined || usesAnthropicExplicitPromptCache(promptCache.policyRef);
+  const lastUser = marks ? [...turns].reverse().find((t) => t.role === 'user') : undefined;
   const anchor = lastUser ? [...lastUser.blocks].reverse().find((b) => !b.dynamic) : undefined;
   if (anchor) anchor.block = { ...anchor.block, cache_control: EPHEMERAL };
   const messages = turns.map((t) => ({ role: t.role, content: t.blocks.map((b) => b.block) }));
@@ -182,12 +190,17 @@ function projectGemini(plan: WirePlan, leg: WireToolLeg | undefined): WireBody {
 }
 
 /** Projects the plan (plus an optional host tool-loop leg) onto one family's request-body subset. */
-export function projectWire(plan: WirePlan, family: WireFamily, toolLeg?: WireToolLeg): WireBody {
+export function projectWire(
+  plan: WirePlan,
+  family: WireFamily,
+  toolLeg?: WireToolLeg,
+  promptCache?: WirePromptCache,
+): WireBody {
   switch (family) {
     case 'openai_responses':
       return projectResponses(plan, toolLeg);
     case 'anthropic':
-      return projectAnthropic(plan, toolLeg);
+      return projectAnthropic(plan, toolLeg, promptCache);
     case 'gemini':
       return projectGemini(plan, toolLeg);
     default:

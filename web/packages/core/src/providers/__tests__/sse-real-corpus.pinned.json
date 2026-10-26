@@ -51,15 +51,15 @@
   "recorded/moonshot.leg1.sse": {
     "entries": 79,
     "entriesSha256": "5c21bc9f40be83d4eb347f6033d3e7e87943450429e410af8604a7ba2fed8d45",
-    "streamEvents": 157,
-    "streamEventsSha256": "f0459b20c2be7b6850ae15a1c29d65febe2c3af210442bc45cc89452670ef75a",
+    "streamEvents": 158,
+    "streamEventsSha256": "263e8c15a3c657f9c4ed478f860723847e08311ff1ceaf595091678062f79b6e",
     "textSha256": "55eadc92f488ef1cae5b613996c9ea4bf69d92000b267216c3d5610c93e757e5"
   },
   "recorded/moonshot_web_search.leg1.sse": {
     "entries": 4,
     "entriesSha256": "7e295c83d889316ae2b9b423ec08bf1d5d3d3278576dcc251e4ac3bb3b4c0eda",
-    "streamEvents": 8,
-    "streamEventsSha256": "e810d5bc1dd7bddea4620c6ae2da768d711d8807da85cb954cfd5aac7c849fe9",
+    "streamEvents": 9,
+    "streamEventsSha256": "2138af73231e6cc390a14ddc49f00d8acf0ca57db864dda4e460b2f8092a1acb",
     "textSha256": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
   },
   "recorded/anthropic.leg1.sse": {
