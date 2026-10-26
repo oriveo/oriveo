@@ -44,6 +44,24 @@ export default tseslint.config(
     },
     rules: {
       "@typescript-eslint/no-deprecated": "warn",
+      // Separate rule id from core's no-restricted-imports so the core block's paths stay intact.
+      "@typescript-eslint/no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/ports/legacy-relay-envelope*"],
+              message: "Legacy relay capability bits are decoded only in providers/relay-runtime-support.ts.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["packages/core/src/providers/relay-runtime-support.ts"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": "off",
     },
   },
   {
