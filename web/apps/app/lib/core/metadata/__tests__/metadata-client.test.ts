@@ -27,6 +27,24 @@ async function persistedModelFactsText(): Promise<string> {
   return JSON.stringify((await readModelFactsCache()) ?? {});
 }
 
+type MetadataClientModule = typeof import('../metadata-client');
+
+// The latest instance dynamically imported after vi.resetModules in a case; afterEach waits for its background refresh / persistence to settle before restoring,
+// so nothing leaks into the next case.
+let metadataInstance: MetadataClientModule | null = null;
+
+async function importMetadataClient(): Promise<MetadataClientModule> {
+  metadataInstance = await import('../metadata-client');
+  return metadataInstance;
+}
+
+async function restoreMetadataInstance(): Promise<void> {
+  if (!metadataInstance) return;
+  await metadataInstance.__settleMetadataBackgroundWorkForTest();
+  metadataInstance.__resetMetadataClientForTest();
+  metadataInstance = null;
+}
+
 describe("metadata-client", () => {
   beforeEach(async () => {
     vi.resetModules();
@@ -38,6 +56,8 @@ describe("metadata-client", () => {
   });
 
   afterEach(async () => {
+
+    await restoreMetadataInstance();
     await new Promise((r) => setTimeout(r, 20));
     localStorage.clear();
     await pruneBlobs("oriveo:metadata:c", []);
@@ -76,12 +96,12 @@ describe("metadata-client", () => {
       }), { status: 200, headers: { "Content-Type": "application/json", ETag: '"lean-r1"' } });
     });
 
-    const metadata = await import("../metadata-client");
+    const metadata = await importMetadataClient();
     await metadata.initMetadata();
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     // The index is requested first; a server that ignores view and returns the full snapshot is
     // adopted as-is without a second request.
-    expect(String(fetchSpy.mock.calls[0]?.[0])).toMatch(/\/api\/metadata\?view=index$/);
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toMatch(/\/api\/metadata\?view=index&schema=3$/);
     await metadata.ensureModelFacts();
     expect(String(fetchSpy.mock.calls[1]?.[0])).toMatch(/\/api\/metadata\/model-facts$/);
 
@@ -179,7 +199,7 @@ describe("metadata-client", () => {
           })
     ));
 
-    const metadata = await import("../metadata-client");
+    const metadata = await importMetadataClient();
     await metadata.initMetadata();
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     await metadata.ensureModelFacts();
@@ -191,7 +211,7 @@ describe("metadata-client", () => {
 
   it("Library fallback shares the same authoritative object as the shared defaults", async () => {
     const [metadata, library] = await Promise.all([
-      import("../metadata-client"),
+      importMetadataClient(),
       import("../../library/types"),
     ]);
 
@@ -236,7 +256,7 @@ describe("metadata-client", () => {
         headers: { "Content-Type": "application/json", ETag: '"memo-1"' },
       }),
     );
-    const metadata = await import("../metadata-client");
+    const metadata = await importMetadataClient();
     metadata.__resetMetadataClientForTest();
     await metadata.refreshMetadata();
 
@@ -307,7 +327,7 @@ describe("metadata-client", () => {
         headers: { "Content-Type": "application/json", ETag: '"proj-1"' },
       }),
     );
-    const metadata = await import("../metadata-client");
+    const metadata = await importMetadataClient();
     metadata.__resetMetadataClientForTest();
     await metadata.refreshMetadata();
 
@@ -352,7 +372,7 @@ describe("metadata-client", () => {
         headers: { "Content-Type": "application/json", ETag: '"ttl-1"' },
       }),
     );
-    const metadata = await import("../metadata-client");
+    const metadata = await importMetadataClient();
     metadata.__resetMetadataClientForTest();
 
     expect(metadata.isMetadataRefreshDue()).toBe(true);
@@ -422,7 +442,7 @@ describe("metadata-client", () => {
       ),
     );
 
-    const metadata = await import("../metadata-client");
+    const metadata = await importMetadataClient();
     await metadata.initMetadata();
 
     const resolved = metadata.resolveCatalogModel("o4-mini-20250301", "openAI");
@@ -592,7 +612,7 @@ describe("metadata-client", () => {
       }),
     );
 
-    const metadata = await import("../metadata-client");
+    const metadata = await importMetadataClient();
     await metadata.initMetadata();
 
     const resolved = metadata.resolveCatalogModel("gpt-evidence", "openAI");
@@ -714,7 +734,7 @@ describe("metadata-client", () => {
       }))
       .mockResolvedValueOnce(new Response(null, { status: 304 }));
 
-    const metadata = await import("../metadata-client");
+    const metadata = await importMetadataClient();
     metadata.__resetMetadataClientForTest();
     await metadata.refreshMetadata();
     const firstRevision = metadata.getCachedMetadataVersion();
@@ -773,7 +793,7 @@ describe("metadata-client", () => {
         },
       }),
     );
-    const metadata = await import("../metadata-client");
+    const metadata = await importMetadataClient();
     await metadata.initMetadata();
     expect(metadata.resolveCatalogModel("gpt-evidence", "openAI")?.metadataRevision)
       .toBe('"old-etag"');
@@ -864,7 +884,7 @@ describe("metadata-client", () => {
     );
 
     const [metadata, facade] = await Promise.all([
-      import("../metadata-client"),
+      importMetadataClient(),
       import("@oriveo/core/providers/capability-evidence-facade"),
     ]);
     await metadata.initMetadata();
@@ -954,7 +974,7 @@ describe("metadata-client", () => {
     // A server that answers view=index with 400 falls back to lean, still through the production
     // lean decoding path.
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => (
-      String(input).endsWith("view=index")
+      String(input).includes("view=index")
         ? new Response(null, { status: 400 })
         : new Response(JSON.stringify(responseFixture), {
             status: 200,
@@ -963,13 +983,13 @@ describe("metadata-client", () => {
     ));
 
     const [metadata, evidence, facade] = await Promise.all([
-      import("../metadata-client"),
+      importMetadataClient(),
       import("../../chat/capability-evidence"),
       import("@oriveo/core/providers/capability-evidence-facade"),
     ]);
     await metadata.initMetadata();
 
-    expect(String(fetchSpy.mock.calls[0]?.[0])).toMatch(/\/api\/metadata\?view=index$/);
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toMatch(/\/api\/metadata\?view=index&schema=3$/);
     expect(String(fetchSpy.mock.calls[1]?.[0])).toMatch(/\/api\/metadata\?view=lean$/);
     const resolved = metadata.resolveCatalogModel("gpt-fixture", "openAI");
     expect(resolved?.capabilityEvidenceCandidates).toEqual([expect.objectContaining({
@@ -1100,7 +1120,7 @@ describe("metadata-client", () => {
       json: vi.fn(),
     } as unknown as Response);
 
-    const metadata = await import("../metadata-client");
+    const metadata = await importMetadataClient();
     await metadata.initMetadata();
 
     expect(
@@ -1141,7 +1161,7 @@ describe("metadata-client", () => {
       ok: false,
       json: vi.fn(),
     } as unknown as Response);
-    const empty = await import("../metadata-client");
+    const empty = await importMetadataClient();
     // With no snapshot at all: fallback values, and the feature stays enabled
     expect(empty.getMcpRuntimeConfig()).toEqual({
       version: 1, enabled: true, maxServers: 20, maxToolsPerRequest: 40,
@@ -1163,7 +1183,7 @@ describe("metadata-client", () => {
       },
     });
     vi.resetModules();
-    const metadata = await import("../metadata-client");
+    const metadata = await importMetadataClient();
     await metadata.initMetadata();
     expect(metadata.getMcpRuntimeConfig()).toEqual({
       version: 2, enabled: false, maxServers: 1, maxToolsPerRequest: 12,
@@ -1198,7 +1218,7 @@ describe("metadata-client", () => {
       json: vi.fn(),
     } as unknown as Response);
 
-    const metadata = await import("../metadata-client");
+    const metadata = await importMetadataClient();
     await metadata.initMetadata();
 
     expect(metadata.getCapabilityContractVersion()).toBe(3);
@@ -1245,7 +1265,7 @@ describe("metadata-client", () => {
       json: vi.fn(),
     } as unknown as Response);
 
-    const metadata = await import("../metadata-client");
+    const metadata = await importMetadataClient();
     await metadata.initMetadata();
 
     const config = metadata.getLibraryRuntimeConfig();
@@ -1303,7 +1323,7 @@ describe("metadata-client", () => {
       json: vi.fn(),
     } as unknown as Response);
 
-    const metadata = await import("../metadata-client");
+    const metadata = await importMetadataClient();
     await metadata.initMetadata();
 
     expect(
@@ -1369,12 +1389,6 @@ describe("metadata-client", () => {
                 keyValidationTimeoutSecs: 18,
                 upstreamFirstByteTimeoutSecs: 120,
               },
-              promptBudget: {
-                totalChars: 12000,
-                pinnedNotesMaxCount: 3,
-                pinnedNotesBudgetChars: 6000,
-                noteRecallLimit: 2,
-              },
               attachment: {
                 maxFiles: 3,
                 maxNativeBytesByProvider: {
@@ -1393,7 +1407,7 @@ describe("metadata-client", () => {
       ),
     );
 
-    const metadata = await import("../metadata-client");
+    const metadata = await importMetadataClient();
     await metadata.initMetadata();
 
     expect(metadata.getMetadataVersion()).toBe(8);
@@ -1442,7 +1456,7 @@ describe("metadata-client", () => {
       },
     }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
 
-    const metadata = await import('../metadata-client');
+    const metadata = await importMetadataClient();
     await metadata.initMetadata();
 
     expect(metadata.resolveGenerationProfileRef({
@@ -1490,7 +1504,7 @@ describe("metadata-client", () => {
       },
     }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
 
-    const metadata = await import('../metadata-client');
+    const metadata = await importMetadataClient();
     await metadata.initMetadata();
 
     const narrowed = metadata.resolveGenerationProfileRef({
@@ -1544,7 +1558,7 @@ describe("metadata-client", () => {
       json: vi.fn(),
     } as unknown as Response);
 
-    const metadata = await import("../metadata-client");
+    const metadata = await importMetadataClient();
     await metadata.initMetadata();
 
     expect(
@@ -1582,7 +1596,7 @@ describe("metadata-client", () => {
       json: vi.fn(),
     } as unknown as Response);
 
-    const metadata = await import("../metadata-client");
+    const metadata = await importMetadataClient();
     await metadata.initMetadata();
 
     expect(metadata.getReasoningProfile("kimi_thinking")).toEqual({
@@ -1636,7 +1650,7 @@ describe("metadata-client", () => {
       json: vi.fn(),
     } as unknown as Response);
 
-    const metadata = await import("../metadata-client");
+    const metadata = await importMetadataClient();
     await metadata.initMetadata();
 
     const resolved = metadata.resolveCatalogModel(
@@ -1695,7 +1709,7 @@ describe("metadata-client", () => {
       json: vi.fn(),
     } as unknown as Response);
 
-    const metadata = await import("../metadata-client");
+    const metadata = await importMetadataClient();
     await metadata.initMetadata();
 
     expect(
@@ -1789,7 +1803,7 @@ describe("metadata-client", () => {
       json: vi.fn(),
     } as unknown as Response);
 
-    const metadata = await import("../metadata-client");
+    const metadata = await importMetadataClient();
     await metadata.initMetadata();
 
     expect(metadata.getRelayProbePolicy()).toMatchObject({
@@ -1852,7 +1866,7 @@ describe("metadata-client", () => {
       json: vi.fn(),
     } as unknown as Response);
 
-    const metadata = await import("../metadata-client");
+    const metadata = await importMetadataClient();
     await metadata.initMetadata();
 
     const resolved = metadata.resolveCatalogModel("gpt-image-1", "openAI");
@@ -1935,7 +1949,7 @@ describe("metadata-client", () => {
       json: vi.fn(),
     } as unknown as Response);
 
-    const metadata = await import("../metadata-client");
+    const metadata = await importMetadataClient();
     await metadata.initMetadata();
 
     const sfSupport = metadata.getProviderAttachmentSupport("siliconFlow");
@@ -1987,7 +2001,7 @@ describe("metadata-client", () => {
       json: vi.fn(),
     } as unknown as Response);
 
-    const metadata = await import("../metadata-client");
+    const metadata = await importMetadataClient();
     await metadata.initMetadata();
 
     expect(metadata.hasPublicProviderConfigSource()).toBe(false);
@@ -2012,7 +2026,7 @@ describe("metadata-client", () => {
       json: vi.fn(),
     } as unknown as Response);
 
-    const metadata = await import("../metadata-client");
+    const metadata = await importMetadataClient();
     await metadata.initMetadata();
 
     const runtime = metadata.getRelayRuntimeConfig();
@@ -2079,7 +2093,7 @@ describe("metadata-client", () => {
       json: vi.fn(),
     } as unknown as Response);
 
-    const metadata = await import("../metadata-client");
+    const metadata = await importMetadataClient();
     await metadata.initMetadata();
 
     const runtime = metadata.getRelayRuntimeConfig();
@@ -2158,7 +2172,7 @@ describe("metadata-client", () => {
       json: vi.fn(),
     } as unknown as Response);
 
-    const metadata = await import("../metadata-client");
+    const metadata = await importMetadataClient();
     await metadata.initMetadata();
 
     // Without transportPriority, cross_provider matching lands on OpenAI.
@@ -2188,6 +2202,99 @@ describe("metadata-client", () => {
   });
 
   /**
+   * A fire-and-forget background refresh is detached from the caller's scope and reset cannot abort it: a response issued before the reset and returning after it,
+   * if committed as usual, would write the previous case's snapshot / ETag into later cases of the same file.
+   */
+  describe("reset invalidates late background writes", () => {
+    const latePayload = {
+      code: 0,
+      data: {
+        view: "lean",
+        version: 99,
+        contractVersion: 1,
+        updatedAt: "2026-10-18T00:00:00Z",
+        profiles: {},
+        providers: {
+          openAI: {
+            defaultModelId: "late-model",
+            resolveMap: { "late-model": "late-model" },
+            models: { "late-model": { canonicalModelId: "late-model", capabilities: ["text"] } },
+          },
+        },
+      },
+    };
+
+    /** Cache hit: initMetadata goes through refreshInBackground; the fetch is released manually by the case. */
+    async function startBackgroundRefresh() {
+      await seedMetadataCache({
+        timestamp: Date.now(),
+        etag: '"seed"',
+        data: {
+          version: 1,
+          contractVersion: 1,
+          updatedAt: "2026-10-01T00:00:00Z",
+          profiles: {},
+          providers: {
+            openAI: {
+              defaultModelId: "seed-model",
+              resolveMap: { "seed-model": "seed-model" },
+              models: { "seed-model": { canonicalModelId: "seed-model", capabilities: ["text"] } },
+            },
+          },
+        },
+      });
+      let release: (() => void) | null = null;
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
+        () =>
+          new Promise<Response>((resolve) => {
+            release = () =>
+              resolve(new Response(JSON.stringify(latePayload), {
+                status: 200,
+                headers: { "Content-Type": "application/json", ETag: '"late"' },
+              }));
+          }),
+      );
+      const metadata = await importMetadataClient();
+      await metadata.initMetadata();
+      expect(JSON.stringify(metadata.getMetadataSnapshot())).toContain("seed-model");
+      await vi.waitFor(() => expect(release).not.toBeNull());
+      expect(String(fetchSpy.mock.calls[0]?.[0])).toMatch(/\/api\/metadata\?view=index/);
+      return { metadata, release: () => release!() };
+    }
+
+    it("a background refresh arriving after reset does not write back the snapshot", async () => {
+      const { metadata, release } = await startBackgroundRefresh();
+      metadata.__resetMetadataClientForTest();
+
+      release();
+      await metadata.__settleMetadataBackgroundWorkForTest();
+
+      expect(metadata.getMetadataSnapshot()).toBeNull();
+      expect(metadata.getCachedMetadataVersion()).toBe(0);
+      expect(metadata.isMetadataSnapshotConfirmed()).toBe(false);
+      // What is persisted is still the one seeded before the reset: neither the snapshot nor the ETag of the late response was written.
+      const persisted = await readMetadataCache();
+      expect(persisted?.etag).toBe('"seed"');
+      expect(persisted?.data.version).toBe(1);
+    });
+
+    it("without a reset the same late refresh is written as usual", async () => {
+      const { metadata, release } = await startBackgroundRefresh();
+      const revisionBefore = metadata.getCachedMetadataVersion();
+
+      release();
+      await metadata.__settleMetadataBackgroundWorkForTest();
+
+      expect(JSON.stringify(metadata.getMetadataSnapshot())).toContain("late-model");
+      expect(metadata.getCachedMetadataVersion()).toBeGreaterThan(revisionBefore);
+      expect(metadata.isMetadataSnapshotConfirmed()).toBe(true);
+      const persisted = await readMetadataCache();
+      expect(persisted?.etag).toBe('"late"');
+      expect(persisted?.data.version).toBe(99);
+    });
+  });
+
+  /**
    * The negative conclusion of library routing ("this model cannot search automatically")
    * is gated on this flag. The localStorage cache can be stuck at any moment in history, and
    * drawing that negative conclusion from it before this session has confirmed it is exactly the
@@ -2203,7 +2310,7 @@ describe("metadata-client", () => {
     };
 
     it("unconfirmed before a refresh", async () => {
-      const metadata = await import("../metadata-client");
+      const metadata = await importMetadataClient();
       metadata.__resetMetadataClientForTest();
       expect(metadata.isMetadataSnapshotConfirmed()).toBe(false);
     });
@@ -2215,7 +2322,7 @@ describe("metadata-client", () => {
           headers: { "Content-Type": "application/json" },
         }),
       );
-      const metadata = await import("../metadata-client");
+      const metadata = await importMetadataClient();
       metadata.__resetMetadataClientForTest();
 
       await metadata.refreshMetadata();
@@ -2227,7 +2334,7 @@ describe("metadata-client", () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValue(
         new Response(null, { status: 304 }),
       );
-      const metadata = await import("../metadata-client");
+      const metadata = await importMetadataClient();
       metadata.__resetMetadataClientForTest();
 
       await metadata.refreshMetadata();
@@ -2242,7 +2349,7 @@ describe("metadata-client", () => {
           headers: { "Content-Type": "application/json", ETag: '"cached-etag"' },
         }),
       );
-      const metadata = await import("../metadata-client");
+      const metadata = await importMetadataClient();
       metadata.__resetMetadataClientForTest();
       await metadata.refreshMetadata();
       await new Promise((resolve) => setTimeout(resolve, 20));
@@ -2282,7 +2389,7 @@ describe("metadata-client", () => {
           { status: 200, headers: { "Content-Type": "application/json" } },
         ),
       );
-      const metadata = await import("../metadata-client");
+      const metadata = await importMetadataClient();
       metadata.__resetMetadataClientForTest();
       await metadata.refreshMetadata();
       return metadata;
@@ -2325,7 +2432,7 @@ describe("metadata-client", () => {
     });
 
     it("stays fail-open while the snapshot has not arrived", async () => {
-      const metadata = await import("../metadata-client");
+      const metadata = await importMetadataClient();
       metadata.__resetMetadataClientForTest();
       expect(metadata.getSupportedReasoningModes("oai_responses")).toEqual([
         "automatic", "fast", "balanced", "deep", "max",
@@ -2408,7 +2515,7 @@ describe("metadata-client", () => {
         },
       }),
     );
-    const metadata = await import("../metadata-client");
+    const metadata = await importMetadataClient();
     metadata.__resetMetadataClientForTest();
     await metadata.refreshMetadata();
 
@@ -2470,5 +2577,52 @@ describe("metadata-client", () => {
     await metadata.refreshMetadata();
 
     expect(metadata.resolveCatalogModel("gpt-5-pro", "openAI")?.profiles.generation).toBeUndefined();
+  });
+
+  it("index provider with retiredModels: getProviderRetiredModels returns the same value, defaults to [], and survives a persisted reload", async () => {
+    const retiredModels = [
+      { id: "deepseek-chat", displayName: "DeepSeek Chat", retiredAt: "2026-07-24T00:00:00Z", routedTo: "deepseek-flash" },
+      { id: "deepseek-reasoner", displayName: "DeepSeek Reasoner", retiredAt: "2026-07-24T00:00:00Z", routedTo: null },
+    ];
+    const indexPayload = {
+      view: "index",
+      version: 1,
+      contractVersion: 1,
+      updatedAt: "2026-10-19T00:00:00Z",
+      profiles: {},
+      providers: {
+        deepseek: { defaultModelId: "deepseek-flash", catalogRevision: "r1", modelCount: 1, retiredModels },
+        openAI: { defaultModelId: "gpt-5.4", catalogRevision: "r1", modelCount: 1 },
+      },
+    };
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.replace(/&schema=\d+$/, "").endsWith("view=index")) {
+        return new Response(JSON.stringify({ code: 0, data: indexPayload }), {
+          status: 200,
+          headers: { "Content-Type": "application/json", ETag: '"index-retired-r1"' },
+        });
+      }
+      return new Response(null, { status: 404 });
+    });
+
+    let metadata = await importMetadataClient();
+    metadata.__resetMetadataClientForTest();
+    await metadata.refreshMetadata();
+
+    expect(metadata.getProviderRetiredModels("deepseek")).toEqual(retiredModels);
+    expect(metadata.getProviderRetiredModels("openAI")).toEqual([]);
+    expect(metadata.getProviderRetiredModels("anthropic")).toEqual([]);
+
+    // After persistence lands, switch to a fresh module instance and cold-start offline: the tombstones come from the local cache
+    await new Promise((r) => setTimeout(r, 30));
+    vi.restoreAllMocks();
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("offline"));
+    vi.resetModules();
+    metadata = await importMetadataClient();
+    await metadata.initMetadata();
+
+    expect(metadata.getProviderRetiredModels("deepseek")).toEqual(retiredModels);
+    expect(metadata.getProviderRetiredModels("openAI")).toEqual([]);
   });
 });

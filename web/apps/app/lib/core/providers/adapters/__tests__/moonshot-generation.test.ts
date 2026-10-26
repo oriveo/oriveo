@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AIModel, Provider } from '@oriveo/shared';
 import {
   __resetMetadataClientForTest,
+  __settleMetadataBackgroundWorkForTest,
   initMetadata,
 } from '../../../metadata/metadata-client';
 import {
@@ -143,6 +144,11 @@ beforeEach(() => {
   __resetMetadataClientForTest();
   resetUnsupportedParamCacheForTesting();
   resetCapabilityEvidenceIdentitiesForTesting();
+});
+
+afterEach(async () => {
+  await __settleMetadataBackgroundWorkForTest();
+  __resetMetadataClientForTest();
 });
 
 describe('Moonshot China direct generation parameters', () => {

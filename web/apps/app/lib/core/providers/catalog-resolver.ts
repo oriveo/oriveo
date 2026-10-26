@@ -379,7 +379,8 @@ function metadataToAIModel(
 
   return {
     id: modelId,
-    canonicalModelId: meta.canonicalModelId,
+    // The catalog omits a canonicalModelId that equals the tree id: fill in the tree id when it is omitted, same as iOS / Android.
+    canonicalModelId: meta.canonicalModelId ?? modelId,
     name: meta.displayName ?? modelId,
     capabilities,
     // A v2 catalog hit must keep null explicitly, and a missing key fails safe to null as well, so a

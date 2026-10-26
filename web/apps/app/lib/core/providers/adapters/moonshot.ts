@@ -28,12 +28,14 @@ import {
 } from "@oriveo/core/providers/unsupported-param";
 // The relay prefix only says where this originated: it is a generic irreversible origin+path fingerprint and applies to official endpoints too.
 import { relayEndpointFingerprint } from "@oriveo/core/providers/relay-stream";
+import { mergeToolLoopUsage } from "@oriveo/core/tools/tool-call-loop";
 import { applyGenerationParameters } from "@oriveo/core/providers/request-builders/generation-parameters";
 import type {
   ContentPart,
   StreamEvent,
   StreamHandle,
   StreamOptions,
+  StreamUsage,
   SyncResult,
 } from "../types";
 
@@ -54,8 +56,17 @@ interface MoonshotChunk {
       content?: string;
       reasoning_content?: string;
     };
+    /** The Kimi stream sometimes puts usage inside choices[0] (seen in the recorded moonshot*.sse streams). */
+    usage?: Record<string, unknown>;
   }>;
   usage?: Record<string, unknown>;
+}
+
+/** Usage of this frame: top level first, falling back to choices[0].usage when the top level is missing. */
+function moonshotChunkUsage(chunk: MoonshotChunk): Record<string, unknown> | undefined {
+  if (chunk.usage && typeof chunk.usage === "object") return chunk.usage;
+  const nested = chunk.choices?.[0]?.usage;
+  return nested && typeof nested === "object" && !Array.isArray(nested) ? nested : undefined;
 }
 
 /** Streaming tool_calls delta: id/type/name only appear in the first fragment, and arguments are split across fragments */
@@ -169,16 +180,9 @@ export function sendMessageStream(
     // The breakdown has to be injected, or Moonshot's top-level `cached_tokens` field is never
     // picked up: the OpenAI template reads prompt_tokens_details.cached_tokens and always finds 0,
     // so the cache discount is lost.
-    if (chunk.usage) {
-      events.push({
-        type: "usage",
-        usage: {
-          prompt_tokens: typeof chunk.usage.prompt_tokens === "number" ? chunk.usage.prompt_tokens : undefined,
-          completion_tokens: typeof chunk.usage.completion_tokens === "number" ? chunk.usage.completion_tokens : undefined,
-          total_tokens: typeof chunk.usage.total_tokens === "number" ? chunk.usage.total_tokens : undefined,
-          breakdown: parseUsageMoonshot(chunk.usage),
-        },
-      });
+    const usage = moonshotChunkUsage(chunk);
+    if (usage) {
+      events.push({ type: "usage", usage: moonshotStreamUsage(usage) });
     }
 
     const choice = chunk.choices?.[0];
@@ -238,8 +242,9 @@ const DEFAULT_MOONSHOT_MAX_TOOL_LOOPS = 4;
 /**
  * Streaming tool loop on the browser side: every leg is a streaming request, so reasoning and delta
  * events reach the stream live. If a leg ends with accumulated tool_calls, the echo plus arguments
- * are fed back into the next leg, otherwise the loop finishes. usage is captured per leg and summed
- * across legs (each leg is billed separately) and emitted once at the end.
+ * are fed back into the next leg, otherwise the loop finishes. usage is captured per leg (every leg
+ * uses the same parser as regular chat) and emitted once at the end through the multi-leg merge
+ * entry: each leg is priced on its own, and if any leg reports no usage the whole total is unknown.
  *
  * This loop deliberately does not use the generic tool loop in packages/core/src/tools. The Kimi
  * contract requires the assistant tool-call message that is fed back to carry reasoning_content
@@ -258,7 +263,8 @@ function sendWebSearchToolLoopStream(
   const stream = new ReadableStream<StreamEvent>({
     async start(ctrl) {
       const requestMessages = [...(body.messages as Array<Record<string, unknown>>)];
-      const totals = { prompt: 0, completion: 0, cached: 0, seen: false };
+      // Per-leg usage is accumulated through the multi-leg merge entry: each leg keeps its breakdown, and a leg without usage marks the whole total unknown.
+      let mergedUsage: StreamUsage | undefined;
       let anyReasoning = false;
       const toolLoopLimit = normalizeToolLoopLimit(maxToolLoops);
 
@@ -268,6 +274,7 @@ function sendWebSearchToolLoopStream(
           reasoning: "",
           builders: new Map<number, { id?: string; type?: string; name?: string; arguments: string }>(),
           failed: false,
+          usage: undefined as StreamUsage | undefined,
         };
 
         const parseChunk = (
@@ -280,12 +287,10 @@ function sendWebSearchToolLoopStream(
           if (chunk.model) {
             events.push({ type: "model", modelID: chunk.model });
           }
-          if (chunk.usage) {
-            // usage is captured rather than forwarded; it is summed across legs and emitted once at the end
-            totals.seen = true;
-            totals.prompt += numberOrZero(chunk.usage.prompt_tokens);
-            totals.completion += numberOrZero(chunk.usage.completion_tokens);
-            totals.cached += numberOrZero(chunk.usage.cached_tokens);
+          const usage = moonshotChunkUsage(chunk);
+          if (usage) {
+            // usage is captured rather than forwarded: take the last frame of this leg, merge it into the multi-leg result at the end of the leg, and emit once at the end
+            legState.usage = moonshotStreamUsage(usage);
           }
 
           const choice = chunk.choices?.[0];
@@ -341,6 +346,7 @@ function sendWebSearchToolLoopStream(
           return;
         }
 
+        mergedUsage = leg === 0 ? legState.usage : mergeToolLoopUsage(mergedUsage, legState.usage);
         anyReasoning = anyReasoning || legState.reasoning.length > 0;
         const toolCalls = finalizeMoonshotToolCalls(legState.builders);
         if (toolCalls.length === 0) break;
@@ -365,22 +371,8 @@ function sendWebSearchToolLoopStream(
         }
       }
 
-      if (totals.seen) {
-        const rawUsage = {
-          prompt_tokens: totals.prompt,
-          completion_tokens: totals.completion,
-          total_tokens: totals.prompt + totals.completion,
-          cached_tokens: totals.cached,
-        };
-        ctrl.enqueue({
-          type: "usage",
-          usage: {
-            prompt_tokens: totals.prompt,
-            completion_tokens: totals.completion,
-            total_tokens: totals.prompt + totals.completion,
-            breakdown: parseUsageMoonshot(rawUsage),
-          },
-        });
+      if (mergedUsage) {
+        ctrl.enqueue({ type: "usage", usage: mergedUsage });
       }
       ctrl.enqueue({ type: "done" });
       ctrl.close();
@@ -478,8 +470,14 @@ function finalizeMoonshotToolCalls(
     }));
 }
 
-function numberOrZero(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+/** Usage of a single leg: same parser as regular chat (top-level cached_tokens goes into the cache bucket). */
+function moonshotStreamUsage(raw: Record<string, unknown>): StreamUsage {
+  return {
+    prompt_tokens: typeof raw.prompt_tokens === "number" ? raw.prompt_tokens : undefined,
+    completion_tokens: typeof raw.completion_tokens === "number" ? raw.completion_tokens : undefined,
+    total_tokens: typeof raw.total_tokens === "number" ? raw.total_tokens : undefined,
+    breakdown: parseUsageMoonshot(raw),
+  };
 }
 
 function normalizeToolLoopLimit(value: unknown): number {

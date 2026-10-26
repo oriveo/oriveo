@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, expect, it } from 'vitest';
-import type { Provider } from '@oriveo/shared';
+import type { AIModel, Provider } from '@oriveo/shared';
 import {
   relayProviderCredentialState,
   relayProviderRequiresCredential,
@@ -14,6 +14,19 @@ import {
   transportSupportsWebSearch,
 } from '../relay-runtime-support';
 import { DEFAULT_RELAY_RUNTIME_CONFIG } from '../../metadata/metadata-client';
+
+function makeModel(overrides: Partial<AIModel> = {}): AIModel {
+  return {
+    id: 'relay-model',
+    name: 'relay-model',
+    capabilities: ['text'],
+    reasoningModeAvailable: false,
+    isAvailable: true,
+    isDefault: false,
+    priceTier: '',
+    ...overrides,
+  };
+}
 
 function makeRelayProvider(
   overrides: Partial<Provider> = {},
@@ -37,15 +50,22 @@ describe('relay-runtime-support', () => {
     expect(resolveRelayAttachmentSupport(provider, DEFAULT_RELAY_RUNTIME_CONFIG)).toBeNull();
   });
 
-  it('resolveRelayAttachmentSupport: returns null while the transport is undecided (connection default auto, model sets none; stays disabled)', () => {
+  it('resolveRelayAttachmentSupport: connection default auto with no model protocol looks up the envelope by the attachment-free first-send protocol', () => {
     const provider = makeRelayProvider({ relayRequested: { transport: 'auto', authMode: 'auto' } });
+    // The image / attachment entry point reads the attachment-free first-send protocol; the first candidate is not Messages -> Chat Completions.
+    expect(resolveRelayAttachmentSupport(provider, DEFAULT_RELAY_RUNTIME_CONFIG, makeModel())).toEqual({
+      image: true,
+      nativeFile: false,
+      textFileInline: true,
+    });
+    // Without a model the first-send protocol cannot be computed, so it is still treated as an undecided connection-level protocol.
     expect(resolveRelayAttachmentSupport(provider, DEFAULT_RELAY_RUNTIME_CONFIG)).toBeNull();
   });
 
   it('resolveRelayAttachmentSupport: the protocol a model sets itself wins over the connection default (per model)', () => {
     const provider = makeRelayProvider({ relayRequested: { transport: 'openai_chat_completions', authMode: 'auto' } });
     expect(resolveRelayAttachmentSupport(provider, DEFAULT_RELAY_RUNTIME_CONFIG)?.nativeFile).toBe(false);
-    expect(resolveRelayAttachmentSupport(provider, DEFAULT_RELAY_RUNTIME_CONFIG, { relayTransport: 'openai_responses' })?.nativeFile)
+    expect(resolveRelayAttachmentSupport(provider, DEFAULT_RELAY_RUNTIME_CONFIG, makeModel({ relayTransport: 'openai_responses' }))?.nativeFile)
       .toBe(true);
   });
 

@@ -53,6 +53,24 @@ const QWEN = {
 };
 const MOVED_BJ = 'https://cn-beijing.dashscope.aliyuncs.com';
 
+type MetadataClientModule = typeof import('../../metadata/metadata-client');
+
+// The latest instance dynamically imported after a case's vi.resetModules; afterEach waits for its
+// background refresh / persistence to settle and then restores it, so nothing leaks into the next case.
+let metadataInstance: MetadataClientModule | null = null;
+
+async function importMetadataClient(): Promise<MetadataClientModule> {
+  metadataInstance = await import('../../metadata/metadata-client');
+  return metadataInstance;
+}
+
+async function restoreMetadataInstance(): Promise<void> {
+  if (!metadataInstance) return;
+  await metadataInstance.__settleMetadataBackgroundWorkForTest();
+  metadataInstance.__resetMetadataClientForTest();
+  metadataInstance = null;
+}
+
 async function loadMetadata(bjBaseURL = 'https://dashscope.aliyuncs.com') {
   vi.resetModules();
   await pruneBlobs(() => true);
@@ -72,7 +90,7 @@ async function loadMetadata(bjBaseURL = 'https://dashscope.aliyuncs.com') {
     } as never,
   });
   vi.spyOn(globalThis, 'fetch').mockResolvedValue({ status: 304, ok: false, json: vi.fn() } as unknown as Response);
-  const metadata = await import('../../metadata/metadata-client');
+  const metadata = await importMetadataClient();
   await metadata.initMetadata();
 }
 
@@ -141,7 +159,8 @@ describe('endpointSource takes effect at the production send entries', () => {
     });
     mocks.createPartialFlushScheduler.mockReturnValue({ onChunk: vi.fn(), dispose: vi.fn() });
   });
-  afterEach(() => {
+  afterEach(async () => {
+    await restoreMetadataInstance();
     vi.restoreAllMocks();
   });
 
@@ -266,7 +285,7 @@ async function loadCaseMetadata(testCase: SendFixture['reconcileCases'][number])
     }
     return { status: 304, ok: false, json: vi.fn() } as unknown as Response;
   });
-  const metadata = await import('../../metadata/metadata-client');
+  const metadata = await importMetadataClient();
   await metadata.initMetadata();
   await metadata.__settleMetadataBackgroundWorkForTest();
   const actualService = await vi.importActual<typeof import('../service')>('../service');
@@ -276,7 +295,8 @@ async function loadCaseMetadata(testCase: SendFixture['reconcileCases'][number])
 }
 
 describe('ENDPOINT-SOURCE-SEND fixture sendPath: existing records hit the expected host through the production main chat entry', () => {
-  afterEach(() => {
+  afterEach(async () => {
+    await restoreMetadataInstance();
     vi.restoreAllMocks();
   });
 

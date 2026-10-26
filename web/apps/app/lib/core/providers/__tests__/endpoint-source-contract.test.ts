@@ -97,6 +97,24 @@ function caseMetadata(configName: string, patch: MetadataPatch): RawConfig | nul
   return applyMetadataPatch(base, patch);
 }
 
+type MetadataClientModule = typeof import('../../metadata/metadata-client');
+
+// The latest instance dynamically imported after a case's vi.resetModules; afterEach waits for its
+// background refresh / persistence to settle and then restores it, so nothing leaks into the next case.
+let metadataInstance: MetadataClientModule | null = null;
+
+async function importMetadataClient(): Promise<MetadataClientModule> {
+  metadataInstance = await import('../../metadata/metadata-client');
+  return metadataInstance;
+}
+
+async function restoreMetadataInstance(): Promise<void> {
+  if (!metadataInstance) return;
+  await metadataInstance.__settleMetadataBackgroundWorkForTest();
+  metadataInstance.__resetMetadataClientForTest();
+  metadataInstance = null;
+}
+
 async function loadMetadata(config: RawConfig | null) {
   vi.resetModules();
   await pruneBlobs(() => true);
@@ -116,9 +134,9 @@ async function loadMetadata(config: RawConfig | null) {
     });
   }
   vi.spyOn(globalThis, 'fetch').mockResolvedValue({ status: 304, ok: false, json: vi.fn() } as unknown as Response);
-  const metadata = await import('../../metadata/metadata-client');
+  const metadata = await importMetadataClient();
   await metadata.initMetadata();
-  // Assert after the background refresh settles, so it does not write back to the cache only after the next case seeds (cross-case data leakage)
+  // Assert after the background refresh settles: otherwise the resolver may read the pre-refresh address (the missing_source case flakes)
   await metadata.__settleMetadataBackgroundWorkForTest();
   const endpointSource = await import('../endpoint-source');
   const resolver = await import('../transport/endpoint-resolver');
@@ -153,7 +171,9 @@ describe('endpoint-source.v1 fixture', () => {
   beforeEach(async () => {
     await pruneBlobs(() => true);
   });
-  afterEach(() => {
+  afterEach(async () => {
+    // Settle the background refresh and restore, so it does not write back to the cache only after the next case seeds (cross-case data leakage)
+    await restoreMetadataInstance();
     vi.restoreAllMocks();
   });
 

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as siliconFlowService from "../siliconflow";
 
-vi.mock("../../../metadata/metadata-client", () => ({
+vi.mock("../../../metadata/metadata-client", async (importOriginal) => (await import("../../../../__tests__/mocks/metadata-client")).metadataClientMock(importOriginal, {
   initMetadata: vi.fn().mockResolvedValue(undefined),
   getProviderDefaultModelId: vi.fn().mockReturnValue("Qwen/Qwen3-235B-A22B"),
   listProviderModelIds: vi.fn().mockReturnValue([

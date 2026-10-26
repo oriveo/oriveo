@@ -8,6 +8,7 @@
  */
 import type { AIModel, Provider, RelayAuthMode } from '@oriveo/shared';
 import { decidedTransport } from '@oriveo/core/providers/relay-effective';
+import { relayFirstSendTransport } from './relay-first-send-transport';
 import { resolveProviderAPIKey } from '@oriveo/core/providers/provider-credential';
 import type { ProviderAttachmentSupport, RelayRuntimeConfig } from '../metadata/metadata-client';
 import {
@@ -73,17 +74,23 @@ export function relayProviderCredentialState(provider: Provider): RelayCredentia
 }
 
 /**
- * attachmentSupport for a relay, derived from the transport envelope of the model's own protocol alone; the model
- * capabilities are intersected one layer up. The protocol is Relay 2.0 `decidedTransport` (the model's own, or the connection default when not auto);
- * non-relay or an undecided protocol returns null and the composer stays disabled (fail-closed).
+ * attachmentSupport for a relay, derived from the transport envelope of the model's protocol alone; the model
+ * capabilities are intersected one layer up. The protocol is the first-send protocol without attachments
+ * (`relayFirstSendTransport`, read the same way as the first chat send, the negative-cache key and the
+ * "Auto =" line on the advanced page): when the connection default is auto and the model has none, the
+ * envelope is still looked up by the first-send protocol, so the entry point is no longer closed just
+ * because the protocol is undecided. Non-relay / missing envelope / no model and an undecided connection
+ * protocol returns null and the composer stays disabled (fail-closed).
  */
 export function resolveRelayAttachmentSupport(
   provider: Provider,
   runtimeConfig: RelayRuntimeConfig,
-  model?: Pick<AIModel, 'relayTransport'> | null,
+  model?: AIModel | null,
 ): ProviderAttachmentSupport | null {
   if (provider.kind !== 'relay') return null;
-  const envelope = resolveRelayEnvelope(decidedTransport(provider, model), runtimeConfig);
+  // Without a model the first-send protocol cannot be computed, so fall back to the connection-level protocol (auto still means undecided -> null).
+  const transport = model ? relayFirstSendTransport(provider, model) : decidedTransport(provider, null);
+  const envelope = resolveRelayEnvelope(transport, runtimeConfig);
   if (!envelope) return null;
   return {
     image: envelope.image,

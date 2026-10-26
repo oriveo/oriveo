@@ -1,3 +1,4 @@
+import { isCancellationError } from './cancellation';
 import {
   serviceReachabilityMonitor,
   type ServiceReachabilityMonitor,
@@ -27,7 +28,14 @@ export async function fetchWithReachability(
     }
     return response;
   } catch (error) {
-    monitor.reportRemoteFailure('backendAPI');
+    // An abort caused by the user stopping generation / closing the page / cancelling the task is not a backend failure: report nothing and leave the reachability state alone.
+    if (!isCancellationError(error, init?.signal ?? requestSignal(input))) {
+      monitor.reportRemoteFailure('backendAPI');
+    }
     throw error;
   }
+}
+
+function requestSignal(input: RequestInfo | URL): AbortSignal | undefined {
+  return typeof Request !== 'undefined' && input instanceof Request ? input.signal : undefined;
 }

@@ -1,4 +1,6 @@
 import type { CapabilityEvidenceCandidate } from '@oriveo/core/providers/capability-evidence-facade';
+import type { InputCapabilityKey } from '../capability-overrides';
+import type { AIModel, Provider } from '@oriveo/shared';
 import type {
   CapabilityTruthAdapter,
   CapabilityTruthQuery,
@@ -31,13 +33,18 @@ function relayCandidateScope(identity: RelayCapabilityEvidenceIdentity | undefin
     toolCallFields: { scope: 'connection_model_transport', ...identity },
     // Relay tool truth does not consult model-facts.
     toolCallModelFacts: false,
+    // Show-thinking only trusts the capabilities declared on the connection and never borrows the official catalog / model-facts.
+    thinking: 'declared',
   };
 }
 
-/** The two keys an engine declaration can answer; thinking goes through the reasoning-tier path (engine declaration), not here. */
+/**
+ * The keys an engine declaration can answer. thinking only answers "will thinking be shown"; the reasoning tiers still go through the tier path (engine declaration).
+ */
 const ENGINE_DECLARATION_KEYS = [
   ['vision_input', 'image'],
   ['tool_call', 'toolCall'],
+  ['reasoning/thinking', 'thinking'],
 ] as const;
 
 /**
@@ -117,6 +124,19 @@ function relayLocalFactCandidates(query: CapabilityTruthQuery): CapabilityEviden
       grade: 'observed',
     }];
   });
+}
+
+/**
+ * The input capability declaration the Relay list makes for this model: capabilities containing image counts as a positive vision signal.
+ * It only answers "is there any positive signal at all" (used to decide whether a rejected image send is recorded in the negative cache), and is not an entry-point ruling; the legacy capability bits are only read in the truth layer.
+ */
+export function relayDeclaredInputSignal(
+  _provider: Pick<Provider, 'relayRequested'>,
+  model: Pick<AIModel, 'capabilities'>,
+  key: InputCapabilityKey,
+): boolean {
+  if (key !== 'vision_input') return false;
+  return (model.capabilities ?? []).includes('image');
 }
 
 /**

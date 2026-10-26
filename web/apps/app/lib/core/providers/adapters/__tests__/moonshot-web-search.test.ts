@@ -7,11 +7,11 @@
  *    message fed back in must carry reasoning_content, since Kimi returns 400 when it is
  *    missing while thinking is active.
  * 3. Across multiple legs, reasoning is joined with "\n\n" and usage is captured per leg,
- *    accumulated and emitted once.
+ *    then emitted once through the multi-leg merge entry (priced per leg).
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../../metadata/metadata-client", () => ({
+vi.mock("../../../metadata/metadata-client", async (importOriginal) => (await import("../../../../__tests__/mocks/metadata-client")).metadataClientMock(importOriginal, {
   initMetadata: vi.fn().mockResolvedValue(undefined),
   refreshMetadata: vi.fn().mockResolvedValue(undefined),
   listProviderModelIds: vi.fn().mockReturnValue([]),
@@ -29,7 +29,7 @@ import {
   resolveCatalogModel,
 } from "../../../metadata/metadata-client";
 import { sendMessageStream } from "../moonshot";
-import type { StreamEvent } from "../../types";
+import type { StreamEvent, StreamUsage } from "../../types";
 
 const mockResolveCatalogModel = vi.mocked(resolveCatalogModel);
 const mockGetReasoningProfile = vi.mocked(getReasoningProfile);
@@ -207,10 +207,49 @@ describe("moonshot browser-side streaming tool loop", () => {
     expect(text).toBe("the answer");
     const usageEvents = events.filter((event) => event.type === "usage");
     expect(usageEvents).toHaveLength(1);
-    const usage = (usageEvents[0] as { usage: { prompt_tokens?: number; completion_tokens?: number } }).usage;
+    const usage = (usageEvents[0] as { usage: StreamUsage }).usage;
     expect(usage.prompt_tokens).toBe(30);
     expect(usage.completion_tokens).toBe(12);
+    // Priced per leg: each leg keeps the breakdown produced by the regular chat parser (top-level cached_tokens goes into the cache bucket)
+    expect(usage.legs?.map((leg) => leg.breakdown?.cachedInputTokens)).toEqual([2, 3]);
+    expect(usage.legs?.map((leg) => leg.breakdown?.completionTokens)).toEqual([5, 7]);
+    expect(usage.allLegsReported).toBeUndefined();
     expect(events.at(-1)?.type).toBe("done");
+  });
+
+  it("a leg that reports no usage is not dropped: the whole turn is marked as not fully reported", async () => {
+    const leg1 = [
+      '{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"t-1","type":"builtin_function","function":{"name":"$web_search","arguments":"{}"}}]}}],"usage":null}',
+      '{"choices":[{"delta":{},"finish_reason":"tool_calls"}],"usage":null}',
+    ];
+    const leg2 = [
+      '{"choices":[{"delta":{"content":"\u7b54\u6848"}}],"usage":null}',
+      '{"choices":[{"delta":{}}],"usage":{"prompt_tokens":20,"completion_tokens":7,"cached_tokens":3}}',
+    ];
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(sseResponse(leg1))
+      .mockResolvedValueOnce(sseResponse(leg2)));
+    mockResolveCatalogModel.mockReturnValue({ profiles: { webSearch: "kimi_web_search" } } as never);
+    mockGetWebSearchProfile.mockReturnValue({
+      name: "kimi_web_search",
+      mergeParams: { tools: [{ type: "builtin_function", function: { name: "$web_search" } }] },
+      maxToolLoops: 4,
+      streamShape: null,
+    } as never);
+
+    const events = await collect(sendMessageStream(
+      "sk-test",
+      "kimi-k2.5",
+      [{ role: "user", content: "\u4e0a\u6d77\u5929\u6c14\u5982\u4f55" }],
+      "https://api.moonshot.cn/v1",
+      { supportsWebSearch: true },
+    ).stream);
+
+    const usageEvents = events.filter((event) => event.type === "usage");
+    expect(usageEvents).toHaveLength(1);
+    const usage = (usageEvents[0] as { usage: StreamUsage }).usage;
+    expect(usage.allLegsReported).toBe(false);
+    expect(usage.prompt_tokens).toBe(20);
   });
 
   it("finishes on a single leg without starting another when there are no tool_calls", async () => {

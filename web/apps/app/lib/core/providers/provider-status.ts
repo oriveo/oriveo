@@ -21,9 +21,10 @@ export function allowsCredentialEditing(kind: ProviderKind): boolean {
 
 /**
  * Display-derived state: a missing local key shows as needsKey, otherwise the original status is
- * kept. Local engines (a non-empty relayRequested.engineProfile) are exempt - they need no
- * authentication and send no credentials, so an empty key is a valid state rather than a missing
- * one. Without the exemption a working LM Studio connection gets labelled "needs key".
+ * kept. Relays are judged only by relayRequested.authMode: a relay with authMode none sends no
+ * credentials, so an empty key is not a missing key. Local engines get no separate exemption:
+ * engines that need no authentication are created with authMode=none, while engines that need a
+ * key (Open WebUI) are created with bearer, and an empty key there is still a missing key.
  */
 export function getEffectiveStatusKind(provider: Provider): EffectiveStatusKind {
   // Subscription sign-in credentials do not live in `apiKey`, which stays empty even though the
@@ -46,7 +47,7 @@ export function getEffectiveStatusKind(provider: Provider): EffectiveStatusKind 
   if (
     allowsCredentialEditing(provider.kind)
     && resolveProviderAPIKey(provider).trim().length === 0
-    && !provider.relayRequested?.engineProfile
+    && !(provider.kind === 'relay' && provider.relayRequested?.authMode === 'none')
   ) {
     return 'needsKey';
   }

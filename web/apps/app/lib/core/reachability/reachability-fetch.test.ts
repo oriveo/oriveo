@@ -42,4 +42,46 @@ describe('fetchWithReachability', () => {
     await fetchWithReachability('/api/test', undefined, { fetcher, monitor });
     expect(monitor.getSnapshot()).toBe('online');
   });
+
+  it('does not report failure when the request is aborted before headers arrive', async () => {
+    const fetcher = vi.fn().mockRejectedValue(new DOMException('The operation was aborted.', 'AbortError'));
+
+    await expect(fetchWithReachability('/api/test', undefined, { fetcher, monitor })).rejects.toThrow();
+
+    expect(monitor.getSnapshot()).toBe('online');
+    expect(monitor.getBannerSnapshot()).toBe('online');
+  });
+
+  it('does not report failure when the caller signal is aborted with a custom reason', async () => {
+    const controller = new AbortController();
+    controller.abort(new Error('user stopped'));
+    const fetcher = vi.fn().mockRejectedValue(new Error('user stopped'));
+
+    await expect(fetchWithReachability('/api/test', { signal: controller.signal }, { fetcher, monitor })).rejects.toThrow('user stopped');
+
+    expect(monitor.getSnapshot()).toBe('online');
+  });
+
+  it('reports failure when the caller signal times out (AbortSignal.timeout is not a cancellation)', async () => {
+    const controller = new AbortController();
+    const timeout = new DOMException('The operation timed out.', 'TimeoutError');
+    controller.abort(timeout);
+    const fetcher = vi.fn().mockRejectedValue(timeout);
+
+    await expect(fetchWithReachability('/api/test', { signal: controller.signal }, { fetcher, monitor })).rejects.toThrow();
+
+    expect(monitor.getSnapshot()).toBe('servicesUnreachable');
+  });
+
+  it('keeps reachability state unchanged on abort after a prior failure', async () => {
+    const fetcher = vi.fn()
+      .mockRejectedValueOnce(new TypeError('network down'))
+      .mockRejectedValueOnce(new DOMException('aborted', 'AbortError'));
+
+    await expect(fetchWithReachability('/api/test', undefined, { fetcher, monitor })).rejects.toThrow();
+    expect(monitor.getSnapshot()).toBe('servicesUnreachable');
+
+    await expect(fetchWithReachability('/api/test', undefined, { fetcher, monitor })).rejects.toThrow();
+    expect(monitor.getSnapshot()).toBe('servicesUnreachable');
+  });
 });

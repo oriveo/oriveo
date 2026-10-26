@@ -274,13 +274,18 @@ describe('line declaration = what the production request builder actually does w
     }
   });
 
-  it('the DeepSeek and llama.cpp image placeholders match the declaration', () => {
+  it('DeepSeek sends image_url like OpenAI Chat; the llama.cpp image placeholder matches the declaration', () => {
     const withImage: ProxyMessage[] = [{
       role: 'user',
       content: [{ type: 'text', text: 'look' }, { type: 'image_url', image_url: { url: 'data:image/png;base64,AAAA' } }],
     }];
+    // DeepSeek no longer writes its own placeholder: an image part that reaches the builder (the projection said native_part) goes out as image_url.
     const deepseek = buildDeepSeekRequest({ ...params('deepseek'), messages: withImage }, null, false).body;
-    expect(JSON.stringify(deepseek)).toContain(attachmentTransportProfile('deepseek_chat').imagePlaceholderText);
+    expect(deepseek.messages).toEqual([{
+      role: 'user',
+      content: [{ type: 'text', text: 'look' }, { type: 'image_url', image_url: { url: 'data:image/png;base64,AAAA' } }],
+    }]);
+    expect(JSON.stringify(deepseek)).not.toContain(attachmentTransportProfile('deepseek_chat').imagePlaceholderText);
 
     // The same literal on every client; DeepSeek is an existing line and keeps its original placeholder.
     expect(attachmentTransportProfile('deepseek_chat').imagePlaceholderText).toBe('[Image omitted: unsupported by DeepSeek]');

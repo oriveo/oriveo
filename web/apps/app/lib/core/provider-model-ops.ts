@@ -11,7 +11,8 @@ import { cachedModelFamilyByModel, getRelayRuntimeConfig } from './metadata/meta
 import { inferModelFamily } from '@oriveo/shared';
 import { bindRelayKey, relayKeyIDs } from '@oriveo/shared/relay/relay-keys';
 import { getActiveUIDSync } from '../infra/storage/partition';
-import { clearToolCallMemoryForConnection } from './chat/capability-recovery-runtime';
+import { clearToolCallMemoryForModels } from './chat/capability-recovery-runtime';
+import { toolCallMemoryModelId } from './chat/tool-call-verdict';
 
 /**
  * Default capability ceiling for a manually entered model: general chat.
@@ -107,7 +108,16 @@ function patchProviderModels(
   provider: Provider,
   models: AIModel[],
 ) {
-  clearToolCallMemoryForConnection(getActiveUIDSync(), provider.id);
+  // Only a model whose manually entered tool_call declaration changed invalidates its rejection memory; enabling / disabling / renaming does not clear it.
+  const edited = models.filter((model) => {
+    const previous = provider.models.find((item) => item.id === model.id);
+    return previous !== undefined && previous.toolCall !== model.toolCall;
+  });
+  clearToolCallMemoryForModels(
+    getActiveUIDSync(),
+    provider.id,
+    edited.map((model) => toolCallMemoryModelId(provider, model)),
+  );
   const enriched = enrichRelayProviderModels(provider, withRelayKeyBindings(provider, models));
   store.getState().updateProvider(provider.id, {
     models: provider.kind === 'relay' ? deduplicateRelayModels(enriched) : uniqueModels(enriched),

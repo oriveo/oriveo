@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProviderKind } from "@oriveo/shared";
 
-vi.mock("../../../metadata/metadata-client", () => ({
+vi.mock("../../../metadata/metadata-client", async (importOriginal) => (await import("../../../../__tests__/mocks/metadata-client")).metadataClientMock(importOriginal, {
   initMetadata: vi.fn().mockResolvedValue(undefined),
   refreshMetadata: vi.fn().mockResolvedValue(undefined),
   getProviderDefaultModelId: vi.fn().mockReturnValue("default-model"),

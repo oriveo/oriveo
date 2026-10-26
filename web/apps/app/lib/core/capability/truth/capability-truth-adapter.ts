@@ -8,7 +8,12 @@ export type ModelCapabilityKey =
   | 'web_search'
   | 'vision_input'
   | 'tool_call'
+  /** Whether the thinking process is shown; a separate matter from the reasoning_level/* tiers, and a missing source = not shown. */
+  | 'reasoning/thinking'
   | `reasoning_level/${string}`;
+
+/** Fact key of "show thinking": each form adapter produces it only from its own source, and nothing outside the facade reads the legacy reasoning bit any more. */
+export const THINKING_CAPABILITY_KEY = 'reasoning/thinking' as const;
 
 export type RelayCapabilityEvidenceIdentity = Pick<CapabilityEvidenceQuery,
   'partitionId' | 'connectionInstanceId' | 'connectionGeneration' | 'credentialEpoch' | 'endpointFingerprint'>;

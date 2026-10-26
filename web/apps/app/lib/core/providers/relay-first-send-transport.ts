@@ -1,7 +1,7 @@
 import type { AIModel, Provider, RelayModelTransport } from '@oriveo/shared';
 import { decidedTransport, effectiveTransport } from '@oriveo/core/providers/relay-effective';
 import { providerFormOf } from '../capability/truth/provider-form';
-import { dispatchesImageGeneration } from '../chat/stream-options';
+import { dispatchesImageGeneration } from '../chat/image-generation-dispatch';
 import { cachedRelayProbeCandidates, relayCatalogEndpointTypes } from './relay-probe-candidates';
 
 /**

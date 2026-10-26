@@ -1,5 +1,5 @@
 import type { AIModel, Provider } from '@oriveo/shared';
-import { resolveCatalogModel } from '../metadata/metadata-client';
+import { getProviderRetiredModels, resolveCatalogModel } from '../metadata/metadata-client';
 import { resolveRelayStoredModel } from './relay-model-identity';
 
 const SNAPSHOT_DATE_RE = /(?:-\d{8}|-\d{4}-\d{2}-\d{2})$/;
@@ -47,29 +47,43 @@ export function createModelDisplayLookup(
         };
       }
 
+      // Neither the catalog nor local models have it: fall back to the tombstone name from the official catalog (retired models); relay connections do not use tombstones.
+      const tombstoneName = provider && provider.kind !== 'relay'
+        ? getProviderRetiredModels(provider.kind).find((entry) => entry.id === trimmed)?.displayName?.trim()
+        : undefined;
+
       return {
         modelId: trimmed,
         canonicalModelId: undefined,
-        displayName: undefined,
+        displayName: tombstoneName || undefined,
       };
     },
   };
 }
 
-export function findModelByIdentifier(
-  models: AIModel[],
+/**
+ * Find a model in a model list by identifier (same rule as iOS ModelResolver.matchingModel):
+ * candidates = [original id, date-stripped id], de-duplicated case-insensitively. Tier 1, exact: take the first
+ * model whose id equals a candidate, in candidate order. Tier 2, alias: the first model in list order whose
+ * canonical / id / date-stripped id / date-stripped canonical equals any candidate.
+ * Web has no manual-prefix convention, so there is no prefix-stripping tier. When `accept` is given, matching only
+ * considers the models it accepts (it is called only for models whose key hits, which keeps it lazy).
+ */
+export function findModelByIdentifier<T extends Pick<AIModel, 'id' | 'canonicalModelId'>>(
+  models: readonly T[],
   modelId: string | null | undefined,
-): AIModel | undefined {
+  accept: (model: T) => boolean = () => true,
+): T | undefined {
   const candidates = normalizedModelCandidates(modelId);
   if (candidates.length === 0) return undefined;
 
-  const exact = models.find((model) =>
-    candidates.includes(model.id.trim().toLowerCase()),
-  );
-  if (exact) return exact;
+  for (const candidate of candidates) {
+    const exact = models.find((model) => model.id.trim().toLowerCase() === candidate && accept(model));
+    if (exact) return exact;
+  }
 
   return models.find((model) =>
-    modelLookupKeys(model).some((candidate) => candidates.includes(candidate)),
+    modelLookupKeys(model).some((key) => candidates.includes(key)) && accept(model),
   );
 }
 
@@ -90,6 +104,7 @@ function modelLookupKeys(model: Pick<AIModel, 'id' | 'canonicalModelId'>): strin
     model.id,
     model.id.replace(SNAPSHOT_DATE_RE, ''),
     model.canonicalModelId,
+    model.canonicalModelId?.replace(SNAPSHOT_DATE_RE, ''),
   ];
 
   return candidates

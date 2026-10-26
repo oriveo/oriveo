@@ -16,12 +16,26 @@
 
 import type { Conversation, Provider } from '@oriveo/shared';
 import type { MonthlyCostSummary } from './cost-summary';
-import { buildMonthlyCostByProvider, buildMonthlyCostSummary } from './cost-summary';
+import {
+  buildDailyNonUsdCostsLast7DaysByProvider,
+  buildMonthlyBilledMessageCountByProvider,
+  buildMonthlyCostByProvider,
+  buildMonthlyCostSummary,
+  buildMonthlyNonUsdCostByProvider,
+} from './cost-summary';
+import type { NonUsdCostTotals } from './cost-currency';
 import { getAllConversations } from '../../infra/storage/idb';
 
 export interface FullMonthlyCost {
   summary: MonthlyCostSummary;
+  /** Current-month USD cost per providerID. */
   byProvider: Map<string, number>;
+  /** Current-month non-USD totals per providerID; providers without any do not appear. */
+  nonUsdByProvider: Map<string, NonUsdCostTotals>;
+  /** Daily non-USD totals for the last 7 days per providerID (the last slot is today). */
+  nonUsdDailyByProvider: Map<string, Array<NonUsdCostTotals | undefined>>;
+  /** Current-month billed message count per providerID (normalizeUUID); providers without any do not appear. */
+  billedMessageCountByProvider: Map<string, number>;
 }
 
 let memoryCache: FullMonthlyCost | null = null;
@@ -78,6 +92,9 @@ export function refreshFullMonthlyCost(
       const next: FullMonthlyCost = {
         summary: buildMonthlyCostSummary(merged, providers),
         byProvider: buildMonthlyCostByProvider(merged),
+        nonUsdByProvider: buildMonthlyNonUsdCostByProvider(merged),
+        nonUsdDailyByProvider: buildDailyNonUsdCostsLast7DaysByProvider(merged),
+        billedMessageCountByProvider: buildMonthlyBilledMessageCountByProvider(merged),
       };
       memoryCache = next;
       notify();

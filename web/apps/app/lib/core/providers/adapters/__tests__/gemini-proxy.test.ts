@@ -7,7 +7,7 @@ vi.mock('../../proxy-client', async (importOriginal) => {
 });
 
 // metadata-client mock: buildCatalogModel calls resolveCatalogModel internally.
-vi.mock('../../../metadata/metadata-client', () => ({
+vi.mock('../../../metadata/metadata-client', async (importOriginal) => (await import('../../../../__tests__/mocks/metadata-client')).metadataClientMock(importOriginal, {
   initMetadata: vi.fn().mockResolvedValue(undefined),
   getProviderDefaultModelId: vi.fn().mockReturnValue('gemini-2.5-flash'),
   listProviderModelIds: vi.fn().mockReturnValue([]),

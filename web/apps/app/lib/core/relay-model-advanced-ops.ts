@@ -15,7 +15,11 @@ import { enrichRelayProviderModels } from './provider-model-ops';
 import { canProbeRelayModels } from './relay-model-probe-ops';
 import { probeRelayModelTransport, type RelayModelProbePing } from './providers/relay-model-probe';
 import { clearRelayNegativeCache, type RelayNegativeCacheKind } from './chat/relay-negative-cache';
+import { buildProviderStreamOptions, buildStreamOptionsFromIntent } from './chat/stream-options';
 import { relayAutomaticReasoningLevels } from './chat/capability-control-presentation';
+import { normalizeCapabilityOverrides, type CapabilityOverrides } from './capability/capability-overrides';
+import { clearInputNegativeCache } from './capability/input-negative-cache';
+import { inputNegativeCacheTarget, inputVerdictState } from './capability/truth/input-truth-adapter';
 import { clearRelayReasoningTierRejections } from './chat/relay-reasoning-tiers';
 
 /**
@@ -42,6 +46,12 @@ function findProvider(store: StoreApi<AppStore>, providerID: string): Provider |
 function findModel(provider: Provider | undefined, modelID: string): AIModel | undefined {
   return provider?.models.find((item) => item.id === modelID);
 }
+
+/** Vision / file overrides are written as input-capability diffs (contract: model catalog and capability truth, section 5.8); other keys keep going to relayCapabilityOverrides. */
+const INPUT_KEY_OF: Partial<Record<RelayAdvancedCapabilityKey, 'vision_input' | 'file_input'>> = {
+  image: 'vision_input',
+  file: 'file_input',
+};
 
 /** Rewrites both tables for the same id; when the protocol changes, enrichment must be re-run (envelope and native-file inheritance follow the protocol). */
 function writeModel(
@@ -70,6 +80,49 @@ function withOverrides(model: AIModel, overrides: RelayCapabilityOverrides | und
   return next;
 }
 
+function withCapabilityOverrides(model: AIModel, overrides: CapabilityOverrides | undefined): AIModel {
+  const next = { ...model };
+  if (overrides && Object.keys(overrides).length > 0) next.capabilityOverrides = overrides;
+  else delete next.capabilityOverrides;
+  return next;
+}
+
+/**
+ * Write a vision / file diff: first normalize the user choices in the legacy fields into the diff per the fixture (the legacy fields keep only keys not yet migrated), then change the target key.
+ * `null` (Auto) deletes the same key from the diff and the legacy field (both user and tested); On / Off writes add / remove with setAt = now and baseVerdict = the verdict at that moment.
+ */
+function withInputOverride(
+  model: AIModel,
+  key: 'image' | 'file',
+  inputKey: 'vision_input' | 'file_input',
+  value: boolean | null,
+  serverVerdict: Partial<Record<string, string>>,
+  now: string,
+): AIModel {
+  const normalized = normalizeCapabilityOverrides({
+    connection: 'relay',
+    legacy: model.relayCapabilityOverrides,
+    stored: model.capabilityOverrides,
+    serverVerdict,
+    now,
+  });
+  const diff: CapabilityOverrides = { ...normalized.capabilityOverrides };
+  const legacySource: Record<string, unknown> = { ...model.relayCapabilityOverrides };
+  const legacy = Object.fromEntries(normalized.legacyKept.map((name) => [name, legacySource[name]])) as RelayCapabilityOverrides;
+  if (value === null) {
+    delete diff[inputKey];
+    delete legacy[key];
+  } else {
+    diff[inputKey] = { op: value ? 'add' : 'remove', setAt: now, baseVerdict: serverVerdict[inputKey] ?? 'unknown' };
+  }
+  // Fixed key order keeps serialization stable.
+  const ordered: CapabilityOverrides = {};
+  for (const name of ['vision_input', 'file_input', 'video_input'] as const) {
+    if (diff[name]) ordered[name] = diff[name];
+  }
+  return withCapabilityOverrides(withOverrides(model, legacy), ordered);
+}
+
 function withoutTransport(model: AIModel): AIModel {
   const next = { ...model };
   delete next.relayTransport;
@@ -92,7 +145,10 @@ export function setRelayModelTransport(
   return true;
 }
 
-/** On / Off writes `{value, user}` and clears the negative cache of the same tier for the currently effective protocol; `null` (Auto) deletes the key (both user and tested). */
+/**
+ * On / Off: vision / file write a diff (see withInputOverride), other keys write `{value, user}`; also clears the negative cache of the same tier for the currently effective protocol (v1 and v2).
+ * `null` (Auto) deletes the key (both user and tested).
+ */
 export function setRelayCapabilityOverride(
   store: StoreApi<AppStore>,
   providerID: string,
@@ -103,7 +159,24 @@ export function setRelayCapabilityOverride(
   const provider = findProvider(store, providerID);
   const target = findModel(provider, modelID);
   if (!provider || !target) return false;
+  const inputKey = INPUT_KEY_OF[key];
+  // The same dispatch options as the model library / composer: the verdict and the negative-cache key are both computed from them.
+  const streamOptions = inputKey
+    ? buildProviderStreamOptions(provider, buildStreamOptionsFromIntent(target, 'automatic', false), target)
+    : undefined;
+  const inputTarget = inputKey && value !== null ? inputNegativeCacheTarget(provider, target, streamOptions, inputKey) : null;
+  const serverVerdict: Partial<Record<string, string>> = {};
+  if (inputKey) {
+    for (const name of ['vision_input', 'file_input'] as const) {
+      const state = inputVerdictState(provider, target, streamOptions, name);
+      if (state) serverVerdict[name] = state;
+    }
+  }
+  const now = new Date().toISOString();
   writeModel(store, provider, modelID, (model) => {
+    if (inputKey && (key === 'image' || key === 'file')) {
+      return withInputOverride(model, key, inputKey, value, serverVerdict, now);
+    }
     const overrides: RelayCapabilityOverrides = { ...model.relayCapabilityOverrides };
     if (value === null) delete overrides[key];
     else overrides[key] = { value, source: 'user' };
@@ -116,6 +189,7 @@ export function setRelayCapabilityOverride(
       [kind],
     );
   }
+  if (inputTarget) clearInputNegativeCache([inputTarget.key]);
   return true;
 }
 
@@ -147,12 +221,16 @@ export function setRelayReasoningLevels(
   return true;
 }
 
-/** Whether any override or a user-sourced model-level protocol exists. */
-export function canRestoreAllRelayAutomatic(model: Pick<AIModel, 'relayCapabilityOverrides' | 'relayTransportSource'>): boolean {
-  return Object.keys(model.relayCapabilityOverrides ?? {}).length > 0 || model.relayTransportSource === 'user';
+/** Whether any override (legacy fields or diff) or a user-sourced model-level protocol exists. */
+export function canRestoreAllRelayAutomatic(
+  model: Pick<AIModel, 'relayCapabilityOverrides' | 'capabilityOverrides' | 'relayTransportSource'>,
+): boolean {
+  return Object.keys(model.relayCapabilityOverrides ?? {}).length > 0
+    || Object.keys(model.capabilityOverrides ?? {}).length > 0
+    || model.relayTransportSource === 'user';
 }
 
-/** Restore all to auto: clears all overrides (user + tested) and user-sourced model-level protocols, but not the negative cache. Writes nothing if there is nothing to clear. */
+/** Restore all to auto: clears all overrides (legacy user + tested fields and the diff) and user-sourced model-level protocols, but not the negative cache. Writes nothing if there is nothing to clear. */
 export function restoreAllRelayAutomatic(
   store: StoreApi<AppStore>,
   providerID: string,
@@ -163,7 +241,7 @@ export function restoreAllRelayAutomatic(
   if (!provider || !target || !canRestoreAllRelayAutomatic(target)) return false;
   const userTransport = target.relayTransportSource === 'user';
   writeModel(store, provider, modelID, (model) => {
-    const cleared = withOverrides(model, undefined);
+    const cleared = withCapabilityOverrides(withOverrides(model, undefined), undefined);
     return model.relayTransportSource === 'user' ? withoutTransport(cleared) : cleared;
   }, { reenrich: userTransport });
   return true;

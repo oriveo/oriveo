@@ -131,12 +131,12 @@ describe('RL2-IDENT relay literal identity', () => {
     await refreshProviderMetadata(store);
     const provider = store.getState().providers[0]!;
 
-    const selection = resolveActiveSelection([provider], undefined, provider.id, DATED, null);
+    const selection = resolveActiveSelection([provider], undefined, provider.id, DATED, null, true);
     expect(selection.currentModel?.id).toBe(DATED);
     expect(relayStoredModelId(selection.currentModel!)).toBe(DATED);
     expect(createUserMessage({ text: 'hi', provider, model: selection.currentModel! }).modelID).toBe(DATED);
 
-    const fromConversation = resolveActiveSelection([provider], conversationFor(provider, DATED), null, null, null);
+    const fromConversation = resolveActiveSelection([provider], conversationFor(provider, DATED), null, null, null, true);
     expect(fromConversation.modelRemoval).toBeUndefined();
     expect(fromConversation.currentModel?.id).toBe(DATED);
 
@@ -203,14 +203,14 @@ describe('RL2-IDENT relay literal identity', () => {
 
     expect(resolveConversationModelRemoval(provider, BASE)).toBeNull();
     expect(createProviderSelectionSnapshot(provider, { requestedModelId: BASE })?.currentModel?.id).toBe(DATED);
-    expect(resolveActiveSelection([provider], conversationFor(provider, BASE), null, null, null).currentModel?.id).toBe(DATED);
+    expect(resolveActiveSelection([provider], conversationFor(provider, BASE), null, null, null, true).currentModel?.id).toBe(DATED);
     expect(resolveRelayFallbackModel(provider.id, provider.models, { providerID: provider.id, modelID: BASE })?.id).toBe(DATED);
   });
 
   it('RL2-IDENT-05 read compatibility: canonical matches several / dated stored value left with only base → removed', () => {
     const ambiguous = makeRelay([makeModel(DATED), makeModel(DATED_2)]);
     expect(resolveConversationModelRemoval(ambiguous, BASE)).toMatchObject({ modelID: BASE, connectionName: 'My Relay' });
-    expect(resolveActiveSelection([ambiguous], conversationFor(ambiguous, BASE), null, null, null)).toMatchObject({
+    expect(resolveActiveSelection([ambiguous], conversationFor(ambiguous, BASE), null, null, null, true)).toMatchObject({
       currentModel: undefined,
       modelRemoval: { modelID: BASE },
     });

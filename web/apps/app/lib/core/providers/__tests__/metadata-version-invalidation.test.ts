@@ -7,8 +7,15 @@
  *   - a cache hit during init also fires one event
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { initMetadata, onVersionChange, refreshMetadata } from '../../metadata/metadata-client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  __resetMetadataClientForTest,
+  __resetVersionListenersForTest,
+  __settleMetadataBackgroundWorkForTest,
+  initMetadata,
+  onVersionChange,
+  refreshMetadata,
+} from '../../metadata/metadata-client';
 
 beforeEach(() => {
   // Clearing the metadata-client internal cache means forcing a refresh and then clearing localStorage
@@ -17,6 +24,12 @@ beforeEach(() => {
     window.localStorage.removeItem('oriveo:metadata:etag');
   }
   vi.restoreAllMocks();
+});
+
+afterEach(async () => {
+  await __settleMetadataBackgroundWorkForTest();
+  __resetMetadataClientForTest();
+  __resetVersionListenersForTest();
 });
 
 describe('onVersionChange', () => {

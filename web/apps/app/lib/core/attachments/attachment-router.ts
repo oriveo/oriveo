@@ -4,6 +4,8 @@ import {
   attachmentTransportProfile,
   nativeFileModeOf,
 } from "@oriveo/core/providers/attachment-transport";
+import type { InputCapabilityProjection } from "@oriveo/core/providers/capability-evidence-facade";
+import { relayInputOverrideValue } from "../capability/capability-overrides";
 
 /**
  * Attachment routing decision.
@@ -26,14 +28,16 @@ const PDF_MIME = "application/pdf";
 const SCANNED_PDF = "scanned_pdf";
 
 /**
-  * The model's native file allowlist and PDF-native default, overlaid with the Relay file override: On = allowlist plus PDF, with PDF native by default,
-  * Off = allowlist treated as empty. Whether the protocol accepts native files, and the override beating the `file` negative cache, are both in wire resolution (`resolveAttachmentLine`).
-  * The send routing and the file card of the model options panel read this same place.
+ * The model's native file allowlist and PDF-native default, overlaid with the Relay file override:
+ * On = allowlist plus PDF, with PDF native by default; Off = allowlist treated as empty. Whether the
+ * protocol accepts native files, and the override beating the `file` negative cache, are both in
+ * wire resolution (`resolveAttachmentLine`). The send routing and the file card of the model options
+ * panel read this same place.
  */
 export function nativeFileFieldsOf(
-  model: Pick<AIModel, "nativeFileMimes" | "pdfNativeDefault" | "relayCapabilityOverrides">
+  model: Pick<AIModel, "nativeFileMimes" | "pdfNativeDefault" | "relayCapabilityOverrides" | "capabilityOverrides">
 ): { nativeFileMimes: readonly string[]; pdfNativeDefault: boolean } {
-  const override = model.relayCapabilityOverrides?.file?.value;
+  const override = relayInputOverrideValue(model, "file_input")?.value;
   const mimes = model.nativeFileMimes ?? [];
   if (override === false) return { nativeFileMimes: [], pdfNativeDefault: false };
   if (override === true) {
@@ -67,16 +71,23 @@ export function originalFileBytes(attachment: Attachment): number {
  *  5. Original byte length <= the line's declared maxNativeBytes.
  *  6. PDF: scanned_pdf -> native; model.pdfNativeDefault -> native; otherwise client_extract.
  *  7. Any other allowlisted mime (docx/xlsx/pptx/rtf/odt) -> native.
+ *
+ * `fileProjection`: the file_input projection of this send for an official connection. Any outbound
+ * other than native_part always routes to client_extract; the line's mode is still a necessary
+ * condition (a native_part projection on an `off` line is still injected as text). Omitted / null =
+ * no restriction (Relay and callers without a projection look only at the line and the model allowlist).
  */
 export function decideAttachmentRoute(
   attachment: Attachment,
   line: AttachmentLine,
-  model: AIModel
+  model: AIModel,
+  fileProjection?: InputCapabilityProjection | null
 ): AttachmentRoute {
   if (attachment.kind !== "file") return "client_extract";
 
   const mode = nativeFileModeOf(line);
   if (mode === "off") return "client_extract";
+  if (fileProjection && fileProjection.outbound !== "native_part") return "client_extract";
 
   const mime = (attachment.mimeType ?? "").toLowerCase();
   const { nativeFileMimes: supported, pdfNativeDefault } = nativeFileFieldsOf(model);

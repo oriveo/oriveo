@@ -1,14 +1,23 @@
 import type { AIModel, Provider, ReasoningMode } from '@oriveo/shared';
-import type { CapabilityEvidenceCandidate } from '@oriveo/core/providers/capability-evidence-facade';
+import type {
+  CapabilityEvidenceCandidate,
+  InputCapabilityKey,
+  InputCapabilityVerdict,
+} from '@oriveo/core/providers/capability-evidence-facade';
 import { codexReasoningEffort } from '@oriveo/core/providers/openai-subscription';
+import { CONTROL_AUTO_AVAILABLE } from '@oriveo/core/providers/request-preference/types';
 import {
   getModelFacts,
   getModelFactsRevision,
   subscriptionDeclaredReasoningLevels,
 } from '../../metadata/metadata-client';
-import type { CapabilityTruthAdapter, CapabilityTruthQuery } from './capability-truth-adapter';
+import {
+  THINKING_CAPABILITY_KEY,
+  type CapabilityTruthAdapter,
+  type CapabilityTruthQuery,
+} from './capability-truth-adapter';
 
-type SubscriptionTruthKey = 'web_search' | 'vision_input' | 'tool_call' | `reasoning_level/${string}`;
+type SubscriptionTruthKey = 'web_search' | InputCapabilityKey | 'tool_call' | 'reasoning/thinking' | `reasoning_level/${string}`;
 
 const REASONING_MODES: readonly ReasoningMode[] = ['fast', 'balanced', 'deep', 'max'];
 
@@ -18,25 +27,67 @@ function snapshotGoverns(key: string): boolean {
 }
 
 /**
-  * Subscription snapshot: the per-model declarations of upstream `/models`, attached to AIModel through the production mapping.
-  * Web's subscription sync (`provider-sync.ts` / `ProviderSetup`) writes it into `provider.models` and clears
-  * `catalogModels`, so when `catalogModels` is empty the snapshot is in `models`; only when both are empty is it "not fetched".
+ * Subscription snapshot: the per-model declarations of upstream `/models`, attached to AIModel through the production mapping.
+ * Web's subscription sync (`provider-sync.ts` / `ProviderSetup`) writes it into `provider.models` and clears
+ * `catalogModels`, so when `catalogModels` is empty the snapshot is in `models`; only when both are empty is it "not fetched".
  */
 function subscriptionSnapshot(provider: Provider): AIModel[] {
   if (provider.catalogModels?.length) return provider.catalogModels;
   return provider.models ?? [];
 }
 
+/** Media names the input keys recognize in first-hand declarations / the model-facts modality table (`pdf` in models.dev means file). */
+const INPUT_MEDIA: Readonly<Record<InputCapabilityKey, readonly string[]>> = {
+  vision_input: ['image'],
+  file_input: ['file', 'pdf'],
+  video_input: ['video'],
+};
+
+type SubscriptionInputVerdict = InputCapabilityVerdict & { source: 'upstream_declaration' | 'model_facts' | 'none' };
+
 /**
-  * Capability truth of subscription (Codex / Grok logged-in account) models: reads only the locally fetched upstream `/models` snapshot and the
-  * `model-facts` dictionary, with no network access and no credential reads.
+ * Input ruling of a subscription model (the ruling input of the shared contract; fixture subscription-facts.v1.json inputCases):
+ * modalities declared first-hand by upstream > the `model-facts` modality table > unknown / catalog_silent.
+ * A first-hand list without that media = unavailable / model_capability_absent; model-facts is a third-party fact, so its absence only counts as unknown.
+ * The first-hand declaration is taken from the same-named model in the snapshot, else from the model the caller holds. It does not read providerKind attachment support or the legacy capabilities bits.
+ */
+export function subscriptionInputVerdict(
+  provider: Provider,
+  model: AIModel,
+  key: InputCapabilityKey,
+): SubscriptionInputVerdict {
+  const media = INPUT_MEDIA[key];
+  const declaredModel = subscriptionSnapshot(provider).find((item) => item.id === model.id) ?? model;
+  const firstHand = declaredModel.upstreamInputModalities;
+  if (firstHand) {
+    return firstHand.some((item) => media.includes(item.toLowerCase()))
+      ? { state: CONTROL_AUTO_AVAILABLE, source: 'upstream_declaration' }
+      : { state: 'unavailable', reasonCode: 'model_capability_absent', source: 'upstream_declaration' };
+  }
+  const facts = getModelFacts(provider.kind, model.id)
+    ?? (model.canonicalModelId ? getModelFacts(provider.kind, model.canonicalModelId) : undefined);
+  const factsInput = facts?.modalities?.input;
+  if (factsInput) {
+    return factsInput.some((item) => media.includes(item.toLowerCase()))
+      ? { state: CONTROL_AUTO_AVAILABLE, source: 'model_facts' }
+      : { state: 'unknown', source: 'model_facts' };
+  }
+  return { state: 'unknown', reasonCode: 'catalog_silent', source: 'none' };
+}
+
+/**
+ * Capability truth of subscription (Codex / Grok logged-in account) models: reads only the locally fetched upstream `/models` snapshot and the
+ * `model-facts` dictionary, with no network access and no credential reads.
  *
-  * - Empty snapshot -> no candidates; the projection fails closed.
-  * - Snapshot present but model absent -> vision_input / web_search / reasoning_level/* each yield `catalog_absent`.
-  * - Model present: vision / web copy the upstream capability bits; reasoning tiers use the same `codexReasoningEffort` filter as outbound
-  *   (every tier shown in the UI maps to a value upstream really accepts).
-  * - `tool_call` is not governed by the snapshot: first-hand upstream boolean declaration > `model-facts` dictionary > no candidate, independent of snapshot state
-  *   (subscription column: upstream_declaration > model_facts).
+ * - Empty snapshot -> no candidates; the projection fails closed.
+ * - Snapshot present but model absent -> vision_input / web_search / reasoning_level/* each yield `catalog_absent`.
+ * - Model present: vision / file / video follow `subscriptionInputVerdict` (first-hand modality > model-facts; unknown yields no candidate);
+ *   web copies the upstream capability bit; reasoning tiers use the same `codexReasoningEffort` filter as outbound
+ *   (every tier shown in the UI maps to a value upstream really accepts).
+ * - `tool_call` is not governed by the snapshot: `model-facts` dictionary (model.id > canonicalModelId) > no candidate, independent of snapshot state;
+ *   the toolCall bit of the snapshot model is not read (subscription /models has no tool field).
+ * - Show-thinking (`reasoning/thinking`) is likewise not governed by the snapshot: non-empty first-hand upstream reasoning tiers > `model-facts` reasoning
+ *   > no candidate (a missing source = not shown).
  */
 export function subscriptionTruthCandidates(
   query: Pick<CapabilityTruthQuery, 'provider' | 'model' | 'effectiveTransport'>,
@@ -61,25 +112,38 @@ export function subscriptionTruthCandidates(
   const wanted = (key: string) => !keys || keys.includes(key as SubscriptionTruthKey);
   const candidates: CapabilityEvidenceCandidate[] = [];
 
-  // tool_call is independent of snapshot state: a first-hand boolean declaration in the snapshot beats the persisted models.dev snapshot,
-  // and only when neither exists is no candidate produced (open-world, explicit intent may allow it).
+  // tool_call is independent of snapshot state: subscription /models carries no tool field, so only the model-facts dictionary is read (model.id > canonicalModelId),
+  // and when the dictionary has nothing no candidate is produced (open-world unknown, explicit intent may allow it).
   if (wanted('tool_call')) {
-    const declaredToolCall = catalogModel?.toolCall;
-    if (typeof declaredToolCall === 'boolean') {
+    const facts = getModelFacts(provider.kind, model.id)
+      ?? (model.canonicalModelId ? getModelFacts(provider.kind, model.canonicalModelId) : undefined);
+    if (typeof facts?.toolCall === 'boolean') {
+      candidates.push({
+        ...identity,
+        key: 'tool_call',
+        support: facts.toolCall ? 'supported' : 'unsupported',
+        source: 'model_facts',
+        grade: 'declared',
+        evidenceRevision: getModelFactsRevision(),
+      });
+    }
+  }
+  if (wanted(THINKING_CAPABILITY_KEY)) {
+    if (catalogModel?.upstreamReasoningLevels?.length) {
       candidates.push({
         ...declaredBase,
-        key: 'tool_call',
-        support: declaredToolCall ? 'supported' : 'unsupported',
+        key: THINKING_CAPABILITY_KEY,
+        support: 'supported',
         evidenceRevision: 'subscription',
       });
     } else {
       const facts = getModelFacts(provider.kind, model.id)
         ?? (model.canonicalModelId ? getModelFacts(provider.kind, model.canonicalModelId) : undefined);
-      if (typeof facts?.toolCall === 'boolean') {
+      if (typeof facts?.reasoning === 'boolean') {
         candidates.push({
           ...identity,
-          key: 'tool_call',
-          support: facts.toolCall ? 'supported' : 'unsupported',
+          key: THINKING_CAPABILITY_KEY,
+          support: facts.reasoning ? 'supported' : 'unsupported',
           source: 'model_facts',
           grade: 'declared',
           evidenceRevision: getModelFactsRevision(),
@@ -93,12 +157,25 @@ export function subscriptionTruthCandidates(
   const absent = (key: string): CapabilityEvidenceCandidate => ({
     ...identity, key, support: 'unknown', source: 'catalog_absent', grade: 'none',
   });
-  const declared = (key: string, capability: 'image' | 'web'): CapabilityEvidenceCandidate => (
+  const declared = (key: string, capability: 'web'): CapabilityEvidenceCandidate => (
     !catalogModel ? absent(key)
       : { ...declaredBase, key, support: catalogModel.capabilities.includes(capability) ? 'supported' : 'unsupported' }
   );
 
-  if (wanted('vision_input')) candidates.push(declared('vision_input', 'image'));
+  for (const key of ['vision_input', 'file_input', 'video_input'] as const) {
+    if (!wanted(key)) continue;
+    if (!catalogModel) {
+      candidates.push(absent(key));
+      continue;
+    }
+    const verdict = subscriptionInputVerdict(provider, catalogModel, key);
+    // unknown (not in model-facts / no source) yields no candidate: open-world, the same as having no evidence.
+    if (verdict.state === 'unknown' || verdict.source === 'none') continue;
+    const support = verdict.state === 'unavailable' ? 'unsupported' : 'supported';
+    candidates.push(verdict.source === 'upstream_declaration'
+      ? { ...declaredBase, key, support }
+      : { ...identity, key, support, source: 'model_facts', grade: 'declared', evidenceRevision: getModelFactsRevision() });
+  }
   if (wanted('web_search')) candidates.push(declared('web_search', 'web'));
 
   const levels = catalogModel ? subscriptionDeclaredReasoningLevels(provider.kind, catalogModel) : [];
@@ -123,9 +200,9 @@ export function subscriptionTruthCandidates(
 }
 
 /**
-  * Subscription is open-world: a key the upstream does not declare does not mean it is not offered; with no candidate the user's explicit intent may still allow it
-  * (rulings D0/D1), consistent with the semantics of going through the official adapter before the split. The only exception is state 1: when the snapshot has not been fetched,
-  * the identity of keys governed by the catalog is incomplete, and explicit intent does not allow them either.
+ * Subscription is open-world: a key the upstream does not declare does not mean it is not offered; with no candidate the user's explicit intent may still allow it
+ * (rulings D0/D1), consistent with the semantics of going through the official adapter before the split. The only exception is state 1: when the snapshot has not been fetched,
+ * the identity of keys governed by the catalog is incomplete, and explicit intent does not allow them either.
  */
 export const subscriptionTruthAdapter: CapabilityTruthAdapter = {
   acceptsUnverifiedExplicitIntent: true,
