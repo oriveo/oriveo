@@ -27,35 +27,56 @@ struct HomeModelPickerSheetTests {
         #expect(store.initialExpandedVendorGroupIDs.isEmpty)
     }
 
+    // Linearity is judged by the time ratio when the catalog doubles, not by an absolute budget: a fixed
+    // budget measures machine load, the ratio measures complexity (linear ~2x, quadratic ~4x).
     @MainActor
-    @Test("building a snapshot of 7500 models stays within a linear budget")
-    func largeCatalogBuildStaysWithinBudget() {
-        let providers = (0..<15).map { providerIndex in
-            makeProvider(
-                name: "Relay \(providerIndex)",
-                models: (0..<500).map { modelIndex in
-                    makeModel(
-                        id: "p\(providerIndex)-m\(modelIndex)",
-                        name: "Model \(modelIndex)",
-                        groupKey: "group-\(modelIndex % 10)",
-                        groupName: "Group \(modelIndex % 10)"
-                    )
-                }
-            )
+    @Test("building a model picker snapshot scales linearly with catalog size")
+    func largeCatalogBuildScalesLinearly() {
+        func providers(count: Int) -> [Provider] {
+            (0..<count).map { providerIndex in
+                makeProvider(
+                    name: "Relay \(providerIndex)",
+                    models: (0..<300).map { modelIndex in
+                        makeModel(
+                            id: "p\(providerIndex)-m\(modelIndex)",
+                            name: "Model \(modelIndex)",
+                            groupKey: "group-\(modelIndex % 10)",
+                            groupName: "Group \(modelIndex % 10)"
+                        )
+                    }
+                )
+            }
         }
-        let clock = ContinuousClock()
-        let start = clock.now
+        func fastestBuild(_ providers: [Provider]) -> Duration {
+            let clock = ContinuousClock()
+            var best = Duration.seconds(3_600)
+            // The first round warms caches; scheduling jitter can only inflate a sample, so keep the minimum.
+            for _ in 0..<3 {
+                let start = clock.now
+                _ = buildModelPickerSections(
+                    context: .home,
+                    providers: providers,
+                    currentProviderID: providers.first?.id,
+                    currentModel: providers.first?.models.first
+                )
+                best = min(best, start.duration(to: clock.now))
+            }
+            return best
+        }
+
+        let small = providers(count: 5)
+        let large = providers(count: 10)
         let sections = buildModelPickerSections(
             context: .home,
-            providers: providers,
-            currentProviderID: providers.first?.id,
-            currentModel: providers.first?.models.first
+            providers: large,
+            currentProviderID: large.first?.id,
+            currentModel: large.first?.models.first
         )
-        let elapsed = start.duration(to: clock.now)
+        #expect(sections.count == 10)
+        #expect(sections.reduce(0) { $0 + $1.models.count } == 3_000)
 
-        #expect(sections.count == 15)
-        #expect(sections.reduce(0) { $0 + $1.models.count } == 7_500)
-        #expect(elapsed < .seconds(2))
+        let ratio = fastestBuild(large) / fastestBuild(small)
+        #expect(ratio < 2.5, "doubling the catalog took \(ratio)x")
     }
 
     @Test("structured prices split into compact Input and Output")
