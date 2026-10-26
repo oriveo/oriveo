@@ -20,7 +20,13 @@ struct RequestPreferenceContractTests {
         #expect(shape.version == 2)
 
         #expect(contract.owners.map(\.id) == RequestPreferenceOwner.allCases.map(\.rawValue))
-        #expect(shape.wireNaming.capabilityControlKeys == RequestPreferenceOwner.allCases.map(\.rawValue))
+        let inputKeys = [
+            CapabilityEvidenceFacade.visionInputKey,
+            CapabilityEvidenceFacade.fileInputKey,
+            CapabilityEvidenceFacade.videoInputKey,
+        ]
+        #expect(shape.wireNaming.capabilityControlKeys
+            == RequestPreferenceOwner.allCases.map(\.rawValue) + inputKeys)
 
         #expect(contract.resolution.scopePriority
             == RequestPreferenceResolver.scopePriority.map(\.rawValue))
@@ -123,8 +129,12 @@ struct RequestPreferenceContractTests {
             #expect(local.reasonCode == verdict.reasonCode, "\(verdict.providerKind) reasonCode")
             #expect(local.autoRecipeAllowed == verdict.autoRecipeAllowed, "\(verdict.providerKind)")
         }
-        #expect(rules.sourceRefExemptions.count == RequestPreferenceResolver.sourceRefExemptions.count)
-        for exemption in rules.sourceRefExemptions {
+        // Input-family exemptions (capabilityFamily == "input") are not the resolver's: it only rules on the three owner keys,
+        // and the input keys are consumed by the facade projection.
+        let controlExemptions = rules.sourceRefExemptions.filter { $0.capabilityFamily == nil }
+        #expect(rules.sourceRefExemptions.contains { $0.capabilityFamily == "input" })
+        #expect(controlExemptions.count == RequestPreferenceResolver.sourceRefExemptions.count)
+        for exemption in controlExemptions {
             let local = try #require(RequestPreferenceResolver.sourceRefExemptions.first {
                 $0.providerKind.rawValue == exemption.providerKind
             })
@@ -856,6 +866,7 @@ struct RequestPreferenceContractTests {
         let providerKind: String
         let state: String
         let reasonCode: String
+        let capabilityFamily: String?
     }
 
     fileprivate struct VerdictFixture: Decodable {
