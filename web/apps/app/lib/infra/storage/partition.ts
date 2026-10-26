@@ -1,5 +1,5 @@
 import { openDB, type IDBPDatabase } from 'idb';
-import { reportIDBUpgradeBlocked } from './idb-lifecycle';
+import { openWithStaleSchemaRecovery, reportIDBUpgradeBlocked } from './idb-lifecycle';
 
 const META_DB = 'oriveo-meta';
 // v1: meta store (activeUID)
@@ -30,7 +30,7 @@ let currentActiveUID = 'guest';
  */
 export async function openMetaDB() {
   let opened: IDBPDatabase | null = null;
-  const openPromise = openDB(META_DB, META_VERSION, {
+  const openPromise = openWithStaleSchemaRecovery(() => openDB(META_DB, META_VERSION, {
     upgrade(db) {
       if (!db.objectStoreNames.contains('meta')) {
         db.createObjectStore('meta');
@@ -47,7 +47,7 @@ export async function openMetaDB() {
     // InvalidStateError (every caller swallows that and treats it as "nothing cached"), which
     // beats both tabs being stuck.
     blocking: () => opened?.close(),
-  });
+  }));
   opened = await openPromise;
   return opened;
 }
