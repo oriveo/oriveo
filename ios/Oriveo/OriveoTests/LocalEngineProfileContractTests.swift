@@ -196,7 +196,7 @@ struct LocalEngineProfileContractTests {
         #expect(state.providers.first?.relayRequested?.transport == .openaiChatCompletions)
     }
 
-    @Test("cold launch: a pending native-transport connection in the partition must not hit an unbound ProviderManager during AppState.init")
+    @Test("cold launch: a pending native-transport connection in the partition must not hit an unbound ProviderManager during AppState.init", .sharedProcessState)
     func migrationDuringColdLaunchDoesNotCrash() throws {
         let uid = "llamacpp-cold-launch-\(UUID().uuidString)"
         let flagKey = "oriveo.providers.llamacppChatChannelMigrated.\(uid)"
