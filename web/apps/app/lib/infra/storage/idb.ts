@@ -8,7 +8,7 @@ import type { MemoryCandidateRow } from './memory-candidate-store';
 import { adoptLegacyResolvedRelayTransport, sanitizeMessageQuoteContext, sanitizeProviderRelayModelFields } from '@oriveo/shared';
 import { sanitizeProviderRelayKeys } from '@oriveo/shared/relay/relay-keys';
 import { getActiveUID, getActiveUIDSync, getDBName } from './partition';
-import { reportIDBUpgradeBlocked } from './idb-lifecycle';
+import { openWithStaleSchemaRecovery, reportIDBUpgradeBlocked } from './idb-lifecycle';
 import { normalizeUUID } from '../../utils/id-utils';
 
 /* ── DB Schema ───────────────────────────────────────── */
@@ -153,9 +153,11 @@ async function openPartitionDB(dbName: string) {
     blocked: (currentVersion, blockedVersion) =>
       reportIDBUpgradeBlocked(dbName, currentVersion, blockedVersion),
     // Another tab wants to upgrade the schema: unless this connection closes, its open() stays
-    // stuck on blocked forever. The module-level cache is cleared as well, so the next getDB()
-    // reopens at the new version (otherwise a closed connection stays cached and every later
-    // transaction throws InvalidStateError).
+    // stuck on blocked forever. The module-level cache is cleared as well (otherwise a closed
+    // connection stays cached and every later transaction throws InvalidStateError).
+    // The next getDB() can still only reopen at this bundle's DB_VERSION: if the other tab moved
+    // to a higher version, that open is a VersionError, and openWithStaleSchemaRecovery in getDB
+    // reloads the page onto the new bundle.
     blocking: () => {
       opened?.close();
       if (currentDBName === dbName) {
@@ -290,8 +292,17 @@ async function getDB(expectedUID?: string) {
   }
 
   currentDBName = dbName;
-  dbPromise = openPartitionDB(dbName);
-  return dbPromise;
+  const opening = openWithStaleSchemaRecovery(() => openPartitionDB(dbName));
+  dbPromise = opening;
+  // Never keep a failed open in the cache: every later read and write would get the same
+  // rejected promise until the page is reloaded.
+  opening.catch(() => {
+    if (dbPromise === opening) {
+      dbPromise = null;
+      currentDBName = null;
+    }
+  });
+  return opening;
 }
 
 /** Force the DB connection to reset when the partition changes (sign in / sign out). */

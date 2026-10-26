@@ -1,6 +1,6 @@
 import { openDB, type IDBPDatabase } from 'idb';
 import { setActiveUID, getDBName, getImageDBName, legacyDBExists } from './partition';
-import { reportIDBUpgradeBlocked } from './idb-lifecycle';
+import { openWithStaleSchemaRecovery, reportIDBUpgradeBlocked } from './idb-lifecycle';
 import { safeLocalStorage } from './web-storage';
 
 const MIGRATED_KEY = 'oriveo.storage.partitioned';
@@ -158,7 +158,7 @@ async function migrateImageData(targetUID: string): Promise<void> {
 /** Create the partitioned database */
 async function openPartitionDB(uid: string): Promise<IDBPDatabase> {
   const dbName = getDBName(uid);
-  return openDB(dbName, PARTITION_DB_VERSION, {
+  return openWithStaleSchemaRecovery(() => openDB(dbName, PARTITION_DB_VERSION, {
     blocked: (currentVersion, blockedVersion) =>
       reportIDBUpgradeBlocked(dbName, currentVersion, blockedVersion),
     upgrade(db) {
@@ -208,5 +208,5 @@ async function openPartitionDB(uid: string): Promise<IDBPDatabase> {
         db.createObjectStore('memoryCandidates', { keyPath: 'id' });
       }
     },
-  });
+  }));
 }

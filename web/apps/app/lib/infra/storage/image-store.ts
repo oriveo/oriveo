@@ -1,6 +1,6 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import { getActiveUID, getImageDBName } from './partition';
-import { reportIDBUpgradeBlocked } from './idb-lifecycle';
+import { openWithStaleSchemaRecovery, reportIDBUpgradeBlocked } from './idb-lifecycle';
 
 /* ── Schema ──────────────────────────────────────────── */
 
@@ -42,7 +42,7 @@ async function getDB(expectedUID?: string) {
 
   currentImageDBName = dbName;
   let opened: IDBPDatabase<ImageStoreSchema> | null = null;
-  const openPromise = openDB<ImageStoreSchema>(dbName, 1, {
+  const openPromise = openWithStaleSchemaRecovery(() => openDB<ImageStoreSchema>(dbName, 1, {
     upgrade(db) {
       if (!db.objectStoreNames.contains('images')) {
         db.createObjectStore('images', { keyPath: 'id' });
@@ -51,9 +51,10 @@ async function getDB(expectedUID?: string) {
     blocked: (currentVersion, blockedVersion) =>
       reportIDBUpgradeBlocked(dbName, currentVersion, blockedVersion),
     // Another tab wants to upgrade the image database schema: without making way, its open()
-    // never settles. The cache is cleared too, so the next getDB() reopens at the new version
-    // (otherwise a closed connection stays cached and every later transaction throws
-    // InvalidStateError).
+    // never settles. The cache is cleared too (otherwise a closed connection stays cached and
+    // every later transaction throws InvalidStateError). The next getDB() still reopens at this
+    // bundle's version; if the other tab went higher that is a VersionError, which
+    // openWithStaleSchemaRecovery handles by reloading onto the new bundle.
     blocking: () => {
       opened?.close();
       if (currentImageDBName === dbName) {
@@ -61,8 +62,15 @@ async function getDB(expectedUID?: string) {
         currentImageDBName = null;
       }
     },
-  });
+  }));
   dbPromise = openPromise;
+  // Never keep a failed open in the cache, or every later read and write gets the same rejection.
+  openPromise.catch(() => {
+    if (dbPromise === openPromise) {
+      dbPromise = null;
+      currentImageDBName = null;
+    }
+  });
   opened = await openPromise;
   return opened;
 }

@@ -25,6 +25,7 @@ import {
   type McpToolPermission,
   type McpToolSnapshot,
 } from '@oriveo/core/mcp/index';
+import { openWithStaleSchemaRecovery } from '../../infra/storage/idb-lifecycle';
 import { getMcpDBName } from '../../infra/storage/partition';
 
 export { getMcpDBName };
@@ -88,7 +89,7 @@ export function openMcpDB(uid: string): Promise<McpDB> {
   if (cached) return cached;
   const name = getMcpDBName(uid);
   let opened: McpDB | null = null;
-  const promise = openDB<McpDBSchema>(name, MCP_DB_VERSION, {
+  const promise = openWithStaleSchemaRecovery(() => openDB<McpDBSchema>(name, MCP_DB_VERSION, {
     upgrade(db, oldVersion) {
       if (oldVersion < 1) {
         db.createObjectStore('servers', { keyPath: 'id' });
@@ -104,12 +105,14 @@ export function openMcpDB(uid: string): Promise<McpDB> {
         db.createObjectStore('credentials');
       }
     },
-    // Another tab wants to upgrade: get out of the way and drop the cache, reopening at the new version next time.
+    // Another tab wants to upgrade: get out of the way and drop the cache. The next open still asks for
+    // this bundle's version; if the other tab went higher that is a VersionError, which
+    // openWithStaleSchemaRecovery handles by reloading onto the new bundle.
     blocking: () => {
       opened?.close();
       connections.delete(uid);
     },
-  }).then((db) => {
+  })).then((db) => {
     opened = db;
     return db;
   });
