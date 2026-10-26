@@ -1,10 +1,13 @@
 import React from 'react';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { resolveConnectionRemovedPrompt } from '../../lib/core/chat/active-selection';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AIModel, Provider } from '@oriveo/shared';
-import { InputComposer } from './InputComposer';
+import type { AIModel, Attachment, Provider } from '@oriveo/shared';
+import { InputComposer as ComposerUnderTest } from './InputComposer';
+import { resolveAttachmentCapabilities } from '../../lib/core/chat/attachment-policy';
+import { useAttachmentRejectionGate } from '../../lib/hooks/useAttachmentIntake';
 import { DEFAULT_LIMITS } from '../../lib/core/attachments/file-text-extractor';
 
 type Messages = Record<string, unknown>;
@@ -117,6 +120,25 @@ const { mockValidateAndConvertFiles, mockLoadAttachmentUtils } = vi.hoisted(() =
 const { mockCapabilityRuntime } = vi.hoisted(() => ({
   mockCapabilityRuntime: { current: undefined as undefined | Record<string, unknown> },
 }));
+
+type ComposerProps = React.ComponentProps<typeof ComposerUnderTest>;
+
+/** Mirrors ChatView's wiring for attachment capabilities and the rejection gate: computed once per provider x model, and no rejection gate without a connection. */
+function InputComposer(props: Omit<ComposerProps, 'attachmentCapabilities'> & Partial<Pick<ComposerProps, 'attachmentCapabilities'>>) {
+  const { generationParameterProvider, currentModel, providerAttachmentSupport } = props;
+  const capabilities = React.useMemo(
+    () => resolveAttachmentCapabilities(generationParameterProvider, currentModel, providerAttachmentSupport),
+    [currentModel, generationParameterProvider, providerAttachmentSupport],
+  );
+  const gate = useAttachmentRejectionGate(capabilities);
+  return (
+    <ComposerUnderTest
+      attachmentCapabilities={capabilities}
+      canAcceptAttachment={generationParameterProvider && currentModel ? gate : undefined}
+      {...props}
+    />
+  );
+}
 
 vi.mock('next-intl', () => ({
   useTranslations: (namespace: string) => (key: string, values?: Record<string, unknown>) => {
@@ -260,6 +282,135 @@ describe('RD-1 conversation model removed banner', () => {
     render(<InputComposer value="hello" onChange={vi.fn()} onSend={vi.fn()} isStreaming={false} />);
     expect(screen.queryByTestId('model-removed-banner')).toBeNull();
     expect((screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+});
+
+describe('conversation connection-removed banner', () => {
+  const removedConversation = { connectionRemoved: { providerId: 'deleted-conn', modelId: 'gpt-5.5' } };
+
+  it('WEB-CONNECTION-REMOVED-banner_render banner is visible, the button opens the model switcher, sending is disabled', () => {
+    const onSend = vi.fn();
+    const onOpenModelSwitcher = vi.fn();
+    render(
+      <InputComposer
+        value="hello"
+        onChange={vi.fn()}
+        onSend={onSend}
+        isStreaming={false}
+        connectionRemoved={resolveConnectionRemovedPrompt(removedConversation, 1)}
+        onOpenModelSwitcher={onOpenModelSwitcher}
+        onOpenConnectionSetup={vi.fn()}
+      />,
+    );
+
+    const banner = screen.getByTestId('connection-removed-banner');
+    expect(banner.textContent).toContain('The connection this chat used was deleted.');
+    const send = screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement;
+    expect(send.disabled).toBe(true);
+    fireEvent.click(send);
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Type a message…' }), { key: 'Enter' });
+    expect(onSend).not.toHaveBeenCalled();
+
+    fireEvent.click(within(banner).getByRole('button', { name: 'Choose model' }));
+    expect(onOpenModelSwitcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('WEB-CONNECTION-REMOVED-banner_render with no connection at all, "Choose model" goes to adding a connection', () => {
+    const onOpenModelSwitcher = vi.fn();
+    const onOpenConnectionSetup = vi.fn();
+    render(
+      <InputComposer
+        value="hello"
+        onChange={vi.fn()}
+        onSend={vi.fn()}
+        isStreaming={false}
+        connectionRemoved={resolveConnectionRemovedPrompt(removedConversation, 0)}
+        onOpenModelSwitcher={onOpenModelSwitcher}
+        onOpenConnectionSetup={onOpenConnectionSetup}
+      />,
+    );
+
+    const banner = screen.getByTestId('connection-removed-banner');
+    expect((screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(within(banner).getByRole('button', { name: 'Choose model' }));
+    expect(onOpenConnectionSetup).toHaveBeenCalledTimes(1);
+    expect(onOpenModelSwitcher).not.toHaveBeenCalled();
+  });
+
+  it('WEB-CONNECTION-REMOVED-banner_render after a model is picked the banner disappears and sending is restored', () => {
+    const onSend = vi.fn();
+    const props = { value: 'hello', onChange: vi.fn(), onSend, isStreaming: false };
+    const { rerender } = render(<InputComposer {...props} connectionRemoved={resolveConnectionRemovedPrompt(removedConversation, 1)} />);
+    rerender(<InputComposer {...props} connectionRemoved={resolveConnectionRemovedPrompt({}, 1)} />);
+    expect(screen.queryByTestId('connection-removed-banner')).toBeNull();
+    const send = screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement;
+    expect(send.disabled).toBe(false);
+    fireEvent.click(send);
+    expect(onSend).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('RETIRED-WEB-BANNER conversation model retired banner', () => {
+  it('with a successor: the banner shows the display name, the button switches to the successor, sending is disabled', () => {
+    const onSend = vi.fn();
+    const onSwitchToSuccessor = vi.fn();
+    const onOpenModelSwitcher = vi.fn();
+    render(
+      <InputComposer
+        value="hello"
+        onChange={vi.fn()}
+        onSend={onSend}
+        isStreaming={false}
+        modelRetiredName="GPT-4o"
+        modelRetiredSuccessorName="GPT-5"
+        onSwitchToSuccessor={onSwitchToSuccessor}
+        onOpenModelSwitcher={onOpenModelSwitcher}
+      />,
+    );
+
+    const banner = screen.getByTestId('model-retired-banner');
+    expect(banner.getAttribute('data-tone')).toBe('warning');
+    expect(banner.textContent).toContain('GPT-4o has been retired.');
+    expect(within(banner).queryByRole('button', { name: 'Choose model' })).toBeNull();
+    const send = screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement;
+    expect(send.disabled).toBe(true);
+    fireEvent.click(send);
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Type a message…' }), { key: 'Enter' });
+    expect(onSend).not.toHaveBeenCalled();
+
+    fireEvent.click(within(banner).getByRole('button', { name: 'Switch to GPT-5' }));
+    expect(onSwitchToSuccessor).toHaveBeenCalledTimes(1);
+    expect(onOpenModelSwitcher).not.toHaveBeenCalled();
+  });
+
+  it('without a successor: the button is Choose model, opens the model picker, sending is disabled', () => {
+    const onSend = vi.fn();
+    const onOpenModelSwitcher = vi.fn();
+    render(
+      <InputComposer
+        value="hello"
+        onChange={vi.fn()}
+        onSend={onSend}
+        isStreaming={false}
+        modelRetiredName="GPT-4o"
+        onOpenModelSwitcher={onOpenModelSwitcher}
+      />,
+    );
+
+    const banner = screen.getByTestId('model-retired-banner');
+    expect(banner.textContent).toContain('GPT-4o has been retired.');
+    expect(within(banner).queryByRole('button', { name: /Switch to/ })).toBeNull();
+    expect((screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Type a message…' }), { key: 'Enter' });
+    expect(onSend).not.toHaveBeenCalled();
+
+    fireEvent.click(within(banner).getByRole('button', { name: 'Choose model' }));
+    expect(onOpenModelSwitcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('no banner when the model is not retired', () => {
+    render(<InputComposer value="hello" onChange={vi.fn()} onSend={vi.fn()} isStreaming={false} />);
+    expect(screen.queryByTestId('model-retired-banner')).toBeNull();
   });
 });
 
@@ -1173,7 +1324,7 @@ describe('InputComposer', () => {
     expect(textarea.style.overflowY).toBe('auto');
   });
 
-  it('hides attachment button when provider supports no attachment types', () => {
+  it('keeps attachment button visible but disabled with a reason when nothing is receivable', () => {
     render(
       <InputComposer
         value=""
@@ -1193,7 +1344,82 @@ describe('InputComposer', () => {
       />,
     );
 
-    expect(screen.queryByRole('button', { name: 'Attach file' })).toBeNull();
+    // The entry is always visible; no connection means no verdict, and the reason is the model lacking support (image first).
+    const button = screen.getByRole('button', { name: 'Attach file' }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(button.getAttribute('title')).toBe("This model doesn't support image input");
+  });
+
+  it('shows the first-attach hint once per model when vision is unknown', () => {
+    localStorage.removeItem('oriveo.input-capability-hint-seen.v1');
+    const model = {
+      id: 'vision-unknown',
+      name: 'Vision Unknown',
+      capabilities: ['text'],
+      transport: 'openai_chat',
+      reasoningModeAvailable: false,
+      isAvailable: true,
+      isDefault: true,
+      priceTier: '$',
+    } as AIModel;
+    const image = (id: string) => ({ id, kind: 'image', fileName: `${id}.png`, mimeType: 'image/png' }) as Attachment;
+    const props = {
+      value: '',
+      onChange: vi.fn(),
+      onSend: vi.fn(),
+      isStreaming: false,
+      onAttachmentsChange: vi.fn(),
+      generationParameterProvider: connectedProvider(),
+      currentModel: model,
+      providerAttachmentSupport: { image: true, nativeFile: false, textFileInline: true },
+    };
+    const hint = "We haven't confirmed this model can see images yet. If it can't, we'll let you know";
+    const { rerender } = render(<InputComposer {...props} attachments={[]} />);
+    expect(mockShowToast).not.toHaveBeenCalled();
+
+    rerender(<InputComposer {...props} attachments={[image('a')]} />);
+    expect(mockShowToast).toHaveBeenCalledTimes(1);
+    expect(mockShowToast.mock.calls[0]?.[0]).toBe(hint);
+
+    rerender(<InputComposer {...props} attachments={[image('a'), image('b')]} />);
+    expect(mockShowToast).toHaveBeenCalledTimes(1);
+    localStorage.removeItem('oriveo.input-capability-hint-seen.v1');
+  });
+
+  it('rejects a selected image with the model-absent reason when vision is unavailable', async () => {
+    const onAttachmentsChange = vi.fn();
+    render(
+      <InputComposer
+        value=""
+        onChange={vi.fn()}
+        onSend={vi.fn()}
+        isStreaming={false}
+        onAttachmentsChange={onAttachmentsChange}
+        generationParameterProvider={connectedProvider()}
+        currentModel={{
+          id: 'text-only',
+          name: 'Text Only',
+          capabilities: ['text'],
+          transport: 'openai_chat',
+          capabilityControls: { vision_input: { state: 'unavailable', reasonCode: 'model_capability_absent' } },
+          reasoningModeAvailable: false,
+          isAvailable: true,
+          isDefault: true,
+          priceTier: '$',
+        }}
+        providerAttachmentSupport={{ image: true, nativeFile: false, textFileInline: true }}
+      />,
+    );
+
+    // Text attachments are still accepted: the entry is not greyed out.
+    expect((screen.getByRole('button', { name: 'Attach file' }) as HTMLButtonElement).disabled).toBe(false);
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(fileInput, { target: { files: [new File(['img'], 'photo.png', { type: 'image/png' })] } });
+
+    await vi.waitFor(() => {
+      expect(mockShowToast).toHaveBeenCalledWith("This model doesn't support image input", 4000, undefined, 'warning');
+    });
+    expect(appliedAttachments(onAttachmentsChange) ?? []).toEqual([]);
   });
 
   it('shows attachment button when provider supports text files only (no image)', () => {
@@ -1258,6 +1484,8 @@ describe('InputComposer', () => {
           name: 'Qwen VL',
           capabilities: ['text', 'image', 'file'],
           transport: 'openai_chat',
+          // Native files on an official connection only follow the file_input verdict (a missing key counts as unknown and would open PDF); here the verdict is that the model lacks support.
+          capabilityControls: { file_input: { state: 'unavailable', reasonCode: 'model_capability_absent' } },
           reasoningModeAvailable: false,
           isAvailable: true,
           isDefault: true,
@@ -1294,7 +1522,10 @@ describe('InputComposer', () => {
           isAvailable: true,
           isDefault: true,
           priceTier: '$',
+          transport: 'openai_chat',
         }}
+        // The native file entry reads the file_input projection: production (ChatView) always carries the current connection, and without one the entry closes as the model lacking support.
+        generationParameterProvider={connectedProvider()}
         providerAttachmentSupport={{ image: true, nativeFile: true, textFileInline: true }}
       />,
     );

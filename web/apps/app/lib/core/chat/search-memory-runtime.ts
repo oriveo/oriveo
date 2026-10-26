@@ -46,9 +46,9 @@ export interface ResolveSearchMemoryModeInput {
   model: AIModel | undefined;
   /** Effective web search of this send (same exclusions as propose_memory). */
   webSearchEnabled?: boolean;
-  /** Generation parameters this request will send; active json_schema keeps the tool off (D-296). */
+  /** Generation parameters this request will send; active json_schema keeps the tool off. */
   generationParameters?: GenerationParameterOverrides;
-  /** Native file parts this request carries would be refused by its line's tool loop (D-299). */
+  /** Native file parts this request carries would be refused by its line's tool loop. */
   nativeFilesBlockToolLoop?: boolean;
   nowMs?: number;
 }

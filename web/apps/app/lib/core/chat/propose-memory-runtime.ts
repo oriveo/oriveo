@@ -8,6 +8,8 @@
  *   whose ordinary send bypasses it (relay, Moonshot China direct) stays on the fallback route.
  * - Gemini generateContent rejects a search tool and function tools in one request, so a Gemini transport
  *   (official or relay) with web search on stays on the fallback route.
+ * - MiniMax with web search on whose web recipe routes to Anthropic Messages stays on the fallback route, the same
+ *   rule as the Moonshot / Gemini web exclusions.
  * - A request that will send structured output (json_schema) stays on the fallback route, so the shared conflict
  *   rule never drops the schema for the memory tools.
  * - A request carrying native file parts on a line whose tool loop takes no native files stays on the fallback
@@ -31,6 +33,8 @@ import { resolvePromptUseMemory } from './prompt-injection';
 import { requestBaseURLText } from '../providers/endpoint-source';
 import { isMoonshotChinaBaseURL } from '../providers/adapters/moonshot';
 import { effectiveCapabilityTransport } from './capability-evidence';
+import { isMiniMaxAnthropicMessagesRoute } from '@oriveo/core/providers/request-builders/capability-execution';
+import { getCapabilityRuntime, resolveCatalogModel } from '../metadata/metadata-client';
 
 const degraded = new Set<string>();
 const GEMINI_GENERATE_CONTENT_TRANSPORTS = new Set(['gemini_generate_content', 'gemini_interactions']);
@@ -70,6 +74,20 @@ export function structuredOutputActive(generationParameters: GenerationParameter
   return generationParameters?.json_schema?.state === 'value';
 }
 
+/** MiniMax with web search on and the web recipe routed to Anthropic Messages: judged as fallback by the same rule as Moonshot / Gemini web search. */
+function miniMaxAnthropicWebRoute(
+  provider: Provider | undefined,
+  model: AIModel | undefined,
+  webSearchEnabled: boolean | undefined,
+): boolean {
+  if (provider?.kind !== 'miniMax' || webSearchEnabled !== true || model === undefined) return false;
+  const recipeRef = resolveCatalogModel(model.id, provider.kind)?.capabilityControls?.web?.recipeRef;
+  if (typeof recipeRef !== 'string') return false;
+  const recipe = getCapabilityRuntime()?.recipes?.[recipeRef];
+  return typeof recipe === 'object' && recipe !== null
+    && isMiniMaxAnthropicMessagesRoute((recipe as { route?: unknown }).route);
+}
+
 /**
  * The request can carry client tools: the one predicate shared by propose_memory and search_memory.
  */
@@ -84,12 +102,13 @@ export function memoryToolsConnectionSupported(
   // Gemini's interactions route still falls back to generateContent when video is attached; both are judged by the generateContent rules.
   const geminiWebSearch = webSearchEnabled === true && provider !== undefined && model !== undefined
     && GEMINI_GENERATE_CONTENT_TRANSPORTS.has(effectiveCapabilityTransport(provider, model));
+  const miniMaxWebRoute = miniMaxAnthropicWebRoute(provider, model, webSearchEnabled);
   const bypassesChatProxy = provider?.kind === 'relay'
     || (provider?.kind === 'moonshot' && isMoonshotChinaBaseURL(requestBaseURLText(provider)));
   // When structured output is in effect, no memory tool is attached this turn, so json_schema goes out as usual.
   const structuredOutput = structuredOutputActive(generationParameters);
   // When this turn carries native files and the route's tool loop does not accept native files, no memory tool is attached and the files go out unchanged.
-  return !moonshotWebLoop && !geminiWebSearch && !structuredOutput && !nativeFilesBlockToolLoop && !bypassesChatProxy
+  return !moonshotWebLoop && !geminiWebSearch && !miniMaxWebRoute && !structuredOutput && !nativeFilesBlockToolLoop && !bypassesChatProxy
     && connectionSupportsMcpTools(provider, model);
 }
 

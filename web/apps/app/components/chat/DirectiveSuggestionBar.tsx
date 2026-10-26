@@ -17,7 +17,7 @@ import styles from './DirectiveSuggestionBar.module.css';
 const serverSuggestion = (): DirectiveSuggestion | null => null;
 
 /**
- * P4·U3: the pending "set as instruction" suggestion for this conversation, or null.
+ * the pending "set as instruction" suggestion for this conversation, or null.
  * Switching away from the suggested conversation drops it without counting an ignore.
  */
 export function useDirectiveSuggestion(conversationId: string | null | undefined): DirectiveSuggestion | null {
@@ -30,7 +30,7 @@ export function useDirectiveSuggestion(conversationId: string | null | undefined
   return suggestion;
 }
 
-/** P4·U3 suggestion bar rendered under the user message that looked like a durable directive. */
+/** suggestion bar rendered under the user message that looked like a durable directive. */
 export function DirectiveSuggestionBar() {
   const t = useTranslations('pages.chat.directiveSuggestion');
   const tCommon = useTranslations('common');

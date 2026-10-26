@@ -19,6 +19,7 @@ import type { Attachment, Citation, AIModel, Provider } from '@oriveo/shared';
 import { resolveProviderAPIKey } from '@oriveo/core/providers/provider-credential';
 import type { AppStore } from '../store/app-store';
 import type { StreamEvent, StreamOptions, StreamUsage } from '../providers/types';
+import { resolveModelCapabilityEvidence } from './capability-evidence';
 import { sendStream } from '../providers/service';
 import type { TransportInput } from './context-pipeline/transport-input';
 import { additionalBodyRetryEligible } from './additional-body-retry';
@@ -208,6 +209,7 @@ export async function runStreamPipeline(
   // The single source of truth is `provider.grokSubscription`, not `provider.apiKey`, which stays
   // empty in subscription mode. Keeping the token in two places would eventually raise the
   // question of which copy is current, since renewal only updates one.
+  const webSearchDeclared = () => resolveModelCapabilityEvidence({ key: 'web_search', provider, model }).support === 'supported';
   const subscription = provider.kind === 'grok' && provider.authMode === 'subscription'
     ? await prepareGrokSubscriptionRequest(provider)
     : null;
@@ -252,7 +254,7 @@ export async function runStreamPipeline(
       // iOS / Android where automatic sends the declared default.
       reasoning: baseStreamOptions?.reasoning ?? 'automatic',
       grokSubscriptionAuth: true,
-      grokSubscriptionWebSearchDeclared: model.capabilities.includes('web'),
+      grokSubscriptionWebSearchDeclared: webSearchDeclared(),
       ...(model.upstreamDefaultReasoningLevel
         ? { upstreamDefaultReasoningLevel: model.upstreamDefaultReasoningLevel }
         : {}),
@@ -271,7 +273,7 @@ export async function runStreamPipeline(
         // upstream declaration", passed separately from `supportsWebSearch`, which is the first
         // half. The capability bit is built straight from the `/models` declaration (see
         // `buildOpenAISubscriptionModels`), so it is that declaration itself.
-        openAISubscriptionWebSearchDeclared: model.capabilities.includes('web'),
+        openAISubscriptionWebSearchDeclared: webSearchDeclared(),
         // The tier table follows the upstream declaration for this specific model. It lives only
         // inside this one request (never stored, never synced) and is used at send time to validate
         // the product tier the user chose into a value the upstream actually accepts.

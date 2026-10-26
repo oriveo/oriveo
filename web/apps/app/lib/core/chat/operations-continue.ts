@@ -24,14 +24,15 @@ import { relaySendTelemetryProperties } from '../telemetry/relay-properties';
 import { reportSendStartedTelemetry } from './send-start';
 import { reportChatFailed } from './send-failure';
 import * as Sentry from '@sentry/nextjs';
-import { mergeCitationsWithExisting, deriveCostFields, mergeMessageUsageFields } from './cost-fields';
+import { mergeCitationsWithExisting, deriveCostFields, generatedImageUnits, mergeMessageUsageFields, roundCostOf } from './cost-fields';
 import {
   buildProviderSentryContext,
   normalizeChatFailure,
   shouldReportProviderError,
   createProviderSentryError,
 } from './error-reporting';
-import { recalculateConversationCost, shouldTrackProviderUsage } from './usage-tracking';
+import { recalculateConversationCostTotals, shouldTrackProviderUsage } from './usage-tracking';
+import { addMessageCost } from '../cost/cost-currency';
 import { stopReasonFromError, stopReasonFromFinish } from './stop-reason-outcome';
 import { isContextOverflowFailure } from './context-pipeline/chat-context';
 import type { ChatOpCtx, SendHandle } from './operations';
@@ -240,8 +241,9 @@ export function continueAnswering(
       const { fullText, reasoningText, reasoningDurationMs: newReasoningDurationMs, citations, usage, imageAttachments, servedModelID } = pipeline;
 
       const { finalText, processedAttachments } = await processImageAttachments(fullText, imageAttachments);
-      const costInfo = deriveCostFields(usage, model, provider.kind, provider.authMode);
-      const cost = costInfo.cost + promptContext.retrievalCost;
+      const costInfo = deriveCostFields(usage, model, provider, () => new Date(), generatedImageUnits(processedAttachments));
+      const roundCost = roundCostOf(costInfo, promptContext.retrievalCost);
+      const cost = roundCost.estimatedCost;
       const completedAt = new Date().toISOString();
 
       // Merge the historical citations with this round's, deduplicated by normalizeUrl.
@@ -264,7 +266,7 @@ export function continueAnswering(
         stopReason: stopReasonFromFinish(pipeline.finish, finalText.trim() !== ''),
         reasoningText: [interruptedMsg.reasoningText, reasoningText.trim()].filter(Boolean).join('\n\n') || undefined,
         ...(mergedReasoningDurationMs !== undefined ? { reasoningDurationMs: mergedReasoningDurationMs } : {}),
-        estimatedCost: (interruptedMsg.estimatedCost ?? 0) + cost,
+        ...addMessageCost(interruptedMsg, roundCost),
         servedModelID,
         attachments: processedAttachments.length > 0
           ? [...(interruptedMsg.attachments ?? []), ...processedAttachments]
@@ -272,19 +274,25 @@ export function continueAnswering(
         ...(mergedCitations && mergedCitations.length > 0 ? { citations: mergedCitations } : {}),
         // One continuation is one new billable upstream request: keep upstream when the upstream
         // reports it, otherwise use this round's source.
-        costSource: costInfo.costSource,
+        costSource: roundCost.costSource,
         ...mergeMessageUsageFields(interruptedMsg, costInfo),
       }, outbound.memoryIds, true);
 
       // Replace the continuation target against the store's latest messages rather than the
       // snapshot, so concurrent writes during the continuation are not overwritten.
-      const completedBase = store.getState().conversations.find((c) => c.id === conversation.id)?.messages ?? messages;
+      const latestConversation = store.getState().conversations.find((c) => c.id === conversation.id);
+      const completedBase = latestConversation?.messages ?? messages;
       const completedMessages = completedBase.map((m) => m.id === messageId ? completedMsg : m);
-      const updatedCost = recalculateConversationCost(completedMessages);
+      const costTotals = recalculateConversationCostTotals(completedMessages, {
+        conversation: latestConversation ?? conversation,
+        previousMessages: completedBase,
+      });
+      const updatedCost = costTotals.estimatedCost;
       store.getState().updateConversation(conversation.id, {
         messages: completedMessages,
         ...deriveConversationMetadata(conversation, completedMessages),
         estimatedCost: updatedCost,
+        nonUsdCostTotals: costTotals.nonUsdCostTotals,
         updatedAt: computeConversationActivityAt(completedMessages, conversation.createdAt),
       });
 
@@ -301,7 +309,7 @@ export function continueAnswering(
       if (pairedUser) {
         getSyncAdapter()?.didCompleteRound(pairedUser, completedMsg, conversation.id, syncConv, updatedCost);
       } else {
-        getSyncAdapter()?.didCompleteAssistantMessage(completedMsg, conversation.id, updatedCost);
+        getSyncAdapter()?.didCompleteAssistantMessage(completedMsg, conversation.id, costTotals, syncConv);
       }
       if (shouldTrackProviderUsage(provider)) {
         /* local cost only */
@@ -345,19 +353,30 @@ export function continueAnswering(
           stopReason: 'interrupted',
           citations: undefined,
         };
-        const completedBase = store.getState().conversations
-          .find((candidate) => candidate.id === conversation.id)?.messages ?? messages;
+        const latestConversation = store.getState().conversations
+          .find((candidate) => candidate.id === conversation.id);
+        const completedBase = latestConversation?.messages ?? messages;
         const completedMessages = completedBase.map((message) =>
           message.id === messageId ? cancelledMsg : message,
         );
-        const updatedCost = recalculateConversationCost(completedMessages);
+        const costTotals = recalculateConversationCostTotals(completedMessages, {
+          conversation: latestConversation ?? conversation,
+          previousMessages: completedBase,
+        });
+        const updatedCost = costTotals.estimatedCost;
         store.getState().updateConversation(conversation.id, {
           messages: completedMessages,
           ...deriveConversationMetadata(conversation, completedMessages),
           estimatedCost: updatedCost,
+          nonUsdCostTotals: costTotals.nonUsdCostTotals,
           updatedAt: computeConversationActivityAt(completedMessages, conversation.createdAt),
         });
-        getSyncAdapter()?.didCompleteAssistantMessage(cancelledMsg, conversation.id, updatedCost);
+        getSyncAdapter()?.didCompleteAssistantMessage(
+          cancelledMsg,
+          conversation.id,
+          costTotals,
+          store.getState().conversations.find((c) => c.id === conversation.id),
+        );
         return;
       }
       // Same normalization as the catch in operations-send: a bare transport failure (offline,

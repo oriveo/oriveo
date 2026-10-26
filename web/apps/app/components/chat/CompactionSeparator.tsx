@@ -12,7 +12,7 @@ interface CompactionSeparatorProps {
   onClick: () => void;
 }
 
-/** P3·U4 transcript separator: two centered lines between hairlines; the whole row opens the detail dialog. */
+/** transcript separator: two centered lines between hairlines; the whole row opens the detail dialog. */
 export function CompactionSeparator({ model, onClick }: CompactionSeparatorProps) {
   const t = useTranslations('pages.chat.contextCompaction');
   const locale = useLocale();

@@ -14,7 +14,7 @@ import { sendMessage } from './operations-send';
 import type { ChatOpCtx, SendHandle } from './operations';
 import { getProviderInstanceDisplayName } from '../providers/provider-display';
 import { deriveConversationMetadata, computeConversationActivityAt } from '../conversation-metadata';
-import { recalculateConversationCost } from './usage-tracking';
+import { recalculateConversationCostTotals } from './usage-tracking';
 import { ContextCompactionStore } from './context-compaction/context-compaction-store';
 import { libraryDocumentRefsFromCitations } from './library-direct-context';
 import type { LibraryFailurePresentation } from './library-failure';
@@ -93,7 +93,12 @@ export function retryMessageWithSender(
   const preservePartialAssistant = explicitModelControlResend && shouldReuseFailedAssistant;
 
   if (removedDeliveredIDs.length > 0) {
-    getSyncAdapter()?.didRegenerate(removedDeliveredIDs, conversation.id, remainingLastDelivered);
+    getSyncAdapter()?.didRegenerate(
+      removedDeliveredIDs,
+      conversation.id,
+      recalculateConversationCostTotals(remaining, { conversation, previousMessages: messages }),
+      remainingLastDelivered,
+    );
   }
   // Only count messages that were actually deleted: a failed assistant reused in place keeps its id and is not a deletion.
   const deletedMsgs = shouldReuseFailedAssistant ? removedMsgs.slice(1) : removedMsgs;
@@ -103,10 +108,12 @@ export function retryMessageWithSender(
   cleanupCloudAttachments(retryingFailedAssistant
     ? (preservePartialAssistant ? removedMsgs.slice(1) : removedMsgs)
     : removedMsgs.slice(1));
+  const costTotals = recalculateConversationCostTotals(remaining, { conversation, previousMessages: messages });
   ctx.store.getState().updateConversation(conversation.id, {
     messages: remaining,
     ...deriveConversationMetadata(conversation, remaining),
-    estimatedCost: recalculateConversationCost(remaining),
+    estimatedCost: costTotals.estimatedCost,
+    nonUsdCostTotals: costTotals.nonUsdCostTotals,
     updatedAt: computeConversationActivityAt(remaining, conversation.createdAt),
   });
 
@@ -132,6 +139,7 @@ export function retryMessageWithSender(
         errorTechnicalDetail: undefined,
         additionalBodyRetryEligible: undefined,
         generationParameterRejection: undefined,
+        inputRejection: undefined,
         relayImageUnsupported: undefined,
         relayFileUnsupported: undefined,
         attachments: preservePartialAssistant ? messages[msgIndex].attachments : undefined,

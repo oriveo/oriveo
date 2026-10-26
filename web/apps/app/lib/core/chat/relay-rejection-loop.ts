@@ -33,8 +33,14 @@ import {
 } from '@oriveo/core/providers/attachment-transport';
 import { type OutboundHistoryMessage, textFallbackHistory } from '../attachments/native-file-fallback';
 import { resolveAttachmentLine } from '../attachments/attachment-transport-resolver';
+import { decideAttachmentRoute } from '../attachments/attachment-router';
 import { hasUsableExtractedText } from '../attachments/file-text-extractor';
 import { providerFormOf } from '../capability/truth/provider-form';
+import { recordRelayInputRejectionV2 } from '../capability/input-rejection-flow';
+import { inputNegativeCacheTarget } from '../capability/truth/input-truth-adapter';
+import { relayDeclaredInputSignal } from '../capability/truth/relay-truth-adapter';
+import { officialToolCallVerdict } from './tool-call-verdict';
+import { resolveModelCapabilityEvidence } from './capability-evidence';
 import { isRelayRouteRejection, relayCatalogEndpointTypes, resolveRelayProbeCandidates } from '../providers/relay-probe-candidates';
 import { relayFirstSendTransport } from '../providers/relay-first-send-transport';
 import { recordRelayTransportObservedAfterFallback } from '../providers/relay-model-observed';
@@ -56,7 +62,6 @@ import { relayWebFragmentHash } from '@oriveo/core/providers/relay-web-probe';
 import { writeRelayWebProbeRecord } from './relay-web-probe-records';
 import {
   recordToolCallSupportFalse,
-  toolCallSupportIsRememberedFalse,
   type ToolCallRecoveryIdentity,
   type ToolCallRejectionContext,
 } from './capability-recovery-runtime';
@@ -113,25 +118,31 @@ export async function relayFirstSendMessagesBlockedByFiles(input: {
   if (files.length === 0) return false;
   if (files.some((file) => hasUsableExtractedText(file.base64Data, file.extractionErrorCode))) return false;
   const messages: RelayModelTransport = 'anthropic_messages';
+  const model: AIModel = { ...input.model, relayTransport: messages };
   const line = await resolveAttachmentLine({
     provider: input.provider,
-    model: { ...input.model, relayTransport: messages },
+    model,
     streamOptions: { ...input.streamOptions, relayTransport: messages },
   });
-  return nativeFileModeOf(line) === 'off';
+  // Judged per file by plan: fall back only when none of the files is sent natively on the Messages route.
+  return files.every((file) => decideAttachmentRoute(file, line, model) !== 'native');
 }
 
 /* -- Tools -- */
 
-/** Read "known not to support tools" before sending: Relay looks only at this store (a false in the old tool memory is ignored); other shapes read the old memory. */
-export function toolCallRememberedUnsupported(
+/**
+ * tool_call verdict on the send path: non-Relay goes through officialToolCallVerdict (the same verdict as the routing gate / MCP switch / badge).
+ * Relay keeps its original semantics: tool evidence was already judged by the upstream gate (the facade carrying the connection identity), so only the Relay negative cache is read here.
+ * Callers decide whether to send tools by `!== false`, and await prepareToolCallVerdict beforehand.
+ */
+export function toolCallVerdictForSend(
   provider: Provider,
   model: AIModel,
   identity: ToolCallRecoveryIdentity,
-): boolean {
+): boolean | null {
   const key = relayNegativeCacheModelKey(provider, model);
-  if (key) return isRelayNegativeCached({ ...key, kind: 'toolCall' });
-  return toolCallSupportIsRememberedFalse(identity);
+  if (key) return isRelayNegativeCached({ ...key, kind: 'toolCall' }) ? false : null;
+  return officialToolCallVerdict(provider, model, identity);
 }
 
 /**
@@ -156,7 +167,7 @@ export function recordToolCallFallback(
   now = Date.now(),
 ): void {
   const firstSendKey = relayNegativeCacheModelKey(provider, model);
-  const key = firstSendKey && { ...firstSendKey, transport: sentTransport ?? effectiveTransport(provider, model) };
+  const key = firstSendKey && { ...firstSendKey, transport: sentTransport ?? firstSendKey.transport };
   if (!key) {
     if (toolCallMemoryEligible(provider, model)) recordToolCallSupportFalse(identity, now);
     return;
@@ -322,14 +333,15 @@ function historyForTransport(
  * no override true, no engine declaration true, and the model capabilities (official inherited or declared) do not include image; undeterminable rejection, output already started, or this message already switched protocol are not recorded.
  */
 export function shouldRecordRelayImageRejection(input: {
-  provider: Pick<Provider, 'relayRequested'>;
-  model: Pick<AIModel, 'capabilities' | 'engineDeclaration' | 'relayCapabilityOverrides'>;
+  provider: Provider;
+  model: AIModel;
+  streamOptions: StreamOptions | undefined;
   rejected: boolean;
   outputStarted: boolean;
   protocolSwitched: boolean;
 }): boolean {
   if (!input.rejected || input.outputStarted || input.protocolSwitched) return false;
-  return relayImageSupportUnknown(input.provider, input.model);
+  return relayImageSupportUnknown(input.provider, input.model, input.streamOptions);
 }
 
 /**
@@ -337,13 +349,12 @@ export function shouldRecordRelayImageRejection(input: {
  * Whether a rejected image send records `image` and the "unknown" of the model options image card use this same predicate.
  */
 export function relayImageSupportUnknown(
-  provider: Pick<Provider, 'relayRequested'>,
-  model: Pick<AIModel, 'capabilities' | 'engineDeclaration' | 'relayCapabilityOverrides'>,
+  provider: Provider,
+  model: AIModel,
+  streamOptions: StreamOptions | undefined,
 ): boolean {
-  if (model.relayCapabilityOverrides?.image?.value === true) return false;
-  // An engine declaration counts only on a local engine connection (one with an engineProfile).
-  if (provider.relayRequested?.engineProfile && model.engineDeclaration?.image === true) return false;
-  return !(model.capabilities ?? []).includes('image');
+  const support = resolveModelCapabilityEvidence({ key: 'vision_input', provider, model, streamOptions }).support;
+  return support !== 'supported' && !relayDeclaredInputSignal(provider, model, 'vision_input');
 }
 
 /** Whether the first rejection of a request with a native file block counts as a file rejection signal: 400 / 404 / 415 / 422 before output judged as rejection; 413 does not count. */
@@ -545,11 +556,14 @@ export function sendWithRelayRejectionLoop<H extends StreamHandle>(
           if (carriesImageNow && shouldRecordRelayImageRejection({
             provider,
             model,
+            streamOptions,
             rejected: isRelayRejectionEvent(firstError),
             outputStarted: false,
             protocolSwitched: false,
           })) {
             recordRelayNegativeCache({ ...key, kind: 'image' });
+            // Also written to v2 (the protocol family comes from this first send's options, taken the same way as the projection).
+            recordRelayInputRejectionV2(inputNegativeCacheTarget(provider, model, streamOptions, 'vision_input'));
             imageRejected = true;
           }
           // When one message meets both image rejection and file rejection, the image card wins.

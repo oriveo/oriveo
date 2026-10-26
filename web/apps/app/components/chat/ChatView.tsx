@@ -15,7 +15,10 @@ import { SEND_BLOCKED, useStreamChat } from '../../lib/hooks/useStreamChat';
 import { loadSyncCore } from '../../lib/core/sync-lazy';
 import { getVanillaStore } from '../../providers/StoreProvider';
 import { pinNoteToConversation, unpinNoteFromConversation, updateConversationUseMemory } from '../../lib/core/conversation-ops';
-import { canAcceptDroppedAttachment } from '../../lib/core/chat/attachment-policy';
+import { useAttachmentRejectionGate } from '../../lib/hooks/useAttachmentIntake';
+import { resolveAttachmentCapabilities } from '../../lib/core/chat/attachment-policy';
+import { isProviderUsableForNewChat, resolveConnectionRemovedPrompt } from '../../lib/core/chat/active-selection';
+import { createProviderSelectionSnapshot } from '../../lib/core/providers/provider-selection-snapshot';
 import { TopBar } from './TopBar';
 import { AttachmentIcon, WarningIcon, CloseIcon, ChevronLeftIcon, SlidersIcon } from '../icons';
 import { MessageList } from './MessageList';
@@ -51,6 +54,7 @@ import {
   getRelayRuntimeConfig,
   onVersionChange,
   refreshMetadata,
+  resolveCatalogModel,
 } from '../../lib/core/metadata/metadata-client';
 import { resolveRelayAttachmentSupport } from '../../lib/core/providers/relay-runtime-support';
 
@@ -95,10 +99,9 @@ import { CUSTOM_FRAGMENT_SETTINGS_EVENT, customFragmentOwnerFacts, forwardPortCu
 import { CUSTOM_FRAGMENT_ERROR_KIND } from '../../lib/core/chat/custom-fragment-rejection';
 import type { ReasoningIntent } from '@oriveo/core/providers/request-preference/types';
 import { generationParameterProfileFingerprint } from '../../lib/core/chat/generation-parameter-settings';
-import { relayWebPreferenceDefaultFor } from '../../lib/core/chat/relay-web-probe-records';
-import { readComposerCapabilityPreferences, writeComposerWebPreference } from '../../lib/core/chat/composer-web-preference';
+import { readComposerCapabilityPreferences, writeComposerReasoningIntent, writeComposerWebPreference } from '../../lib/core/chat/composer-web-preference';
 import { relayDetailPageQuery } from '../../app/providers/[providerId]/relay-detail-nav';
-import { capabilityPreferenceIdentity as resolveCapabilityPreferenceIdentity, capabilityRuntimeIdentity, displayCapabilityPreferences, saveCapabilityPreferenceDraft, saveCapabilityPreferences, withCapabilityReasoningIntent } from '../../lib/core/chat/capability-preference-settings';
+import { capabilityPreferenceIdentity as resolveCapabilityPreferenceIdentity, capabilityRuntimeIdentity } from '../../lib/core/chat/capability-preference-settings';
 import { capabilityRejectionIsDormant, capabilityRejectionState, invokeCapabilityRecoveryRetry } from '../../lib/core/chat/capability-recovery-runtime';
 import { relayReasoningTierCacheKey, relayRejectedReasoningTiers } from '../../lib/core/chat/relay-reasoning-tiers';
 import { resolveChatCapabilityOutboundDecision } from '../../lib/core/chat/chat-capability-outbound-decision';
@@ -138,6 +141,7 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
   const tSkills = useTranslations('skills');
   const tCommon = useTranslations('common');
   const tLibrary = useTranslations('library');
+  const tModelSwitcher = useTranslations('pages.modelSwitcher');
   const generationParameterDraftSessionId = useRef(`draft-${crypto.randomUUID()}`).current;
   const libraryFeatureEnabled = isLibraryFeatureEnabled();
   const { localizedName: localizedSkillName } = useSkillL10n();
@@ -244,10 +248,21 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
   });
 
   // ── Resolve active provider and model + model selection handlers ──
+  // Capability evidence is metadata-backed; subscribing here keeps the
+  // facade-derived composer controls and the model selection in step with an arriving snapshot.
+  const metadataVersion = useSyncExternalStore(
+    onVersionChange,
+    getCachedMetadataVersion,
+    () => 0,
+  );
   const {
     provider,
     currentModel,
     modelRemoval,
+    modelRetirement,
+    connectionRemoved,
+    successorModel,
+    switchToSuccessor,
     setSelectedModelId,
     setSelectedProviderId,
     showModelSwitcher,
@@ -262,7 +277,21 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
     conversation,
     providers,
     evaluateExpensiveHint,
+    metadataVersion,
   });
+  // The conversation is bound to a connection that is temporarily unavailable (connection list not loaded yet): provider is empty and it is not "connection removed".
+  const boundConnectionUnavailable = !provider
+    && !connectionRemoved
+    && Boolean(conversation?.providerID?.trim());
+  // The top bar falls back to the model stored on the conversation: official catalog display name, then the model id, never "Choose model".
+  const unavailableBoundModelName = useMemo(() => {
+    const modelID = conversation?.modelID?.trim();
+    if (!boundConnectionUnavailable || !modelID) return undefined;
+    const kind = conversation?.providerKind;
+    const catalogName = kind ? resolveCatalogModel(modelID, kind)?.displayName : undefined;
+    return catalogName?.trim() || modelID;
+    // metadataVersion: recompute the official display name once the catalog snapshot arrives.
+  }, [boundConnectionUnavailable, conversation?.modelID, conversation?.providerKind, metadataVersion]);
 
   const providerAttachmentSupport = useMemo(() => (
     provider?.kind === 'relay'
@@ -272,11 +301,12 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
         : null
   ), [currentModel, provider]);
 
-  const canAcceptDropped = useCallback(
-    (attachment: Attachment) =>
-      canAcceptDroppedAttachment(attachment, provider, currentModel, providerAttachmentSupport),
+  // Drag-and-drop / global paste: images, PDFs and videos each read their own projection's editable, and a rejection explains the reason for that media.
+  const dropAttachmentCapabilities = useMemo(
+    () => resolveAttachmentCapabilities(provider, currentModel, providerAttachmentSupport),
     [currentModel, provider, providerAttachmentSupport],
   );
+  const canAcceptDropped = useAttachmentRejectionGate(dropAttachmentCapabilities);
 
   // ── Drag & Drop + Global Paste ──
   const handleFilesAccepted = useCallback((newAtts: Attachment[], maxAttachments: number) => {
@@ -325,6 +355,18 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
   // Build the summary quote from row R, park it for the new chat, then switch like the sidebar "new chat"
   // (same provider / model, nothing is sent automatically).
   const handleNewChatWithSummary = useCallback((row: ContextCheckpointRow | null) => {
+    // A connection missing credentials neither opens the new chat nor writes last used;
+    // take the user to that connection's detail page instead.
+    if (provider && !isProviderUsableForNewChat(provider)) {
+      router.push(`/providers/${provider.id}`);
+      return;
+    }
+    // The current model cannot send and this connection's new-chat chain is empty,
+    // so do not open a model-less new chat; take the user to the connection's detail page instead.
+    if (provider && !currentModel && !createProviderSelectionSnapshot(provider)?.currentModel) {
+      router.push(`/providers/${provider.id}`);
+      return;
+    }
     if (row) {
       const quote = buildSummaryQuote(
         row,
@@ -334,14 +376,22 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
       if (quote) setPendingComposerQuote(null, quote);
     }
     if (provider && currentModel) {
+      // Sendable current model: record it as last used and open the new chat on it.
       setLastUsedModelRef({ providerID: provider.id, modelID: currentModel.id });
+      setSelectedProviderId(provider.id);
+      setSelectedModelId(currentModel.id);
+    } else if (provider) {
+      // The current model cannot send (removed / retired), so last used is left alone
+      // and the new chat follows this connection's new-chat chain only (no fallback to other connections).
+      setSelectedProviderId(provider.id);
+      setSelectedModelId(null);
     }
     setActiveConversationId(null);
     const target = isMobileViewport ? '/chat?compose=1' : '/chat';
     if (isMobileViewport) setSidebarOpen(false);
     router.push(target);
     scheduleDesktopNavigationFallback(target);
-  }, [currentModel, isMobileViewport, messages, provider, router, setActiveConversationId, setLastUsedModelRef, setSidebarOpen, t]);
+  }, [account, currentModel, isMobileViewport, messages, provider, router, setActiveConversationId, setLastUsedModelRef, setSelectedModelId, setSelectedProviderId, setSidebarOpen, t]);
 
   const handleHintNewChat = useCallback(() => {
     if (!effectiveId) return;
@@ -361,13 +411,6 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
     isEmptyChat &&
     !shouldShowConversationBootstrap &&
     !currentSkill;
-  // Capability evidence is metadata-backed; subscribing here keeps the
-  // facade-derived composer controls in step with an arriving snapshot.
-  const metadataVersion = useSyncExternalStore(
-    onVersionChange,
-    getCachedMetadataVersion,
-    () => 0,
-  );
   /**
    * Change signal for locally defined custom request fields. The editor persists and
    * broadcasts on every keystroke, and the chip's globe test (the custom branch of the
@@ -893,6 +936,15 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
     if (!provider) {
       // After a provider is deleted the conversation still remembers its providerKind; the blocked-send event carries it (same as iOS / Android)
       reportSendBlocked('provider_missing', conversation?.providerKind);
+      if (boundConnectionUnavailable) {
+        // The connection is temporarily unavailable: say why and keep the draft.
+        showToast(tModelSwitcher('selectModel'), 5000, () => setShowModelSwitcher(true), 'warning', t('modelRemovedChoose'));
+      } else if (providers.length > 0) {
+        // The new-chat chain is empty: open the model picker if there are connections, otherwise go to add a connection.
+        setShowModelSwitcher(true);
+      } else {
+        router.push('/providers/new');
+      }
       return;
     }
     if (!currentModel) {
@@ -1002,6 +1054,8 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
   }, [
     attachments,
     account,
+    boundConnectionUnavailable,
+    providers.length,
     clearExpensiveHint,
     conversation,
     currentModel,
@@ -1019,7 +1073,10 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
     router,
     send,
     setLastUsedModelRef,
+    setShowModelSwitcher,
+    t,
     tLibrary,
+    tModelSwitcher,
   ]);
 
   // Edit-and-resend cancelled at the pre-send confirmation: the conversation is back to its pre-edit state, so the message's edit box
@@ -1133,8 +1190,7 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
     // provider default leaves the enum at automatic either way, so comparing only the enum
     // is a permanently silent no-op and the user can never leave off.
     if (next === reasoningMode && nextIntent === reasoningIntent) return;
-    const identity = capabilityPreferenceIdentity;
-    if (!identity) return;
+    if (!capabilityPreferenceIdentity) return;
     trackEvent('reasoning_mode_changed', {
       from_mode: reasoningIntent === 'off' ? 'off' : reasoningMode,
       to_mode: next,
@@ -1144,13 +1200,9 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
     setReasoningMode(next);
     setReasoningIntent(nextIntent);
     if (provider && currentModel) {
-      // Carry the relay default layer along: changing only thinking must not write a "never set -> on" web preference as off.
-      const defaultWeb = relayWebPreferenceDefaultFor(provider, currentModel);
-      const previous = displayCapabilityPreferences({ ...identity, conversationId: effectiveId ?? undefined, ...(defaultWeb ? { defaultWeb } : {}) });
-      const nextPreferences = withCapabilityReasoningIntent(previous, nextIntent);
-      if (!effectiveId) { saveCapabilityPreferenceDraft(generationParameterDraftSessionId, identity, nextPreferences); return; }
-      const scope = 'conversation_connection_model';
-      saveCapabilityPreferences({ ...identity, scope, ...(effectiveId ? { conversationId: effectiveId } : {}) }, nextPreferences);
+      writeComposerReasoningIntent({
+        provider, model: currentModel, conversationId: effectiveId ?? undefined, draftSessionId: generationParameterDraftSessionId,
+      }, nextIntent);
     }
   }, [capabilityPreferenceIdentity, reasoningIntent, reasoningMode, currentModel, effectiveId, generationParameterDraftSessionId, provider]);
 
@@ -1164,14 +1216,12 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
    */
   const handleReasoningIntentChange = useCallback((intent: ReasoningIntent | undefined) => {
     if (intent === 'off') {
-      const input = capabilityPreferenceIdentity;
-      if (!input) return;
+      if (!capabilityPreferenceIdentity || !provider || !currentModel) return;
       setReasoningMode('automatic');
       setReasoningIntent('off');
-      const defaultWeb = relayWebPreferenceDefaultFor(provider, currentModel);
-      const previous = displayCapabilityPreferences({ ...input, conversationId: effectiveId ?? undefined, ...(defaultWeb ? { defaultWeb } : {}) });
-      if (!effectiveId) saveCapabilityPreferenceDraft(generationParameterDraftSessionId, input, { ...previous, reasoningIntent: 'off' });
-      else saveCapabilityPreferences({ ...input, scope: 'conversation_connection_model', conversationId: effectiveId }, { ...previous, reasoningIntent: 'off' });
+      writeComposerReasoningIntent({
+        provider, model: currentModel, conversationId: effectiveId ?? undefined, draftSessionId: generationParameterDraftSessionId,
+      }, 'off');
       return;
     }
     handleReasoningModeChange(REASONING_MODE_BY_INTENT[intent ?? ''] ?? 'automatic');
@@ -1300,8 +1350,8 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
         transparentChrome={isEmptyChat}
         modelName={currentModel?.executionLocality === "proxied_cloud"
           ? `${currentModel.name} - ${t("viaOllamaCloud")}`
-          : currentModel?.name}
-        providerKind={provider?.kind}
+          : currentModel?.name ?? unavailableBoundModelName}
+        providerKind={provider?.kind ?? (boundConnectionUnavailable ? conversation?.providerKind : undefined)}
         relayKind={provider?.relayKind}
         relayProvider={provider}
         skillIcon={currentSkill?.icon}
@@ -1309,6 +1359,7 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
         sidebarOpen={sidebarOpen}
         isStreaming={isStreaming}
         conversationCost={conversation?.estimatedCost}
+        conversationNonUsdCostTotals={conversation?.nonUsdCostTotals}
         onToggleSidebar={handleToggleSidebar}
         onModelClick={handleToggleModelSwitcher}
         memoryItems={memoryItems}
@@ -1462,7 +1513,12 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
         capabilityAlternativeModels={capabilityAlternativeModels}
         onSelectAlternativeModel={handleSelectAlternativeModel}
         onOpenModelSwitcher={() => setShowModelSwitcher(true)}
+        connectionRemoved={resolveConnectionRemovedPrompt({ connectionRemoved }, providers.length)}
+        onOpenConnectionSetup={() => router.push('/providers/new')}
         modelRemovedConnectionName={modelRemoval?.connectionName}
+        modelRetiredName={modelRetirement?.sendBlocked ? modelRetirement.displayName : undefined}
+        modelRetiredSuccessorName={modelRetirement?.sendBlocked ? successorModel?.name : undefined}
+        onSwitchToSuccessor={switchToSuccessor}
         onOpenConnectionSettings={provider ? () => router.push(`/providers/${provider.id}`) : undefined}
         onOpenConnectionWebSearch={provider ? () => router.push(`/providers/${provider.id}?view=web`) : undefined}
         onOpenRelayModelAdvanced={provider && currentModel
@@ -1470,6 +1526,9 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
           : undefined}
         onFindModelsSupportingParameter={handleFindModelsSupportingParameter}
         providerAttachmentSupport={providerAttachmentSupport}
+        attachmentCapabilities={dropAttachmentCapabilities}
+        // No connection means no verdict: picking files / pasting skips the rejection gate, and the entry itself is greyed out as model_absent.
+        canAcceptAttachment={provider && currentModel ? canAcceptDropped : undefined}
         providerKind={telemetryProviderKind(provider?.kind)}
         presentation={showHomeComposer ? 'home' : 'docked'}
         toolsTrailing={(

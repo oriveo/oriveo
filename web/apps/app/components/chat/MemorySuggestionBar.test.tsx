@@ -218,7 +218,8 @@ describe('memory suggestion bar', () => {
   });
 
   it('conversation_directive_keeps_instruction_bar', async () => {
-    const text = caseText('en_implicit_01_golden');
+    // The fallback lexical bar only honors suggestionLanguages (propose-v3), so use the in-gate zh-Hans golden sentence
+    const text = caseText('zh_implicit_03_golden');
     const { candidates, send, lastUserMessage } = setup();
     await send(text);
 

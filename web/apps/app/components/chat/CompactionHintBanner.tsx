@@ -19,7 +19,7 @@ interface CompactionHintBannerProps {
 
 const serverHint = (): string | null => null;
 
-/** P3·U4: third-compaction hint shown above the composer while this conversation is the pending one. */
+/** third-compaction hint shown above the composer while this conversation is the pending one. */
 export function CompactionHintBanner({ conversationId, onNewChat }: CompactionHintBannerProps) {
   const t = useTranslations('pages.chat.contextCompaction');
   const hinted = useSyncExternalStore(subscribeCompactionHint, pendingCompactionHint, serverHint);
@@ -53,7 +53,7 @@ export function CompactionHintBanner({ conversationId, onNewChat }: CompactionHi
 }
 
 /**
- * P3·U4: when a conversation view mounts (or switches) to `conversationId`, take the pending
+ * when a conversation view mounts (or switches) to `conversationId`, take the pending
  * composer quote once and hand it to `onQuote`. A new chat has no id yet, so it takes the null slot.
  */
 export function usePendingComposerQuote(

@@ -36,6 +36,19 @@ vi.mock('../attachment-policy', async (importOriginal) => ({
   withoutUnreceivableImages: <T,>(messages: T[]) => messages,
   filterCurrentTurnAttachments: <T,>(messages: T[]) => messages,
 }));
+// Outbound history construction reads the same image-recognition projection (only native_part produces image parts): same basis as letting images through above.
+vi.mock('../../capability/truth/input-truth-adapter', async (importOriginal) => {
+  const { projectInputCapability } = await import('@oriveo/core/providers/capability-evidence-facade');
+  const native = (key: 'vision_input' | 'file_input' | 'video_input') => projectInputCapability({
+    key, verdict: { state: 'auto_available' }, endImplements: true, override: null, negativeCacheHit: false, connection: 'official',
+  });
+  return {
+    ...(await importOriginal<typeof import('../../capability/truth/input-truth-adapter')>()),
+    resolveInputCapabilityProjections: () => ({
+      vision_input: native('vision_input'), file_input: native('file_input'), video_input: native('video_input'),
+    }),
+  };
+});
 
 import { createAppStore } from '../../store/app-store';
 import { __resetMetadataClientForTest, __seedMetadataCacheForTest, initMetadata } from '../../metadata/metadata-client';

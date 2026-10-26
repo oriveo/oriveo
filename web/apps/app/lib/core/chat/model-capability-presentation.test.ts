@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AIModel, Provider, ProviderKind } from '@oriveo/shared';
+import { makeRelayRequested, type AIModel, type Provider, type ProviderKind } from '@oriveo/shared';
 import * as capabilityFacade from '@oriveo/core/providers/capability-evidence-facade';
 import {
   __seedMetadataCacheForTest,
@@ -8,6 +8,12 @@ import {
   initMetadata,
 } from '../metadata/metadata-client';
 import * as capabilityEvidence from './capability-evidence';
+import { createRelayManualModel } from '../provider-model-ops';
+import {
+  beginCapabilityEvidenceIdentityIfAbsent,
+  resetCapabilityEvidenceIdentitiesForTesting,
+} from '../providers/capability-evidence-identity';
+import { getActiveUIDSync } from '../../infra/storage/partition';
 import {
   createModelCapabilityPresentationProjector,
   modelSupportsCapabilityFilter,
@@ -42,6 +48,7 @@ function makeProvider(model: AIModel, kind: ProviderKind = 'openAI'): Provider {
 
 afterEach(() => {
   __resetMetadataClientForTest();
+  resetCapabilityEvidenceIdentitiesForTesting();
   localStorage.clear();
 });
 
@@ -71,7 +78,9 @@ describe('model capability presentation', () => {
       capabilityControls: {
         reasoning: { state: 'auto_available', recipeRef: 'fixture.reasoning' },
         web: { state: 'unavailable', reasonCode: 'model_capability_absent' },
-      },
+        // The image / file badges read the input-capability projection's visible: the image badge lights only when the vision verdict is available; a missing file_input key = unknown, not lit.
+        vision_input: { state: 'auto_available', wireFamily: 'openai_chat.image_url' },
+      } as AIModel['capabilityControls'],
       capabilityEvidenceCandidates: [
         {
           key: 'vision_input',
@@ -110,9 +119,9 @@ describe('model capability presentation', () => {
     expect(modelSupportsCapabilityFilter(provider, model, 'image')).toBe(true);
     expect(modelSupportsCapabilityFilter(provider, model, 'web')).toBe(false);
     expect(modelSupportsCapabilityFilter(provider, model, 'reasoning')).toBe(true);
+    expect(modelSupportsCapabilityFilter(provider, model, 'file')).toBe(false);
     expect(visibleModelCapabilityBadges(provider, model)).toEqual([
       'text',
-      'file',
       'image',
       'reasoning',
       'imageGeneration',
@@ -152,7 +161,6 @@ describe('model capability presentation', () => {
     const model = makeModel();
     expect(visibleModelCapabilityBadges(undefined, model)).toEqual([
       'text',
-      'file',
       'imageGeneration',
     ]);
   });
@@ -165,9 +173,33 @@ describe('model capability presentation', () => {
     expect(modelSupportsCapabilityFilter(provider, model, 'web')).toBe(false);
     expect(visibleModelCapabilityBadges(provider, model)).toEqual([
       'text',
-      'file',
       'imageGeneration',
     ]);
+  });
+
+  it('vision_relay_add_on_unknown: Relay unknown + user add lights the image badge without a caller stream context', () => {
+    const requested = makeRelayRequested('openai_compatible');
+    requested.authMode = 'none';
+    requested.securityMode = 'local_http';
+    requested.transport = 'openai_chat_completions';
+    requested.resolvedAPIBaseURL = 'http://127.0.0.1:8080/v1';
+    const base = createRelayManualModel('relay-add-unknown');
+    const model: AIModel = {
+      ...base,
+      capabilityOverrides: { vision_input: { op: 'add', setAt: '2026-10-19T00:00:00.000Z', baseVerdict: 'unknown' } },
+    } as AIModel;
+    const provider = {
+      id: 'relay-add', kind: 'relay', status: { kind: 'connected' }, models: [model], catalogModels: [model],
+      apiKey: '', apiKeyPreview: '', baseURLText: 'http://127.0.0.1:8080', relayKind: 'openai_compatible',
+      relayRequested: requested, relayResolvedBaseURLText: 'http://127.0.0.1:8080/v1',
+      relayResolvedTransport: 'openai_chat_completions', relayResolvedAuthMode: 'none',
+    } as Provider;
+    beginCapabilityEvidenceIdentityIfAbsent(getActiveUIDSync(), provider.id);
+
+    expect(createModelCapabilityPresentationProjector()(provider, model).image).toBe(true);
+    expect(visibleModelCapabilityBadges(provider, model)).toContain('image');
+    // Without a user add, unknown does not light up.
+    expect(createModelCapabilityPresentationProjector()(provider, base).image).toBe(false);
   });
 
   it('projects each model once per render cache even when sort, filter, and row ask repeatedly', () => {
@@ -195,14 +227,17 @@ describe('model capability presentation', () => {
       project(provider, model);
     }
 
-    // Reasoning/Web now use Server recipe controls; only vision/tool use the evidence facade.
-    expect(resolveSpy).toHaveBeenCalledTimes(810 * 2);
+    // Reasoning/Web use Server recipe controls and vision reads the input-capability
+    // projection; only tool still uses the evidence facade.
+    expect(resolveSpy).toHaveBeenCalledTimes(810);
     expect(querySpy).toHaveBeenCalledTimes(810);
     // One shared shape for reasoning/vision/web plus the adapter's stricter
     // tool namespace shape; still independent of the seven facade keys.
     expect(candidatesSpy).toHaveBeenCalledTimes(810 * 2);
     // Presentation invokes each public adapter once; their internal pure
     // normalization is deliberately not replaced by a second local adapter.
-    expect(currentModelSpy).toHaveBeenCalledTimes(810);
+    // The input badge also fills the entry-point stream context (automatic intent),
+    // which resolves the current evidence model once more per model.
+    expect(currentModelSpy).toHaveBeenCalledTimes(810 * 2);
   });
 });

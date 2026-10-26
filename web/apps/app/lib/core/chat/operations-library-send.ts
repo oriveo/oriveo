@@ -1,5 +1,6 @@
 import { withAdditionalBody } from './additional-body-settings';
 import { createAdditionalBodyRetryTap } from './additional-body-retry-tap';
+import { createFirstLegInputRejectionTap } from './operations-mcp-send';
 import type {
   AIModel,
   Attachment,
@@ -14,6 +15,8 @@ import type { StreamUsage } from "@oriveo/core/providers/types";
 import { transportInput } from "./context-pipeline/transport-input";
 import { filterCurrentTurnAttachments, withoutUnreceivableImages } from "./attachment-policy";
 import { AttachmentOverLimitError } from "../attachments/attachment-delivery";
+import { resolveAttachmentLine } from "../attachments/attachment-transport-resolver";
+import { messagesCarryFilePart, nativeFileModeOf } from "@oriveo/core/providers/attachment-transport";
 import { createAssistantMessage, createUserMessage } from "./message-factory";
 import { prepareSendStart, reportSendStartedTelemetry, rollbackSendStart } from "./send-start";
 import { CapConfirmCancelledError, capConfirmAttemptOf, gateCapConfirm, onceCallback } from "./context-visibility/cap-confirm-gate";
@@ -29,8 +32,9 @@ import {
   deriveCostFields,
   mergeCitationsWithExisting,
   mergeMessageUsageFields,
+  roundCostOf,
 } from "./cost-fields";
-import { estimateCost } from "./cost";
+import { addMessageCost } from "../cost/cost-currency";
 import { reportSendCompletion } from "./send-completion";
 import { sendLibraryAgentLeg } from "../providers/proxy-client";
 import {
@@ -60,7 +64,8 @@ import {
 import { resolveLibraryResearchRouteNow } from "../library/routing";
 import { getActiveUIDSync } from '../../infra/storage/partition';
 import { type ToolCallRecoveryIdentity } from './capability-recovery-runtime';
-import { recordToolCallFallback, toolCallRememberedUnsupported } from './relay-rejection-loop';
+import { recordToolCallFallback, toolCallVerdictForSend } from './relay-rejection-loop';
+import { prepareToolCallVerdict } from './tool-call-verdict';
 import { applyRelayToolRejection } from '../providers/relay-key-access-writeback';
 import { trackEvent, telemetryProviderKind, telemetryModelID } from "../telemetry";
 import {
@@ -266,6 +271,7 @@ export function sendLibraryMessage(
       skillId: params.conversation?.skillId,
       pinnedNoteIds: params.pinnedNoteIds,
       onNewConversation: params.onNewConversation,
+      attemptKind,
     });
   // The library agent path does not go through sendMessage: a new user send is likewise handed to the "set as instruction" detection.
   // In tool mode propose_memory is registered as the last registry entry, and the suggestion strip is published through the ticket.
@@ -357,6 +363,7 @@ export function sendLibraryMessage(
   };
 
   // The failure block reads send-path facts from the model leg, so this lives outside the try.
+  let inputRejectionTapRef: ReturnType<typeof createFirstLegInputRejectionTap> | undefined;
   let additionalBodyRetryTap: ReturnType<typeof createAdditionalBodyRetryTap> | undefined;
   const done = (async () => {
     try {
@@ -384,7 +391,7 @@ export function sendLibraryMessage(
       // Same vision criterion as the entry point (Relay vision "unknown" still sends).
       const outbound = filterCurrentTurnAttachments(
         withoutUnreceivableImages(outboundDraft, params.provider, params.model, attachmentScopeOptions),
-        userMessage.id, params.provider, params.model);
+        userMessage.id, params.provider, params.model, undefined, attachmentScopeOptions);
       // The assembler (purpose toolLoopLeg) produces the only system message: toolSafety = library tool description + the MCP safety prompt when MCP is also on.
       const toolLoopContext = await prepareToolLoopContext(ctx, {
         conversation: effectiveConversation,
@@ -463,6 +470,8 @@ export function sendLibraryMessage(
         params.model,
         streamOptions,
       );
+      // Models outside the catalog first load the modelFacts revision from local storage, so a remembered rejection is not wrongly invalidated after a refresh.
+      await prepareToolCallVerdict(params.provider, params.model);
       const toolCallIdentity: ToolCallRecoveryIdentity = {
         accountId: sendingAccountId,
         connectionId: params.provider.id,
@@ -480,18 +489,28 @@ export function sendLibraryMessage(
           libraryOutbound.streamOptions,
         ),
       };
-      const toolsEnabled = !toolCallRememberedUnsupported(params.provider, params.model, toolCallIdentity);
+      const toolsEnabled = toolCallVerdictForSend(params.provider, params.model, toolCallIdentity) !== false;
       // When tools are known to be unsupported, propose_memory cannot be sent: run the fallback for this round directly.
       if (!toolsEnabled && proposeTicket) generateMemoryCandidate(store, proposeTicket, userMessage);
       // The generation parameters in effect carry json_schema -> propose is not registered this round and the candidate goes through the fallback (same decision as a plain send).
-      if (toolsEnabled && proposeTicket
-        && !memoryToolsConnectionSupported(params.provider, params.model, false, generationParameters)) {
+      // The first leg carries a native file part and this route's tool loop takes no native files: run this round on the fallback (same rule as a plain send).
+      const nativeFilesBlockToolLoop = proposeTicket !== undefined && messagesCarryFilePart(history)
+        && nativeFileModeOf(await resolveAttachmentLine({
+          provider: params.provider, model: params.model, streamOptions: attachmentScopeOptions, toolLoop: true,
+        })) === "off";
+      if (toolsEnabled && proposeTicket && !memoryToolsConnectionSupported(
+        params.provider, params.model, false, generationParameters, nativeFilesBlockToolLoop,
+      )) {
         generateMemoryCandidate(store, proposeTicket, userMessage);
         proposeEntry = undefined;
         proposeTicket = undefined;
       }
       const retryTap = createAdditionalBodyRetryTap(libraryOutbound.streamOptions);
       additionalBodyRetryTap = retryTap;
+      const inputRejectionTap = createFirstLegInputRejectionTap({
+        provider: params.provider, model: params.model, streamOptions: attachmentScopeOptions, signal: controller.signal,
+      });
+      inputRejectionTapRef = inputRejectionTap;
       const config = getLibraryRuntimeConfig();
       // There is deliberately no pre-send cost confirmation here. Estimating with a fixed
       // estimatedTokensPerStep x maxSteps is unrelated to actual usage and would cross the
@@ -515,7 +534,7 @@ export function sendLibraryMessage(
             options: libraryOutbound.streamOptions,
             toolLeg: { messages, tools },
           });
-          return retryTap.wrap(sendLibraryAgentLeg(
+          return inputRejectionTap.wrap(retryTap.wrap(sendLibraryAgentLeg(
             params.provider.kind,
             libraryOutbound.apiKey,
             params.model.id,
@@ -524,7 +543,7 @@ export function sendLibraryMessage(
             requestBaseURLText(params.provider),
             transport.options,
             toolChoice,
-          ));
+          )), transport.messages);
         },
         executeTool: (tool, args, toolCallId, signal) =>
           executeLibraryTool(tool, args, signal, {
@@ -592,18 +611,20 @@ export function sendLibraryMessage(
       const costInfo = deriveCostFields(
         result.usage,
         params.model,
-        params.provider.kind,
-        params.provider.authMode,
+        params.provider,
+        () => new Date(),
+        undefined,
       );
+      const roundCost = roundCostOf(costInfo, promptContext.retrievalCost);
       const delivered: ChatMessage = withMemoryItemIds({
         ...assistantMessage,
         text: appendText(initialText, result.text),
         state: "delivered",
-        estimatedCost:
-          (params.appendToAssistant ? assistantMessage.estimatedCost ?? 0 : 0) +
-          costInfo.cost +
-          promptContext.retrievalCost,
-        costSource: costInfo.costSource,
+        ...addMessageCost(
+          params.appendToAssistant ? assistantMessage : undefined,
+          roundCost,
+        ),
+        costSource: roundCost.costSource,
         ...mergeMessageUsageFields(
           params.appendToAssistant ? assistantMessage : {},
           costInfo,
@@ -635,8 +656,8 @@ export function sendLibraryMessage(
         effectiveConversation,
         skillId: effectiveConversation?.skillId,
         usage: result.usage,
-        cost: costInfo.cost + promptContext.retrievalCost,
-        costSource: costInfo.costSource,
+        cost: roundCost.estimatedCost,
+        costSource: roundCost.costSource,
         servedModelID: undefined,
         processedAttachments: [],
         promptContext,
@@ -661,17 +682,16 @@ export function sendLibraryMessage(
       // Failed before the gate: do what would have been done after confirmation anyway (a cancel at the confirmation is the only case that skips it).
       sendConfirmed();
       const partialCost = latestUsage
-        ? deriveCostFields(latestUsage, params.model, params.provider.kind, params.provider.authMode)
+        ? deriveCostFields(latestUsage, params.model, params.provider, () => new Date(), undefined)
         : undefined;
-      const partialCostPatch: Partial<ChatMessage> = partialCost
+      const partialRound = partialCost ? roundCostOf(partialCost, retrievalCost) : undefined;
+      const partialCostPatch: Partial<ChatMessage> = partialCost && partialRound
         ? {
-            estimatedCost:
-              (params.appendToAssistant
-                ? assistantMessage.estimatedCost ?? 0
-                : 0) +
-              partialCost.cost +
-              retrievalCost,
-            costSource: partialCost.costSource,
+            ...addMessageCost(
+              params.appendToAssistant ? assistantMessage : undefined,
+              partialRound,
+            ),
+            costSource: partialRound.costSource,
             ...mergeMessageUsageFields(
               params.appendToAssistant ? assistantMessage : {},
               partialCost,
@@ -729,6 +749,7 @@ export function sendLibraryMessage(
         : undefined;
       // Library tools only read and retrieve, so they are not side effects; the decision is the same as in operations-send (see additional-body-retry-tap).
       const additionalBodyRetry = additionalBodyRetryTap?.resolve({ sideEffects: false });
+      const rejectionPatch = inputRejectionTapRef?.rejection() ?? {};
       // The attachments of this turn do not fit: the request was never sent, so this is not a library failure.
       const attachmentOverLimit = error instanceof AttachmentOverLimitError ? error : undefined;
       const failed: ChatMessage = {
@@ -755,6 +776,7 @@ export function sendLibraryMessage(
             ? rawErrorCode
             : readLibraryErrorCode(error),
         ...(errorSource ? { errorSource } : {}),
+        ...rejectionPatch,
         researchSteps: readResearchSteps(
           store,
           finalConvId,

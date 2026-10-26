@@ -15,6 +15,8 @@ import {
 import { resolveAttachmentCapabilities, resolveProviderAttachmentSupport } from '../attachment-policy';
 import { resolveModelCapabilityEvidence } from '../capability-evidence';
 import { buildProviderStreamOptions, buildStreamOptionsFromIntent } from '../stream-options';
+import { inputNegativeCacheTarget, resolveInputCapabilityProjections } from '../../capability/truth/input-truth-adapter';
+import { INPUT_NEGATIVE_CACHE_TTL_MS, recordInputNegativeCache } from '../../capability/input-negative-cache';
 import { createRelayManualModel } from '../../provider-model-ops';
 import {
   beginCapabilityEvidenceIdentityIfAbsent,
@@ -44,6 +46,8 @@ interface Fixture {
     override: { value: boolean; source: 'user' | 'tested' } | null;
     imageNegCached: boolean;
     expectVisible: boolean;
+    /** Expectation of the three-valued projection; a case that carries it asserts this instead of expectVisible. */
+    e39Expect?: { visible: boolean; editable: boolean };
   }>;
 }
 
@@ -137,6 +141,14 @@ describe('RL2-NEGCACHE-03 vision entry (fixture visionEntryCases, via production
     };
   }
 
+  /** The vision negative cache only reads v2: record one at the production write target (the same key and verdict revision as the projection). */
+  function recordImageRejection(provider: Provider, model: AIModel, at = Date.now()) {
+    const streamOptions = buildProviderStreamOptions(provider, buildStreamOptionsFromIntent(model, 'automatic', false), model);
+    const target = inputNegativeCacheTarget(provider, model, streamOptions, 'vision_input');
+    expect(target).not.toBeNull();
+    recordInputNegativeCache(target!.key, { signatureId: 'test.rejected', verdictRevision: target!.verdictRevision }, at);
+  }
+
   function officialProvider(model: AIModel): Provider {
     return {
       id: 'official-vision-entry', kind: 'openAI', status: { kind: 'connected' }, models: [model], catalogModels: [model],
@@ -155,18 +167,22 @@ describe('RL2-NEGCACHE-03 vision entry (fixture visionEntryCases, via production
       ? relayProvider(model, item.engineDeclarationImage !== null)
       : officialProvider(model);
     beginCapabilityEvidenceIdentityIfAbsent(getActiveUIDSync(), provider.id);
-    if (item.imageNegCached) {
-      recordRelayNegativeCache({
-        connectionId: provider.id,
-        modelId: model.id,
-        transport: effectiveTransport(provider, model),
-        kind: 'image',
-      });
-    }
+    if (item.imageNegCached) recordImageRejection(provider, model);
     const envelope = resolveProviderAttachmentSupport(provider, model)
       ?? { image: true, nativeFile: false, textFileInline: true };
     const support = { ...envelope, image: item.envelopeAllowsImage };
-    expect(resolveAttachmentCapabilities(provider, model, support).supportsImage).toBe(item.expectVisible);
+    const supportsImage = resolveAttachmentCapabilities(provider, model, support).supportsImage;
+    if (!item.e39Expect) {
+      expect(supportsImage).toBe(item.expectVisible);
+      return;
+    }
+    const streamOptions = buildProviderStreamOptions(provider, buildStreamOptionsFromIntent(model, 'automatic', false), model);
+    const projection = resolveInputCapabilityProjections(provider, model, streamOptions, {
+      relayEnvelopeImage: support.image,
+    })?.vision_input;
+    expect({ visible: projection?.visible, editable: projection?.editable }).toEqual(item.e39Expect);
+    // The vision entry is exactly the projection's editable.
+    expect(supportsImage).toBe(item.e39Expect.editable);
   });
 
   function toolSupport(provider: Provider, model: AIModel) {
@@ -207,12 +223,7 @@ describe('RL2-NEGCACHE-03 vision entry (fixture visionEntryCases, via production
     const model = createRelayManualModel('oriveo-fixture-vision-entry', true);
     const provider = relayProvider(model, false);
     beginCapabilityEvidenceIdentityIfAbsent(getActiveUIDSync(), provider.id);
-    recordRelayNegativeCache({
-      connectionId: provider.id,
-      modelId: model.id,
-      transport: effectiveTransport(provider, model),
-      kind: 'image',
-    }, Date.now() - RELAY_NEGATIVE_CACHE_TTL_MS - 1);
+    recordImageRejection(provider, model, Date.now() - INPUT_NEGATIVE_CACHE_TTL_MS - 1);
     expect(resolveAttachmentCapabilities(provider, model, { image: true, nativeFile: false, textFileInline: true })
       .supportsImage).toBe(true);
   });

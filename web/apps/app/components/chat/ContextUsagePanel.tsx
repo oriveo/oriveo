@@ -84,7 +84,7 @@ const TOAST_KEY: Record<CompactionToast, 'toastFallback' | 'toastNoop'> = {
 };
 
 /**
- * P4·U4 context panel (contract item 4): popover above the composer, opened by the ring and by the
+ * context panel (contract item 4): popover above the composer, opened by the ring and by the
  * conversation settings usage row.
  */
 export function ContextUsagePanel({
@@ -154,7 +154,7 @@ export function ContextUsagePanel({
   const compact = (value: number) => formatCompactCount(value, locale);
   const isolated = (value: number) => isolatedCompactCount(value, locale);
 
-  // P9·U7: "limit for this chat" row + window row (replaces the effective-limit note).
+  // "limit for this chat" row + window row (replaces the effective-limit note).
   const capInput = capPresentationInputOf({ conversation, preferences, provider, model: currentModel, userMaxOutput });
   const capPanel = capInput ? capPanelOf({ ...capInput, used: summary?.used ?? 0 }) : null;
   const priceLine = capInput?.priceLineTokens ?? null;

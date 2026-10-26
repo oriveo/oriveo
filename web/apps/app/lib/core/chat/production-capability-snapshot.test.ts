@@ -52,7 +52,7 @@ const publishedRecipes = Object.fromEntries(
     .map((ref) => [ref, {}]),
 );
 
-vi.mock('../metadata/metadata-client', () => ({
+vi.mock('../metadata/metadata-client', async (importOriginal) => (await import('../../__tests__/mocks/metadata-client')).metadataClientMock(importOriginal, {
   // The production capabilityRuntime is published; recipe compilation is locked by the
   // request-compiler contract tests, so all that is needed here is a resolvable recipeRef, letting
   // auto_available controls take the v2 branch for real.
@@ -169,7 +169,7 @@ describe('production capability snapshot', () => {
         expect([...presented.availableIntents], `${key}/${capability} intents`).toEqual(expected.intents);
       }
       // The shared test for badge and control must be decided by state alone; nowhere may add a rule of its own.
-      const usable = presented.state === 'auto_available' || presented.state === 'managed_only';
+      const usable = presented.state === 'auto_available';
       usable ? (available += 1) : (unavailable += 1);
     }
     // The empty side is a first-class case: if the slice is ever trimmed down to only the capable

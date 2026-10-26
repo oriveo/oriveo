@@ -4,7 +4,8 @@
  *
  * - Read: a draft session (no conversation id yet) reads the draft slot first, otherwise it follows the same ladder as sending (`displayCapabilityPreferences`),
  *   the relay default layer is supplied by `relayWebPreferenceDefaultFor`; when the identity is absent only the default layer is left.
- * - Write: a draft session writes the draft slot (moved to the conversation layer by `migrateDraftScopedModelControls` when sending creates the conversation), otherwise it writes the conversation layer.
+ * - Write: a draft session writes the draft slot (moved to the conversation layer by `migrateDraftScopedModelControls` when sending creates the conversation), otherwise it writes the conversation layer;
+ *   both the web and the thinking switches go through here, and each call changes only its own item.
  */
 import type { AIModel, Provider } from '@oriveo/shared';
 import {
@@ -15,9 +16,12 @@ import {
   loadCapabilityPreferenceDraft,
   saveCapabilityPreferenceDraft,
   saveCapabilityPreferences,
+  withCapabilityReasoningIntent,
   type CapabilityPreferences,
+  type CapabilityRuntimeIdentity,
   type CapabilityWebPreference,
 } from './capability-preference-settings';
+import type { ReasoningIntent } from '@oriveo/core/providers/request-preference/types';
 import { relayWebPreferenceDefaultFor } from './relay-web-probe-records';
 
 export interface ComposerWebPreferenceScope {
@@ -45,13 +49,42 @@ export function readComposerCapabilityPreferences(scope: ComposerWebPreferenceSc
   return { ...values, web };
 }
 
+/**
+ * Change one item in a slot and keep the rest. For a draft session the "previous" value must be read
+ * from the draft slot itself: the web and thinking switches write the same slot of the same identity,
+ * and reading only the conversation ladder (a draft has no conversation layer yet) would reset the
+ * other item to its default, so after the first send migrates the draft the restored state would read
+ * back the clobbered copy (turn thinking on, then web on, and thinking switches itself off a turn later).
+ */
+function patchComposerSlot(
+  scope: ComposerWebPreferenceScope,
+  identity: CapabilityRuntimeIdentity,
+  patch: (previous: CapabilityPreferences) => CapabilityPreferences,
+  defaultWeb?: CapabilityWebPreference,
+): void {
+  const { conversationId, draftSessionId } = scope;
+  const previous = (!conversationId ? loadCapabilityPreferenceDraft(draftSessionId, identity) : undefined)
+    ?? displayCapabilityPreferences({ ...identity, conversationId, ...(defaultWeb ? { defaultWeb } : {}) });
+  const next = patch(previous);
+  if (!conversationId) saveCapabilityPreferenceDraft(draftSessionId, identity, next);
+  else saveCapabilityPreferences({ ...identity, scope: 'conversation_connection_model', conversationId }, next);
+}
+
 /** The user toggles the web switch; returns false when the identity is absent (cannot be stored). The relay writes the fixed identity. */
 export function writeComposerWebPreference(scope: ComposerWebPreferenceScope, next: CapabilityWebPreference): boolean {
-  const { provider, model, conversationId, draftSessionId } = scope;
-  const identity = relayWebPreferenceIdentity(provider, model) ?? capabilityPreferenceIdentity(provider, model);
+  const identity = relayWebPreferenceIdentity(scope.provider, scope.model) ?? capabilityPreferenceIdentity(scope.provider, scope.model);
   if (!identity) return false;
-  const previous = displayCapabilityPreferences({ ...identity, conversationId });
-  if (!conversationId) saveCapabilityPreferenceDraft(draftSessionId, identity, { ...previous, web: next });
-  else saveCapabilityPreferences({ ...identity, scope: 'conversation_connection_model', conversationId }, { ...previous, web: next });
+  patchComposerSlot(scope, identity, (previous) => ({ ...previous, web: next }));
+  return true;
+}
+
+/**
+ * The user picks a thinking level (`undefined` = automatic, `'off'` = explicitly off); returns false when the identity is absent.
+ * The relay default layer is passed along as well: changing only thinking must not write a web value that was never set (default on) as off.
+ */
+export function writeComposerReasoningIntent(scope: ComposerWebPreferenceScope, intent: ReasoningIntent | undefined): boolean {
+  const identity = capabilityPreferenceIdentity(scope.provider, scope.model);
+  if (!identity) return false;
+  patchComposerSlot(scope, identity, (previous) => withCapabilityReasoningIntent(previous, intent), relayWebPreferenceDefaultFor(scope.provider, scope.model));
   return true;
 }

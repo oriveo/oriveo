@@ -132,7 +132,7 @@ describe('RD1-SELECT fixture model-selection.v1.json', () => {
 
       if (testCase.conversationModelId !== null && provider.kind === 'relay') {
         const conversation = conversationFor(provider, testCase.conversationModelId);
-        const selection = resolveActiveSelection([provider], conversation, null, null, lastUsed);
+        const selection = resolveActiveSelection([provider], conversation, null, null, lastUsed, true);
         expect(Boolean(selection.modelRemoval)).toBe(testCase.expect.removed);
         if (testCase.expect.removed) {
           // No silent replacement: there is no current model, and the send entry returns with zero requests accordingly.
@@ -161,7 +161,7 @@ describe('RD-1 reselection after the session model is removed, and fallback for 
       conversations: [conversationFor(provider, 'claude-4-haiku')],
     });
     const before = resolveActiveSelection(
-      store.getState().providers, store.getState().conversations[0], null, null, null,
+      store.getState().providers, store.getState().conversations[0], null, null, null, true,
     );
     expect(before.modelRemoval).toEqual({ modelID: 'claude-4-haiku', connectionName: 'My Relay' });
 
@@ -169,7 +169,7 @@ describe('RD-1 reselection after the session model is removed, and fallback for 
     updateConversationModel(store, 'conversation-1', 'gpt-5.4', provider.id);
 
     const after = resolveActiveSelection(
-      store.getState().providers, store.getState().conversations[0], null, null, null,
+      store.getState().providers, store.getState().conversations[0], null, null, null, true,
     );
     expect(store.getState().conversations[0]?.modelID).toBe('gpt-5.4');
     expect(after.modelRemoval).toBeUndefined();
@@ -183,7 +183,7 @@ describe('RD-1 reselection after the session model is removed, and fallback for 
     provider.models = [{ ...provider.models[0]!, canonicalModelId: 'openai/gpt-5.4' }];
     for (const stored of ['gpt-5.4', 'openai/gpt-5.4']) {
       expect(resolveConversationModelRemoval(provider, stored), stored).toBeNull();
-      const selection = resolveActiveSelection([provider], conversationFor(provider, stored), null, null, null);
+      const selection = resolveActiveSelection([provider], conversationFor(provider, stored), null, null, null, true);
       expect(selection.modelRemoval, stored).toBeUndefined();
       expect(selection.currentModel?.id, stored).toBe('GPT-5.4');
     }
@@ -205,7 +205,7 @@ describe('RD-1 reselection after the session model is removed, and fallback for 
     expect(createProviderSelectionSnapshot(provider, { lastUsedModelRef: elsewhere })?.defaultModel?.id)
       .toBe('gpt-5.4');
     // When the chat page has selected this connection and no model has been tapped yet, it likewise lands on the first enabled model.
-    expect(resolveActiveSelection([provider], undefined, provider.id, null, elsewhere).currentModel?.id)
+    expect(resolveActiveSelection([provider], undefined, provider.id, null, elsewhere, true).currentModel?.id)
       .toBe('gpt-5.4');
   });
 });

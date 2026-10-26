@@ -292,7 +292,7 @@ describe('CAP-BYOK · attachments', () => {
 
     const line = await resolveAttachmentLine({ provider, model, officialMetadata: async () => metadata });
     expect(line).toMatchObject({ transport: 'anthropic_messages', exact: true });
-    const history = await buildChatHistory([message], model, line);
+    const history = await buildChatHistory([message], model, line ?? undefined, null);
     const request = await buildProviderRequest({
       providerKind: 'anthropic', apiKey: 'sk-byok', modelID: anthropicModelId,
       messages: history as never,
@@ -305,7 +305,7 @@ describe('CAP-BYOK · attachments', () => {
     expect(body).not.toContain('<FILE_NAME>');
   });
 
-  it('CAP-BYOK-ATTACH-02 model vision unknown (no positive image evidence in the catalog): the image recognition / photo library entry is hidden', () => {
+  it('CAP-BYOK-ATTACH-02 model vision unknown (verdict absent): the image recognition / photo library entry stays open, with a first-attachment hint', () => {
     const model = {
       id: MODEL_ID, name: 'GPT-5.4', capabilities: ['text'], reasoningModeAvailable: false,
       isAvailable: true, isDefault: true, priceTier: '$', transport: 'openai_chat',
@@ -313,7 +313,7 @@ describe('CAP-BYOK · attachments', () => {
     const capabilities = resolveAttachmentCapabilities(officialProvider(), model, {
       image: true, nativeFile: false, textFileInline: true,
     });
-    expect(capabilities.supportsImage).toBe(false);
+    expect(capabilities.supportsImage).toBe(true);
   });
 });
 
@@ -414,9 +414,11 @@ describe('CAP-BYOK · tools (library leg, server-side retrieval unavailable)', (
     expect((bodies[0].tools as unknown[]).length).toBeGreaterThan(0);
     expect(bodies[1]).not.toHaveProperty('tools');
 
-    // Remembered (eligible for memory write): the next send omits tools on its first leg, and only sends once.
+    // Remembered (eligible for memory write): the next send omits tools on its first leg, and only sends once. The routing gate and the send both
+    // read the rejection memory, so library retrieval is judged unavailable this turn and the tool leg is skipped; it is not a fallback within this turn,
+    // hence no toolFallbackNotice (same as iOS / Android).
     const second = await sendLibraryTurn(manual);
-    expect(second).toMatchObject({ state: 'delivered', toolFallbackNotice: 'library_not_searched' });
+    expect(second).toMatchObject({ state: 'delivered' });
     expect(bodies).toHaveLength(3);
     expect(bodies[2]).not.toHaveProperty('tools');
   });

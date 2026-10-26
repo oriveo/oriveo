@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Conversation } from '@oriveo/shared';
 import type { ImportPreview } from '../../../../backup/backup-types';
@@ -54,7 +56,7 @@ vi.mock('../../../../../providers/StoreProvider', () => ({
   tryGetVanillaStore: () => null,
 }));
 
-vi.mock('../../../../core/metadata/metadata-client', () => ({
+vi.mock('../../../../core/metadata/metadata-client', async (importOriginal) => (await import('../../../../__tests__/mocks/metadata-client')).metadataClientMock(importOriginal, {
   getMetadataSnapshot: () => null,
   ensureProviderCatalogs: vi.fn(async () => {}),
 }));
@@ -105,6 +107,34 @@ function throughBackup(conv: Conversation): unknown {
   return JSON.parse(JSON.stringify(conv));
 }
 
+interface MergeSide {
+  updatedAt: string;
+  title: string;
+  instructions?: string | null;
+}
+
+interface MergeCase {
+  id: string;
+  local: MergeSide;
+  backup: MergeSide;
+  expected: { title: string; instructions: string };
+}
+
+function repoFile(relative: string): string {
+  let current = process.cwd();
+  while (true) {
+    const candidate = path.join(current, relative);
+    if (existsSync(candidate)) return candidate;
+    const next = path.dirname(current);
+    if (next === current) throw new Error(relative);
+    current = next;
+  }
+}
+
+const mergeFixture = JSON.parse(
+  readFileSync(repoFile('shared/context-contracts/conversation-backup-merge.v1.json'), 'utf8'),
+) as { cases: MergeCase[] };
+
 function putConversations(): Conversation[] {
   return mocks.putConversation.mock.calls.map((call) => call[0] as Conversation);
 }
@@ -129,7 +159,7 @@ describe('conversation instructions in backup import', () => {
     expect(replaced.conversations[0]?.instructions).toBe('  Reply in French.\n');
 
     // Normalization: over-long text is cut to 8000 code points.
-    const long = makeConversation({ id: 'c2', instructions: 'x'.repeat(8001) });
+    const long = makeConversation({ id: 'c2', instructions: '\u5b57'.repeat(8001) });
     await executeImport(preview([throughBackup(long)]), 'importNew');
     expect([...(putConversations()[1]?.instructions ?? '')]).toHaveLength(8000);
   });
@@ -169,5 +199,19 @@ describe('conversation instructions in backup import', () => {
     merged = (mocks.mergeAllInOneTx.mock.calls[1]?.[0] as { conversations: Conversation[] }).conversations[0];
     expect(merged?.title).toBe('Local Title');
     expect(merged?.instructions).toBe('');
+  });
+
+  it('conversation_backup_merge_shared_fixture', async () => {
+    expect(mergeFixture.cases.length).toBeGreaterThan(0);
+    for (const testCase of mergeFixture.cases) {
+      mocks.mergeAllInOneTx.mockClear();
+      const { instructions: _omit, ...base } = makeConversation();
+      mocks.getAllConversations.mockResolvedValue([{ ...base, ...testCase.local }]);
+      // The backup side is taken verbatim from the fixture: a missing instructions key really is missing.
+      await executeImport(preview([{ ...throughBackup(base as Conversation) as object, ...testCase.backup }]), 'merge');
+      const merged = (mocks.mergeAllInOneTx.mock.calls[0]?.[0] as { conversations: Conversation[] }).conversations[0];
+      expect({ id: testCase.id, title: merged?.title, instructions: merged?.instructions })
+        .toEqual({ id: testCase.id, ...testCase.expected });
+    }
   });
 });

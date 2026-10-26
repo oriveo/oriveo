@@ -23,10 +23,12 @@ import {
   capabilityLearningIdentity,
   relayCapabilityEvidenceIdentity,
   currentCapabilityEvidenceModel,
+  generationParameterRejectedRecently,
   resolveModelCapabilityEvidence,
   resolveGenerationParameterEvidence,
   type ModelCapabilityKey,
 } from './capability-evidence';
+import { dispatchesImageGeneration } from './image-generation-dispatch';
 import {
   effectiveGenerationSupport,
   generationSupportPresentation,
@@ -56,19 +58,7 @@ export function managedSafeStreamOptions(
   return providerControlsAreManaged(provider) ? undefined : options;
 }
 
-/**
- * Image generation dispatch decision: a relay image-generation override takes priority (true counts as
- * the model having the image generation capability, false never dispatches image output); with no
- * override, the capability must include imageGeneration and an imageGen profile must exist. Overrides
- * exist only on relay models.
- */
-export function dispatchesImageGeneration(
-  model: Pick<AIModel, 'capabilities' | 'imageGenProfile' | 'relayCapabilityOverrides'>,
-): boolean {
-  const override = model.relayCapabilityOverrides?.imageGeneration?.value;
-  if (typeof override === 'boolean') return override;
-  return model.capabilities.includes('imageGeneration') && Boolean(model.imageGenProfile);
-}
+export { dispatchesImageGeneration };
 
 /**
  * Build the raw StreamOptions from reasoningMode / webSearchEnabled / model.capabilities.
@@ -645,6 +635,21 @@ function resolveRelayImageRouting(
   };
 }
 
+/**
+ * When the upstream of an official connection has rejected thinking by signature (the `param:thinking` negative cache is still valid): this outbound request carries no reasoning tier.
+ * Only this request's options are stripped; the user's saved tier preference is untouched; it is restored once the negative cache expires or the verdict revision changes.
+ * A typed intent is stripped even when it means "off": the upstream rejected the whole thinking field, so sending none means the upstream default.
+ */
+function withoutRejectedThinking(provider: Provider, model: AIModel, options: StreamOptions): StreamOptions {
+  const carriesThinking = options.reasoning !== undefined
+    || options.capabilityPreferences?.reasoningIntent !== undefined;
+  if (!carriesThinking || !generationParameterRejectedRecently(provider, model, options, 'thinking')) return options;
+  const { reasoning: _reasoning, ...rest } = options;
+  if (!rest.capabilityPreferences) return rest;
+  const { reasoningIntent: _intent, ...preferences } = rest.capabilityPreferences;
+  return { ...rest, capabilityPreferences: preferences };
+}
+
 export function buildProviderStreamOptions(
   provider: Provider,
   options?: StreamOptions,
@@ -672,7 +677,7 @@ export function buildProviderStreamOptions(
     }) : [];
     const mergedRecipeOmissions = mergeCapabilityRecipeOmissions(options.capabilityRecipeOmissions, exactRecipeOmissions);
     return {
-      ...options,
+      ...withoutRejectedThinking(provider, model, options),
       generationProfile,
       ...(capabilityIdentity ? { capabilityIdentity } : {}),
       ...(recoveryIdentity ? { capabilityRecoveryIdentity: {

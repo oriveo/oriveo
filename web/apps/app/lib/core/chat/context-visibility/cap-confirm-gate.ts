@@ -1,5 +1,5 @@
 /**
- * Pre-send cap / price-line confirmation gate (P9·U8).
+ * Pre-send cap / price-line confirmation gate.
  * Sits after pre-send compaction and before the transport: decides with decideCapConfirm on the window this
  * plan used, and when the decision asks, suspends the send until the user answers. Confirm records the local
  * state and sends; cancel throws CapConfirmCancelledError so the caller rolls the turn back.

@@ -7,15 +7,56 @@ import {
   modelCapabilityEvidenceQuery,
   resolveModelCapabilityEvidence,
 } from './capability-evidence';
+import { resolveInputCapabilityProjections } from '../capability/truth/input-truth-adapter';
+import { buildProviderStreamOptions, buildStreamOptionsFromIntent } from './stream-options';
+import { providerFormOf } from '../capability/truth/provider-form';
+import { connectionToolCallVerdict } from './tool-call-verdict';
 
-const EVIDENCE_BACKED_BADGES = new Set(['reasoning', 'image', 'web']);
+const EVIDENCE_BACKED_BADGES = new Set(['reasoning', 'image', 'web', 'file', 'video']);
 
 export interface ModelCapabilityPresentation {
   reasoning: boolean;
+  /** Vision / file / video badges = the visible flag of the input capability projection; subscription (no projection) keeps the old criterion. */
   image: boolean;
+  file: boolean;
+  video: boolean;
   web: boolean;
   tool: boolean;
   badges: readonly string[];
+}
+
+type SupportedBadges = Pick<ModelCapabilityPresentation, 'reasoning' | 'image' | 'file' | 'video' | 'web' | 'tool'>;
+
+/**
+ * Badges for the three input keys: with a projection only visible counts (unknown does not light up;
+ * the send context is filled in the same way as the entry points);
+ * when subscription returns null, vision goes through the evidence facade and file / video keep the catalog capability bits.
+ */
+function inputBadgeSupport(
+  provider: Provider,
+  model: AIModel,
+  legacyImage: () => boolean,
+): Pick<ModelCapabilityPresentation, 'image' | 'file' | 'video'> {
+  // The model list has no send context: fill it in as the entry point (resolveAttachmentCapabilities) does,
+  // with automatic, so a Relay can get its connection identity; only an identity still missing after that is a hard block.
+  const streamOptions = buildProviderStreamOptions(
+    provider,
+    buildStreamOptionsFromIntent(model, 'automatic', false),
+    model,
+  );
+  const projections = resolveInputCapabilityProjections(provider, model, streamOptions);
+  if (projections) {
+    return {
+      image: projections.vision_input.visible,
+      file: projections.file_input.visible,
+      video: projections.video_input.visible,
+    };
+  }
+  return {
+    image: legacyImage(),
+    file: model.capabilities.includes('file'),
+    video: model.capabilities.includes('video'),
+  };
 }
 
 export type ModelCapabilityPresentationProjector = (
@@ -79,9 +120,9 @@ export function projectModelCapabilityPresentation(
   // vision/tool have no v2 control, so they stay on the evidence facade.
   const support = {
     reasoning: capabilityAvailableForDisplay(provider, model, 'reasoning', currentModel),
-    image: supported('vision_input'),
+    ...inputBadgeSupport(provider, model, () => supported('vision_input')),
     web: capabilityAvailableForDisplay(provider, model, 'web', currentModel),
-    tool: supported('tool_call'),
+    tool: toolBadgeSupport(provider, model, () => supported('tool_call')),
   };
   return {
     ...support,
@@ -105,16 +146,19 @@ export function modelSupportsCapabilityFilter(
     return presentation?.reasoning ?? capabilityAvailableForDisplay(provider, model, 'reasoning');
   }
   if (filter === 'image' || filter === 'vision') {
-    return presentation?.image ?? isSupported(provider, model, 'vision_input');
+    return presentation?.image ?? inputBadgeSupport(provider, model, () => isSupported(provider, model, 'vision_input')).image;
+  }
+  if (filter === 'file' || filter === 'video') {
+    return presentation?.[filter] ?? inputBadgeSupport(provider, model, () => false)[filter];
   }
   if (filter === 'web') return presentation?.web ?? capabilityAvailableForDisplay(provider, model, 'web');
   if (filter === 'tool' || filter === 'tools' || filter === 'toolCall') {
-    return presentation?.tool ?? isSupported(provider, model, 'tool_call');
+    return presentation?.tool ?? toolBadgeSupport(provider, model, () => isSupported(provider, model, 'tool_call'));
   }
 
-  // file/video/imageGeneration are catalog presentation metadata, not evidence-backed
-  // capabilities. Preserve those existing filters without pretending they prove vision
-  // input, tool calling, web search, or a reasoning level.
+  // imageGeneration is catalog presentation metadata, not an evidence-backed capability.
+  // Preserve that existing filter without pretending it proves an input capability,
+  // tool calling, web search, or a reasoning level.
   return model.capabilities.includes(filter as never);
 }
 
@@ -125,20 +169,20 @@ export function visibleModelCapabilityBadges(
   presentation?: ModelCapabilityPresentation,
 ): string[] {
   if (provider && presentation) return [...presentation.badges];
-  const supported = provider
+  const supported: SupportedBadges = provider
     ? {
         reasoning: capabilityAvailableForDisplay(provider, model, 'reasoning'),
-        image: isSupported(provider, model, 'vision_input'),
+        ...inputBadgeSupport(provider, model, () => isSupported(provider, model, 'vision_input')),
         web: capabilityAvailableForDisplay(provider, model, 'web'),
-        tool: isSupported(provider, model, 'tool_call'),
+        tool: toolBadgeSupport(provider, model, () => isSupported(provider, model, 'tool_call')),
       }
-    : { reasoning: false, image: false, web: false, tool: false };
+    : { reasoning: false, image: false, file: false, video: false, web: false, tool: false };
   return projectBadges(model, supported);
 }
 
 function projectBadges(
   model: AIModel,
-  supported: Pick<ModelCapabilityPresentation, 'reasoning' | 'image' | 'web' | 'tool'>,
+  supported: SupportedBadges,
 ): string[] {
   const projected = model.capabilities.filter((capability) => (
     EVIDENCE_BACKED_BADGES.has(capability)
@@ -146,12 +190,19 @@ function projectBadges(
       : true
   ));
 
-  for (const capability of ['reasoning', 'image', 'web'] as const) {
+  for (const capability of ['reasoning', 'image', 'file', 'video', 'web'] as const) {
     if (supported[capability] && !projected.includes(capability)) projected.push(capability);
   }
   if (supported.tool) projected.push('toolCall');
 
   return [...new Set(projected)];
+}
+
+/** Tool badge: official / subscription use the same verdict as the send path (including the rejection memory); other forms still look only at the facade evidence. */
+function toolBadgeSupport(provider: Provider, model: AIModel, relaySupport: () => boolean): boolean {
+  const form = providerFormOf(provider);
+  if (form !== 'official' && form !== 'subscription') return relaySupport();
+  return connectionToolCallVerdict(provider, model) === true;
 }
 
 function isSupported(

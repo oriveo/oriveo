@@ -12,8 +12,11 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AIModel, Provider } from '@oriveo/shared';
 
 // A new conversation does not depend on metadata: if the clicked model still resolves with it emptied, the match came from provider.models itself.
-vi.mock('../../metadata/metadata-client', () => ({
+vi.mock('../../metadata/metadata-client', async (importOriginal) => (await import('../../../__tests__/mocks/metadata-client')).metadataClientMock(importOriginal, {
+  getProviderCatalogStatus: () => 'pending',
   getProviderDefaultModelId: () => undefined,
+  getProviderRetiredModels: () => [],
+  listProviderModelIds: () => [],
   getRelayRuntimeConfig: () => undefined,
   resolveCatalogModel: () => null,
   resolveCatalogModelAcrossProvidersWithProvider: () => null,
@@ -58,7 +61,7 @@ describe('resolveActiveSelection', () => {
       undefined, // no conversation open
       null, // nothing selected yet
       null,
-      { providerID: 'provider-b', modelID: 'claude-opus' },
+      { providerID: 'provider-b', modelID: 'claude-opus' }, true,
     );
 
     expect(result.provider?.id).toBe('provider-b');
@@ -72,7 +75,7 @@ describe('resolveActiveSelection', () => {
       undefined,
       null,
       null,
-      { providerID: 'provider-b', modelID: 'claude-opus' },
+      { providerID: 'provider-b', modelID: 'claude-opus' }, true,
     );
 
     expect(result.currentModel?.id).toBe('claude-opus');
@@ -89,7 +92,7 @@ describe('resolveActiveSelection', () => {
       undefined,
       null,
       null,
-      { providerID: 'provider-c', modelID: 'o4-mini-2026-04-10' },
+      { providerID: 'provider-c', modelID: 'o4-mini-2026-04-10' }, true,
     );
 
     expect(result.currentModel?.id).toBe('o4-mini-2026-04-10');

@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { MessageRecoveryCard } from "./MessageRecoveryCard";
@@ -8,6 +10,24 @@ vi.mock("next-intl", () => {
     values ? `${key}(${JSON.stringify(values)})` : key;
   return { useTranslations: () => translate };
 });
+
+interface RejectionActionCase {
+  id: string;
+  expect: { action: string | null; secondaryAction?: string };
+}
+
+// Fixture shared/test-fixtures/capability/rejection-recovery.v1.json: walk up from the working directory to find the repo root.
+const rejectionRecoveryFixture = (() => {
+  let dir = process.cwd();
+  for (let depth = 0; depth < 8; depth += 1) {
+    const candidate = path.join(dir, "shared", "test-fixtures", "capability", "rejection-recovery.v1.json");
+    if (existsSync(candidate)) {
+      return JSON.parse(readFileSync(candidate, "utf8")) as { actionCases: RejectionActionCase[] };
+    }
+    dir = path.dirname(dir);
+  }
+  throw new Error("rejection-recovery.v1.json not found");
+})();
 
 describe("MessageRecoveryCard", () => {
   it("renders continue (primary) and regenerate for interrupted messages", () => {
@@ -69,6 +89,99 @@ describe("MessageRecoveryCard", () => {
     );
     expect(onPrimaryAction).toHaveBeenCalledOnce();
     expect(screen.queryByRole("button", { name: "retryBtn" })).toBeNull();
+  });
+
+  it.each(["image", "file", "video"] as const)(
+    "offers one-tap resend without %s as the primary action after an upstream media rejection",
+    (media) => {
+      const onPrimaryAction = vi.fn();
+      const onRetry = vi.fn();
+      render(
+        <MessageRecoveryCard
+          state="failed"
+          errorSource="provider"
+          errorTitle="Provider request failed"
+          errorDetail="Unexpected item type in content"
+          resendWithoutMedia={media}
+          onPrimaryAction={onPrimaryAction}
+          onRetry={onRetry}
+          onEdit={vi.fn()}
+        />,
+      );
+
+      // The upstream text is still shown; the primary action is resending without that media, with no separate generic retry.
+      expect(screen.getAllByText("Unexpected item type in content").length).toBeGreaterThan(0);
+      expect(onPrimaryAction).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: `resendWithout.${media}` }));
+      expect(onPrimaryAction).toHaveBeenCalledOnce();
+      expect(onRetry).not.toHaveBeenCalled();
+      expect(screen.queryByRole("button", { name: "retryBtn" })).toBeNull();
+    },
+  );
+
+  // Fixture cases with a one-tap action: exactly two buttons, action first and switch-model after it, always visible; no edit / switch-key / generic retry.
+  const ACTION_MEDIA: Record<string, "image" | "file" | "video" | undefined> = {
+    resend_without_images: "image",
+    resend_without_files: "file",
+    resend_without_videos: "video",
+  };
+  const rejectionActionCases = rejectionRecoveryFixture.actionCases.filter(
+    (c) => c.expect.action != null,
+  );
+  it.each(rejectionActionCases.map((c) => [c.id, c] as const))(
+    "REJECTION-RECOVERY-%s card shows action then switch model",
+    (_id, c) => {
+      expect(c.expect.secondaryAction).toBe("switch_model");
+      // Action -> copy: an unknown action in the fixture fails outright instead of silently falling back to the parameter copy.
+      const action = c.expect.action as string;
+      if (!(action in ACTION_MEDIA) && action !== "resend_without_parameter") {
+        throw new Error(`unknown rejection action in fixture: ${action}`);
+      }
+      const media = ACTION_MEDIA[action];
+      const actionLabel = media ? `resendWithout.${media}` : "resendWithoutSetting";
+      const onPrimaryAction = vi.fn();
+      const onSwitchModel = vi.fn();
+      render(
+        <MessageRecoveryCard
+          state="failed"
+          errorSource="provider"
+          errorTitle="Provider request failed"
+          errorDetail="upstream refused"
+          resendWithoutMedia={media}
+          primaryActionLabel={media ? undefined : actionLabel}
+          onPrimaryAction={onPrimaryAction}
+          rejectionRecoveryLayout
+          onRetry={vi.fn()}
+          onEdit={vi.fn()}
+          onSwitchKey={vi.fn()}
+          onSwitchModel={onSwitchModel}
+        />,
+      );
+
+      const actionButtons = screen
+        .getAllByRole("button")
+        .filter((b) => b.textContent !== "technicalDetails");
+      expect(actionButtons.map((b) => b.textContent)).toEqual([actionLabel, "switchModelBtn"]);
+      fireEvent.click(actionButtons[1]);
+      expect(onSwitchModel).toHaveBeenCalledOnce();
+      expect(onPrimaryAction).not.toHaveBeenCalled();
+      fireEvent.click(actionButtons[0]);
+      expect(onPrimaryAction).toHaveBeenCalledOnce();
+      expect(onSwitchModel).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("does not render the resend-without action without a handler", () => {
+    render(
+      <MessageRecoveryCard
+        state="failed"
+        errorTitle="Provider request failed"
+        resendWithoutMedia="image"
+        onRetry={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "resendWithout.image" })).toBeNull();
+    expect(screen.getByRole("button", { name: "retryBtn" })).toBeTruthy();
   });
 
   // ── Localization at render time ─────────────────

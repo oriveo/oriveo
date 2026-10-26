@@ -17,7 +17,7 @@ import type { AIModel, Provider } from '@oriveo/shared';
 /** A model-facts table the test can rewrite: empty by default; the facts-fallback case puts one entry in it. */
 const modelFactsTable: Record<string, { toolCall?: boolean }> = {};
 
-vi.mock('../../metadata/metadata-client', () => ({
+vi.mock('../../metadata/metadata-client', async (importOriginal) => (await import('../../../__tests__/mocks/metadata-client')).metadataClientMock(importOriginal, {
   // The core fact about subscription models: they are not in the catalog.
   resolveCatalogModel: () => null,
   getModelFacts: (_providerKind: string, modelID: string) => modelFactsTable[modelID],
@@ -36,6 +36,7 @@ vi.mock('../../metadata/metadata-client', () => ({
 vi.mock('../../../infra/storage/partition', () => ({ getActiveUIDSync: () => 'uid-1' }));
 
 import { resolveModelCapabilityEvidence } from '../capability-evidence';
+import { subscriptionTruthCandidates } from '../../capability/truth/subscription-truth-adapter';
 import { presentCapabilityControl } from '../capability-control-presentation';
 import { webPreferenceReachesTheWire } from '../capability-control-presentation';
 import { capabilityRuntimeIdentity } from '../capability-preference-settings';
@@ -230,8 +231,12 @@ describe('subscription path: the capability projection copies the upstream snaps
   const resolve = (provider: Provider, model: AIModel, key: Parameters<typeof resolveModelCapabilityEvidence>[0]['key']) =>
     resolveModelCapabilityEvidence({ key, provider, model });
 
+  // Vision reads the first-hand upstream input modalities (fixture subscription-facts.v1.json: a list containing image = auto, otherwise model_capability_absent);
+  // web search reads the upstream capability bit.
   it('vision / web come from the upstream declaration: supported with the capability bit, unsupported without it, source always upstream_declaration', () => {
-    const model = subscriptionModel({ capabilities: ['text', 'web', 'image', 'reasoning'] });
+    const model = subscriptionModel({
+      capabilities: ['text', 'web', 'image', 'reasoning'], upstreamInputModalities: ['text', 'image'],
+    });
     const provider = withSnapshot(codexProvider(), model);
     for (const key of ['web_search', 'vision_input'] as const) {
       const resolution = resolve(provider, model, key);
@@ -240,7 +245,7 @@ describe('subscription path: the capability projection copies the upstream snaps
       expect(resolution.grade, key).toBe('declared');
       expect(resolution.requestPolicy, key).toBe('allow');
     }
-    const plain = subscriptionModel({ capabilities: ['text'] });
+    const plain = subscriptionModel({ capabilities: ['text'], upstreamInputModalities: ['text'] });
     const plainProvider = withSnapshot(codexProvider(), plain);
     for (const key of ['web_search', 'vision_input'] as const) {
       const resolution = resolve(plainProvider, plain, key);
@@ -271,11 +276,14 @@ describe('subscription path: the capability projection copies the upstream snaps
       .toBe('upstream_declaration');
   });
 
-  it('tool_call trusts only a first-hand upstream boolean; undeclared is unknown; a model outside the snapshot is catalog_absent per key', () => {
+  it('tool_call does not read the snapshot model toolCall bit: one carrying toolCall:false with no table entry is still unknown; a model outside the snapshot is catalog_absent per key', () => {
     const declared = subscriptionModel({ toolCall: false });
-    const toolCall = resolve(withSnapshot(codexProvider(), declared), declared, 'tool_call');
-    expect(toolCall.support).toBe('unsupported');
-    expect(toolCall.source).toBe('upstream_declaration');
+    const declaredProvider = withSnapshot(codexProvider(), declared);
+    expect(subscriptionTruthCandidates(
+      { provider: declaredProvider, model: declared, effectiveTransport: 'responses' }, ['tool_call'],
+    )).toEqual([]);
+    expect(resolve(declaredProvider, declared, 'tool_call'))
+      .toMatchObject({ support: 'unknown', source: 'none', reasonCode: 'missing_evidence' });
     const undeclared = subscriptionModel();
     expect(resolve(withSnapshot(codexProvider(), undeclared), undeclared, 'tool_call'))
       .toMatchObject({ support: 'unknown', source: 'none', reasonCode: 'missing_evidence' });
@@ -308,17 +316,20 @@ describe('subscription path: the capability projection copies the upstream snaps
       .requestPolicy).toBe('allow_explicit_unverified');
   });
 
-  it('tool_call with no first-hand declaration falls back to the model-facts table (source model_facts), independent of snapshot state', () => {
+  it('tool_call reads only the model-facts table (source model_facts); the snapshot model toolCall bit plays no part, independent of snapshot state', () => {
     const model = subscriptionModel({ id: 'grok-4.6' });
     modelFactsTable['grok-4.6'] = { toolCall: true };
     try {
       const inSnapshot = resolve(withSnapshot(grokProvider(), model), model, 'tool_call');
       expect(inSnapshot).toMatchObject({ support: 'supported', source: 'model_facts', grade: 'declared', requestPolicy: 'allow' });
-      // A first-hand boolean in the snapshot beats the table.
+      // A snapshot model carrying toolCall:false still takes the table (the subscription /models has no tool field, so that bit can only be a stale synced value).
       const declared = subscriptionModel({ id: 'grok-4.6', toolCall: false });
       expect(resolve(withSnapshot(grokProvider(), declared), declared, 'tool_call'))
-        .toMatchObject({ support: 'unsupported', source: 'upstream_declaration' });
-      // Snapshot not fetched still reads the table: tool_call is not the snapshot's.
+        .toMatchObject({ support: 'supported', source: 'model_facts' });
+      expect(subscriptionTruthCandidates(
+        { provider: withSnapshot(grokProvider(), declared), model: declared, effectiveTransport: 'chat' }, ['tool_call'],
+      )).toEqual([expect.objectContaining({ key: 'tool_call', support: 'supported', source: 'model_facts' })]);
+      // A snapshot that has not been fetched still reads the table: tool_call is not the snapshot's.
       expect(resolve(grokProvider(), model, 'tool_call')).toMatchObject({ support: 'supported', source: 'model_facts' });
     } finally {
       delete modelFactsTable['grok-4.6'];

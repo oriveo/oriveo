@@ -100,6 +100,8 @@ function makeModel(): AIModel {
     priceTier: 'standard',
     promptPrice: 0,
     completionPrice: 0,
+    // Vision verdict is unavailable: images are filtered out per the current model before sending.
+    capabilityControls: { vision_input: { state: 'unavailable', reasonCode: 'model_capability_absent' } },
   };
 }
 

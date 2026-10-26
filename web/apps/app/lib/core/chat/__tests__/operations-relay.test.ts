@@ -207,6 +207,10 @@ describe('chat operations with relay image config', () => {
       model,
       // The line is not resolved when there are no file attachments
       undefined,
+      // This turn's vision projection (the same one outbound-history and outbound sanitizing use)
+      expect.objectContaining({ outbound: expect.any(String) }),
+      // The file projection is only given to the official connection; Relay's file coverage and negative cache live in line resolution
+      null,
     );
 
     expect(mocks.sendStream).toHaveBeenCalledWith(

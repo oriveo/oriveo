@@ -23,7 +23,7 @@ import { sendMessage } from '../operations';
 import type { StreamOptions } from '../../providers/types';
 import { getActiveUIDSync } from '../../../infra/storage/partition';
 import { toolCallSupportIsRememberedFalse } from '../capability-recovery-runtime';
-import { resolveGenerationProfileRef } from '../../metadata/metadata-client';
+import { getCapabilityRuntime, resolveCatalogModel, resolveGenerationProfileRef } from '../../metadata/metadata-client';
 import {
   __resetProposeMemoryDegradedForTest,
   isProposeMemoryDegraded,
@@ -33,6 +33,10 @@ import {
   __resetMemorySuggestionForTest,
   getPendingMemorySuggestion,
 } from '../conversation-instructions/memory-suggestion';
+import { getPendingDirectiveSuggestion } from '../conversation-instructions/directive-suggestion';
+import { sendMcpToolMessage } from '../operations-mcp-send';
+import { sendLibraryMessage } from '../operations-library-send';
+import type { McpToolPlan } from '@oriveo/core/mcp/index';
 
 
 const mocks = vi.hoisted(() => ({
@@ -128,17 +132,23 @@ vi.mock('../../metadata/metadata-client', async () => ({
   // The send chain reads remote switches (context_reminder_enabled and so on); a missing one counts as on, matching the production default.
   isRuntimeFeatureEnabled: () => true,
   getMetadataRevision: () => undefined,
-  getCapabilityRuntime: () => undefined,
+  getCapabilityRuntime: vi.fn(() => undefined),
   // The send address is computed per request from endpointSource via requestBaseURLText; this group has no providerConfig, so a literal address is used.
   getPublicProviderConfig: () => null,
   hasPublicProviderConfigSource: () => false,
   // The tool_call mismatch telemetry on completion also goes through the central evidence facade; this group has no modelFacts.
   getModelFacts: () => undefined,
   getModelFactsRevision: () => undefined,
+  peekModelFactsRevision: () => undefined,
+  ensurePersistedModelFacts: async () => undefined,
+  // Cost region selection (region-pricing.providerPricedAllInUsd) reads this provider's catalog model ids; this group has no catalog.
+  listProviderModelIds: () => [],
   // The send chain goes through activeGenerationParameterIds -> resolveGenerationProfileForModel,
   // which calls this export unconditionally; without it in the stub the whole send path throws (these fixtures have no metadata profile anyway).
   resolveGenerationProfileRef: vi.fn(() => undefined),
   resolveCatalogModel: vi.fn(() => null),
+  // The imageGen profile of an image-generation model -> the dedicated prompt endpoint (image-generation cases); other fixtures have no profile.
+  getImageGenRoute: (profile: string | undefined) => (profile === 'openai_images' ? 'images_api' : null),
   // The identity of the tool capability memory normalizes the model id the real way.
   normalizeModelFactsID: (await vi.importActual<typeof import('../../metadata/metadata-client')>('../../metadata/metadata-client')).normalizeModelFactsID,
   // The send chain now also asks whether this web-search preference can reach online at this moment; that check reads the catalog transport through
@@ -146,8 +156,6 @@ vi.mock('../../metadata/metadata-client', async () => ({
   getModelTransport: vi.fn(() => undefined),
   getDeclaredReasoningLevels: vi.fn(() => []),
   getDeclaredReasoningDefaultLevel: vi.fn(() => undefined),
-  // cost.ts takes prices through lookupPricing (only paid providers get there; a free tier short-circuits to $0). A real price makes cost > 0.
-  lookupPricing: vi.fn(() => ({ promptPerToken: 0.000001, completionPerToken: 0.000002 })),
   getLibraryRuntimeConfig: vi.fn(() => ({
     version: 3,
     toolDescriptions: {},
@@ -166,6 +174,18 @@ vi.mock('../../metadata/metadata-client', async () => ({
 vi.mock('../../providers/proxy-client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../providers/proxy-client')>()),
   sendLibraryAgentLeg: (...args: unknown[]) => mocks.sendLibraryAgentLeg(...args),
+}));
+
+// The MCP / library agent tool-loop sends: replace only the session and the route decision, the rest follows the real implementation.
+vi.mock('../../mcp/mcp-chat', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../mcp/mcp-chat')>()),
+  adoptMcpDraftServers: vi.fn(),
+  createMcpSendSession: () => ({ entries: [], steps: () => [] }),
+}));
+
+vi.mock('../../library/routing', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../library/routing')>()),
+  resolveLibraryResearchRouteNow: () => 'agent',
 }));
 
 vi.mock('../../memory/memory-candidate-repository', async (importOriginal) => ({
@@ -290,6 +310,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   __resetProposeMemoryDegradedForTest();
   __resetMemorySuggestionForTest();
+  // The tool-rejection memory lives in localStorage and the routing gate / MCP switch read it too: every case starts from empty memory so a false recorded by an earlier case does not leak into a later one.
+  localStorage.clear();
   mocks.buildChatHistory.mockResolvedValue([{ role: 'user', content: USER_TEXT }]);
   mocks.sendStream.mockReturnValue({ stream: {} as ReadableStream, abort: vi.fn() });
   mocks.sendLibraryAgentLeg.mockReturnValue({ stream: {} as ReadableStream, abort: vi.fn() });
@@ -355,6 +377,46 @@ describe('sendMessage attaches propose_memory', () => {
       store: relay.store, conversationId: 'conv-1', provider: relay.provider, model: relay.model,
       freshSend: true, webSearchEnabled: true,
     })).toBe('fallback');
+  });
+
+  it('minimax_web_search_on_anthropic_route_uses_fallback', async () => {
+    // When the MiniMax web search recipe takes the Anthropic Messages route, it is judged fallback on the same footing as Moonshot / Gemini web search; with web search off it is still judged tool.
+    const route = {
+      sourceProtocol: 'openai_chat', protocol: 'anthropic_messages', endpointClass: 'messages',
+      path: '/anthropic/v1/messages', method: 'POST', authMode: 'x_api_key', authHeader: 'x-api-key',
+      headers: { 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01' },
+      requestMapper: 'minimax_anthropic_messages_v1',
+    };
+    vi.mocked(getCapabilityRuntime).mockReturnValue({
+      recipes: { 'minimax.web': { executionKind: 'endpoint_route', route } },
+    } as unknown as ReturnType<typeof getCapabilityRuntime>);
+    vi.mocked(resolveCatalogModel).mockReturnValue({
+      capabilityControls: { web: { recipeRef: 'minimax.web' } },
+    } as unknown as ReturnType<typeof resolveCatalogModel>);
+    try {
+      const DIRECTIVE = '\u4ee5\u540e\u6bcf\u6b21\u56de\u7b54\u90fd\u5148\u7ed9\u7ed3\u8bba';
+      const { provider, model, conversation, store } = setup(
+        makeProvider({ id: 'p-minimax', kind: 'miniMax' }),
+        makeModel({ id: 'MiniMax-M2' }),
+      );
+      const base = { store, conversationId: 'conv-1', provider, model, freshSend: true };
+      expect(resolveProposeMemoryMode({ ...base, webSearchEnabled: false })).toBe('tool');
+      expect(resolveProposeMemoryMode({ ...base, webSearchEnabled: true })).toBe('fallback');
+      await sendMessage(
+        { store, appendChunk: vi.fn(), te: (key) => key },
+        { text: DIRECTIVE, prevMessages: [], conversation, provider, model, reasoningMode: 'automatic', webSearchEnabled: true },
+      ).done;
+
+      const userMsg = store.getState().conversations[0]!.messages.find((m) => m.role === 'user')!;
+      expect(getPendingDirectiveSuggestion()).toEqual({ conversationId: 'conv-1', messageId: userMsg.id, sentence: DIRECTIVE });
+      expect(mocks.sendStream).toHaveBeenCalled();
+      for (const call of mocks.sendStream.mock.calls) {
+        expect((call[5] as StreamOptions | undefined)?.clientTools).toBeUndefined();
+      }
+    } finally {
+      vi.mocked(getCapabilityRuntime).mockReturnValue(undefined as never);
+      vi.mocked(resolveCatalogModel).mockReturnValue(null);
+    }
   });
 
   it('json_schema_active_uses_fallback_memory_mode', async () => {
@@ -534,6 +596,37 @@ describe('sendMessage attaches propose_memory', () => {
     const assistant = assistantOf(store);
     expect(assistant?.text).toBe('Final answer');
     expect(assistant?.unhandledToolCalls).toBeUndefined();
+  });
+
+  it('propose_call_failure_isolated_and_counted', async () => {
+    // Rule 4: one propose throwing does not affect the other calls of this leg (including instruct), and the failed one also counts toward priorInTurn.
+    const { provider, model, conversation, store } = setup();
+    const INSTRUCT_SENTENCE = 'Always answer in bullet points.';
+    mocks.propose
+      .mockRejectedValueOnce(new Error('storage unavailable'))
+      .mockImplementationOnce(async (_args: string, _prior: number, context: { onInstruct: (sentence: string) => void }) => {
+        context.onInstruct(INSTRUCT_SENTENCE);
+        return null;
+      });
+    mocks.readStream
+      .mockResolvedValueOnce(legResult({
+        usage: { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 },
+        toolCalls: [
+          { id: 'call_1', name: 'propose_memory', arguments: PROPOSE_ARGS },
+          { id: 'call_2', name: 'propose_memory', arguments: PROPOSE_ARGS },
+          { id: 'call_3', name: 'propose_memory', arguments: PROPOSE_ARGS },
+        ],
+      }))
+      .mockResolvedValueOnce(legResult({ fullText: 'Final answer' }));
+    await send(store, provider, model, conversation).done;
+
+    expect(mocks.propose).toHaveBeenCalledTimes(3);
+    expect(mocks.propose.mock.calls.map((call) => call[1])).toEqual([0, 1, 2]);
+    expect(mocks.propose.mock.calls[2]![2]).toEqual(expect.objectContaining({ priorInstructInTurn: 1 }));
+    const userMsg = store.getState().conversations[0]!.messages.find((m) => m.role === 'user')!;
+    expect(getPendingDirectiveSuggestion()).toEqual({ conversationId: 'conv-1', messageId: userMsg.id, sentence: INSTRUCT_SENTENCE });
+    expect(getPendingMemorySuggestion()).not.toBeNull();
+    expect(assistantOf(store)?.state).toBe('delivered');
   });
 
   it('a first leg whose tools are rejected resends without tools and downgrades', async () => {
@@ -775,5 +868,70 @@ describe('sendMessage attaches search_memory', () => {
     expect((mocks.sendStream.mock.calls[1]![5] as StreamOptions | undefined)?.clientTools).toBeUndefined();
     expect(isProposeMemoryDegraded('p-openai', 'gpt-4o')).toBe(true);
     expect(assistantOf(store)?.text).toBe('Plain answer');
+  });
+});
+
+describe('fallback when the mode was judged tool but the final request carries no propose_memory', () => {
+  const FILE_PART = { type: 'file', file: { filename: 'notes.pdf', file_data: 'data:application/pdf;base64,JVBERi0=' } };
+  const toolNamesOf = (call: unknown[]) => JSON.stringify(call[4] ?? []);
+
+  it('image_generation_send_runs_lexical_fallback', async () => {
+    // An image-generation request sends only the prompt and no client tools: a directive sentence in a gated language still yields the lexical suggestion, and the request carries no propose_memory.
+    const DIRECTIVE = '\u4ee5\u540e\u6bcf\u6b21\u56de\u7b54\u90fd\u5148\u7ed9\u7ed3\u8bba';
+    const model = makeModel({
+      id: 'gpt-image-1', capabilities: ['text', 'imageGeneration'], imageGenProfile: 'openai_images',
+    } as Partial<AIModel>);
+    const { provider, conversation, store } = setup(makeProvider(), model);
+    expect(resolveProposeMemoryMode({ store, conversationId: 'conv-1', provider, model, freshSend: true })).not.toBe('tool');
+    await sendMessage(
+      { store, appendChunk: vi.fn(), te: (key) => key },
+      { text: DIRECTIVE, prevMessages: [], conversation, provider, model, reasoningMode: 'automatic' },
+    ).done;
+
+    const userMsg = store.getState().conversations[0]!.messages.find((m) => m.role === 'user')!;
+    expect(getPendingDirectiveSuggestion()).toEqual({ conversationId: 'conv-1', messageId: userMsg.id, sentence: DIRECTIVE });
+    for (const call of mocks.sendStream.mock.calls) {
+      expect((call[5] as StreamOptions | undefined)?.clientTools).toBeUndefined();
+    }
+  });
+
+  it('mcp_send_native_file_on_tool_loop_incompatible_route_uses_fallback', async () => {
+    // Same criterion for a native file part: the first leg carries it and the wire's tool loop does not accept native files -> propose_memory is not registered and the candidate takes the fallback once.
+    mocks.buildChatHistory.mockResolvedValue([{ role: 'user', content: [{ type: 'text', text: USER_TEXT }, FILE_PART] }]);
+    mocks.sendLibraryAgentLeg.mockRejectedValue(new Error('stop after first leg'));
+    const { provider, model, conversation, store } = setup();
+    expect(resolveProposeMemoryMode({ store, conversationId: 'conv-1', provider, model, freshSend: true })).toBe('tool');
+    await sendMcpToolMessage({ store, appendChunk: vi.fn(), te: (key: string) => key }, {
+      text: USER_TEXT, prevMessages: [], conversation, provider, model, reasoningMode: 'automatic',
+      plan: { tools: [] } as unknown as McpToolPlan,
+      freshUserSend: {},
+    }).done;
+
+    expect(mocks.sendLibraryAgentLeg).toHaveBeenCalled();
+    const firstLeg = mocks.sendLibraryAgentLeg.mock.calls[0]!;
+    expect(JSON.stringify(firstLeg[3])).toContain('"type":"file"');
+    expect(toolNamesOf(firstLeg)).not.toContain('propose_memory');
+    await vi.waitFor(() => expect(mocks.generate).toHaveBeenCalledTimes(1));
+  });
+
+  it('library_send_native_file_on_tool_loop_incompatible_route_uses_fallback', async () => {
+    mocks.buildChatHistory.mockResolvedValue([{ role: 'user', content: [{ type: 'text', text: USER_TEXT }, FILE_PART] }]);
+    mocks.sendLibraryAgentLeg.mockRejectedValue(new Error('stop after first leg'));
+    const provider = makeProvider();
+    const model = makeModel();
+    const conversation = makeConversation();
+    const libraryConnections = [{ id: 'lc-1', provider: 'notion', displayName: 'Notion', scopes: [], status: 'active' }] as never;
+    const store = createAppStore({ providers: [provider], conversations: [conversation], libraryConnections });
+    expect(resolveProposeMemoryMode({ store, conversationId: 'conv-1', provider, model, freshSend: true })).toBe('tool');
+    await sendLibraryMessage({ store, appendChunk: vi.fn(), te: (key: string) => key }, {
+      text: USER_TEXT, prevMessages: [], conversation, provider, model, reasoningMode: 'automatic',
+      cancelledText: 'cancelled', errorTitle: 'library failed', errorDetail: 'library detail',
+    }).done;
+
+    expect(mocks.sendLibraryAgentLeg).toHaveBeenCalled();
+    const firstLeg = mocks.sendLibraryAgentLeg.mock.calls[0]!;
+    expect(JSON.stringify(firstLeg[3])).toContain('"type":"file"');
+    expect(toolNamesOf(firstLeg)).not.toContain('propose_memory');
+    await vi.waitFor(() => expect(mocks.generate).toHaveBeenCalledTimes(1));
   });
 });

@@ -3,11 +3,10 @@ import 'fake-indexeddb/auto';
   * Structure of the "Model options" board (three-client comparison; BOARD-OPTIONS-01 to 10).
  *
   * The web / reasoning inputs of 01 to 05 go through the production form functions (`modelOptionsPanelModel` -> `resolveModelOptionCapabilityCard`);
-  * the file wire comes from the production `resolveAttachmentLine`, and the vision "unknown" predicate from the production `relayImageSupportUnknown`.
+  * the file wire comes from the production `resolveAttachmentLine`, and the vision card facts from the production `visionCardFacts` (which reads the vision projection).
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AIModel, Provider } from '@oriveo/shared';
-import { effectiveTransport } from '@oriveo/core/providers/relay-effective';
 
 vi.mock('../../metadata/metadata-client', async (importOriginal) => ({
   ...await importOriginal<typeof import('../../metadata/metadata-client')>(),
@@ -16,10 +15,10 @@ vi.mock('../../metadata/metadata-client', async (importOriginal) => ({
 
 import type { ModelOptionCapabilityInput } from '../model-option-capability-shape';
 import { resolveAttachmentLine } from '../../attachments/attachment-transport-resolver';
-import { resolveAttachmentCapabilities } from '../attachment-policy';
+import { visionCardFacts } from '../attachment-policy';
 import { buildProviderStreamOptions, buildStreamOptionsFromIntent } from '../stream-options';
-import { relayImageSupportUnknown } from '../relay-rejection-loop';
-import { recordRelayNegativeCache } from '../relay-negative-cache';
+import { recordInputNegativeCache } from '../../capability/input-negative-cache';
+import { inputNegativeCacheTarget } from '../../capability/truth/input-truth-adapter';
 import { createRelayManualModel } from '../../provider-model-ops';
 import {
   beginCapabilityEvidenceIdentityIfAbsent,
@@ -122,12 +121,13 @@ describe('BOARD-OPTIONS-01 to 05 five forms (inputs go through the production fo
       relayRequested: { transport: 'openai_chat_completions', authMode: 'bearer' } as never,
     });
     const relayModel = createRelayManualModel('relay-model', true);
+    beginCapabilityEvidenceIdentityIfAbsent(getActiveUIDSync(), relay.id);
     const line = await resolveAttachmentLine({ provider: relay, model: relayModel });
     const out = modelOptionsPanelModel(facts({
       connection: 'custom',
       web: capability({ capability: 'web', status: 'unknown', connection: 'custom' }),
       reasoning: capability({ status: 'unknown', connection: 'custom', supportsChatTemplate: true }),
-      vision: { entryVisible: true, isRelayForm: true, noPositiveEvidence: relayImageSupportUnknown(relay, relayModel) },
+      vision: visionCardFacts(relay, relayModel, { image: true, nativeFile: false, textFileInline: true }),
       file: { line, nativeFileMimes: relayModel.nativeFileMimes ?? [], pdfNativeDefault: false },
     }));
     expect(board(out)).toEqual(['reasoning:switch', 'web:chevron', 'vision:question', 'file:check']);
@@ -254,9 +254,9 @@ describe('BOARD-OPTIONS-08 three file states', () => {
     const streamOptions = buildProviderStreamOptions(relay, buildStreamOptionsFromIntent(relayModel, 'automatic', false), relayModel);
     const before = await resolveAttachmentLine({ provider: relay, model: relayModel, streamOptions });
     expect(fileState({ line: before, nativeFileMimes: [PDF], pdfNativeDefault: false })?.state).toBe('nativeWhenSupported');
-    recordRelayNegativeCache({
-      connectionId: relay.id, modelId: relayModel.id, transport: effectiveTransport(relay, relayModel), kind: 'file',
-    });
+    // The file negative cache only recognizes v2: record one against the production write target (the same stream options as the wire resolution).
+    const fileTarget = inputNegativeCacheTarget(relay, relayModel, streamOptions, 'file_input')!;
+    recordInputNegativeCache(fileTarget.key, { signatureId: 'test.rejected', verdictRevision: fileTarget.verdictRevision });
     const after = await resolveAttachmentLine({ provider: relay, model: relayModel, streamOptions });
     expect(fileState({ line: after, nativeFileMimes: [PDF], pdfNativeDefault: false })?.state).toBe('text');
   });
@@ -267,33 +267,49 @@ describe('BOARD-OPTIONS-09 three vision states', () => {
     card: { kind: 'rows', rows: [] }, vision, file: TEXT_FILE, generationRows: [],
   }).tiles.find((tile) => tile.kind === 'vision');
 
-  it('BOARD-OPTIONS-09 entry not visible -> unavailable; visible + Relay + no positive evidence -> unknown; other visible -> available', () => {
+  it('BOARD-OPTIONS-09 entry not visible -> unavailable; visible + no positive evidence -> unknown (same rule for official and Relay); other visible -> available', () => {
     expect(visionOf({ entryVisible: false, isRelayForm: true, noPositiveEvidence: true })).toEqual({ kind: 'vision', state: 'hidden', corner: 'x' });
     expect(visionOf({ entryVisible: true, isRelayForm: true, noPositiveEvidence: true })).toEqual({ kind: 'vision', state: 'unknown', corner: 'question' });
     expect(visionOf({ entryVisible: true, isRelayForm: true, noPositiveEvidence: false })).toEqual({ kind: 'vision', state: 'available', corner: 'check' });
-    // Non-Relay forms have no "unknown".
-    expect(visionOf({ entryVisible: true, isRelayForm: false, noPositiveEvidence: true })?.state).toBe('available');
+    // Same rule for official providers: unknown is not supported.
+    expect(visionOf({ entryVisible: true, isRelayForm: false, noPositiveEvidence: true })?.state).toBe('unknown');
   });
 
-  it('BOARD-OPTIONS-09 production entry function x production predicate: Relay with no evidence -> unknown; capabilities contain image -> available; image negative cache -> unavailable', () => {
+  it('BOARD-OPTIONS-09 official vision projection unknown -> the vision card does not show "available", and the projection is carried through as is', () => {
+    const official = provider({ id: 'official-vision', kind: 'openAI' });
+    const model = { id: 'official-vision-unknown', capabilities: ['text'] } as unknown as AIModel;
+    const vision = visionCardFacts(official, model, { image: true, nativeFile: false, textFileInline: true });
+    expect(vision.projection?.visible).toBe(false);
+    const tile = visionOf(vision);
+    expect(tile?.state).toBe('unknown');
+    expect(modelOptionsTileStatusCopy(tile!)).not.toEqual({ key: 'common.modelOptionsVisionAvailable' });
+  });
+
+  it('BOARD-OPTIONS-09 vision projection: Relay with no evidence or only a raw declaration -> unknown; a user override of add -> available; image negative cache -> unavailable', () => {
     const relay = provider({
       id: 'relay-vision', kind: 'relay', baseURLText: 'https://relay.example/v1',
       relayRequested: { transport: 'openai_chat_completions', authMode: 'bearer' } as never,
     });
     beginCapabilityEvidenceIdentityIfAbsent(getActiveUIDSync(), relay.id);
-    const support = { image: true, video: false, nativeFile: false, textFileInline: true };
-    const factsOf = (relayModel: AIModel): ModelOptionsVisionFacts => ({
-      entryVisible: resolveAttachmentCapabilities(relay, relayModel, support).supportsImage,
-      isRelayForm: true,
-      noPositiveEvidence: relayImageSupportUnknown(relay, relayModel),
-    });
+    const support = { image: true, nativeFile: false, textFileInline: true };
+    // The vision card reads the vision projection: editable decides visibility, visible decides "unknown" (the same production function as the panel and the model library row).
+    const factsOf = (relayModel: AIModel): ModelOptionsVisionFacts => visionCardFacts(relay, relayModel, support);
     const unknownModel = createRelayManualModel('vision-unknown', true);
     expect(visionOf(factsOf(unknownModel))?.state).toBe('unknown');
+    // An image bit in the catalog capabilities is only a raw declaration and the projection stays unknown; only a user override of "can see images" (add) lights it up.
     const declared = { ...createRelayManualModel('vision-declared', true), capabilities: ['text', 'image'] } as AIModel;
-    expect(visionOf(factsOf(declared))?.state).toBe('available');
-    recordRelayNegativeCache({
-      connectionId: relay.id, modelId: unknownModel.id, transport: effectiveTransport(relay, unknownModel), kind: 'image',
-    });
+    expect(visionOf(factsOf(declared))?.state).toBe('unknown');
+    const userAdded = {
+      ...createRelayManualModel('vision-user-added', true),
+      relayCapabilityOverrides: { image: { value: true, source: 'user' } },
+    } as AIModel;
+    expect(visionOf(factsOf(userAdded))?.state).toBe('available');
+    const imageTarget = inputNegativeCacheTarget(
+      relay, unknownModel,
+      buildProviderStreamOptions(relay, buildStreamOptionsFromIntent(unknownModel, 'automatic', false), unknownModel),
+      'vision_input',
+    )!;
+    recordInputNegativeCache(imageTarget.key, { signatureId: 'test.rejected', verdictRevision: imageTarget.verdictRevision });
     expect(visionOf(factsOf(unknownModel))?.state).toBe('hidden');
   });
 });

@@ -62,4 +62,3 @@ export { stopStream } from './stop-stream';
 // after the split into per-operation files.
 export { shouldReportProviderError, createProviderSentryError } from './error-reporting';
 export { resolvePromptUseMemory } from './prompt-injection';
-export { recalculateConversationCost } from './usage-tracking';

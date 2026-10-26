@@ -13,7 +13,7 @@ import 'fake-indexeddb/auto';
 // function (the metadata snapshot is null here, which is safe). next-intl uses the global
 // key-passthrough mock from setup.ts.
 
-import { act, fireEvent, render, screen, cleanup } from '@testing-library/react';
+import { fireEvent, render, screen, cleanup } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AIModel, Provider, ProviderKind } from '@oriveo/shared';
 import * as capabilityFacade from '@oriveo/core/providers/capability-evidence-facade';
@@ -114,11 +114,11 @@ describe('ModelSwitcher rendering layer', () => {
 
     renderSwitcher({ providers: [provider] });
 
-    // Reasoning and Web now consume the Server recipe/control verdict directly.
-    // Only vision and tool calling still require evidence-facade projection.
-    expect(resolveSpy).toHaveBeenCalledTimes(810 * 2);
+    // Reasoning / web read the Server recipe verdict, vision / file / video read the input-capability projection;
+    // only tool calling still goes through the evidence facade.
+    expect(resolveSpy).toHaveBeenCalledTimes(810);
     fireEvent.change(screen.getByPlaceholderText('searchPlaceholder'), { target: { value: 'Model' } });
-    expect(resolveSpy).toHaveBeenCalledTimes(810 * 2);
+    expect(resolveSpy).toHaveBeenCalledTimes(810);
     resolveSpy.mockRestore();
   });
 
@@ -172,15 +172,9 @@ describe('ModelSwitcher rendering layer', () => {
     expect(screen.getByText('noResults')).toBeTruthy();
   });
 
-  it('recomputes the current capability filter when the evidence TTL expires', async () => {
-    // Fake only the clock this case actually needs: the capability evidence expiry scheduler uses
-    // `window.setTimeout` plus `Date.now()` (`use-capability-evidence-expiry.ts`). The default
-    // full useFakeTimers also takes over `setImmediate` and microtasks, and that is exactly what
-    // drives fake-indexeddb's event queue. If an IDB operation is in flight inside the fake clock
-    // window the queue never advances again and every later test's IDB write hangs forever;
-    // switching back to real timers does not recover it.
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
-    vi.setSystemTime(new Date('2026-08-09T00:00:00Z'));
+  it('the vision filter reads the input-capability projection; vision evidence that only carries a TTL does not light it up', () => {
+    // The vision filter reads the capabilityControls projection (no TTL); evidence-candidate expiry scheduling
+    // is locked separately by use-capability-evidence-expiry.test.tsx, and this case locks that an evidence candidate no longer lights up vision.
     const model = makeModel({
       id: 'vision-expiring',
       name: 'Vision Expiring',
@@ -195,23 +189,16 @@ describe('ModelSwitcher rendering layer', () => {
         providerKind: 'openAI',
         modelId: 'vision-expiring',
         transport: 'openai_chat',
-        expiresAt: Date.now() + 1_000,
+        expiresAt: Date.now() + 60_000,
       }],
     });
     const view = renderSwitcher({ providers: [makeProvider({ models: [model] })] }).view;
 
     fireEvent.click(screen.getByRole('button', { name: 'image' }));
-    expect(screen.getByText('Vision Expiring')).toBeTruthy();
-
-    await act(async () => {
-      vi.advanceTimersByTime(1_001);
-    });
     expect(screen.queryByText('Vision Expiring')).toBeNull();
     expect(screen.getByText('noEnabledModels')).toBeTruthy();
 
     view.unmount();
-    vi.clearAllTimers();
-    vi.useRealTimers();
   });
 
   // -- Capability visibility in front of the model switcher ---------------------------------
@@ -364,6 +351,115 @@ describe('ModelSwitcher rendering layer', () => {
     expect(onEnableAndSelect).toHaveBeenCalledTimes(1);
     expect(onEnableAndSelect.mock.calls[0][0].id).toBe('charlie');
     expect(mockShowToast).toHaveBeenCalledWith('toast.modelAdded', 3000, undefined, 'success');
+  });
+
+  // Catalog lifecycle=deprecated with shutdownAt <= now on this device: the picker no longer lists it (display only).
+  async function seedLifecycleCatalog(shutdownAt: string) {
+    __resetMetadataClientForTest();
+    await __seedMetadataCacheForTest({
+      data: {
+        version: 1, contractVersion: 1, updatedAt: '2026-10-18T00:00:00Z',
+        profiles: { reasoning: {}, webSearch: {}, imageGen: {}, generation: {} },
+        capabilityRuntime: {
+          schemaVersion: 2, revision: 'retired-picker', generatedAt: '2026-10-18T00:00:00Z',
+          recipes: { 'fixture.web': { id: 'fixture.web' } }, controlDefinitions: {}, sourceIndex: {},
+        },
+        providers: {
+          openAI: {
+            models: {
+              'old-web': {
+                displayName: 'Old Web',
+                lifecycle: { state: 'deprecated', shutdownAt, signal: 'upstream_shutdown_date' },
+              },
+              'live-web': { displayName: 'Live Web' },
+            },
+          },
+        },
+        providerConfigs: [],
+      },
+      timestamp: Date.now(),
+    } as never);
+    await initMetadata();
+  }
+
+  function webModel(id: string, name: string): AIModel {
+    return makeModel({
+      id, name, capabilities: [], transport: 'openai_chat',
+      capabilityControls: { web: { state: 'auto_available', recipeRef: 'fixture.web' } },
+      capabilityEvidenceCandidates: [{
+        key: 'web_search', support: 'supported', source: 'server_profile', grade: 'effect_verified',
+        scope: 'provider_model_transport', providerKind: 'openAI', modelId: id, transport: 'openai_chat',
+      }],
+    } as Partial<AIModel>);
+  }
+
+  it('RETIRED-WEB-PICKER-01 an enabled model whose catalog lifecycle has expired: no row in the list, not counted by the filter, and the current conversation model is not added back', async () => {
+    await seedLifecycleCatalog(new Date(Date.now() - 60_000).toISOString());
+    const oldWeb = webModel('old-web', 'Old Web');
+    renderSwitcher({
+      providers: [makeProvider({ models: [oldWeb, webModel('live-web', 'Live Web')] })],
+      selectedProviderId: 'p1',
+      selectedModelId: 'old-web',
+      currentModel: oldWeb,
+    });
+
+    expect(screen.queryByText('Old Web')).toBeNull();
+    expect(screen.getByText('Live Web')).toBeTruthy();
+    expect(modelRows()).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'web' }).getAttribute('data-count')).toBe('1');
+  });
+
+  it('RETIRED-WEB-PICKER-02 shutdownAt in the future: shown and counted as usual', async () => {
+    await seedLifecycleCatalog(new Date(Date.now() + 86_400_000).toISOString());
+    renderSwitcher({
+      providers: [makeProvider({ models: [webModel('old-web', 'Old Web'), webModel('live-web', 'Live Web')] })],
+    });
+
+    expect(screen.getByText('Old Web')).toBeTruthy();
+    expect(modelRows()).toHaveLength(2);
+    expect(screen.getByRole('button', { name: 'web' }).getAttribute('data-count')).toBe('2');
+  });
+
+  it('RETIRED-WEB-PICKER-03 the add-model catalog view does not list expired models', async () => {
+    await seedLifecycleCatalog(new Date(Date.now() - 60_000).toISOString());
+    renderSwitcher({
+      providers: [makeProvider({ models: [makeModel({ id: 'alpha', name: 'Alpha Model', isDefault: true })] })],
+    });
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'addModel' })[0]);
+    expect(screen.getByText(/Live Web/)).toBeTruthy();
+    expect(screen.queryByText(/Old Web/)).toBeNull();
+  });
+
+  it('RETIRED-WEB-PICKER-04 an enabled model id that is in the provider tombstones: no row in the list and not counted by the filter', async () => {
+    __resetMetadataClientForTest();
+    await __seedMetadataCacheForTest({
+      data: {
+        version: 1, contractVersion: 1, updatedAt: '2026-10-18T00:00:00Z',
+        profiles: { reasoning: {}, webSearch: {}, imageGen: {}, generation: {} },
+        capabilityRuntime: {
+          schemaVersion: 2, revision: 'retired-picker-tombstone', generatedAt: '2026-10-18T00:00:00Z',
+          recipes: { 'fixture.web': { id: 'fixture.web' } }, controlDefinitions: {}, sourceIndex: {},
+        },
+        providers: {
+          openAI: {
+            retiredModels: [{ id: 'tomb-web', displayName: 'Tomb Web', retiredAt: '2026-09-01T00:00:00Z', routedTo: 'live-web' }],
+            models: { 'live-web': { displayName: 'Live Web' } },
+          },
+        },
+        providerConfigs: [],
+      },
+      timestamp: Date.now(),
+    } as never);
+    await initMetadata();
+    renderSwitcher({
+      providers: [makeProvider({ models: [webModel('tomb-web', 'Tomb Web'), webModel('live-web', 'Live Web')] })],
+    });
+
+    expect(screen.queryByText('Tomb Web')).toBeNull();
+    expect(screen.getByText('Live Web')).toBeTruthy();
+    expect(modelRows()).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'web' }).getAttribute('data-count')).toBe('1');
   });
 
   it('W3 the relay "+" opens that connection model library (the catalog is visible) instead of only offering manual ID entry; the switcher closes with it', () => {

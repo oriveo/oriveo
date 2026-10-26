@@ -37,6 +37,10 @@ import {
   isAICompacting,
   type CompactionContext,
 } from '../../lib/core/chat/context-pipeline/compaction-coordinator';
+import { resolveAttachmentCapabilities } from '../../lib/core/chat/attachment-policy';
+
+/** Mirrors ChatView by passing attachment capabilities: this case has no connection. */
+const NO_CONNECTION_CAPABILITIES = resolveAttachmentCapabilities(undefined, undefined, null);
 
 const ctx = (): CompactionContext => ({
   messages: Array.from({ length: 6 }, (_, i) => ({
@@ -57,7 +61,7 @@ describe('context compacting status', () => {
       remoteEnabled: () => true,
     });
     const { rerender } = render(
-      <InputComposer value="" onChange={vi.fn()} onSend={vi.fn()} isStreaming generationParameterConversationId="conv-a" />,
+      <InputComposer attachmentCapabilities={NO_CONNECTION_CAPABILITIES} value="" onChange={vi.fn()} onSend={vi.fn()} isStreaming generationParameterConversationId="conv-a" />,
     );
     expect(screen.queryByTestId('context-compacting-status')).toBeNull();
 
@@ -65,9 +69,9 @@ describe('context compacting status', () => {
     const status = await screen.findByTestId('context-compacting-status');
     expect(status.textContent).toContain('pages.chat.contextCompaction.inProgress');
 
-    rerender(<InputComposer value="" onChange={vi.fn()} onSend={vi.fn()} isStreaming generationParameterConversationId="conv-b" />);
+    rerender(<InputComposer attachmentCapabilities={NO_CONNECTION_CAPABILITIES} value="" onChange={vi.fn()} onSend={vi.fn()} isStreaming generationParameterConversationId="conv-b" />);
     expect(screen.queryByTestId('context-compacting-status')).toBeNull();
-    rerender(<InputComposer value="" onChange={vi.fn()} onSend={vi.fn()} isStreaming generationParameterConversationId="conv-a" />);
+    rerender(<InputComposer attachmentCapabilities={NO_CONNECTION_CAPABILITIES} value="" onChange={vi.fn()} onSend={vi.fn()} isStreaming generationParameterConversationId="conv-a" />);
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'pages.chat.contextCompaction.cancel' }));

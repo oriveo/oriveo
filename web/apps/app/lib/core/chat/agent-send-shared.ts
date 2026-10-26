@@ -16,7 +16,7 @@ import {
   deriveConversationMetadata,
   computeConversationActivityAt,
 } from "../conversation-metadata";
-import { recalculateConversationCost } from "./usage-tracking";
+import { recalculateConversationCostTotals } from "./usage-tracking";
 import { getSyncAdapter } from "../sync-port";
 import {
   ensureModelFacts,
@@ -38,6 +38,7 @@ import {
   persistOpenAISubscriptionCredential,
 } from "../provider-ops";
 import type { ChatOpCtx } from "./operations";
+import { resolveModelCapabilityEvidence } from "./capability-evidence";
 import type { ProxyMessage } from "@oriveo/core/providers/request-builders/runtime";
 import type { AssembleDynamic } from "@oriveo/core/context/assemble";
 import { recallForTurn } from "../memory/memory-recall-runtime";
@@ -71,6 +72,8 @@ export async function prepareAgentSubscriptionOutbound(
   }
   await ensureModelFacts();
   const reasoningLevels = subscriptionDeclaredReasoningLevels(provider.kind, model);
+  // Upstream declares web search for this model: go through the capability facade instead of reading the capability array in the consumer.
+  const webSearchDeclared = resolveModelCapabilityEvidence({ key: "web_search", provider, model }).support === "supported";
   if (provider.kind === "grok") {
     const prepared = await prepareGrokSubscriptionRequest(provider);
     if (!prepared.ok) {
@@ -91,7 +94,7 @@ export async function prepareAgentSubscriptionOutbound(
         // Same as stream-runner: when no tier is selected, fill in automatic so the route sends the default tier declared upstream.
         reasoning: streamOptions?.reasoning ?? "automatic",
         grokSubscriptionAuth: true,
-        grokSubscriptionWebSearchDeclared: model.capabilities.includes("web"),
+        grokSubscriptionWebSearchDeclared: webSearchDeclared,
         ...(model.upstreamDefaultReasoningLevel
           ? { upstreamDefaultReasoningLevel: model.upstreamDefaultReasoningLevel }
           : {}),
@@ -119,7 +122,7 @@ export async function prepareAgentSubscriptionOutbound(
         ...streamOptions,
         openAISubscriptionAuth: true,
         openAISubscriptionAccountID: prepared.value.accountID,
-        openAISubscriptionWebSearchDeclared: model.capabilities.includes("web"),
+        openAISubscriptionWebSearchDeclared: webSearchDeclared,
         ...(reasoningLevels.length ? { upstreamReasoningLevels: reasoningLevels } : {}),
       },
     };
@@ -165,11 +168,16 @@ export function completeRound(
     currentUser,
     assistantMessage,
   ]);
-  const cost = recalculateConversationCost(messages);
+  const costTotals = recalculateConversationCostTotals(messages, {
+    conversation: base,
+    previousMessages: current?.messages ?? fallbackMessages,
+  });
+  const cost = costTotals.estimatedCost;
   store.getState().updateConversation(conversationID, {
     messages,
     ...deriveConversationMetadata(base, messages),
     estimatedCost: cost,
+    nonUsdCostTotals: costTotals.nonUsdCostTotals,
     updatedAt: computeConversationActivityAt(messages, base.createdAt),
   });
   const snapshot = store
@@ -197,10 +205,15 @@ export function patchAssistantMessage(
   const messages = conversation.messages.map((message) =>
     message.id === messageID ? { ...message, ...patch } : message,
   );
+  const costTotals = recalculateConversationCostTotals(messages, {
+    conversation,
+    previousMessages: conversation.messages,
+  });
   store.getState().updateConversation(conversationID, {
     messages,
     ...deriveConversationMetadata(conversation, messages),
-    estimatedCost: recalculateConversationCost(messages),
+    estimatedCost: costTotals.estimatedCost,
+    nonUsdCostTotals: costTotals.nonUsdCostTotals,
     updatedAt: computeConversationActivityAt(messages, conversation.createdAt),
   });
 }

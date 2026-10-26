@@ -9,7 +9,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../../infra/storage/partition', () => ({ getActiveUIDSync: () => 'guest' }));
-vi.mock('../../metadata/metadata-client', () => ({
+vi.mock('../../metadata/metadata-client', async (importOriginal) => (await import('../../../__tests__/mocks/metadata-client')).metadataClientMock(importOriginal, {
   getCapabilityRuntime: () => ({ revision: 'runtime-r7' }),
   resolveCatalogModel: () => ({ canonicalModelId: 'model-a', transport: 'openai_responses' }),
 }));

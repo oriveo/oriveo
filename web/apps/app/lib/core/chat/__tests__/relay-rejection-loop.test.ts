@@ -34,7 +34,7 @@ import {
   relayImageSupportUnknown,
   relayFirstSendMessagesBlockedByFiles,
   sendWithRelayRejectionLoop,
-  toolCallRememberedUnsupported,
+  toolCallVerdictForSend,
 } from '../relay-rejection-loop';
 import {
   recordToolCallSupportFalse,
@@ -52,6 +52,9 @@ import {
 import { getActiveUIDSync } from '../../../infra/storage/partition';
 import { relayModelAdvancedBoard } from '../../../../app/providers/[providerId]/relay-model-advanced-board';
 import { replaceRelayWebFragments } from '../relay-web-fragments';
+import { INPUT_NEGATIVE_CACHE_STORAGE_KEY } from '../../capability/input-negative-cache';
+import { inputNegativeCacheTarget, resolveInputCapabilityProjections } from '../../capability/truth/input-truth-adapter';
+import { recordRelayInputRejectionV2 } from '../../capability/input-rejection-flow';
 
 /** The cached by-model family table (the first-send protocol reads only it); models not registered go through the production lookup as usual. */
 const families = vi.hoisted(() => new Map<string, string>());
@@ -151,7 +154,11 @@ beforeEach(() => {
   }));
 });
 
-afterEach(() => {
+afterEach(async () => {
+  // Restore test metadata: the mock delegates to the real module, so restoring goes through the real singleton from importActual.
+  const metadata = await vi.importActual<typeof import('../../metadata/metadata-client')>('../../metadata/metadata-client');
+  await metadata.__settleMetadataBackgroundWorkForTest();
+  metadata.__resetMetadataClientForTest();
   vi.unstubAllGlobals();
   families.clear();
   localStorage.clear();
@@ -190,6 +197,12 @@ function userMessage(attachments?: Attachment[]): ChatMessage {
 }
 
 const imageAttachment = { id: 'img-1', kind: 'image', mimeType: 'image/png', base64Data: IMAGE_B64 } as Attachment;
+
+/** Written the same way as a send-side rejection: the v1 `image` tier (shared fixture) plus v2 (readers only read v2; the target comes from `inputNegativeCacheTarget`). */
+function recordImageRejection(provider: Provider, relayModel: AIModel, transport: RelayModelTransport) {
+  recordRelayNegativeCache({ connectionId: provider.id, modelId: relayModel.id, transport, kind: 'image' });
+  recordRelayInputRejectionV2(inputNegativeCacheTarget(provider, relayModel, streamOptionsFor(provider, relayModel), 'vision_input'));
+}
 
 function streamOptionsFor(provider: Provider, relayModel: AIModel, webOn = false) {
   return buildProviderStreamOptions(provider, buildStreamOptionsFromIntent(relayModel, 'automatic', webOn), relayModel);
@@ -239,6 +252,12 @@ const textOf = (events: StreamEvent[]) => events.map((event) => (event.type === 
 function storedEntryCount(): number {
   const raw = localStorage.getItem(RELAY_NEGATIVE_CACHE_STORAGE_KEY);
   return raw ? (JSON.parse(raw) as { entries: unknown[] }).entries.length : 0;
+}
+
+/** Negative cache v2 entries (Relay writes them together with v1 image / file; the signature id is always relay.classified_rejected). */
+function v2Entries(): Array<Record<string, unknown>> {
+  const raw = localStorage.getItem(INPUT_NEGATIVE_CACHE_STORAGE_KEY);
+  return raw ? (JSON.parse(raw) as { entries: Array<Record<string, unknown>> }).entries : [];
 }
 
 function negCached(provider: Provider, relayModel: AIModel, kind: RelayNegativeCacheKind): boolean {
@@ -294,7 +313,7 @@ describe('RL2-NEGCACHE-01 tools share the key: the production tool rejection pat
     recordToolCallFallback(provider, relayModel, identity(provider, relayModel), toolRejection(400), effectiveTransport(provider, relayModel));
     expect(negCached(provider, relayModel, 'toolCall')).toBe(true);
     expect(toolSupport(provider, relayModel)).toBe('unsupported');
-    expect(toolCallRememberedUnsupported(provider, relayModel, identity(provider, relayModel))).toBe(true);
+    expect(toolCallVerdictForSend(provider, relayModel, identity(provider, relayModel)) === false).toBe(true);
     expect(toolCallSupportIsRememberedFalse(identity(provider, relayModel))).toBe(false);
   });
 
@@ -310,7 +329,7 @@ describe('RL2-NEGCACHE-01 tools share the key: the production tool rejection pat
     const relayModel = model('tool-model');
     const { provider } = setup([relayModel]);
     recordToolCallSupportFalse(identity(provider, relayModel));
-    expect(toolCallRememberedUnsupported(provider, relayModel, identity(provider, relayModel))).toBe(false);
+    expect(toolCallVerdictForSend(provider, relayModel, identity(provider, relayModel)) === false).toBe(false);
   });
 
   it('RL2-NEGCACHE-01 non-Relay form (manually entered model, eligible) still writes and reads the old tool memory and does not enter the new store', () => {
@@ -321,7 +340,7 @@ describe('RL2-NEGCACHE-01 tools share the key: the production tool rejection pat
     };
     recordToolCallFallback(official, officialModel, officialIdentity, toolRejection(400), undefined);
     expect(storedEntryCount()).toBe(0);
-    expect(toolCallRememberedUnsupported(official, officialModel, officialIdentity)).toBe(true);
+    expect(toolCallVerdictForSend(official, officialModel, officialIdentity) === false).toBe(true);
   });
 });
 
@@ -351,6 +370,17 @@ describe('RL2-NEGCACHE-03 Relay vision unknown: the image is sent anyway, 400 ->
     expect(sent).toHaveLength(1);
     expect(errorsOf(events)).toEqual([expect.objectContaining({ status: 400 })]);
     expect(negCached(provider, relayModel, 'image')).toBe(true);
+    expect(v2Entries()).toEqual([expect.objectContaining({
+      connectionId: provider.id, modelId: relayModel.id, wireFamily: 'openai_chat.image_url',
+      capabilityKey: 'vision_input', signatureId: 'relay.classified_rejected',
+    })]);
+    // With readers only reading v2 the projection still judges it just rejected: after clearing v1 it is still rejected_recently.
+    localStorage.removeItem(RELAY_NEGATIVE_CACHE_STORAGE_KEY);
+    expect(resolveInputCapabilityProjections(provider, relayModel, streamOptionsFor(provider, relayModel))?.vision_input
+      .disabledReason).toBe('disabled.rejected_recently');
+    recordRelayNegativeCache({
+      connectionId: provider.id, modelId: relayModel.id, transport: effectiveTransport(provider, relayModel), kind: 'image',
+    });
     expect(handle.getRelayImageRejected?.()).toBe(true);
     expect(resolveAttachmentCapabilities(provider, relayModel, { image: true, nativeFile: false, textFileInline: true })
       .supportsImage).toBe(false);
@@ -367,6 +397,7 @@ describe('RL2-NEGCACHE-03 Relay vision unknown: the image is sent anyway, 400 ->
     responders = [reject(status)];
     const { handle } = await sendRelay(store, provider, relayModel, userMessage([imageAttachment]));
     expect(storedEntryCount()).toBe(0);
+    expect(v2Entries()).toEqual([]);
     expect(handle.getRelayImageRejected?.()).toBe(false);
   });
 
@@ -679,9 +710,7 @@ describe('RL2-NEGCACHE-03 an auto / unconfigured connection does not have incomp
     const support = { image: true, nativeFile: false, textFileInline: true };
     expect(effectiveTransport(provider, relayModel)).toBe('openai_chat_completions');
     expect(resolveAttachmentCapabilities(provider, relayModel, support).supportsImage).toBe(true);
-    recordRelayNegativeCache({
-      connectionId: provider.id, modelId: relayModel.id, transport: 'openai_chat_completions', kind: 'image',
-    });
+    recordImageRejection(provider, relayModel, 'openai_chat_completions');
     expect(resolveAttachmentCapabilities(provider, relayModel, support).supportsImage).toBe(false);
   });
 });
@@ -747,9 +776,12 @@ describe('RL2-NEGCACHE-03 criteria for recording image (fixture imageRecordCases
     : { relayRequested: relayProvider([]).relayRequested });
 
   it.each(negative.imageRecordCases)('RL2-NEGCACHE-03 $caseId', (item) => {
+    const relayModel = fixtureModel(item);
+    const { provider } = setup([relayModel], fixtureProvider(item).relayRequested);
     expect(shouldRecordRelayImageRejection({
-      provider: fixtureProvider(item),
-      model: fixtureModel(item),
+      provider,
+      model: relayModel,
+      streamOptions: streamOptionsFor(provider, relayModel),
       rejected: item.rejected,
       outputStarted: item.outputStarted,
       protocolSwitched: item.protocolSwitched,
@@ -765,6 +797,7 @@ describe('RL2-NEGCACHE-03 criteria for recording image (fixture imageRecordCases
       const { handle } = await sendRelay(store, provider, relayModel, userMessage([imageAttachment]));
       expect(sent[0]!.body).toContain(IMAGE_B64);
       expect(negCached(provider, relayModel, 'image')).toBe(item.expectRecord);
+      expect(v2Entries().filter((entry) => entry.capabilityKey === 'vision_input')).toHaveLength(item.expectRecord ? 1 : 0);
       expect(handle.getRelayImageRejected?.()).toBe(item.expectRecord);
     },
   );
@@ -775,37 +808,42 @@ describe('RL2-NEGCACHE-03 criteria for recording image (fixture imageRecordCases
 describe('RL2-NEGCACHE-03 only an override of true beats the image negative cache', () => {
   const support = { image: true, nativeFile: false, textFileInline: true };
 
-  it('RL2-NEGCACHE-03 evidence is supported but not from an override (model capabilities contain image): an unexpired negative cache still hides it', () => {
-    const relayModel = model('img-inherited', { capabilities: ['text', 'image'] });
+  it('RL2-NEGCACHE-03 evidence is supported but not from an override (inherited vision verdict): an unexpired negative cache still hides it', () => {
+    const relayModel = model('img-inherited', {
+      capabilityControls: { vision_input: { state: 'auto_available' } },
+    });
     const { provider } = setup([relayModel]);
     expect(resolveModelCapabilityEvidence({
       key: 'vision_input', provider, model: relayModel, streamOptions: streamOptionsFor(provider, relayModel),
     }).support).toBe('supported');
     expect(resolveAttachmentCapabilities(provider, relayModel, support).supportsImage).toBe(true);
-    recordRelayNegativeCache({
-      connectionId: provider.id, modelId: relayModel.id, transport: effectiveTransport(provider, relayModel), kind: 'image',
-    });
+    recordImageRejection(provider, relayModel, effectiveTransport(provider, relayModel));
     expect(resolveAttachmentCapabilities(provider, relayModel, support).supportsImage).toBe(false);
   });
 
-  it('RL2-NEGCACHE-03 an engine declaration of true is likewise hidden by an unexpired negative cache; an override of true beats it', () => {
+  it('RL2-NEGCACHE-03 an engine declaration of true is likewise hidden by an unexpired negative cache; an override of true that came from probing cannot beat it either', () => {
     const declared = model('img-engine', { engineDeclaration: { image: true } });
     const { provider } = setup([declared]);
-    recordRelayNegativeCache({
-      connectionId: provider.id, modelId: declared.id, transport: effectiveTransport(provider, declared), kind: 'image',
-    });
+    recordImageRejection(provider, declared, effectiveTransport(provider, declared));
     expect(resolveAttachmentCapabilities(provider, declared, support).supportsImage).toBe(false);
+    // tested is probe evidence, not a user choice; a later rejection is newer evidence, so the negative cache beats it (re-running the probe clears the negative cache).
     const overridden: AIModel = { ...declared, relayCapabilityOverrides: { image: { value: true, source: 'tested' } } };
-    expect(resolveAttachmentCapabilities(provider, overridden, support).supportsImage).toBe(true);
+    // The v2 key carries the verdict revision: the rejection happens after tested, and the send side writes against the current verdict that includes tested.
+    recordImageRejection(provider, overridden, effectiveTransport(provider, overridden));
+    expect(resolveAttachmentCapabilities(provider, overridden, support).supportsImage).toBe(false);
+    // An override of true set by the user still beats the negative cache.
+    const userOn: AIModel = { ...declared, relayCapabilityOverrides: { image: { value: true, source: 'user' } } };
+    expect(resolveAttachmentCapabilities(provider, userOn, support).supportsImage).toBe(true);
   });
 });
 
 describe('an engine declaration counts as positive vision evidence only on a local engine connection', () => {
   it('a leftover engineDeclaration.image on a remote Relay does not block "unknown"; on a local engine connection it blocks', () => {
     const declared = model('decl', { engineDeclaration: { image: true } });
-    expect(relayImageSupportUnknown(relayProvider([declared]), declared)).toBe(true);
-    const local = { relayRequested: { transport: 'openai_chat_completions', authMode: 'none', engineProfile: 'ollama' } as Provider['relayRequested'] };
-    expect(relayImageSupportUnknown(local, declared)).toBe(false);
+    const { provider: remote } = setup([declared]);
+    expect(relayImageSupportUnknown(remote, declared, streamOptionsFor(remote, declared))).toBe(true);
+    const { provider: local } = setup([declared], { transport: 'openai_chat_completions', authMode: 'none', engineProfile: 'ollama' } as Provider['relayRequested']);
+    expect(relayImageSupportUnknown(local, declared, streamOptionsFor(local, declared))).toBe(false);
   });
 });
 
@@ -928,8 +966,8 @@ describe('RL2-FIRSTSEND first send of an unverified model goes through the first
     expect(textOf(result.events)).toBe('VIA-CHAT');
     expect(first.store.getState().providers[0]!.models[0]!.relayTransport).toBeUndefined();
 
-    // Contrast: Messages can send files natively (no file override) -> first send Messages
-    const open = model('claude-scan-open');
+    // Contrast: Messages can send this file natively (no file override, the allowlist includes PDF, and a scanned PDF is native anyway) -> first send Messages
+    const open = model('claude-scan-open', { nativeFileMimes: ['application/pdf'] });
     families.set(open.id, 'anthropic');
     const second = setup([open], AUTO);
     sent.length = 0;
@@ -958,6 +996,13 @@ describe('RL2-FIRSTSEND first send of an unverified model goes through the first
     const imageRow = relayModelAdvancedBoard({ provider, model: after, now: Date.now() }).capabilityRows
       .find((row) => row.cap === 'image');
     expect(imageRow?.source).toBe('detected');
+    // Readers only read v2: after clearing v1 the entry stays hidden and the advanced page still shows detected (v2 reads and writes by the same first-send protocol family).
+    localStorage.removeItem(RELAY_NEGATIVE_CACHE_STORAGE_KEY);
+    expect(keyOf(provider, relayModel, 'anthropic_messages', 'image')).toBe(false);
+    expect(resolveAttachmentCapabilities(provider, after, { image: true, nativeFile: false, textFileInline: true })
+      .supportsImage).toBe(false);
+    expect(relayModelAdvancedBoard({ provider, model: after, now: Date.now() }).capabilityRows
+      .find((row) => row.cap === 'image')?.source).toBe('detected');
   });
 
   it('RL2-FIRSTSEND-07 tool rejection negative cache is written under Messages (Chat key has no entry), tool capability ruling false', () => {
@@ -976,7 +1021,7 @@ describe('RL2-FIRSTSEND first send of an unverified model goes through the first
     }, 'anthropic_messages');
     expect(keyOf(provider, relayModel, 'anthropic_messages', 'toolCall')).toBe(true);
     expect(keyOf(provider, relayModel, 'openai_chat_completions', 'toolCall')).toBe(false);
-    expect(toolCallRememberedUnsupported(provider, relayModel, identity)).toBe(true);
+    expect(toolCallVerdictForSend(provider, relayModel, identity) === false).toBe(true);
     expect(resolveModelCapabilityEvidence({
       key: 'tool_call', provider, model: relayModel, streamOptions: streamOptionsFor(provider, relayModel),
     }).support).toBe('unsupported');

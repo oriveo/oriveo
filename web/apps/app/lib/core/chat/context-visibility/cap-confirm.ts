@@ -6,7 +6,7 @@
 import type { AIModel, AppPreference } from '@oriveo/shared';
 import type { BudgetLimitedBy } from '@oriveo/core/context/budget';
 import { getPreference, setPreference } from '../../../infra/storage/preferences';
-import { formatCost } from '../../../utils/format-utils';
+import { formatCostAmount, normalizeCostCurrency } from '../../cost/cost-currency';
 import { resolvePriceLineReminderEnabled } from '../../context-cap-preferences';
 import {
   type CapPanelInput,
@@ -61,8 +61,8 @@ export type CapConfirmKind = 'none' | 'overCap' | 'priceLine' | 'overCapAndPrice
 export interface CapConfirmDecision {
   kind: CapConfirmKind;
   showDontAsk: boolean;
-  /** Input-only USD, 6 decimals; only for the price line. */
-  cost: { long: number; base: number } | null;
+  /** Input-only cost in the catalog price currency (ISO 4217, no conversion), 6 decimals; only for the price line. */
+  cost: { long: number; base: number; currencyCode: string } | null;
   multiplier: CapPanelModel['multiplier'];
   acknowledgeOnConfirm: PriceLineAcknowledgement | null;
 }
@@ -97,11 +97,13 @@ export function decideCapConfirm(input: CapConfirmInput): CapConfirmDecision {
   if (!overCap && !priceLine) return NONE;
   if (!priceLine) return { ...NONE, kind: 'overCap' };
 
+  // Unreadable price currency: no amount (falls back to the multiplier), never shown as dollars.
+  const currencyCode = normalizeCostCurrency(input.pricing?.currencyCode);
   const basePrompt = input.pricing?.base?.prompt;
   const longPrompt = input.pricing?.long?.prompt;
   const cost =
-    positive(basePrompt) && positive(longPrompt)
-      ? { long: round6((P * longPrompt) / 1e6), base: round6((P * basePrompt) / 1e6) }
+    positive(basePrompt) && positive(longPrompt) && currencyCode !== null
+      ? { long: round6((P * longPrompt) / 1e6), base: round6((P * basePrompt) / 1e6), currencyCode }
       : null;
   return {
     kind: overCap ? 'overCapAndPriceLine' : 'priceLine',
@@ -166,8 +168,8 @@ export function capConfirmTextOf(
       model: isolated(context.modelName),
       line: context.priceLineTokens === null ? '' : isolatedCompactCount(context.priceLineTokens, locale),
     };
-    const long = decision.cost ? formatCost(decision.cost.long) : '';
-    const base = decision.cost ? formatCost(decision.cost.base) : '';
+    const long = decision.cost ? formatCostAmount(decision.cost.long, decision.cost.currencyCode, locale) : '';
+    const base = decision.cost ? formatCostAmount(decision.cost.base, decision.cost.currencyCode, locale) : '';
     if (long && base) {
       const key = prefix === 'confirmPriceLineBody' ? 'confirmPriceLineBodyCost' : 'confirmAlsoPriceLineCost';
       return tCap(key, { ...values, cost: isolated(long), base: isolated(base) });

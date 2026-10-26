@@ -4,6 +4,10 @@ import type { AIModel, Provider } from "@oriveo/shared";
 import { findModelInProvider } from "../../../../lib/core/provider-model-ops";
 import { selectResolvedCatalog } from "../../../../lib/core/store/selectors";
 import { onVersionChange } from "../../../../lib/core/metadata/metadata-client";
+import {
+  createRetirementJudge,
+  type RetirementJudge,
+} from "../../../../lib/core/providers/provider-selection-snapshot";
 import { sameNormalizedID } from "../../../../lib/utils/id-utils";
 import {
   buildModelBrowserGroups,
@@ -32,6 +36,30 @@ import {
   createModelCapabilityPresentationProjector,
   type ModelCapabilityPresentationProjector,
 } from "../../../../lib/core/chat/model-capability-presentation";
+
+type ModelShutdownPredicate = (provider: Provider, model: AIModel) => boolean;
+
+/**
+ * Per-generation predicate: hides an enabled model whose retirement verdict is not
+ * `available` (tombstoned or past its catalog shutdown date). The verdict comes from
+ * one RetirementJudge per provider (catalog tables built once per generation, same
+ * verdict as resolveProviderModelRetirement); `now` is read on every call so an expired
+ * model hides without waiting for a catalog refresh. Relay connections and an unloaded
+ * catalog yield no verdict / `available`, so nothing is hidden.
+ */
+function createModelShutdownPredicate(): ModelShutdownPredicate {
+  const judges = new Map<Provider, RetirementJudge>();
+  return (provider, model) => {
+    if (provider.kind === "relay") return false;
+    let judge = judges.get(provider);
+    if (!judge) {
+      judge = createRetirementJudge(provider);
+      judges.set(provider, judge);
+    }
+    const retirement = judge.retirementOf(model.id, [model]);
+    return retirement !== null && retirement.status !== "available";
+  };
+}
 
 interface UseModelSwitcherDataParams {
   providers: Provider[];
@@ -181,6 +209,10 @@ export function useModelSwitcherData({
     () => createModelCapabilityPresentationProjector(),
     [providers, capabilityEvidenceTick, metadataTick],
   );
+  const isModelPastShutdown = useMemo(
+    () => createModelShutdownPredicate(),
+    [providers, metadataTick],
+  );
 
   const browseSearchRef = useRef<HTMLInputElement>(null);
   const catalogSearchRef = useRef<HTMLInputElement>(null);
@@ -274,12 +306,16 @@ export function useModelSwitcherData({
         const providerMatches = providerName
           .toLowerCase()
           .includes(normalizedQuery);
-        const nextModels = [...provider.models];
+        // Display-only filter: provider.models storage is untouched.
+        const nextModels = provider.models.filter(
+          (model) => !isModelPastShutdown(provider, model),
+        );
 
         if (
           resolvedCurrentModel &&
           sameNormalizedID(provider.id, selectedProviderId) &&
-          !nextModels.some((model) => model.id === resolvedCurrentModel.id)
+          !provider.models.some((model) => model.id === resolvedCurrentModel.id) &&
+          !isModelPastShutdown(provider, resolvedCurrentModel)
         ) {
           nextModels.unshift(resolvedCurrentModel);
         }
@@ -332,6 +368,7 @@ export function useModelSwitcherData({
     visibleProviders,
     capabilityEvidenceTick,
     capabilityProjector,
+    isModelPastShutdown,
   ]);
 
   const capabilityFilterCounts = useMemo(() => {
@@ -340,6 +377,7 @@ export function useModelSwitcherData({
     ) as Record<FilterKey, number>;
     for (const provider of visibleProviders) {
       for (const model of provider.models) {
+        if (isModelPastShutdown(provider, model)) continue;
         if (!modelMatchesQuery(model, normalizedQuery)) continue;
         for (const entry of CAPABILITY_FILTERS) {
           // When a generation parameter is required, the chip numbers must stay within "supports that
@@ -352,7 +390,7 @@ export function useModelSwitcherData({
     }
     return counts;
     // capabilityEvidenceTick is the expiry signal of the evidence TTL
-  }, [visibleProviders, normalizedQuery, capabilityProjector, capabilityEvidenceTick, requiredGenerationParameterId]);
+  }, [visibleProviders, normalizedQuery, capabilityProjector, capabilityEvidenceTick, requiredGenerationParameterId, isModelPastShutdown]);
 
   const toggleFilter = (key: FilterKey) => {
     setActiveFilters((prev) => {
@@ -392,8 +430,10 @@ export function useModelSwitcherData({
       return [];
     }
 
-    return activeProviderResolved.catalog.filter((model) => !model.isEnabled);
-  }, [activeProviderResolved, view.kind]);
+    return activeProviderResolved.catalog.filter(
+      (model) => !model.isEnabled && !(activeProvider && isModelPastShutdown(activeProvider, model)),
+    );
+  }, [activeProvider, activeProviderResolved, view.kind, isModelPastShutdown]);
 
   const catalogGroups = useMemo(() => {
     if (!activeProvider || !activeProviderResolved || view.kind !== "catalog") {

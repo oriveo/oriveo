@@ -7,6 +7,7 @@
 import type { AIModel, ChatMessage, Provider } from '@oriveo/shared';
 import type { ContentPart, StreamOptions } from '../providers/types';
 import { type AttachmentLine, nativeFileModeOf } from '@oriveo/core/providers/attachment-transport';
+import type { InputCapabilityProjection } from '@oriveo/core/providers/capability-evidence-facade';
 import { AttachmentOverLimitError, resolveFileAttachmentDelivery } from '../attachments/attachment-delivery';
 import { hasUsableExtractedText } from '../attachments/file-text-extractor';
 import { type OutboundHistoryMessage, attachTextFallback } from '../attachments/native-file-fallback';
@@ -16,6 +17,8 @@ import { buildChatHistory } from '../../utils/chat-stream-utils';
 import { ContextSanitizer } from '@oriveo/core/context/sanitize';
 import type { ContextMessage } from '@oriveo/core/context/message';
 import { filterCurrentTurnAttachments, withoutUnreceivableImages } from './attachment-policy';
+import { inputNegativeCacheTarget, resolveInputCapabilityProjections } from '../capability/truth/input-truth-adapter';
+import { providerFormOf } from '../capability/truth/provider-form';
 
 /**
  * The messages actually to be sent in this request (normalized + attachments filtered by the current model capabilities). Sending, pre-send preflight and the model panel
@@ -62,7 +65,7 @@ export function filterOutboundAttachments(input: {
 }): ChatMessage[] {
   return filterCurrentTurnAttachments(
     withoutUnreceivableImages(input.messages, input.provider, input.model, input.streamOptions),
-    input.currentTurnId, input.provider, input.model,
+    input.currentTurnId, input.provider, input.model, undefined, input.streamOptions,
   );
 }
 
@@ -107,9 +110,14 @@ export async function buildOutboundChatHistory(
     streamOptions: input.streamOptions,
     toolLoop: input.toolLoop,
   });
+  // The vision projection and the outbound image filter (withoutUnreceivableImages) share one streamOptions: only native_part produces image parts.
+  const projections = resolveInputCapabilityProjections(input.provider, input.model, input.streamOptions);
+  const vision = projections?.vision_input ?? null;
+  // Official connections project native file blocks outbound by file_input only; relay file overrides and the negative cache stay in the line resolution.
+  const file = providerFormOf(input.provider) === 'official' ? projections?.file_input ?? null : null;
   try {
-    const history = await buildChatHistory(input.messages, input.model, line);
-    if (line) await attachNativeFileTextFallback(history, line, input);
+    const history = await buildChatHistory(input.messages, input.model, line, vision, file);
+    if (line) await attachNativeFileTextFallback(history, line, vision, file, input);
     return history;
   } catch (error) {
     if (error instanceof AttachmentOverLimitError && ctx.describeAttachmentOverLimit) {
@@ -132,7 +140,9 @@ export async function buildOutboundChatHistory(
 async function attachNativeFileTextFallback(
   history: OutboundHistoryMessage[],
   line: AttachmentLine,
-  input: { messages: ChatMessage[]; provider: Provider; model: AIModel },
+  vision: InputCapabilityProjection | null,
+  file: InputCapabilityProjection | null,
+  input: { messages: ChatMessage[]; provider: Provider; model: AIModel; streamOptions?: StreamOptions },
 ): Promise<void> {
   if (nativeFileModeOf(line) !== 'alwaysWithTextFallback') return;
   if (!history.some((message) => typeof message.content !== 'string'
@@ -140,19 +150,24 @@ async function attachNativeFileTextFallback(
   const hasExtractedText = input.messages.some((message) => message.attachments?.some((attachment) =>
     attachment.kind === 'file'
     && hasUsableExtractedText(attachment.base64Data, attachment.extractionErrorCode)
-    && resolveFileAttachmentDelivery(attachment, input.model, line).route === 'native'));
+    && resolveFileAttachmentDelivery(attachment, input.model, line, file).route === 'native'));
   if (!hasExtractedText) return;
   let fallback: OutboundHistoryMessage[];
   try {
-    fallback = await buildChatHistory(input.messages, input.model, { ...line, nativeFilesSuppressed: true });
+    fallback = await buildChatHistory(input.messages, input.model, { ...line, nativeFilesSuppressed: true }, vision, file);
   } catch {
     return;
   }
-  const relayKey = relayNativeFileCacheKey(input.provider, input.model);
+  const relayKey = relayNativeFileCacheKey(input.provider, input.model, input.streamOptions?.relayTransport);
+  // The v1 file tier writes to v2 as well: protocol family and revision come from the same projection (same streamOptions as the vision projection).
+  const relayInputTarget = relayKey
+    ? inputNegativeCacheTarget(input.provider, input.model, input.streamOptions, 'file_input')
+    : null;
   attachTextFallback(history, fallback, {
     providerId: input.provider.id,
     providerKind: input.provider.kind,
     transport: line.transport,
     ...(relayKey ? { relayKey } : {}),
+    ...(relayInputTarget ? { relayInputTarget } : {}),
   });
 }

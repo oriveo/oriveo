@@ -4,7 +4,8 @@
 // non-relay providers. mergeRelayRuntime is a pure field mapping with no IO, so these tests feed
 // it a runtime produced by the real resolveRelayModelRuntime.
 
-import { describe, expect, it } from 'vitest';
+import 'fake-indexeddb/auto';
+import { afterEach, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { shouldReportProviderError } from '../error-reporting';
@@ -12,7 +13,17 @@ import { mapErrorKindKey } from '../../../utils/chat-stream-utils';
 import { localizeProviderError } from '../../providers/error-i18n';
 import { chatFailureTelemetry } from '../../telemetry/chat-failure';
 import type { AIModel, Provider, StreamOptions } from '@oriveo/shared';
-import { buildProviderStreamOptions, buildStreamOptionsFromIntent, mergeRelayRuntime } from '../stream-options';
+import { applyGenerationParameters } from '@oriveo/core/providers/request-builders/generation-parameters';
+import {
+  buildProviderStreamOptions,
+  buildStreamOptionsFromIntent,
+  filterGenerationParameterOverrides,
+  mergeRelayRuntime,
+  resolveGenerationProfileForModel,
+} from '../stream-options';
+import { generationParameterNegativeCacheTarget } from '../capability-evidence';
+import { __resetMetadataClientForTest, __seedMetadataCacheForTest, initMetadata } from '../../metadata/metadata-client';
+import { recordInputNegativeCache } from '../../capability/input-negative-cache';
 import { resolveRelayModelRuntime } from '../../providers/relay-resolution';
 import {
   buildRelayChatCompletionsBody,
@@ -290,7 +301,12 @@ describe('buildProviderStreamOptions - image routing derivation', () => {
     expect(shouldReportProviderError(thrown)).toBe(false);
     expect(mapErrorKindKey(pe.kind)).toBe('requestFailed');
     expect(chatFailureTelemetry({ error: thrown, outputStarted: false, latencyMs: 0 }).error_code).toBe('local_request_rejected');
-    expect(localizeProviderError(pe.message, tErrors('en'))).toBe(errorsOf('en').relay.imageRouteUnsupported);
+    expect(localizeProviderError(pe.message, tErrors('en'))).toBe(
+      'Image generation is not available on this protocol. Open Providers → this connection → Model Library → this model → Advanced and set Protocol to OpenAI Responses or Chat Completions.',
+    );
+    expect(localizeProviderError(pe.message, tErrors('zh-Hans'))).toBe(
+      '\u5f53\u524d\u534f\u8bae\u4e0d\u652f\u6301\u51fa\u56fe。\u8bf7\u6253\u5f00 \u4f9b\u5e94\u5546 → \u8fd9\u6761\u8fde\u63a5 → \u6a21\u578b\u5e93 → \u8fd9\u4e2a\u6a21\u578b → \u9ad8\u7ea7，\u628a\u534f\u8bae\u6539\u4e3a OpenAI Responses \u6216 Chat Completions。',
+    );
   });
 
   it('a non-image model is left alone and produces no driver/tool fields', () => {
@@ -312,5 +328,138 @@ describe('buildProviderStreamOptions - image routing derivation', () => {
     // The images endpoint passes the image model straight to /images/generations, so no chat driver is needed.
     expect(merged?.relayDriverModelID).toBeUndefined();
     expect(merged?.relayImageToolModelID).toBeUndefined();
+  });
+});
+
+describe('filterGenerationParameterOverrides — parameterSupport three-valued gate (official connection)', () => {
+  afterEach(() => {
+    __resetMetadataClientForTest();
+    localStorage.clear();
+  });
+
+  const officialProvider = {
+    id: 'official-openai', kind: 'openAI', status: { kind: 'connected' }, models: [], catalogModels: [],
+    apiKey: 'fixture-only', apiKeyPreview: '',
+  } as unknown as Provider;
+  const officialModel = makeModel({
+    id: 'param-model', name: 'param-model', transport: 'openai_chat_completions',
+    generationProfile: {
+      template: 'param_gate',
+      parameters: [{ id: 'temperature', support: 'accepted', source: 'authoritative_metadata' }],
+    },
+  } as unknown as Partial<AIModel>);
+
+  async function seed(parameterSupport?: Record<string, unknown>): Promise<void> {
+    __resetMetadataClientForTest();
+    await __seedMetadataCacheForTest({
+      data: {
+        version: 2,
+        contractVersion: 1,
+        updatedAt: '2026-10-19T00:00:00Z',
+        profiles: {
+          reasoning: {}, webSearch: {}, imageGen: {},
+          generation: {
+            parameters: {},
+            templates: { param_gate: { transport: 'openai_chat_completions', wire: { temperature: 'temperature' } } },
+          },
+        },
+        relayRuntimeConfig: { defaultTransport: 'openai_chat_completions' },
+        providers: {
+          openAI: {
+            resolveMap: { 'param-model': 'param-model' },
+            models: {
+              'param-model': {
+                canonicalModelId: 'param-model',
+                transport: 'openai_chat_completions',
+                // An old field saying supported does not count: the gate only reads parameterSupport.
+                supportsTemperature: true,
+                ...(parameterSupport ? { parameterSupport } : {}),
+                profiles: {
+                  generation: {
+                    template: 'param_gate',
+                    parameters: [{ id: 'temperature', support: 'accepted', source: 'authoritative_metadata' }],
+                  },
+                },
+              },
+            },
+          },
+        },
+        providerConfigs: [],
+      },
+      timestamp: Date.now(),
+    });
+    await initMetadata();
+  }
+
+  function outboundBody(): Record<string, unknown> {
+    const options = buildProviderStreamOptions(officialProvider, undefined, officialModel);
+    const filtered = filterGenerationParameterOverrides(officialProvider, officialModel, {
+      temperature: { state: 'value', value: 0.3 },
+    }, options);
+    const body: Record<string, unknown> = {};
+    applyGenerationParameters(body, filtered, resolveGenerationProfileForModel(officialProvider, officialModel)!);
+    return body;
+  }
+
+  it('parameterSupport.temperature unavailable -> no temperature outbound', async () => {
+    await seed({ temperature: { state: 'unavailable', reasonCode: 'upstream_declared' } });
+    expect(outboundBody()).not.toHaveProperty('temperature');
+  });
+
+  it('parameterSupport.temperature unknown -> sent as usual', async () => {
+    await seed({ temperature: { state: 'unknown', reasonCode: 'catalog_silent' } });
+    expect(outboundBody()).toMatchObject({ temperature: 0.3 });
+  });
+
+  it('a missing parameterSupport key is treated as unknown and sent as usual', async () => {
+    await seed({ top_p: { state: 'unavailable' } });
+    expect(outboundBody()).toMatchObject({ temperature: 0.3 });
+  });
+
+  it('a param:temperature negative cache hit -> the next request omits it; a changed verdict revision invalidates it', async () => {
+    await seed({ temperature: { state: 'unknown', reasonCode: 'catalog_silent' } });
+    const target = generationParameterNegativeCacheTarget(officialProvider, officialModel, undefined, 'temperature');
+    expect(target?.key).toMatchObject({
+      connectionId: 'official-openai', modelId: 'param-model', capabilityKey: 'param:temperature',
+    });
+    recordInputNegativeCache(target!.key, { signatureId: 'fixture.temperature_rejected', verdictRevision: target!.verdictRevision });
+    expect(outboundBody()).not.toHaveProperty('temperature');
+
+    await seed({ temperature: { state: 'auto_available' } });
+    expect(outboundBody()).toMatchObject({ temperature: 0.3 });
+  });
+});
+
+describe('buildProviderStreamOptions — param:thinking negative cache (official connection)', () => {
+  afterEach(() => localStorage.clear());
+
+  const anthropicProvider = {
+    id: 'official-anthropic', kind: 'anthropic', status: { kind: 'connected' }, models: [], catalogModels: [],
+    apiKey: 'fixture-only', apiKeyPreview: '',
+  } as unknown as Provider;
+  const claude = makeModel({ id: 'claude-fable-5', name: 'Claude Fable 5', transport: 'anthropic_messages' } as Partial<AIModel>);
+  const options: StreamOptions = {
+    reasoning: 'deep', supportsWebSearch: false,
+    capabilityPreferences: { web: 'off', reasoningIntent: 'high' },
+  } as StreamOptions;
+
+  it('miss -> the reasoning tier goes out as usual', () => {
+    const built = buildProviderStreamOptions(anthropicProvider, options, claude);
+    expect(built?.reasoning).toBe('deep');
+    expect(built?.capabilityPreferences?.reasoningIntent).toBe('high');
+  });
+
+  it('hit -> this request carries no thinking (both reasoning and reasoningIntent are removed), the rest as usual', () => {
+    const target = generationParameterNegativeCacheTarget(anthropicProvider, claude, options, 'thinking');
+    expect(target?.key).toMatchObject({ connectionId: 'official-anthropic', capabilityKey: 'param:thinking' });
+    recordInputNegativeCache(target!.key, {
+      signatureId: 'anthropic.thinking_type_not_supported', verdictRevision: target!.verdictRevision,
+    });
+    const built = buildProviderStreamOptions(anthropicProvider, options, claude);
+    expect(built).not.toHaveProperty('reasoning');
+    expect(built?.capabilityPreferences).toEqual({ web: 'off' });
+    // The user's stored preference object is not rewritten.
+    expect(options.reasoning).toBe('deep');
+    expect(options.capabilityPreferences?.reasoningIntent).toBe('high');
   });
 });

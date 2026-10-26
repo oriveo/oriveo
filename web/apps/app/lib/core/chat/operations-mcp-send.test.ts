@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => ({
   runStreamPipeline: vi.fn(),
   trackEvent: vi.fn(),
   reportSendCompletion: vi.fn(),
+  reportUsageAndBudget: vi.fn(),
   executeLibraryTool: vi.fn(),
   activeUid: { value: 'uid-mcp-send' },
   /** When set, replaces the continuation that continue-answering reads (a previous_id continuation); null = use the real implementation. */
@@ -88,6 +89,7 @@ vi.mock('./cost-fields', async (importOriginal) => ({
 }));
 vi.mock('./send-completion', () => ({
   reportSendCompletion: (...args: unknown[]) => mocks.reportSendCompletion(...args),
+  reportUsageAndBudget: (...args: unknown[]) => mocks.reportUsageAndBudget(...args),
 }));
 vi.mock('../telemetry', async () => ({
   trackEvent: (...args: unknown[]) => mocks.trackEvent(...args),
@@ -154,6 +156,8 @@ import { __resetProposeMemoryDegradedForTest, isProposeMemoryDegraded } from './
 import type { GenerationParameterOverrides } from '@oriveo/core/providers/request-builders/types';
 import { resolveGenerationProfileRef } from '../metadata/metadata-client';
 import { buildStreamOptionsFromIntent } from './stream-options';
+import { buildChatHistory } from '../../utils/chat-stream-utils';
+import { INPUT_NEGATIVE_CACHE_STORAGE_KEY } from '../capability/input-negative-cache';
 import { __resetMemorySuggestionForTest, getPendingMemorySuggestion } from './conversation-instructions/memory-suggestion';
 
 const CORPUS = resolve(__dirname, '../../../../../../shared/test-fixtures/provider-toolcall');
@@ -294,7 +298,7 @@ async function seedServer(input: {
   const uid = input.uid ?? mocks.activeUid.value;
   const id = input.serverId ?? SERVER_ID;
   const addition: McpServerAddition = {
-    id, name: input.name ?? 'Weather', url: `https://${(input.name ?? 'weather').toLowerCase()}.example.com/mcp`, authKind: 'token',
+    id, name: input.name ?? 'Weather', url: `https://${(input.name ?? 'weather').toLowerCase()}.example.com/mcp`, authKind: 'token', localOnly: false,
     iconURL: null, createdAt: 1, snapshots: input.snapshots ?? [snapshot('get_weather'), snapshot('get_time')],
     permissions: input.permissions ?? {},
     connectionState: { serverId: id, status: 'connected', lastSuccessAt: 1, negotiatedVersion: '2026-07-28', generation: 'stateless', sessionId: null },
@@ -388,6 +392,7 @@ beforeEach(async () => {
   mocks.runStreamPipeline.mockRejectedValue(new Error('plain path reached'));
   mocks.trackEvent.mockReset();
   mocks.reportSendCompletion.mockReset();
+  mocks.reportUsageAndBudget.mockReset();
   mocks.executeLibraryTool.mockReset();
   __resetProposeMemoryDegradedForTest();
   __resetMemorySuggestionForTest();
@@ -563,7 +568,14 @@ describe('when MCP tools are not sent', () => {
 
   it('sends no tools for models that explicitly lack tool support or for image generation models', async () => {
     await seedServer({ enabledIn: ['conv-1'] });
-    expect(connectionSupportsMcpTools(provider(), model({ toolCall: false }))).toBe(false);
+    // A catalog model only honors the catalog tool_call evidence; a top-level toolCall:false does not count as "explicitly unsupported".
+    expect(connectionSupportsMcpTools(provider(), model({
+      toolCall: false,
+      capabilityEvidenceCandidates: [{
+        key: 'tool_call', support: 'unsupported', source: 'server_typed', grade: 'machine_verified',
+        scope: 'provider_model_transport', providerKind: 'openAI', modelId: 'gpt-4o', transport: 'openai_chat',
+      }],
+    } as Partial<AIModel>))).toBe(false);
     expect(connectionSupportsMcpTools(provider(), model({ capabilities: ['text', 'imageGeneration'], imageGenProfile: 'openai_images' } as Partial<AIModel>))).toBe(false);
     expect(connectionSupportsMcpTools(provider(), model())).toBe(true);
   });
@@ -584,6 +596,8 @@ describe('when MCP tools are not sent', () => {
     const send = async (fileOverride: boolean | null, attachments: Attachment[]) => {
       const claude = model({
         id: 'claude-first-files',
+        // Per-file plan: for the Messages wire to send this PDF natively, the catalog must declare a PDF allowlist.
+        nativeFileMimes: ['application/pdf'],
         ...(fileOverride === null ? {} : { relayCapabilityOverrides: { file: { value: fileOverride, source: 'user' } } }),
       });
       const relay = provider({
@@ -979,11 +993,11 @@ describe('failure, cancellation and recovery', () => {
     expect(chat.bodies[1].tools).toBeUndefined();
     expect(server.requests).toEqual([]);
 
-    // Remembered: the next send on this connection carries no tools from the first leg on
+    // Remembered: the MCP switch reads the same verdict, so the next send no longer takes the MCP tool leg and goes to the ordinary send path
     const second = start({ model: manual });
     await second.handle.done;
-    expect(chat.bodies).toHaveLength(3);
-    expect(chat.bodies[2].tools).toBeUndefined();
+    expect(chat.bodies).toHaveLength(2);
+    expect(mocks.runStreamPipeline).toHaveBeenCalled();
     expectValid(chat.bodies);
   });
 
@@ -1695,3 +1709,122 @@ function failedEventProps(): Record<string, unknown> | undefined {
   const call = mocks.trackEvent.mock.calls.find(([name]) => name === 'chat_message_failed');
   return call?.[1] as Record<string, unknown> | undefined;
 }
+
+describe('official connection first leg rejected by signature', () => {
+  const rejectedImage = async () => [{
+    role: 'user' as const,
+    content: [
+      { type: 'text' as const, text: 'What is in this picture?' },
+      { type: 'image_url' as const, image_url: { url: 'data:image/png;base64,iVBORw0KGgoREJECTEDIMAGE' } },
+    ],
+  }];
+  const signatureBody = (extra: Record<string, unknown> = {}) => ({
+    error: { code: 'invalid_parameter_error', ...extra, message: 'The provided messages input is invalid. The error info is [Unexpected item type in content]' },
+  });
+  const qwenFixture = (withVisionControl = true) => {
+    const qwenModel = model({
+      id: 'ZHIPU/GLM-5.3', name: 'GLM-5.3', transport: 'openai_chat_completions',
+      ...(withVisionControl
+        ? { capabilityControls: { vision_input: { state: 'unknown', reasonCode: 'catalog_silent', wireFamily: 'openai_chat.image_url' } } }
+        : {}),
+    } as Partial<AIModel>);
+    const qwen = provider({ id: 'official-qwen', kind: 'qwen', models: [qwenModel], catalogModels: [qwenModel], authMode: 'apiKey' });
+    // The conversation is bound to the connection actually used for sending (a conversation bound to a connection not in the list refuses to send).
+    const conv = { ...conversation(), providerID: 'official-qwen', providerKind: 'qwen' } as Conversation;
+    return { qwen, qwenModel, conv };
+  };
+  const negativeCacheEntries = () => (JSON.parse(localStorage.getItem(INPUT_NEGATIVE_CACHE_STORAGE_KEY) ?? '{"entries":[]}') as {
+    entries: Array<Record<string, unknown>>;
+  }).entries;
+
+  it('an MCP first leg carrying an image rejected by a DashScope signature: writes the v2 vision_input negative cache and reports input_capability_rejected, no resend', async () => {
+    const { qwen, qwenModel, conv } = qwenFixture();
+    await seedServer({ enabledIn: ['conv-1'] });
+    vi.mocked(buildChatHistory).mockImplementationOnce(rejectedImage);
+    const chat = scriptChatStream([{ status: 400, body: signatureBody() }]);
+    const { handle, assistant } = start({ conv, provider: qwen, model: qwenModel });
+    await handle.done;
+
+    expect(chat.bodies).toHaveLength(1);
+    expect(JSON.stringify(chat.bodies[0].messages)).toContain('image_url');
+    expect(assistant()).toMatchObject({ state: 'failed' });
+    expect(negativeCacheEntries()).toEqual([expect.objectContaining({
+      connectionId: 'official-qwen', modelId: 'ZHIPU/GLM-5.3', capabilityKey: 'vision_input',
+      wireFamily: 'openai_chat.image_url', signatureId: 'dashscope.unexpected_item_type',
+    })]);
+    const reports = mocks.trackEvent.mock.calls.filter(([name]) => name === 'input_capability_rejected');
+    expect(reports).toEqual([['input_capability_rejected', {
+      provider_kind: 'qwen', model_id: expect.any(String), capability_key: 'vision_input',
+      signature_id: 'dashscope.unexpected_item_type', wire_family: 'openai_chat.image_url',
+    }]]);
+  });
+
+  it('WEB-REJECTION-RECOVERY-mcp_later_leg_failure_drops_first_leg_record', async () => {
+    const { qwen, qwenModel, conv } = qwenFixture();
+    await seedServer({ enabledIn: ['conv-1'] });
+    vi.mocked(buildChatHistory).mockImplementationOnce(rejectedImage);
+    // First leg: the signature rejects the image and the error body names tools -> resend one leg without tools; the second leg emits text and then errors inside the stream.
+    const secondLeg = `data: ${JSON.stringify({ choices: [{ index: 0, delta: { role: 'assistant', content: 'The picture shows' } }] })}\n\n`
+      + 'data: {"error":{"message":"Connection reset by upstream"}}\n\n';
+    const chat = scriptChatStream([{ status: 400, body: signatureBody({ param: 'tools' }) }, secondLeg]);
+    const { handle, assistant } = start({ conv, provider: qwen, model: qwenModel });
+    await handle.done;
+
+    expect(chat.bodies).toHaveLength(2);
+    expect(chat.bodies[1].tools ?? []).toEqual([]);
+    // What failed this time is the second leg, which had emitted text: the failed message does not carry the first leg's rejection record.
+    expect(assistant()).toMatchObject({ state: 'failed' });
+    expect(assistant()!.inputRejection).toBeUndefined();
+    expect(assistant()!.generationParameterRejection).toBeUndefined();
+    // The first leg really was rejected: the negative cache and the report stay, not withdrawn.
+    expect(negativeCacheEntries()).toEqual([expect.objectContaining({
+      connectionId: 'official-qwen', modelId: 'ZHIPU/GLM-5.3', capabilityKey: 'vision_input',
+      signatureId: 'dashscope.unexpected_item_type',
+    })]);
+    expect(mocks.trackEvent.mock.calls.filter(([name]) => name === 'input_capability_rejected')).toHaveLength(1);
+  });
+
+  it('WEB-REJECTION-RECOVERY-mcp_later_leg_rejected_before_output_keeps_record', async () => {
+    const { qwen, qwenModel, conv } = qwenFixture();
+    await seedServer({ enabledIn: ['conv-1'] });
+    vi.mocked(buildChatHistory).mockImplementationOnce(rejectedImage);
+    // First leg: the signature rejects the image and names tools -> resend without tools; before emitting any text the second leg is again rejected with the same signature because of the same image.
+    const chat = scriptChatStream([
+      { status: 400, body: signatureBody({ param: 'tools' }) },
+      { status: 400, body: signatureBody() },
+    ]);
+    const { handle, assistant } = start({ conv, provider: qwen, model: qwenModel });
+    await handle.done;
+
+    expect(chat.bodies).toHaveLength(2);
+    expect(chat.bodies[1].tools ?? []).toEqual([]);
+    // A later leg fails before emitting text: the rejection still stands, the failed message carries the first leg's rejection record, and the failure card offers a one-tap action.
+    expect(assistant()).toMatchObject({ state: 'failed' });
+    expect(assistant()!.inputRejection).toEqual({
+      capabilityKey: 'vision_input', signatureId: 'dashscope.unexpected_item_type',
+    });
+    expect(negativeCacheEntries()).toEqual([expect.objectContaining({
+      connectionId: 'official-qwen', modelId: 'ZHIPU/GLM-5.3', capabilityKey: 'vision_input',
+      signatureId: 'dashscope.unexpected_item_type',
+    })]);
+    expect(mocks.trackEvent.mock.calls.filter(([name]) => name === 'input_capability_rejected')).toHaveLength(1);
+  });
+
+  it('WEB-REJECTION-RECOVERY-send_path_persists_signature_source', async () => {
+    const { qwen, qwenModel, conv } = qwenFixture(false);
+    await seedServer({ enabledIn: ['conv-1'] });
+    const chat = scriptChatStream([{
+      status: 400,
+      body: { error: { code: 'invalid_parameter_error', message: 'This model does not support enable_search.' } },
+    }]);
+    const { handle, assistant } = start({ conv, provider: qwen, model: qwenModel });
+    await handle.done;
+
+    expect(chat.bodies).toHaveLength(1);
+    // Assert on the failed message actually landed in the store: a signature hit carries signatureId.
+    expect(assistant()).toMatchObject({ state: 'failed' });
+    expect(assistant()!.generationParameterRejection).toEqual({
+      parameterId: 'enable_search', signatureId: 'dashscope.enable_search_not_supported',
+    });
+  });
+});

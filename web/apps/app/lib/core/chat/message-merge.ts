@@ -29,15 +29,55 @@ export function upsertMessages(base: ChatMessage[], incoming: ChatMessage[]): Ch
     byId.set(key, existing ? mergeMessageQuoteContext(existing, m) : m);
   }
 
-  // Stable sort: different createdAt sorts ascending by time, equal (or both missing) returns 0 to
-  // keep insertion order. This matches an ordered-by-createdAt read with no id tiebreak. Never
-  // reorder by id within the same millisecond, or an assistant message (whose id may sort lower)
-  // gets pushed ahead of the user message of the same turn. message-factory already spaces the
-  // user and assistant createdAt of one turn 1ms apart, so normal data never collides.
-  return Array.from(byId.values()).sort((a, b) => {
-    const ta = a.createdAt ?? '';
-    const tb = b.createdAt ?? '';
-    if (ta === tb) return 0;
-    return ta < tb ? -1 : 1;
-  });
+  // Stable sort: a missing createdAt sorts first and two missing ones keep insertion order; otherwise
+  // ascending by numeric milliseconds (never by ISO string); within the same millisecond compare
+  // roleRank first (user=0 < assistant=1 < other=2), and the same role returns 0 to keep insertion
+  // order. Never reorder by id within the same millisecond, or an assistant message (whose id may
+  // sort lower) gets pushed ahead of the user message of the same turn. Delivered state is not
+  // compared here: while sending locally a generating assistant must stay after the user message
+  // of its turn.
+  return Array.from(byId.values()).sort((a, b) => compareMessageTime(a, b, false));
+}
+
+/** createdAt in milliseconds; empty, unparseable or <= 0 counts as missing (undefined, e.g. old backup imports). */
+function messageCreatedAtMillis(message: Pick<ChatMessage, 'createdAt'>): number | undefined {
+  if (!message.createdAt) return undefined;
+  const millis = Date.parse(message.createdAt);
+  return Number.isFinite(millis) && millis > 0 ? millis : undefined;
+}
+
+/**
+ * Time order: missing first -> two missing are equal (a stable sort keeps insertion order; role and id
+ * are not compared) -> numeric milliseconds -> roleRank -> with idTiebreak the normalized uppercase id,
+ * otherwise equal.
+ */
+function compareMessageTime(a: ChatMessage, b: ChatMessage, idTiebreak: boolean): number {
+  const ta = messageCreatedAtMillis(a);
+  const tb = messageCreatedAtMillis(b);
+  if (ta === undefined || tb === undefined) {
+    if (ta === undefined && tb === undefined) return 0;
+    return ta === undefined ? -1 : 1;
+  }
+  if (ta !== tb) return ta - tb;
+  const rankDiff = roleRank(a.role) - roleRank(b.role);
+  if (rankDiff !== 0 || !idTiebreak) return rankDiff;
+  const ia = normalizeUUID(a.id);
+  const ib = normalizeUUID(b.id);
+  return ia < ib ? -1 : ia > ib ? 1 : 0;
+}
+
+/**
+ * Message sort comparator: delivered first -> createdAt milliseconds (missing = empty, unparseable or
+ * <= 0, sorts first; two missing are equal and keep insertion order) -> roleRank -> normalized
+ * uppercase id. Needs a stable sort (Array.prototype.sort is stable). upsertMessages is the
+ * exception, see the comment inside it.
+ */
+export function compareMessages(a: ChatMessage, b: ChatMessage): number {
+  if (a.state === 'delivered' && b.state !== 'delivered') return -1;
+  if (a.state !== 'delivered' && b.state === 'delivered') return 1;
+  return compareMessageTime(a, b, true);
+}
+
+function roleRank(role: ChatMessage['role']): number {
+  return role === 'user' ? 0 : role === 'assistant' ? 1 : 2;
 }

@@ -11,7 +11,7 @@ import type { AppStore } from '../store/app-store';
 import { getSyncAdapter } from '../sync-port';
 import { deriveConversationMetadata, computeConversationActivityAt } from '../conversation-metadata';
 import { cleanupCloudAttachments } from './cleanup-attachments';
-import { recalculateConversationCost } from './usage-tracking';
+import { recalculateConversationCostTotals } from './usage-tracking';
 import { deleteLocalMessageContinuation } from './continuation-lifecycle';
 import { ContextCompactionStore } from './context-compaction/context-compaction-store';
 
@@ -41,18 +41,23 @@ export function deleteMessage(
   // Syncing users are safe too: the delete reaches the cloud through didDeleteMessages, so the
   // cloud never pushes a deleted message back.
   const deliveredCount = remaining.filter((m) => m.state === 'delivered').length;
+  const costTotals = recalculateConversationCostTotals(remaining, {
+    conversation: conv,
+    previousMessages: conv.messages,
+  });
 
   state.updateConversation(convId, {
     messages: remaining,
     remoteMessageCount: deliveredCount,
     ...deriveConversationMetadata(conv, remaining),
-    estimatedCost: recalculateConversationCost(remaining),
+    estimatedCost: costTotals.estimatedCost,
+    nonUsdCostTotals: costTotals.nonUsdCostTotals,
     updatedAt: computeConversationActivityAt(remaining, conv.createdAt),
   });
 
   // Only delivered messages have their deletion synced
   if (msg.state === 'delivered') {
-    getSyncAdapter()?.didDeleteMessages([msgId], convId, remainingLastDelivered);
+    getSyncAdapter()?.didDeleteMessages([msgId], convId, costTotals, remainingLastDelivered);
   }
 
   void ContextCompactionStore.invalidateAndSync(convId, conv.messages.map((m) => m.id), [msgId]);

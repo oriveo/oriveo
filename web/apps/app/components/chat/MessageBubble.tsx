@@ -3,7 +3,7 @@
 import { memo, useState, useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import type { ChatMessage, Attachment, Conversation, Provider } from "@oriveo/shared";
+import type { AIModel, ChatMessage, Attachment, Conversation, Provider } from "@oriveo/shared";
 import { Maximize2 } from "lucide-react";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { MessageActions } from "./MessageActions";
@@ -50,6 +50,8 @@ import { createModelDisplayLookup } from "../../lib/core/providers/model-display
 import { getProviderInstanceDisplayName } from "../../lib/core/providers/provider-display";
 import { localizeRelayGuidance } from "../../lib/core/providers/error-i18n";
 import { isRateLimitError } from "../../lib/utils/error-classify";
+import { resolveInputCapabilityProjections } from "../../lib/core/capability/truth/input-truth-adapter";
+import { buildProviderStreamOptions, buildStreamOptionsFromIntent } from "../../lib/core/chat/stream-options";
 import { getVanillaStore } from "../../providers/StoreProvider";
 import { createNote } from "../../lib/core/note-ops";
 import {
@@ -73,6 +75,7 @@ import {
   userMessagePreview,
 } from "../../lib/core/chat/user-message-fold";
 import styles from "./MessageBubble.module.css";
+import { rejectedMediaOf, rejectionRecoveryAction, signatureParameterTitleKey } from "../../lib/core/capability/rejection-recovery";
 import { useRelayWebReplyNotice } from "../../lib/core/chat/relay-web-reply-notice";
 
 // Library document sources (Citation.source); anything else (web search, etc.) ignores the Library switch.
@@ -221,8 +224,10 @@ export const MessageBubble = memo(function MessageBubble({
   const t = useTranslations("pages.chat");
   const tLibrary = useTranslations("library");
   const tCommon = useTranslations("common");
+  const tRoot = useTranslations();
   const tCtx = useTranslations("contextMenu");
   const tErrors = useTranslations("errors");
+  const tInput = useTranslations("capability.input");
   // Reply notice for relay web search: kept in session memory only, not a message field.
   const relayWebNotice = useRelayWebReplyNotice(message.id);
   const libraryFeatureEnabled = isLibraryFeatureEnabled();
@@ -284,6 +289,27 @@ export const MessageBubble = memo(function MessageBubble({
     resolvedModelName,
     resolvedProvider?.models,
   ]);
+  // Vision projection (the same one outbound image stripping uses): an image in a user message that this model cannot receive is marked "not sent to this model".
+  const turnCarriesImage = message.role === "user"
+    && Boolean(message.attachments?.some((item) => item.kind === "image"));
+  // Not in useMemo: the negative cache lives in local storage, and the render right after a rejection is recorded has to read it.
+  // A bubble has no send context: fill in "automatic" the way the entry point does, so a Relay can get its connection identity (only if it still cannot is it a hard block).
+  const visionProjection = turnCarriesImage && resolvedProvider && originModel
+    ? resolveInputCapabilityProjections(
+        resolvedProvider,
+        originModel as AIModel,
+        buildProviderStreamOptions(
+          resolvedProvider,
+          buildStreamOptionsFromIntent(originModel as AIModel, "automatic", false),
+          originModel as AIModel,
+        ),
+      )?.vision_input ?? null
+    : null;
+  const imagesNotSentToModel = message.role === "user" && visionProjection?.outbound === "placeholder";
+  // The official upstream rejected some kind of media carried by this turn by signature: the action reads only the failed message's own rejection record, and the negative cache alone gives no action.
+  const resendWithoutMedia = !message.relayImageUnsupported && !message.relayFileUnsupported && onRetry
+    ? rejectedMediaOf(rejectionRecoveryAction(message))
+    : undefined;
   const showMeta =
     message.role === "assistant" &&
     message.state !== "generating" &&
@@ -325,9 +351,26 @@ export const MessageBubble = memo(function MessageBubble({
   const rejectedGenerationParameterTitleKey = rejectedGenerationParameterId
     ? generationParameterTitleKey(rejectedGenerationParameterId)
     : undefined;
-  const rejectedGenerationParameterTitle = rejectedGenerationParameterId
-    ? (rejectedGenerationParameterTitleKey ? tCommon(rejectedGenerationParameterTitleKey) : rejectedGenerationParameterId)
+  // Web / tool / reasoning named by the signature are not panel parameters: use the capability-name copy, not the raw parameter name.
+  const rejectedSignatureParameterTitleKey = rejectedGenerationParameterId && !rejectedGenerationParameterTitleKey
+    ? signatureParameterTitleKey(rejectedGenerationParameterId)
     : undefined;
+  const rejectedGenerationParameterTitle = rejectedGenerationParameterId
+    ? (rejectedGenerationParameterTitleKey ? tCommon(rejectedGenerationParameterTitleKey)
+      : rejectedSignatureParameterTitleKey ? tRoot(rejectedSignatureParameterTitleKey)
+      : rejectedGenerationParameterId)
+    : undefined;
+  // When a rejected one-tap action (resend without the media / without the parameter) is the primary action, the card is fixed to [action, switch model] and switch model is always shown.
+  // When a Relay rejects an image / file, switch model is itself the primary action and does not go through here, to avoid two switch-model buttons.
+  // Parameters only count when recorded by an official signature (with signatureId); the generic panel-parameter verdict falls back to the original layout (edit / switch key / rate-limit switch model).
+  const rejectionOneTapAction =
+    !message.relayImageUnsupported &&
+    !message.relayFileUnsupported &&
+    (Boolean(resendWithoutMedia && onRetry) ||
+      (Boolean(rejectedGenerationParameterTitle && onRetryWithoutCustom) &&
+        Boolean(message.generationParameterRejection?.signatureId) &&
+        message.errorKind !== ADDITIONAL_BODY_ERROR_KIND &&
+        message.errorKind !== CUSTOM_FRAGMENT_ERROR_KIND));
 
   const openAdditionalBodyEditor = useCallback(() => {
     window.dispatchEvent(new CustomEvent(OPEN_ADDITIONAL_BODY_EDITOR_EVENT));
@@ -574,6 +617,9 @@ export const MessageBubble = memo(function MessageBubble({
             {message.role === "user" && message.attachments && (
               <UserImageAttachments attachments={message.attachments} />
             )}
+            {imagesNotSentToModel && (
+              <p className={styles.researchDisclaimer}>{tInput("bubbleNotSentToModel")}</p>
+            )}
             {showAssistantHeader && (
               <div className={styles.assistantHeader}>
                 <span className={styles.assistantModelName}>
@@ -727,13 +773,18 @@ export const MessageBubble = memo(function MessageBubble({
                     : message.errorTechnicalDetail}
                   onRetry={onRetry}
                   onEdit={onEditAndResend ? handleStartEdit : undefined}
-                  onSwitchModel={rateLimited ? onSwitchModel : undefined}
+                  onSwitchModel={rateLimited || rejectionOneTapAction ? onSwitchModel : undefined}
                   // Way out of a custom request field fail-closed: a plain retry gets rejected the same way,
                   // so the only action that can send the message right now is "send without custom fields".
                   // A local additional request body rejection sends nothing, so there is no retry path; the only way out is to edit the content.
                   // Relay rejected an image or file: the only way out is a model that accepts it; no retry is offered.
+                  // Official connection, upstream rejected media by signature: the primary action resends the same turn without that media (outbound strips it via the negative-cache projection); the card takes the copy per media.
+                  resendWithoutMedia={resendWithoutMedia}
+                  rejectionRecoveryLayout={rejectionOneTapAction}
                   primaryActionLabel={(message.relayImageUnsupported || message.relayFileUnsupported) && onSwitchModel
                     ? t('recovery.switchModelBtn')
+                    : resendWithoutMedia
+                    ? undefined
                     : message.errorKind === ADDITIONAL_BODY_ERROR_KIND
                     ? tCommon('openAdditionalBody')
                     : message.errorKind === CUSTOM_FRAGMENT_ERROR_KIND
@@ -745,6 +796,8 @@ export const MessageBubble = memo(function MessageBubble({
                         ? tCommon('retryWithoutAdditionalBody') : libraryRecoveryAction?.label}
                   onPrimaryAction={(message.relayImageUnsupported || message.relayFileUnsupported) && onSwitchModel
                     ? onSwitchModel
+                    : resendWithoutMedia
+                    ? onRetry
                     : message.errorKind === ADDITIONAL_BODY_ERROR_KIND
                     ? openAdditionalBodyEditor
                     : message.errorKind === CUSTOM_FRAGMENT_ERROR_KIND
@@ -798,6 +851,7 @@ export const MessageBubble = memo(function MessageBubble({
                 providerName={resolvedProviderName}
                 modelName={resolvedModelName}
                 estimatedCost={message.estimatedCost}
+                nonUsdCost={message.nonUsdCost}
                 copied={metaCopied}
                 onCopy={handleMetaCopy}
                 onRetry={deliveredRetryAction}

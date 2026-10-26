@@ -167,6 +167,43 @@ describe('manual compaction', () => {
     expect(result.row).toEqual(rows[0]);
   });
 
+  it('manual_compaction_retains_media_messages_after_checkpoint', async () => {
+    const plain = history(22, 1600);
+    // Without media, how far the same history gets compacted: proves the media message really cuts the covered range.
+    newStore(plain);
+    replies.push(VALID_SUMMARY);
+    const baseline = await compactConversationNow(CONV);
+    expect(baseline.outcome).toBe('summary');
+    const baselineCovered = baseline.row!.messagesCovered;
+
+    localStorage.clear();
+    resetDBConnection();
+    await clearAllDatabases();
+    await setActiveUID('guest');
+    CompactionBreakers.reset();
+    sentBodies.length = 0;
+    const mediaIndex = 8;
+    expect(baselineCovered).toBeGreaterThan(mediaIndex);
+    const messages = plain.map((message, index) => index === mediaIndex
+      ? { ...message, attachments: [{ id: 'img', kind: 'image', fileName: 'cat.png', mimeType: 'image/png', base64Data: 'iVBORw0KGgo=' }] }
+      : message) as ChatMessage[];
+    newStore(messages);
+    replies.push(VALID_SUMMARY);
+
+    const result = await compactConversationNow(CONV);
+
+    expect(result.outcome).toBe('summary');
+    const rows = await listContextCheckpoints(CONV);
+    expect(rows).toHaveLength(1);
+    // The message with the image and the history after it are not covered; they stay as-is after the compaction result.
+    expect(rows[0].messagesCovered).toBeLessThanOrEqual(mediaIndex);
+    expect(messages.findIndex((m) => m.id === rows[0].coversTo)).toBeLessThan(mediaIndex);
+    // The summary request contains neither this message's body nor its image placeholder.
+    const requestText = sentBodies[0].messages.map(textOf).join('\n');
+    expect(requestText).not.toContain('cat.png');
+    expect(requestText).not.toContain(`question ${mediaIndex} `);
+  });
+
   it('manual_compaction_flag_off_uses_fallback', async () => {
     newStore(history(22, 1600));
     mocks.flags = { context_compaction_enabled: false };

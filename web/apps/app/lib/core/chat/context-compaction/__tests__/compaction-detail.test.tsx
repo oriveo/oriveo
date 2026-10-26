@@ -50,6 +50,7 @@ vi.mock('../../../../../components/chat/MarkdownRenderer', () => ({
 
 import type { ContextCheckpointRow } from '../../../../infra/storage/context-checkpoint-store';
 import type { QuoteContext } from '@oriveo/shared';
+import { resolveAttachmentCapabilities } from '../../attachment-policy';
 import { CompactionDetailDialog } from '../../../../../components/chat/CompactionDetailDialog';
 import { InputComposer } from '../../../../../components/chat/InputComposer';
 import {
@@ -260,6 +261,7 @@ describe('CompactionHintBanner', () => {
       <InputComposer
         value=""
         onChange={vi.fn()}
+        attachmentCapabilities={resolveAttachmentCapabilities(undefined, undefined, null)}
         onSend={vi.fn()}
         isStreaming={false}
         composerNotices={<CompactionHintBanner conversationId={CONV} onNewChat={vi.fn()} />}

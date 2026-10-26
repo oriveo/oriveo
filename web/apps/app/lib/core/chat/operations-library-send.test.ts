@@ -18,6 +18,10 @@ import { DEFAULT_LIBRARY_RUNTIME_CONFIG } from "../library/types";
 import { buildStreamOptionsFromIntent } from "./stream-options";
 import { valueOverride } from "./generation-parameter-settings";
 import type { Mock } from "vitest";
+import type { StreamEvent } from "@oriveo/core/providers/types";
+import { sendLibraryAgentLeg } from "../providers/proxy-client";
+import { trackEvent } from "../telemetry";
+import { INPUT_NEGATIVE_CACHE_STORAGE_KEY } from "../capability/input-negative-cache";
 
 const mocks = vi.hoisted(() => ({
   runLoop: vi.fn(),
@@ -97,8 +101,10 @@ vi.mock("../sync-port", () => ({ getSyncAdapter: vi.fn(() => null) }));
 vi.mock("../telemetry", async () => ({
   trackEvent: vi.fn(),
   telemetryProviderKind: (kind: string) => kind,
-  // relay  
+  // The model_id helper uses the real implementation; don't re-implement its rule in the stub (re-implementing means testing your own stub)
   telemetryModelID: (await vi.importActual<typeof import('../telemetry')>('../telemetry')).telemetryModelID,
+  // Needed by the relay telemetry properties on a relay send (same: use the real implementation)
+  sanitizeTelemetryURL: (await vi.importActual<typeof import('../telemetry')>('../telemetry')).sanitizeTelemetryURL,
 }));
 
 function model(): AIModel {
@@ -160,7 +166,7 @@ const ACTIVE_NOTION_CONNECTION = {
 };
 
 function start(paramsOverride: Record<string, unknown> = {}) {
-  const conv = conversation();
+  const conv = (paramsOverride.conversation as Conversation | undefined) ?? conversation();
   const store = createAppStore({
     conversations: [conv],
     libraryConnections: [ACTIVE_NOTION_CONNECTION],
@@ -228,16 +234,14 @@ describe("sendLibraryMessage", () => {
     expect(assistant).toMatchObject({ state: 'delivered', toolFallbackNotice: 'library_not_searched' });
   });
 
-  it('uses remembered false on the next send and retains the static notice', async () => {
+  it('remembered false keeps the next send out of the agent loop (the route gate reads the same verdict)', async () => {
     mocks.toolRememberedFalse.mockReturnValue(true);
     mocks.runLoop.mockResolvedValue({ text: 'Next plain answer', citations: [], steps: [] });
-    const { store, handle } = start();
+    const { handle } = start();
     await handle.done;
 
-    expect(mocks.runLoop).toHaveBeenCalledWith(expect.objectContaining({ toolsEnabled: false }));
+    expect(mocks.runLoop).not.toHaveBeenCalled();
     expect(mocks.recordToolFalse).not.toHaveBeenCalled();
-    const assistant = store.getState().conversations[0].messages.find((message) => message.id === handle.msgId);
-    expect(assistant).toMatchObject({ toolFallbackNotice: 'library_not_searched' });
   });
 
   it('does not record false when the explicit resend fails', async () => {
@@ -477,6 +481,166 @@ describe("sendLibraryMessage", () => {
 	  errorSource: "provider",
 	  errorDetail: "The engine is currently overloaded",
 	});
+  });
+});
+
+describe("official connection first leg rejected by signature", () => {
+  // The library agent's first leg carries an image and the upstream rejects it with a DashScope signature: official and relay connections share this one script.
+  // laterLeg: after the first leg is rejected the loop sends another leg (e.g. resendWithoutTools); failsAfterOutput fails after emitting text, rejectedBeforeOutput is rejected with the same signature before any text.
+  async function runImageRejectedFirstLeg(
+    kind: string, connectionId: string, extra: Partial<Provider> = {},
+    laterLeg: false | "failsAfterOutput" | "rejectedBeforeOutput" = false,
+  ) {
+    localStorage.removeItem(INPUT_NEGATIVE_CACHE_STORAGE_KEY);
+    vi.mocked(trackEvent).mockClear();
+    vi.mocked(sendLibraryAgentLeg).mockClear();
+    const qwenModel = {
+      ...model(), id: "ZHIPU/GLM-5.3", name: "GLM-5.3", transport: "openai_chat_completions",
+      capabilityControls: { vision_input: { state: "unknown", reasonCode: "catalog_silent", wireFamily: "openai_chat.image_url" } },
+    } as unknown as AIModel;
+    const qwen = {
+      ...provider(), id: connectionId, kind, models: [qwenModel], catalogModels: [qwenModel], authMode: "apiKey", ...extra,
+    } as Provider;
+    const body = "{\"error\":{\"code\":\"invalid_parameter_error\",\"message\":\"The provided messages input is invalid. The error info is [Unexpected item type in content]\"}}";
+    vi.mocked(sendLibraryAgentLeg).mockReturnValueOnce({
+      stream: new ReadableStream<StreamEvent>({
+        start(controller) {
+          controller.enqueue({ type: "error", error: "Bad request", errorDetail: body, status: 400, source: "provider" });
+          controller.close();
+        },
+      }),
+      abort: vi.fn(),
+    } as unknown as ReturnType<typeof sendLibraryAgentLeg>);
+    if (laterLeg) {
+      vi.mocked(sendLibraryAgentLeg).mockReturnValueOnce({
+        stream: new ReadableStream<StreamEvent>({
+          start(controller) {
+            if (laterLeg === "rejectedBeforeOutput") {
+              controller.enqueue({ type: "error", error: "Bad request", errorDetail: body, status: 400, source: "provider" });
+            } else {
+              controller.enqueue({ type: "delta", content: "The picture shows" });
+              controller.enqueue({ type: "error", error: "Connection reset", status: 502, source: "provider" });
+            }
+            controller.close();
+          },
+        }),
+        abort: vi.fn(),
+      } as unknown as ReturnType<typeof sendLibraryAgentLeg>);
+    }
+    mocks.runLoop.mockImplementationOnce(async (args: {
+      runLeg: (leg: { messages: unknown[]; tools: unknown[] }) => { stream: ReadableStream<StreamEvent> };
+    }) => {
+      const handle = args.runLeg({
+        messages: [{
+          role: "user",
+          content: [
+            { type: "text", text: "What is in this picture?" },
+            { type: "image_url", image_url: { url: "data:image/png;base64,iVBORw0KGgoREJECTEDIMAGE" } },
+          ],
+        }],
+        tools: [],
+      });
+      const reader = handle.stream.getReader();
+      while (!(await reader.read()).done) { /* drain */ }
+      if (laterLeg) {
+        const second = args.runLeg({ messages: [{ role: "user", content: "What is in this picture?" }], tools: [] });
+        const secondReader = second.stream.getReader();
+        while (!(await secondReader.read()).done) { /* drain */ }
+        throw Object.assign(new Error("Connection reset"), { code: "upstream", source: "provider" });
+      }
+      throw Object.assign(new Error("Bad request"), { code: "badRequest", source: "provider" });
+    });
+    // The conversation is bound to the connection actually used for sending (a conversation bound to a connection not in the list refuses to send).
+    const conv = { ...conversation(), providerID: connectionId, providerKind: kind } as Conversation;
+    const { store, handle } = start({ provider: qwen, model: qwenModel, conversation: conv });
+    await handle.done;
+    const assistant = store.getState().conversations[0].messages.find((message) => message.id === handle.msgId);
+    const entries = (JSON.parse(localStorage.getItem(INPUT_NEGATIVE_CACHE_STORAGE_KEY) ?? "{\"entries\":[]}") as {
+      entries: Array<Record<string, unknown>>;
+    }).entries;
+    const rejectedEvents = vi.mocked(trackEvent).mock.calls.filter(([name]) => name === "input_capability_rejected");
+    return { assistant, entries, rejectedEvents };
+  }
+
+  it("WEB-REJECTION-RECOVERY-library_send_records_rejection", async () => {
+    const { assistant, entries, rejectedEvents } = await runImageRejectedFirstLeg("qwen", "official-qwen");
+
+    expect(sendLibraryAgentLeg).toHaveBeenCalledTimes(1);
+    // Assert on the failed message actually landed in the store: an image-rejection record with the signature source, from which the failure card offers a one-tap action + model switch.
+    expect(assistant).toMatchObject({ state: "failed" });
+    expect(assistant!.inputRejection).toEqual({
+      capabilityKey: "vision_input", signatureId: "dashscope.unexpected_item_type",
+    });
+    expect(entries).toEqual([expect.objectContaining({
+      connectionId: "official-qwen", modelId: "ZHIPU/GLM-5.3", capabilityKey: "vision_input",
+      wireFamily: "openai_chat.image_url", signatureId: "dashscope.unexpected_item_type",
+    })]);
+    expect(rejectedEvents).toEqual([[
+      "input_capability_rejected",
+      {
+        provider_kind: "qwen", model_id: expect.any(String), capability_key: "vision_input",
+        signature_id: "dashscope.unexpected_item_type", wire_family: "openai_chat.image_url",
+      },
+    ]]);
+  });
+
+  it("WEB-REJECTION-RECOVERY-library_send_relay_no_record", async () => {
+    // The telemetry on a relay send reads the runtime config; this file mocks it to undefined by default.
+    const metadata = await import("../metadata/metadata-client");
+    vi.mocked(metadata.getRelayRuntimeConfig).mockReturnValue(metadata.DEFAULT_RELAY_RUNTIME_CONFIG);
+    let run: Awaited<ReturnType<typeof runImageRejectedFirstLeg>>;
+    try {
+      run = await runImageRejectedFirstLeg("relay", "relay-1", {
+        baseURLText: "https://relay.example.com/v1", relayKind: "openai_compatible",
+        relayRequested: { transport: "openai_chat_completions", authMode: "bearer" },
+        relayKeys: [{ id: "initial", apiKey: "sk-relay" }],
+      } as Partial<Provider>);
+    } finally {
+      vi.mocked(metadata.getRelayRuntimeConfig).mockReset();
+    }
+    const { assistant, entries, rejectedEvents } = run;
+
+    expect(sendLibraryAgentLeg).toHaveBeenCalledTimes(1);
+    // A relay runs its own loop: no negative cache, no report, and the failed message carries no official rejection record.
+    expect(assistant).toMatchObject({ state: "failed" });
+    expect(assistant!.inputRejection).toBeUndefined();
+    expect(assistant!.generationParameterRejection).toBeUndefined();
+    expect(entries).toEqual([]);
+    expect(rejectedEvents).toEqual([]);
+  });
+
+  it("WEB-REJECTION-RECOVERY-library_later_leg_failure_drops_first_leg_record", async () => {
+    const { assistant, entries, rejectedEvents } = await runImageRejectedFirstLeg("qwen", "official-qwen", {}, "failsAfterOutput");
+
+    expect(sendLibraryAgentLeg).toHaveBeenCalledTimes(2);
+    // What failed this time is the second leg, which had emitted text: the failed message does not carry the first leg's rejection record.
+    expect(assistant).toMatchObject({ state: "failed" });
+    expect(assistant!.inputRejection).toBeUndefined();
+    expect(assistant!.generationParameterRejection).toBeUndefined();
+    // The first leg really was rejected: the negative cache and the report stay, not withdrawn.
+    expect(entries).toEqual([expect.objectContaining({
+      connectionId: "official-qwen", modelId: "ZHIPU/GLM-5.3", capabilityKey: "vision_input",
+      signatureId: "dashscope.unexpected_item_type",
+    })]);
+    expect(rejectedEvents).toHaveLength(1);
+  });
+
+  it("WEB-REJECTION-RECOVERY-library_later_leg_rejected_before_output_keeps_record", async () => {
+    const { assistant, entries, rejectedEvents } = await runImageRejectedFirstLeg(
+      "qwen", "official-qwen", {}, "rejectedBeforeOutput",
+    );
+
+    expect(sendLibraryAgentLeg).toHaveBeenCalledTimes(2);
+    // A later leg fails before emitting text: the rejection still stands, the failed message carries the first leg's rejection record, and the failure card offers a one-tap action.
+    expect(assistant).toMatchObject({ state: "failed" });
+    expect(assistant!.inputRejection).toEqual({
+      capabilityKey: "vision_input", signatureId: "dashscope.unexpected_item_type",
+    });
+    expect(entries).toEqual([expect.objectContaining({
+      connectionId: "official-qwen", modelId: "ZHIPU/GLM-5.3", capabilityKey: "vision_input",
+      signatureId: "dashscope.unexpected_item_type",
+    })]);
+    expect(rejectedEvents).toHaveLength(1);
   });
 });
 

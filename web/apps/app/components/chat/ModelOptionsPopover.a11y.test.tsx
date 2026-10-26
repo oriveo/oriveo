@@ -318,3 +318,23 @@ describe('the advanced settings row does not hang a false "not ready" badge', ()
     expect(within(advancedRow()).queryByText('pages.chat.reasoning.notReady')).toBeNull();
   });
 });
+
+describe('vision tile always states the reason when unsupported', () => {
+  afterEach(cleanup);
+
+  const visionTile = () => screen.getByRole('group', { name: 'common.modelOptionsVisionTitle' });
+
+  it('deepseek-v4-pro: vision projection model_absent -> the vision tile states "this model does not support image input"', () => {
+    // capabilityControls is taken from the Server recorded verdict (deepseek-v4-pro / vision_input in input_capability_recorded.v1.json).
+    const deepseekModel = {
+      ...model, id: 'deepseek-v4-pro', name: 'deepseek-v4-pro', canonicalModelId: 'deepseek-v4-pro', capabilities: ['text'],
+      capabilityControls: {
+        ...model.capabilityControls,
+        vision_input: { state: 'unavailable', reasonCode: 'model_capability_absent', wireFamily: 'openai_chat.image_url' },
+      },
+    } as unknown as AIModel;
+    const deepseek = { ...provider, kind: 'deepseek', models: [deepseekModel], catalogModels: [deepseekModel] } as unknown as Provider;
+    open({ provider: deepseek, model: deepseekModel });
+    expect(within(visionTile()).getByText(/(^|\.)capability\.input\.disabled\.modelAbsent\.image$/)).toBeTruthy();
+  });
+});
