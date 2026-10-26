@@ -129,8 +129,14 @@ object ContextCapPresentation {
     /** Over this many digits (leading zeros not counted) the typed number saturates to Int.MAX_VALUE and is always adjusted. */
     private const val MAX_DIGITS: Int = 10
 
-    /** Unicode White_Space plus the grouping marks , . ' U+2019 _ are ignored when reading a typed number. */
-    private val IGNORED = Regex("[\\p{IsWhite_Space},.'\u2019_]")
+    /**
+     * Unicode White_Space plus the grouping marks , . ' U+2019 _ are ignored when reading a typed number.
+     * White_Space is spelled out as code points: the Java-only IsWhite_Space property class does not compile on the Android 8 ICU
+     * regex engine (minSdk 26) and the failure kills this object's initializer.
+     */
+    private val IGNORED = Regex(
+        "[\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000,.'\\u2019_]",
+    )
     private val ASCII_DIGITS = Regex("^[0-9]+$")
 
     // Unicode first-strong isolate / pop directional isolate around numbers mixed into text.

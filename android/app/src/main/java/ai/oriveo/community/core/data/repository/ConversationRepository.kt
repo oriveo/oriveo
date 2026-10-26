@@ -258,7 +258,15 @@ class ConversationRepository(
         val normalizedId = normalizeUuid(id)
         val scopedAccountId = accountId
         val entity = conversationDao.getById(scopedAccountId, normalizedId) ?: return null
-        val messageEntities = messageDao.fetchLatestMessageWindow(scopedAccountId, normalizedId, windowSize)
+        // A corrupt historical row that cannot be read yields metadata only: this runs in the chat
+        // screen's viewModelScope (no handler), where a throw kills the process. The message window
+        // loader takes over the messages and has its own fallback for the same failure.
+        val messageEntities = try {
+            messageDao.fetchLatestMessageWindow(scopedAccountId, normalizedId, windowSize)
+        } catch (e: android.database.sqlite.SQLiteException) {
+            android.util.Log.e("ConversationRepository", "corrupt row read at getWithLatestMessageWindow: ${e.localizedMessage}", e)
+            emptyList()
+        }
         return withContext(Dispatchers.Default) {
             val messages = messageEntities.map { normalizeMessageIds(it.toDomain()) }
             normalizeConversationIds(entity.toDomain(messages))
@@ -445,10 +453,14 @@ class ConversationRepository(
         val scopedAccountId = accountId
         val normalizedConversationId = normalizeUuid(conversationId)
         val normalizedMessage = normalizeMessageIds(message)
-        val existing = messageDao.getById(scopedAccountId, normalizedMessage.id)
-
-        if (existing == null) return
-        val order = existing.sortOrder
+        val existing = try {
+            messageDao.getById(scopedAccountId, normalizedMessage.id) ?: return
+        } catch (_: android.database.sqlite.SQLiteException) {
+            // The old row is past the CursorWindow limit and cannot be read whole: read only its sort
+            // order so the final write overwrites it and heals the row.
+            null
+        }
+        val order = existing?.sortOrder ?: messageDao.sortOrderOf(scopedAccountId, normalizedMessage.id) ?: return
         try {
             messageDao.upsert(normalizedMessage.toEntity(scopedAccountId, normalizedConversationId, order))
         } catch (_: android.database.sqlite.SQLiteConstraintException) {

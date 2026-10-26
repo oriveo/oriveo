@@ -487,6 +487,11 @@ final class AppState {
             hasCompletedOnboarding = false
             lastUsedModelRef = nil
             AppSessionStore.migrateToPartitionedStorageIfNeeded()
+            // Migrations inside loadSession write through providerManager.updateProvider, which reads
+            // the unowned appState!. Bind first, or that unwraps nil; the migration flag is set in a
+            // defer and never persists, so every cold launch would crash. bind only assigns, so the
+            // second bind below (needed by the demo-data branch) is harmless.
+            providerManager.bind(to: self)
             loadSession(boundTo: requestedSessionUID ?? AppSessionStore.activeUID)
         }
 

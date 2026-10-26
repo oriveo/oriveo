@@ -18,6 +18,10 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface MessageDao {
 
+    // A full-conversation read can span several CursorWindows; SQLiteCursor re-runs the query and skips
+    // ahead on every window, so rows deleted in between (edit-and-resend / regenerate) make it read past
+    // the end and crash. @Transaction keeps the whole read inside one read transaction.
+    @Transaction
     @Query("SELECT * FROM messages WHERE accountId = :accountId AND conversationId = :conversationId ORDER BY sortOrder ASC")
     fun observeByConversation(accountId: String, conversationId: String): Flow<List<MessageEntity>>
 
@@ -43,9 +47,34 @@ interface MessageDao {
     )
     suspend fun readAttachmentsJsonPageAllAccounts(afterRowId: Long, thresholdChars: Int, limit: Int): List<AttachmentsJsonPageRow>
 
+    /** Finds rows whose text is over the threshold and carries an inline data:image — reads only id + length (streaming partials used to persist generated images into the text). */
+    @Query(
+        "SELECT id, accountId, length(text) AS len FROM messages " +
+            "WHERE length(text) > :thresholdChars AND instr(text, '](data:image/') > 0",
+    )
+    suspend fun findOversizedInlineImageTextRows(thresholdChars: Int): List<OversizedAttachmentsJsonRow>
+
+    /** Reads the text in chunks (SQLite substr is 1-indexed). */
+    @Query("SELECT substr(text, :start, :length) FROM messages WHERE accountId = :accountId AND id = :id")
+    suspend fun readTextChunk(accountId: String, id: String, start: Int, length: Int): String?
+
+    /** Current attachmentsJson length (null when the column is null), used to size a chunked read. */
+    @Query("SELECT length(attachmentsJson) FROM messages WHERE accountId = :accountId AND id = :id")
+    suspend fun attachmentsJsonLength(accountId: String, id: String): Int?
+
+    /** Writes back the slimmed text and attachment metadata — touches only these two columns. */
+    @Query("UPDATE messages SET text = :text, attachmentsJson = :attachmentsJson WHERE accountId = :accountId AND id = :id")
+    suspend fun updateTextAndAttachmentsJson(accountId: String, id: String, text: String, attachmentsJson: String?): Int
+
+    /** Reads only the sort order: tells whether the row exists without reading the whole row (an oversized row cannot be read whole). */
+    @Query("SELECT sortOrder FROM messages WHERE accountId = :accountId AND id = :id ORDER BY sortOrder DESC LIMIT 1")
+    suspend fun sortOrderOf(accountId: String, id: String): Int?
+
     @Query("UPDATE messages SET attachmentsJson = :attachmentsJson WHERE accountId = :accountId AND id = :id")
     suspend fun updateAttachmentsJson(accountId: String, id: String, attachmentsJson: String?): Int
 
+    // Same as observeByConversation: a read spanning windows must stay in one read transaction.
+    @Transaction
     @Query("SELECT * FROM messages WHERE accountId = :accountId AND conversationId = :conversationId ORDER BY sortOrder ASC")
     suspend fun getByConversation(accountId: String, conversationId: String): List<MessageEntity>
 

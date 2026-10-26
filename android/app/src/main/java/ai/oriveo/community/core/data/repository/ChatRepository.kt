@@ -1688,7 +1688,14 @@ class ChatRepository(
             // NonCancellable: the surrounding scope is already cancelled, so an ordinary write
             // here would be skipped and the partial answer lost.
             withContext(NonCancellable) {
-                conversationRepository.updateMessage(conversation.id, interruptedMessage)
+                val (interruptedText, interruptedAttachments) = imageProcessor.localizeInlineImages(
+                    interruptedMessage.text,
+                    interruptedMessage.attachments.orEmpty(),
+                )
+                conversationRepository.updateMessage(
+                    conversation.id,
+                    interruptedMessage.copy(text = interruptedText.trim(), attachments = interruptedAttachments.ifEmpty { null }),
+                )
                 continuationAccountId()?.let { accountId ->
                     continuationStore?.markInterrupted(accountId, assistantMessageId)
                 }
@@ -1947,7 +1954,15 @@ class ChatRepository(
                 citations = accumulatedCitations.takeIf { it.isNotEmpty() } ?: assistantPlaceholder.citations,
                 toolSteps = mcpToolSteps.takeIf { it.isNotEmpty() },
             )
-            conversationRepository.updateMessage(conversation.id, failedMessage)
+            // Inline images that arrived before the failure are extracted and saved too; the attempt may
+            // already be cancelled, so saving must not be interrupted.
+            val (failedText, failedAttachments) = withContext(NonCancellable) {
+                imageProcessor.localizeInlineImages(failedMessage.text, failedMessage.attachments.orEmpty())
+            }
+            conversationRepository.updateMessage(
+                conversation.id,
+                failedMessage.copy(text = failedText.trim(), attachments = failedAttachments.ifEmpty { null }),
+            )
             // A system interruption (sign-out / account switch / background expiry) writes no manifest; the message stopReason stays the transport error.
             if (!overflowed && !(attemptCancelled && outputs.systemInterrupted.get())) {
                 // A cancelled attempt (OkHttp "Canceled" landing here) is recorded as interrupted; the coroutine is already cancelled, so the ledger write must not be interrupted.
@@ -2627,8 +2642,11 @@ class ChatRepository(
         // NonCancellable: this often runs while the surrounding scope is already going away, and
         // that is exactly the case the checkpoint exists for.
         withContext(NonCancellable) {
-            if (text.isNotBlank()) {
-                conversationRepository.updatePartialText(messageId, text)
+            // Inline images stay out of the partial: one generated image can push the row past the
+            // CursorWindow limit. On completion the images are extracted from the full in-memory text.
+            val partialText = StreamingImageProcessor.stripInlineImageData(text)
+            if (partialText.isNotBlank()) {
+                conversationRepository.updatePartialText(messageId, partialText)
             }
             if (!reasoningText.isNullOrBlank()) {
                 conversationRepository.updatePartialReasoning(messageId, reasoningText)
