@@ -5,6 +5,7 @@
  * Fiber output/encrypted_output is then replayed unchanged as a tool message.
  */
 import type { UpstreamTransport } from '../../ports';
+import { effectiveToolLoopMaxSteps } from '../../tools/tool-loop-contracts';
 import type { ProviderRequest } from '../request-builders/types';
 import type { UnsupportedParamDroppedReporter, UnsupportedParamScope } from '../unsupported-param';
 import { toProviderError } from '../errors';
@@ -39,7 +40,7 @@ export async function adaptMoonshotFormulaFiberResponse(
 ): Promise<Response> {
   const formula = request.moonshotFormula;
   if (!formula) throw new FormulaError('Moonshot Formula recipe is missing', 'provider');
-  const maxLoops = Math.max(1, Math.min(request.moonshotMaxToolLoops ?? 1, 5));
+  const maxLoops = effectiveToolLoopMaxSteps(request.moonshotMaxToolLoops);
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
