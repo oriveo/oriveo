@@ -31,6 +31,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ai.oriveo.community.R
+import ai.oriveo.community.core.voice.KeepScreenOnHolds
 import ai.oriveo.community.core.voice.ReadAloudController
 import ai.oriveo.community.core.voice.ReadAloudEndReason
 import ai.oriveo.community.core.voice.ReadAloudState
@@ -59,18 +60,26 @@ fun ReadAloudButton(
     if (!eligible || !hasSegments) return
 
     val controller = koinInject<ReadAloudController>()
+    val voiceConversation = remember {
+        org.koin.mp.KoinPlatform.getKoinOrNull()
+            ?.getOrNull<ai.oriveo.community.core.voice.conversation.VoiceConversationController>()
+    }
+    val realtimeSessions = remember {
+        org.koin.mp.KoinPlatform.getKoinOrNull()
+            ?.getOrNull<ai.oriveo.community.feature.chat.voice.RealtimeVoiceSessionBuilder>()
+    }
     val state by controller.state.collectAsStateWithLifecycle()
     val speaking = (state as? ReadAloudState.Speaking)?.takeIf { it.messageId == messageId }
     val colors = OriveoTheme.colors
 
-    // Keep the screen on while reading; restore the previous value when leaving or finishing
+    // Hold keep-screen-on while reading (shares the per-View hold count with dictation recording); released on leaving or finishing
     val view = LocalView.current
     val isSpeaking = speaking != null
+    val keepAwakeHolder = remember { Any() }
     DisposableEffect(view, isSpeaking) {
         if (!isSpeaking) return@DisposableEffect onDispose {}
-        val previous = view.keepScreenOn
-        view.keepScreenOn = true
-        onDispose { view.keepScreenOn = previous }
+        KeepScreenOnHolds.views.acquire(view, keepAwakeHolder)
+        onDispose { KeepScreenOnHolds.views.release(view, keepAwakeHolder) }
     }
 
     val label = stringResource(if (isSpeaking) R.string.voice_stop_reading else R.string.voice_read_aloud)
@@ -93,7 +102,17 @@ fun ReadAloudButton(
             }
             .clickable(
                 role = Role.Button,
-                onClick = { controller.toggle(messageId, messageText) },
+                // During a voice conversation the message plays in the conversation's own audio pipeline.
+                onClick = {
+                    val conversation = voiceConversation
+                    if (realtimeSessions?.realtimeActive == true) {
+                        // No read aloud while a realtime session runs.
+                    } else if (conversation?.active?.value == true) {
+                        conversation.playMessage(messageId, messageText)
+                    } else {
+                        controller.toggle(messageId, messageText)
+                    }
+                },
             ),
         contentAlignment = Alignment.Center,
     ) {

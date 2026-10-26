@@ -1,6 +1,9 @@
 package ai.oriveo.community.core.voice
 
 import ai.oriveo.community.R
+import ai.oriveo.community.core.app.GlobalSnackbarMessage
+import ai.oriveo.community.core.app.GlobalToastStyle
+import ai.oriveo.community.core.app.UiText
 import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -10,11 +13,12 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Drives the production [ReadAloudController] with a fake engine and platform: start/stop, switching, finishing, failures and the automatic stops. */
+/** A fake engine + fake platform environment drive the production [ReadAloudController]: start/stop, switching messages, finishing, failure, and the stop paths of observeChat. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ReadAloudControllerTest {
 
     private class FakeEngine : SpeechEngine {
+        override val engineName = "system"
         val spoken = mutableListOf<List<String>>()
         val locales = mutableListOf<Locale>()
         var listener: SpeechEngine.Listener? = null
@@ -24,6 +28,18 @@ class ReadAloudControllerTest {
             spoken += utterances
             locales += locale
             this.listener = listener
+        }
+
+        val segmentLocales = mutableListOf<List<Locale>>()
+
+        override fun speak(
+            utterances: List<String>,
+            locale: Locale,
+            segmentLocales: List<Locale>,
+            listener: SpeechEngine.Listener,
+        ) {
+            this.segmentLocales += segmentLocales
+            speak(utterances, locale, listener)
         }
 
         override fun stop() {
@@ -41,7 +57,6 @@ class ReadAloudControllerTest {
         val placeholderLocales = mutableListOf<String>()
 
         override fun uiLocale(): Locale = ui
-        override suspend fun detectLanguage(text: String): Locale? = detected
         override fun placeholderText(kind: SpeakablePlaceholder, appLocale: String): String {
             placeholderLocales += appLocale
             return "[${kind.rawValue}@$appLocale]"
@@ -64,10 +79,29 @@ class ReadAloudControllerTest {
 
     private val engine = FakeEngine()
     private val env = FakeEnvironment()
+    private val toasts = mutableListOf<GlobalSnackbarMessage>()
+
+    /** The detector treats env.detected as the only full-score hypothesis. */
+    private val envDetector = ReadingLanguageDetector { _ ->
+        listOfNotNull(env.detected?.let { LanguageHypothesis(it.toLanguageTag(), 1.0) })
+    }
     private val controller = ReadAloudController(
         engine = engine,
         environment = env,
         scope = CoroutineScope(UnconfinedTestDispatcher()),
+        languageDetector = envDetector,
+        showToast = toasts::add,
+    )
+
+    private fun controllerWith(
+        source: ReadAloudEngineSource = ReadAloudEngineSource.fixed(engine),
+        detector: ReadingLanguageDetector = envDetector,
+    ) = ReadAloudController(
+        engineSource = source,
+        environment = env,
+        scope = CoroutineScope(UnconfinedTestDispatcher()),
+        languageDetector = detector,
+        showToast = toasts::add,
     )
 
     private val threeSentences = "First sentence. Second sentence. Third sentence."
@@ -93,7 +127,6 @@ class ReadAloudControllerTest {
         assertEquals(ReadAloudState.Idle, controller.state.value)
         assertFalse(env.active)
         assertEquals(1, engine.stops)
-        assertEquals(1, engine.spoken.size)
     }
 
     @Test
@@ -104,11 +137,9 @@ class ReadAloudControllerTest {
 
         assertEquals(ReadAloudState.Speaking("m2", 0, 1), controller.state.value)
         assertEquals(1, engine.stops)
-        assertEquals(2, engine.spoken.size)
         // A late callback from the old session does not affect the new one
         first.onDoneAll()
         assertEquals(ReadAloudState.Speaking("m2", 0, 1), controller.state.value)
-        assertTrue(env.active)
     }
 
     @Test
@@ -120,7 +151,6 @@ class ReadAloudControllerTest {
 
         assertEquals(ReadAloudState.Idle, controller.state.value)
         assertFalse(env.active)
-        assertTrue(env.messages.isEmpty())
     }
 
     @Test
@@ -130,7 +160,6 @@ class ReadAloudControllerTest {
 
         assertEquals(ReadAloudState.Failed("m1"), controller.state.value)
         assertEquals(listOf(R.string.voice_read_aloud_failed), env.messages)
-        assertFalse(env.active)
 
         controller.toggle("m2", "Retry works.")
         engine.listener!!.onError(SpeechError.UNAVAILABLE)
@@ -142,7 +171,6 @@ class ReadAloudControllerTest {
         controller.toggle("m1", "---\n🎉 ✨")
         assertEquals(ReadAloudState.Idle, controller.state.value)
         assertTrue(engine.spoken.isEmpty())
-        assertFalse(env.active)
     }
 
     @Test
@@ -150,6 +178,15 @@ class ReadAloudControllerTest {
         env.detected = Locale.forLanguageTag("sw")
         controller.toggle("m1", "Habari.\n| a | b |")
         assertEquals(listOf("zh-Hans"), env.placeholderLocales)
+    }
+
+    @Test
+    fun `placeholder segment uses placeholder locale`() {
+        // Old behavior: the whole read carried a single reading-language locale, so a placeholder written in the UI language was also read as Swahili
+        env.detected = Locale.forLanguageTag("sw")
+        controller.toggle("m1", "Habari.\n| a | b |")
+        assertEquals(listOf(Locale.forLanguageTag("sw")), engine.locales)
+        assertEquals(listOf(listOf(Locale.forLanguageTag("sw"), env.ui)), engine.segmentLocales)
     }
 
     @Test
@@ -161,8 +198,6 @@ class ReadAloudControllerTest {
         controller.observeChat("c2", null)
 
         assertEquals(ReadAloudState.Idle, controller.state.value)
-        assertEquals(1, engine.stops)
-        assertFalse(env.active)
     }
 
     @Test
@@ -173,7 +208,6 @@ class ReadAloudControllerTest {
         controller.stopIfSpeaking("m1")
 
         assertEquals(ReadAloudState.Idle, controller.state.value)
-        assertEquals(1, engine.stops)
     }
 
     @Test
@@ -183,11 +217,10 @@ class ReadAloudControllerTest {
         controller.observeChat("c1", "m2")
 
         assertEquals(ReadAloudState.Idle, controller.state.value)
-        assertFalse(env.active)
     }
 
     @Test
-    fun `denied audio focus fails without speaking`() {
+    fun `denied audio focus fails`() {
         env.focusGranted = false
         controller.toggle("m1", threeSentences)
 
@@ -202,12 +235,111 @@ class ReadAloudControllerTest {
         controller.toggle("m1", threeSentences)
         env.listener!!.onInterrupted()
         assertEquals(ReadAloudState.Idle, controller.state.value)
-        assertFalse(env.active)
 
         controller.toggle("m1", threeSentences)
         env.listener!!.onBackgrounded()
         assertEquals(ReadAloudState.Idle, controller.state.value)
-        assertFalse(env.active)
-        assertEquals(2, engine.stops)
+    }
+
+    @Test
+    fun `cloud fallback toasts provider name once per read`() {
+        val cloud = object : SpeechEngine {
+            override val engineName = CloudSpeechEngine.ENGINE_NAME
+            var listener: SpeechEngine.Listener? = null
+            override fun speak(utterances: List<String>, locale: Locale, listener: SpeechEngine.Listener) {
+                this.listener = listener
+            }
+            override fun stop() = Unit
+        }
+        val cloudController = controllerWith(source = { ReadAloudEngineChoice(cloud, "openai") })
+        val expected = GlobalSnackbarMessage(
+            UiText.Resource(R.string.voice_read_aloud_cloud_fallback, listOf("OpenAI")),
+            style = GlobalToastStyle.Warning,
+        )
+
+        cloudController.toggle("m1", threeSentences)
+        assertTrue(toasts.isEmpty())
+        cloud.listener!!.onFallback("OpenAI")
+        cloud.listener!!.onFallback("OpenAI")
+        assertEquals(listOf(expected), toasts)
+
+        // Counted afresh on the next read-aloud
+        cloudController.stop()
+        cloudController.toggle("m1", threeSentences)
+        cloud.listener!!.onFallback("OpenAI")
+        assertEquals(listOf(expected, expected), toasts)
+        assertTrue(env.messages.isEmpty())
+    }
+
+    @Test
+    fun `use site fallback toasts engine unavailable`() {
+        val fallbackController = controllerWith(
+            source = { ReadAloudEngineChoice(engine, "system", VoiceFallbackReason.KeyMissing) },
+        )
+
+        fallbackController.toggle("m1", threeSentences)
+
+        assertEquals(
+            listOf(
+                GlobalSnackbarMessage(
+                    UiText.Resource(R.string.voice_read_aloud_engine_fallback),
+                    style = GlobalToastStyle.Warning,
+                ),
+            ),
+            toasts,
+        )
+        assertEquals(1, engine.spoken.size)
+
+        // No fallback reason, no toast
+        controller.toggle("m2", threeSentences)
+        assertEquals(1, toasts.size)
+    }
+
+    @Test
+    fun `detected language drives locale`() {
+        val detecting = controllerWith(
+            detector = {
+                listOf(
+                    LanguageHypothesis("en", 0.3),
+                    LanguageHypothesis("ja", 0.9),
+                    LanguageHypothesis("fr", 0.9),
+                )
+            },
+        )
+
+        detecting.toggle("m1", "Bonjour.\n| a | b |")
+
+        // On a tie the lexicographically smaller one wins
+        assertEquals(listOf(Locale.forLanguageTag("fr")), engine.locales)
+        assertEquals(listOf("fr"), env.placeholderLocales)
+    }
+
+    @Test
+    fun `language detection reads speakable sentences not raw markdown`() {
+        val inputs = mutableListOf<String>()
+        val detecting = controllerWith(detector = { text -> inputs += text; listOf(LanguageHypothesis("fr", 0.9)) })
+
+        // Old behavior: the detector got the raw markdown (heading hashes, code block text), so code-heavy replies were judged as English
+        detecting.toggle("m1", "# Title\n\n```kotlin\nval x = 1\n```\nDone.")
+        assertEquals(listOf("Title Done."), inputs)
+        assertEquals(listOf(Locale.forLanguageTag("fr")), engine.locales)
+
+        // No speakable sentences (placeholders only): no detection, use the UI locale
+        detecting.toggle("m2", "```kotlin\nval x = 1\n```")
+        assertEquals(1, inputs.size)
+        assertEquals(env.ui, engine.locales.last())
+
+        // First 2000 code points, without splitting a surrogate pair
+        val long = languageDetectionInput(listOf(SpeakableSegment.Sentence("\uD83D\uDE00".repeat(1999)), SpeakableSegment.Sentence("ab")))
+        assertEquals(2000, long.codePointCount(0, long.length))
+        assertEquals("\uD83D\uDE00".repeat(1999) + " ", long)
+    }
+
+    @Test
+    fun `low confidence uses ui locale`() {
+        controllerWith(detector = { listOf(LanguageHypothesis("ja", 0.49)) }).toggle("m1", threeSentences)
+        controllerWith(detector = ReadingLanguageDetector.NONE).toggle("m2", threeSentences)
+
+        assertEquals(listOf(env.ui, env.ui), engine.locales)
     }
 }

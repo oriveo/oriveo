@@ -8,9 +8,8 @@ import android.content.res.Configuration
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
-import android.os.Build
-import android.view.textclassifier.TextClassificationManager
-import android.view.textclassifier.TextLanguage
+import androidx.annotation.StringRes
+import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
@@ -22,10 +21,8 @@ import ai.oriveo.community.core.app.GlobalSnackbarMessage
 import ai.oriveo.community.core.app.GlobalToastStyle
 import ai.oriveo.community.core.app.UiText
 import java.util.Locale
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
-/** Production [ReadAloudEnvironment]: audio focus (ducking allowed), headphones unplugged, process ON_STOP, language detection. */
+/** Production [ReadAloudEnvironment]: audio focus (ducking allowed), headphones unplugged, process ON_STOP. */
 class AndroidReadAloudEnvironment(
     context: Context,
     private val snackbar: GlobalSnackbarManager,
@@ -37,23 +34,18 @@ class AndroidReadAloudEnvironment(
     private var noisyReceiver: BroadcastReceiver? = null
     private var lifecycleObserver: LifecycleEventObserver? = null
 
+    /** Read-only view for instrumented tests: attributes of the focus request held by the current session. */
+    @get:VisibleForTesting
+    internal val sessionAudioAttributes: AudioAttributes? get() = focusRequest?.audioAttributes
+
+    /** Read-only view for instrumented tests: BECOMING_NOISY is protected, so tests deliver to this receiver. */
+    @get:VisibleForTesting
+    internal val sessionNoisyReceiver: BroadcastReceiver? get() = noisyReceiver
+
     override fun uiLocale(): Locale =
         AppCompatDelegate.getApplicationLocales()[0]
             ?: appContext.resources.configuration.locales[0]
             ?: Locale.getDefault()
-
-    override suspend fun detectLanguage(text: String): Locale? {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
-        return withContext(Dispatchers.Default) {
-            runCatching {
-                val classifier = appContext.getSystemService(TextClassificationManager::class.java)
-                    ?.textClassifier ?: return@runCatching null
-                val request = TextLanguage.Request.Builder(text.take(MAX_DETECT_CHARS)).build()
-                val result = classifier.detectLanguage(request)
-                if (result.localeHypothesisCount == 0) null else result.getLocale(0).toLocale()
-            }.getOrNull()
-        }
-    }
 
     override fun placeholderText(kind: SpeakablePlaceholder, appLocale: String): String {
         val config = Configuration(appContext.resources.configuration)
@@ -66,6 +58,13 @@ class AndroidReadAloudEnvironment(
                 SpeakablePlaceholder.MATH -> R.string.voice_placeholder_math
             },
         )
+    }
+
+    /** String in the UI language (preview sample sentence). */
+    fun uiString(@StringRes resId: Int): String {
+        val config = Configuration(appContext.resources.configuration)
+        config.setLocale(uiLocale())
+        return appContext.createConfigurationContext(config).getString(resId)
     }
 
     override fun beginSession(listener: ReadAloudEnvironment.SessionListener): Boolean {
@@ -121,9 +120,7 @@ class AndroidReadAloudEnvironment(
     }
 
     internal companion object {
-        private const val MAX_DETECT_CHARS = 2000
-
-        /** App language tag from the contract → the Locale matching the res/values-* qualifier. */
+        /** App language tag from the contract -> the Locale matching the res/values-* qualifier. */
         fun resourceLocale(appLocale: String): Locale = when (appLocale) {
             "zh-Hans" -> Locale.forLanguageTag("zh-CN")
             "zh-Hant" -> Locale.forLanguageTag("zh-TW")
