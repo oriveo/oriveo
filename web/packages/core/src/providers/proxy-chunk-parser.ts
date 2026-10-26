@@ -220,7 +220,8 @@ export function createProxyChunkParser(providerKind?: ProviderKind, continuation
     // OpenAI/OpenRouter format; when Kimi's top level has none, read choices[0].usage (recorded streams moonshot*.sse)
     const openAIStyleUsage = chunk.usage
       ?? (providerKind === 'moonshot' && isRecord(chunk.choices?.[0]?.usage) ? chunk.choices[0].usage : undefined);
-    if (!_eventType && openAIStyleUsage) {
+    // The unified {type:'usage'} frame was already emitted above; only the native OpenAI shape counts here, otherwise one frame yields two usage events.
+    if (!_eventType && openAIStyleUsage && chunk.type !== 'usage') {
       events.push({ type: 'usage', usage: buildUsageEvent(openAIStyleUsage, pickUsage) });
     }
     if (!_eventType && chunk.model) {

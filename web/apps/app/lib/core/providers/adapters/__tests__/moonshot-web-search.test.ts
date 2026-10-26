@@ -3,12 +3,14 @@
  * 1. thinking is decoupled from web search. automatic carries no thinking (k2.5/k2.6
  *    default to enabled upstream and were once forced to disabled, suppressing reasoning),
  *    fast turns it off explicitly and deep turns it on explicitly.
- * 2. Web search runs as a browser-side streaming tool loop: the assistant tool-call
- *    message fed back in must carry reasoning_content, since Kimi returns 400 when it is
- *    missing while thinking is active.
- * 3. Across multiple legs, reasoning is joined with "\n\n" and usage is captured per leg,
- *    then emitted once through the multi-leg merge entry (priced per leg).
+ * 2. Web search only follows the metadata recipe: the official Formula (moonshot.formula.web.v1)
+ *    runs the same core Formula/Fiber loop as the proxy route (GET tools, chat, POST fibers,
+ *    fill back role=tool); with no Formula recipe the turn runs without web search, and no leg
+ *    ever carries the retired built-in `$web_search`.
+ * 3. Usage across legs is emitted once through the multi-leg merge entry (priced per leg).
  */
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../../metadata/metadata-client", async (importOriginal) => (await import("../../../../__tests__/mocks/metadata-client")).metadataClientMock(importOriginal, {
@@ -18,12 +20,14 @@ vi.mock("../../../metadata/metadata-client", async (importOriginal) => (await im
   resolveCatalogModel: vi.fn(),
   getReasoningProfile: vi.fn(),
   getWebSearchProfile: vi.fn(),
+  browserOfficialMetadata: vi.fn(),
 }));
 
 import {
   resetUnsupportedParamCacheForTesting,
 } from "@oriveo/core/providers/unsupported-param";
 import {
+  browserOfficialMetadata,
   getReasoningProfile,
   getWebSearchProfile,
   resolveCatalogModel,
@@ -34,6 +38,65 @@ import type { StreamEvent, StreamUsage } from "../../types";
 const mockResolveCatalogModel = vi.mocked(resolveCatalogModel);
 const mockGetReasoningProfile = vi.mocked(getReasoningProfile);
 const mockGetWebSearchProfile = vi.mocked(getWebSearchProfile);
+const mockBrowserOfficialMetadata = vi.mocked(browserOfficialMetadata);
+
+function repoPath(relative: string): string {
+  let current = process.cwd();
+  while (true) {
+    const candidate = path.join(current, relative);
+    if (existsSync(candidate)) return candidate;
+    const next = path.dirname(current);
+    if (next === current) throw new Error(relative);
+    current = next;
+  }
+}
+
+/** The same recipe registry the server ships: the Formula recipe is taken verbatim from the shared capability_runtime. */
+const runtimeRecipes = (JSON.parse(readFileSync(
+  repoPath("shared/capabilityrecipe/capability_runtime.v1.json"),
+  "utf8",
+)) as { recipes: Record<string, unknown> }).recipes;
+
+/** /api/metadata payload: no webRecipeRef means the model has no web control (the server treats an unnamed model as unknown). */
+function moonshotMetadata(modelID: string, webRecipeRef?: string): never {
+  return {
+    version: 2,
+    updatedAt: "2026-10-26T00:00:00Z",
+    profiles: { reasoning: {}, webSearch: {}, imageGen: {} },
+    capabilityRuntime: {
+      schemaVersion: 2, revision: "fixture", generatedAt: "2026-10-26T00:00:00Z",
+      recipes: runtimeRecipes, controlDefinitions: {}, sourceIndex: {},
+    },
+    providers: {
+      moonshot: {
+        resolveMap: { [modelID]: modelID },
+        models: {
+          [modelID]: {
+            transport: "openai_chat",
+            ...(webRecipeRef
+              ? { capabilityControls: { web: { state: "auto_available", recipeRef: webRecipeRef } } }
+              : {}),
+          },
+        },
+      },
+    },
+  } as never;
+}
+
+function jsonResponse(value: unknown, status = 200): Response {
+  return new Response(JSON.stringify(value), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+/** The legacy webSearch profile is still in the catalog: assert it is no longer turned into `$web_search`. */
+const LEGACY_WEB_SEARCH_PROFILE = {
+  name: "kimi_web_search",
+  mergeParams: { tools: [{ type: "builtin_function", function: { name: "$web_search" } }] },
+  maxToolLoops: 4,
+  streamShape: null,
+} as never;
 
 function sseResponse(payloads: string[]): Response {
   const body = payloads.map((payload) => `data: ${payload}\n\n`).join("") + "data: [DONE]\n\n";
@@ -60,6 +123,7 @@ afterEach(() => {
   mockResolveCatalogModel.mockReset();
   mockGetReasoningProfile.mockReset();
   mockGetWebSearchProfile.mockReset();
+  mockBrowserOfficialMetadata.mockReset();
 });
 
 describe("moonshot thinking parameter", () => {
@@ -112,194 +176,183 @@ describe("moonshot thinking parameter", () => {
   });
 });
 
-describe("moonshot browser-side streaming tool loop", () => {
-  it("does not inject tools or enter the tool loop for supportsWebSearch without a web profile", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      sseResponse(['{"choices":[{"delta":{"content":"a direct answer"}}],"usage":null}']),
-    );
-    vi.stubGlobal("fetch", fetchMock);
-    mockResolveCatalogModel.mockReturnValue({ profiles: {} } as never);
+describe("moonshot browser-direct web search (official Formula)", () => {
+  const BASE = "https://api.moonshot.cn/v1";
+  const FORMULA_TOOL = {
+    type: "function",
+    function: { name: "web_search", description: "search", parameters: { type: "object", properties: {} } },
+  };
 
-    const handle = sendMessageStream(
-      "sk-test",
-      "kimi-k2.5",
-      [{ role: "user", content: "hello" }],
-      "https://api.moonshot.cn/v1",
-      { supportsWebSearch: true },
-    );
-    const events = await collect(handle.stream);
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
-    expect(body.tools).toBeUndefined();
-    expect(events.at(-1)?.type).toBe("done");
-  });
-
-  it("feeds back reasoning_content, joins legs with a separator and accumulates usage", async () => {
+  it("Formula recipe with web search on: GET tools, chat, POST fibers, fill back role=tool, then the answer", async () => {
     const leg1 = [
-      '{"choices":[{"delta":{"role":"assistant","content":""}}],"usage":null}',
-      '{"choices":[{"delta":{"reasoning_content":"let me think"}}],"usage":null}',
-      '{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"t-1","type":"builtin_function","function":{"name":"$web_search","arguments":"{\\"search"}}]}}],"usage":null}',
-      '{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"_id\\":\\"abc\\"}"}}]}}],"usage":null}',
+      '{"model":"kimi-k2.6","choices":[{"delta":{"reasoning_content":"search first"}}],"usage":null}',
+      '{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"web_search","arguments":"{\\"query\\":"}}]}}],"usage":null}',
+      '{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\\"Shanghai weather\\"}"}}]}}],"usage":null}',
       '{"choices":[{"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":10,"completion_tokens":5,"cached_tokens":2}}',
     ];
     const leg2 = [
-      '{"choices":[{"delta":{"reasoning_content":"now to sum up"}}],"usage":null}',
       '{"choices":[{"delta":{"content":"the answer"}}],"usage":null}',
-      '{"choices":[{"delta":{}}],"usage":{"prompt_tokens":20,"completion_tokens":7,"cached_tokens":3}}',
+      '{"choices":[{"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":20,"completion_tokens":7,"cached_tokens":3}}',
     ];
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(sseResponse(leg1))
-      .mockResolvedValueOnce(sseResponse(leg2));
+    const chatLegs = [sseResponse(leg1), sseResponse(leg2)];
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/tools")) return jsonResponse({ tools: [FORMULA_TOOL] });
+      if (url.endsWith("/fibers")) return jsonResponse({ status: "succeeded", context: { output: "Sunny 25C" } });
+      void init;
+      return chatLegs.shift()!;
+    });
     vi.stubGlobal("fetch", fetchMock);
-    mockResolveCatalogModel.mockReturnValue({
-      profiles: { webSearch: "kimi_web_search" },
-    } as never);
-    mockGetWebSearchProfile.mockReturnValue({
-      name: "kimi_web_search",
-      mergeParams: {
-        tools: [{ type: "builtin_function", function: { name: "$web_search" } }],
-      },
-      maxToolLoops: 4,
-      streamShape: null,
-    } as never);
+    mockResolveCatalogModel.mockReturnValue({ profiles: { webSearch: "kimi_web_search" } } as never);
+    mockGetWebSearchProfile.mockReturnValue(LEGACY_WEB_SEARCH_PROFILE);
+    mockBrowserOfficialMetadata.mockResolvedValue(moonshotMetadata("kimi-k2.6", "moonshot.formula.web.v1"));
 
-    const handle = sendMessageStream(
+    const events = await collect(sendMessageStream(
       "sk-test",
-      "kimi-k2.5",
-      [{ role: "user", content: "what is the weather in Shanghai" }],
-      "https://api.moonshot.cn/v1",
+      "kimi-k2.6",
+      [{ role: "user", content: "What is the weather in Shanghai" }],
+      BASE,
       { supportsWebSearch: true },
-    );
-    const events = await collect(handle.stream);
+    ).stream);
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-
-    // First leg: automatic carries no thinking and does carry the builtin $web_search tools.
-    const firstBody = JSON.parse(fetchMock.mock.calls[0][1].body as string);
-    expect(firstBody.thinking).toBeUndefined();
-    expect(firstBody.tools).toEqual([
-      { type: "builtin_function", function: { name: "$web_search" } },
+    expect(mockBrowserOfficialMetadata).toHaveBeenCalledWith("moonshot");
+    const calls = fetchMock.mock.calls.map(([url, init]) => [init?.method ?? "GET", url]);
+    expect(calls).toEqual([
+      ["GET", `${BASE}/formulas/moonshot/web-search:latest/tools`],
+      ["POST", `${BASE}/chat/completions`],
+      ["POST", `${BASE}/formulas/moonshot/web-search:latest/fibers`],
+      ["POST", `${BASE}/chat/completions`],
     ]);
+    for (const [, init] of fetchMock.mock.calls) {
+      expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer sk-test");
+      expect(String(init?.body ?? "")).not.toContain("$web_search");
+    }
 
-    // Second leg feedback: the assistant echo carries reasoning_content, and the tool message returns arguments verbatim.
-    const secondBody = JSON.parse(fetchMock.mock.calls[1][1].body as string);
-    const echo = secondBody.messages.at(-2);
-    expect(echo.role).toBe("assistant");
-    expect(echo.reasoning_content).toBe("let me think");
-    expect(echo.tool_calls).toHaveLength(1);
-    const toolMessage = secondBody.messages.at(-1);
-    expect(toolMessage.role).toBe("tool");
-    expect(toolMessage.tool_call_id).toBe("t-1");
-    expect(toolMessage.content).toBe('{"search_id":"abc"}');
+    // First leg: tools are only the Formula declarations returned by the official GET (verbatim, never rewritten locally)
+    const firstBody = JSON.parse(fetchMock.mock.calls[1][1]!.body as string);
+    expect(firstBody.tools).toEqual([FORMULA_TOOL]);
+    expect(firstBody.messages).toEqual([{ role: "user", content: "What is the weather in Shanghai" }]);
+    // Fiber: name plus the raw arguments string, executed as-is
+    expect(JSON.parse(fetchMock.mock.calls[2][1]!.body as string)).toEqual({
+      name: "web_search",
+      arguments: '{"query":"Shanghai weather"}',
+    });
+    // Second leg feed-back: the assistant echo carries reasoning_content; the tool message is the Fiber context.output
+    const secondBody = JSON.parse(fetchMock.mock.calls[3][1]!.body as string);
+    expect(secondBody.messages.at(-2)).toMatchObject({ role: "assistant", reasoning_content: "search first" });
+    expect(secondBody.messages.at(-1)).toEqual({
+      role: "tool", tool_call_id: "call_1", name: "web_search", content: "Sunny 25C",
+    });
 
-    // Event stream: reasoning is joined across legs with \n\n, deltas arrive live, and one accumulated usage closes it out.
-    const reasoning = events
-      .filter((event) => event.type === "reasoning")
-      .map((event) => (event as { content: string }).content)
-      .join("");
-    expect(reasoning).toBe("let me think\n\nnow to sum up");
+    expect(events).toContainEqual({ type: "model", modelID: "kimi-k2.6" });
+    expect(events.filter((event) => event.type === "tool_result")).toEqual([
+      { type: "tool_result", tool: "web_search", summary: "web_search", step: 1 },
+    ]);
     const text = events
       .filter((event) => event.type === "delta")
       .map((event) => (event as { content: string }).content)
       .join("");
     expect(text).toBe("the answer");
-    const usageEvents = events.filter((event) => event.type === "usage");
+    expect(events.some((event) => event.type === "reasoning")).toBe(true);
+    // The closing usage frame is decoded by the same parser as the proxy route and yields exactly one event; per-leg usage is not forwarded, only this cross-leg merged value.
+    const usageEvents = events.filter((event) => event.type === "usage") as Array<{ usage: StreamUsage }>;
     expect(usageEvents).toHaveLength(1);
-    const usage = (usageEvents[0] as { usage: StreamUsage }).usage;
+    const usage = usageEvents[0]!.usage;
     expect(usage.prompt_tokens).toBe(30);
     expect(usage.completion_tokens).toBe(12);
-    // Priced per leg: each leg keeps the breakdown produced by the regular chat parser (top-level cached_tokens goes into the cache bucket)
     expect(usage.legs?.map((leg) => leg.breakdown?.cachedInputTokens)).toEqual([2, 3]);
-    expect(usage.legs?.map((leg) => leg.breakdown?.completionTokens)).toEqual([5, 7]);
-    expect(usage.allLegsReported).toBeUndefined();
+    expect(events.some((event) => event.type === "error")).toBe(false);
     expect(events.at(-1)?.type).toBe("done");
   });
 
-  it("a leg that reports no usage is not dropped: the whole turn is marked as not fully reported", async () => {
-    const leg1 = [
-      '{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"t-1","type":"builtin_function","function":{"name":"$web_search","arguments":"{}"}}]}}],"usage":null}',
-      '{"choices":[{"delta":{},"finish_reason":"tool_calls"}],"usage":null}',
-    ];
-    const leg2 = [
-      '{"choices":[{"delta":{"content":"\u7b54\u6848"}}],"usage":null}',
-      '{"choices":[{"delta":{}}],"usage":{"prompt_tokens":20,"completion_tokens":7,"cached_tokens":3}}',
-    ];
-    vi.stubGlobal("fetch", vi.fn()
-      .mockResolvedValueOnce(sseResponse(leg1))
-      .mockResolvedValueOnce(sseResponse(leg2)));
+  it("a failed Formula tools GET raises a provider error and sends no chat leg", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ error: { message: "invalid key" } }, 401));
+    vi.stubGlobal("fetch", fetchMock);
+    mockResolveCatalogModel.mockReturnValue({ profiles: {} } as never);
+    mockBrowserOfficialMetadata.mockResolvedValue(moonshotMetadata("kimi-k2.6", "moonshot.formula.web.v1"));
+
+    const events = await collect(sendMessageStream(
+      "sk-test",
+      "kimi-k2.6",
+      [{ role: "user", content: "What is the weather in Shanghai" }],
+      BASE,
+      { supportsWebSearch: true },
+    ).stream);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(events).toEqual([expect.objectContaining({ type: "error", source: "provider" })]);
+  });
+
+  it("web search on but the model has no Formula recipe (or metadata is not loaded): this turn runs without web search, no tools and no $web_search", async () => {
+    for (const metadata of [moonshotMetadata("kimi-k2.5"), null]) {
+      const fetchMock = vi.fn().mockResolvedValue(
+        sseResponse(['{"choices":[{"delta":{"content":"a direct answer"}}],"usage":null}']),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+      mockResolveCatalogModel.mockReturnValue({ profiles: { webSearch: "kimi_web_search" } } as never);
+      mockGetWebSearchProfile.mockReturnValue(LEGACY_WEB_SEARCH_PROFILE);
+      mockBrowserOfficialMetadata.mockResolvedValue(metadata as never);
+
+      const events = await collect(sendMessageStream(
+        "sk-test",
+        "kimi-k2.5",
+        [{ role: "user", content: "hello" }],
+        BASE,
+        { supportsWebSearch: true },
+      ).stream);
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock.mock.calls[0][0]).toBe(`${BASE}/chat/completions`);
+      const rawBody = fetchMock.mock.calls[0][1].body as string;
+      expect(JSON.parse(rawBody).tools).toBeUndefined();
+      expect(rawBody).not.toContain("$web_search");
+      expect(events.filter((event) => event.type === "delta")).toEqual([{ type: "delta", content: "a direct answer" }]);
+      expect(events.at(-1)?.type).toBe("done");
+    }
+  });
+
+  it("web search off: a plain single-leg request that does not read the metadata recipe", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      sseResponse(['{"choices":[{"delta":{"content":"a direct answer"}}],"usage":{"prompt_tokens":3,"completion_tokens":2}}']),
+    );
+    vi.stubGlobal("fetch", fetchMock);
     mockResolveCatalogModel.mockReturnValue({ profiles: { webSearch: "kimi_web_search" } } as never);
-    mockGetWebSearchProfile.mockReturnValue({
-      name: "kimi_web_search",
-      mergeParams: { tools: [{ type: "builtin_function", function: { name: "$web_search" } }] },
-      maxToolLoops: 4,
-      streamShape: null,
-    } as never);
+    mockGetWebSearchProfile.mockReturnValue(LEGACY_WEB_SEARCH_PROFILE);
 
     const events = await collect(sendMessageStream(
       "sk-test",
       "kimi-k2.5",
-      [{ role: "user", content: "\u4e0a\u6d77\u5929\u6c14\u5982\u4f55" }],
-      "https://api.moonshot.cn/v1",
-      { supportsWebSearch: true },
+      [{ role: "user", content: "hello" }],
+      BASE,
+      {},
     ).stream);
 
-    const usageEvents = events.filter((event) => event.type === "usage");
-    expect(usageEvents).toHaveLength(1);
-    const usage = (usageEvents[0] as { usage: StreamUsage }).usage;
-    expect(usage.allLegsReported).toBe(false);
-    expect(usage.prompt_tokens).toBe(20);
-  });
-
-  it("finishes on a single leg without starting another when there are no tool_calls", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      sseResponse(['{"choices":[{"delta":{"content":"a direct answer"}}],"usage":null}']),
-    );
-    vi.stubGlobal("fetch", fetchMock);
-    mockResolveCatalogModel.mockReturnValue({
-      profiles: { webSearch: "kimi_web_search" },
-    } as never);
-    mockGetWebSearchProfile.mockReturnValue({
-      name: "kimi_web_search",
-      mergeParams: {
-        tools: [{ type: "builtin_function", function: { name: "$web_search" } }],
-      },
-      maxToolLoops: 4,
-      streamShape: null,
-    } as never);
-
-    const handle = sendMessageStream(
-      "sk-test",
-      "kimi-k2.5",
-      [{ role: "user", content: "hello" }],
-      "https://api.moonshot.cn/v1",
-      { supportsWebSearch: true },
-    );
-    const events = await collect(handle.stream);
-
+    expect(mockBrowserOfficialMetadata).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(events.some((event) => event.type === "delta")).toBe(true);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).toEqual({
+      model: "kimi-k2.5",
+      stream: true,
+      stream_options: { include_usage: true },
+      messages: [{ role: "user", content: "hello" }],
+    });
+    expect(events.filter((event) => event.type === "usage")).toHaveLength(1);
     expect(events.at(-1)?.type).toBe("done");
   });
 
   /**
-   * Dropping a named-parameter rejection and retrying without it is no longer supported:
-   * `executeWithUnsupportedParamSelfHeal` in
-   * `packages/core/src/providers/unsupported-param.ts` now only keeps the 404 endpoint
-   * fallback, and a 400 is always raised to the user on a single leg.
-   * The newer semantics are stronger than the old ones: the reasoning level the user chose
-   * goes out **as chosen**, and an upstream rejection is a **user-visible** error rather
-   * than a silent removal of `thinking` followed by a second attempt passed off as success.
+   * A 400 naming a rejected parameter no longer triggers drop-and-retry:
+   * `executeWithUnsupportedParamSelfHeal` only keeps the 404 endpoint fallback, and any 400 is
+   * raised to the user on a single leg. The thinking level the user chose goes out as-is, and an
+   * upstream rejection is a user-visible error; thinking must not be silently dropped and the
+   * request resent as if it had succeeded.
    */
   it("raises a user-visible error on a single leg when the first leg gets a 400 naming thinking, instead of retrying without it", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response('{"error":{"message":"unknown parameter: thinking"}}', { status: 400 }))
-      .mockResolvedValueOnce(sseResponse(['{"choices":[{"delta":{"content":"a direct answer"}}],"usage":null}']));
+      .mockResolvedValueOnce(sseResponse(['{"choices":[{"delta":{"content":"the answer"}}],"usage":null}']));
     vi.stubGlobal("fetch", fetchMock);
     mockResolveCatalogModel.mockReturnValue({
-      profiles: { reasoning: "kimi_thinking", webSearch: "kimi_web_search" },
+      profiles: { reasoning: "kimi_thinking" },
     } as never);
     mockGetReasoningProfile.mockReturnValue({
       name: "kimi_thinking",
@@ -307,14 +360,7 @@ describe("moonshot browser-side streaming tool loop", () => {
       params: { deep: { thinking: { type: "enabled" } } },
       streamShape: null,
     } as never);
-    mockGetWebSearchProfile.mockReturnValue({
-      name: "kimi_web_search",
-      mergeParams: {
-        tools: [{ type: "builtin_function", function: { name: "$web_search" } }],
-      },
-      maxToolLoops: 4,
-      streamShape: null,
-    } as never);
+    mockBrowserOfficialMetadata.mockResolvedValue(moonshotMetadata("kimi-k2.5"));
 
     const handle = sendMessageStream(
       "sk-test",

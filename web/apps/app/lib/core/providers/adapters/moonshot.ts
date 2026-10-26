@@ -13,8 +13,8 @@ import {
 import { buildRecommendedModels } from "../catalog-model";
 import { createSSEStream, type ParseChunkFn } from "../../../infra/sse-parser";
 import {
+  browserOfficialMetadata,
   getReasoningProfile,
-  getWebSearchProfile,
   initMetadata,
   listProviderModelIds,
   resolveCatalogModel,
@@ -28,7 +28,14 @@ import {
 } from "@oriveo/core/providers/unsupported-param";
 // The relay prefix only says where this originated: it is a generic irreversible origin+path fingerprint and applies to official endpoints too.
 import { relayEndpointFingerprint } from "@oriveo/core/providers/relay-stream";
-import { mergeToolLoopUsage } from "@oriveo/core/tools/tool-call-loop";
+import type { UpstreamTransport } from "@oriveo/core";
+import { createProxyChunkParser } from "@oriveo/core/providers/proxy-chunk-parser";
+import { buildProviderRequest } from "@oriveo/core/providers/request-builders/dispatch";
+import type { ProviderRequest, RequestParams } from "@oriveo/core/providers/request-builders/types";
+import {
+  adaptMoonshotFormulaFiberResponse,
+  prepareMoonshotFormulaRequest,
+} from "@oriveo/core/providers/response-adapters/moonshot-formula-fiber-loop";
 import { applyGenerationParameters } from "@oriveo/core/providers/request-builders/generation-parameters";
 import type {
   ContentPart,
@@ -50,7 +57,6 @@ interface MoonshotChunk {
     delta?: {
       content?: string;
       reasoning_content?: string;
-      tool_calls?: MoonshotToolCallDelta[];
     };
     message?: {
       content?: string;
@@ -67,20 +73,6 @@ function moonshotChunkUsage(chunk: MoonshotChunk): Record<string, unknown> | und
   if (chunk.usage && typeof chunk.usage === "object") return chunk.usage;
   const nested = chunk.choices?.[0]?.usage;
   return nested && typeof nested === "object" && !Array.isArray(nested) ? nested : undefined;
-}
-
-/** Streaming tool_calls delta: id/type/name only appear in the first fragment, and arguments are split across fragments */
-interface MoonshotToolCallDelta {
-  index?: number;
-  id?: string;
-  type?: string;
-  function?: { name?: string; arguments?: string };
-}
-
-interface MoonshotToolCall {
-  id?: string;
-  type?: string;
-  function?: { name?: string; arguments?: string };
 }
 
 export async function validateKey(
@@ -143,9 +135,6 @@ export function sendMessageStream(
     deepMergeMoonshot(body, reasoningProfile?.params?.[options.reasoning]);
   }
 
-  const webSearchProfile = options?.supportsWebSearch
-    ? getWebSearchProfile(modelProfiles.webSearch)
-    : null;
   // Browser-direct Moonshot is the one official Web route that bypasses the
   // proxy/core request dispatcher. Consume the already facade-filtered map via
   // the same shared writer as buildMoonshotRequest; do not reinterpret support
@@ -155,18 +144,26 @@ export function sendMessageStream(
     options?.generationParameters,
     options?.generationProfile,
   );
-  if (webSearchProfile) {
-    deepMergeMoonshot(body, webSearchProfile.mergeParams);
-    return sendWebSearchToolLoopStream(
-      apiKey,
-      body,
-      baseURL,
-      controller,
-      learningScope,
-      webSearchProfile.maxToolLoops,
-    );
-  }
 
+  const stream = options?.supportsWebSearch
+    ? createMoonshotWebSearchStream(
+      { apiKey, modelID, messages, baseURL, options },
+      () => createMoonshotPlainStream(url, body, apiKey, controller, learningScope),
+      controller,
+    )
+    : createMoonshotPlainStream(url, body, apiKey, controller, learningScope);
+
+  return { stream, abort: () => controller.abort() };
+}
+
+/** Plain single-leg stream: Moonshot chunk to model / usage / reasoning / delta. */
+function createMoonshotPlainStream(
+  url: string,
+  body: Record<string, unknown>,
+  apiKey: string,
+  controller: AbortController,
+  learningScope: UnsupportedParamScope,
+): ReadableStream<StreamEvent> {
   const parseChunk = (
     _eventType: string | null,
     data: string,
@@ -200,7 +197,7 @@ export function sendMessageStream(
     return events.length > 0 ? events : null;
   };
 
-  const stream = createMoonshotSelfHealingSSEStream(
+  return createMoonshotSelfHealingSSEStream(
     url,
     body,
     { Authorization: `Bearer ${apiKey}` },
@@ -208,9 +205,125 @@ export function sendMessageStream(
     controller,
     learningScope,
   );
-
-  return { stream, abort: () => controller.abort() };
 }
+
+/** Browser fetch flavour of UpstreamTransport: the Formula GET, each chat leg and the Fiber POST all go straight to api.moonshot.cn through it. */
+const browserUpstreamTransport: UpstreamTransport = {
+  fetch: (url, init) => fetch(url, init),
+};
+
+interface MoonshotWebSearchInput {
+  apiKey: string;
+  modelID: string;
+  messages: MoonshotMessage[];
+  baseURL: string;
+  options: StreamOptions;
+}
+
+/**
+ * Web search on: the outbound shape is decided by the metadata recipe alone, through the same
+ * builder as the proxy route. If the recipe is the official Formula (`moonshot_formula_fiber_loop`),
+ * run core's Formula/Fiber loop; its output has the same shape as the proxy route and is decoded
+ * by the same proxy chunk parser. Otherwise this turn runs without web search as a plain
+ * single-leg stream (the legacy webSearch profile is no longer read to build the retired built-in tool).
+ */
+function createMoonshotWebSearchStream(
+  input: MoonshotWebSearchInput,
+  createPlainStream: () => ReadableStream<StreamEvent>,
+  controller: AbortController,
+): ReadableStream<StreamEvent> {
+  return new ReadableStream<StreamEvent>({
+    async start(ctrl) {
+      let inner: ReadableStream<StreamEvent>;
+      try {
+        const request = await buildProviderRequest(
+          {
+            providerKind: "moonshot",
+            apiKey: input.apiKey,
+            modelID: input.modelID,
+            messages: input.messages,
+            baseURL: input.baseURL,
+            options: moonshotRecipeOptions(input.options),
+          },
+          () => browserOfficialMetadata("moonshot"),
+        );
+        inner = request.responseAdapter === "moonshot_formula_fiber_loop"
+          // Keep the message shape of the existing browser-direct buildMoonshotMessages (file parts become text), same as the plain leg.
+          ? await openMoonshotFormulaStream(
+            { ...request, body: { ...request.body, messages: buildMoonshotMessages(input.messages) } },
+            controller.signal,
+          )
+          : createPlainStream();
+      } catch (error) {
+        if (!controller.signal.aborted) ctrl.enqueue(moonshotRequestError(error));
+        ctrl.close();
+        return;
+      }
+
+      const reader = inner.getReader();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          ctrl.enqueue(value);
+        }
+      } finally {
+        try { reader.releaseLock(); } catch { /* noop */ }
+      }
+      ctrl.close();
+    },
+    cancel() {
+      controller.abort();
+    },
+  });
+}
+
+/** Same order as the proxy route: prepare, first leg, adapt. A non-2xx first leg goes to the SSE parser's HTTP error branch (status code and error classification unchanged). */
+async function openMoonshotFormulaStream(
+  request: ProviderRequest,
+  signal: AbortSignal,
+): Promise<ReadableStream<StreamEvent>> {
+  const prepared = await prepareMoonshotFormulaRequest(request, browserUpstreamTransport, signal);
+  const upstream = await browserUpstreamTransport.fetch(prepared.url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...prepared.headers },
+    body: JSON.stringify(prepared.body),
+    signal,
+  });
+  const response = upstream.ok
+    ? await adaptMoonshotFormulaFiberResponse(upstream, prepared, browserUpstreamTransport, signal)
+    : upstream;
+  return createSSEStream(response, createProxyChunkParser("moonshot"), { signal });
+}
+
+/** Options handed to the builder on the browser-direct path: the same set the proxy route receives (local identity fields stay out of the builder). */
+function moonshotRecipeOptions(options: StreamOptions): NonNullable<RequestParams["options"]> {
+  return {
+    supportsWebSearch: true,
+    ...(options.reasoning !== undefined ? { reasoning: options.reasoning } : {}),
+    ...(options.capabilityPreferences ? { capabilityPreferences: options.capabilityPreferences } : {}),
+    ...(options.capabilityRecipeOmissions ? { capabilityRecipeOmissions: options.capabilityRecipeOmissions } : {}),
+    ...(options.generationParameters ? { generationParameters: options.generationParameters } : {}),
+    ...(options.generationProfile ? { generationProfile: options.generationProfile } : {}),
+    ...(options.maxOutputTokens !== undefined ? { maxOutputTokens: options.maxOutputTokens } : {}),
+    ...(options.dynamicText !== undefined ? { dynamicText: options.dynamicText } : {}),
+    ...(options.customFragment ? { customFragment: options.customFragment } : {}),
+    ...(options.customFragments ? { customFragments: options.customFragments } : {}),
+    ...(options.additionalBody ? { additionalBody: options.additionalBody } : {}),
+  };
+}
+
+/** A failed Formula GET / Fiber carries source=provider (core FormulaError); anything else (fetch throwing, etc.) counts as a network error. */
+function moonshotRequestError(error: unknown): StreamEvent {
+  const providerFailure = isPlainRecord(error) && error.source === "provider";
+  return {
+    type: "error",
+    error: error instanceof Error ? error.message : "Network error",
+    errorKind: providerFailure ? "upstream" : "network",
+    source: providerFailure ? "provider" : "network",
+  };
+}
+
 
 /**
  * Scope for parameter-rejection self-healing on a direct browser connection to Moonshot.
@@ -234,155 +347,6 @@ function moonshotLearningScope(
     endpointFingerprint: relayEndpointFingerprint(url),
     ...(options?.capabilityIdentity ?? {}),
   };
-}
-
-/** fallback only: keeps the previous ceiling when a profile carries no maxToolLoops, to avoid an unbounded tool loop. */
-const DEFAULT_MOONSHOT_MAX_TOOL_LOOPS = 4;
-
-/**
- * Streaming tool loop on the browser side: every leg is a streaming request, so reasoning and delta
- * events reach the stream live. If a leg ends with accumulated tool_calls, the echo plus arguments
- * are fed back into the next leg, otherwise the loop finishes. usage is captured per leg (every leg
- * uses the same parser as regular chat) and emitted once at the end through the multi-leg merge
- * entry: each leg is priced on its own, and if any leg reports no usage the whole total is unknown.
- *
- * This loop deliberately does not use the generic tool loop in packages/core/src/tools. The Kimi
- * contract requires the assistant tool-call message that is fed back to carry reasoning_content
- * while thinking is on, and the generic loop's ToolProtocolAdapter only receives text and
- * toolCalls, not reasoning. The generic loop would also drop the model events this adapter
- * forwards, and it emits usage per leg instead of one total at the end.
- */
-function sendWebSearchToolLoopStream(
-  apiKey: string,
-  body: Record<string, unknown>,
-  baseURL: string,
-  controller: AbortController,
-  learningScope: UnsupportedParamScope,
-  maxToolLoops?: number,
-): StreamHandle {
-  const stream = new ReadableStream<StreamEvent>({
-    async start(ctrl) {
-      const requestMessages = [...(body.messages as Array<Record<string, unknown>>)];
-      // Per-leg usage is accumulated through the multi-leg merge entry: each leg keeps its breakdown, and a leg without usage marks the whole total unknown.
-      let mergedUsage: StreamUsage | undefined;
-      let anyReasoning = false;
-      const toolLoopLimit = normalizeToolLoopLimit(maxToolLoops);
-
-      for (let leg = 0; leg <= toolLoopLimit; leg += 1) {
-        const legState = {
-          text: "",
-          reasoning: "",
-          builders: new Map<number, { id?: string; type?: string; name?: string; arguments: string }>(),
-          failed: false,
-          usage: undefined as StreamUsage | undefined,
-        };
-
-        const parseChunk = (
-          _eventType: string | null,
-          data: string,
-        ): StreamEvent | StreamEvent[] | null => {
-          const chunk = JSON.parse(data) as MoonshotChunk;
-          const events: StreamEvent[] = [];
-
-          if (chunk.model) {
-            events.push({ type: "model", modelID: chunk.model });
-          }
-          const usage = moonshotChunkUsage(chunk);
-          if (usage) {
-            // usage is captured rather than forwarded: take the last frame of this leg, merge it into the multi-leg result at the end of the leg, and emit once at the end
-            legState.usage = moonshotStreamUsage(usage);
-          }
-
-          const choice = chunk.choices?.[0];
-          for (const toolDelta of choice?.delta?.tool_calls ?? []) {
-            const index = toolDelta.index ?? 0;
-            const builder = legState.builders.get(index) ?? { arguments: "" };
-            if (toolDelta.id) builder.id = toolDelta.id;
-            if (toolDelta.type) builder.type = toolDelta.type;
-            if (toolDelta.function?.name) builder.name = toolDelta.function.name;
-            if (toolDelta.function?.arguments) builder.arguments += toolDelta.function.arguments;
-            legState.builders.set(index, builder);
-          }
-
-          const reasoning =
-            choice?.delta?.reasoning_content ?? choice?.message?.reasoning_content;
-          if (reasoning) {
-            // Insert a paragraph break between legs so the streamed accumulation matches the final text character for character
-            if (!legState.reasoning && anyReasoning) {
-              events.push({ type: "reasoning", content: "\n\n" });
-            }
-            legState.reasoning += reasoning;
-            events.push({ type: "reasoning", content: reasoning });
-          }
-
-          const content = choice?.delta?.content ?? choice?.message?.content;
-          if (content) {
-            legState.text += content;
-            events.push({ type: "delta", content });
-          }
-
-          return events.length > 0 ? events : null;
-        };
-
-        const legStream = createMoonshotSelfHealingSSEStream(
-          `${baseURL}/chat/completions`,
-          { ...body, messages: requestMessages },
-          { Authorization: `Bearer ${apiKey}` },
-          parseChunk,
-          controller,
-          learningScope,
-        );
-        const reader = legStream.getReader();
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          // A leg's done event is handled by the outer wrap-up; an error is forwarded and ends the whole loop
-          if (value.type === "done") continue;
-          ctrl.enqueue(value);
-          if (value.type === "error") legState.failed = true;
-        }
-        if (legState.failed) {
-          ctrl.close();
-          return;
-        }
-
-        mergedUsage = leg === 0 ? legState.usage : mergeToolLoopUsage(mergedUsage, legState.usage);
-        anyReasoning = anyReasoning || legState.reasoning.length > 0;
-        const toolCalls = finalizeMoonshotToolCalls(legState.builders);
-        if (toolCalls.length === 0) break;
-
-        // Feed back: echo the assistant tool-call message plus the tool result, with arguments
-        // passed through unchanged. When thinking is active (enabled by default on k2.5/k2.6) Kimi
-        // rejects an assistant tool-call message without reasoning_content with a 400; an empty
-        // string is accepted, since the model may search without thinking first.
-        requestMessages.push({
-          role: "assistant",
-          content: legState.text,
-          reasoning_content: legState.reasoning,
-          tool_calls: toolCalls,
-        });
-        for (const toolCall of toolCalls) {
-          requestMessages.push({
-            role: "tool",
-            tool_call_id: toolCall.id ?? "",
-            name: toolCall.function?.name ?? "$web_search",
-            content: toolCall.function?.arguments || "{}",
-          });
-        }
-      }
-
-      if (mergedUsage) {
-        ctrl.enqueue({ type: "usage", usage: mergedUsage });
-      }
-      ctrl.enqueue({ type: "done" });
-      ctrl.close();
-    },
-    cancel() {
-      controller.abort();
-    },
-  });
-
-  return { stream, abort: () => controller.abort() };
 }
 
 function createMoonshotSelfHealingSSEStream(
@@ -458,18 +422,6 @@ async function fetchMoonshotLeg(
   });
 }
 
-function finalizeMoonshotToolCalls(
-  builders: Map<number, { id?: string; type?: string; name?: string; arguments: string }>,
-): MoonshotToolCall[] {
-  return [...builders.entries()]
-    .sort(([a], [b]) => a - b)
-    .map(([, builder]) => ({
-      id: builder.id,
-      type: builder.type,
-      function: { name: builder.name, arguments: builder.arguments },
-    }));
-}
-
 /** Usage of a single leg: same parser as regular chat (top-level cached_tokens goes into the cache bucket). */
 function moonshotStreamUsage(raw: Record<string, unknown>): StreamUsage {
   return {
@@ -478,12 +430,6 @@ function moonshotStreamUsage(raw: Record<string, unknown>): StreamUsage {
     total_tokens: typeof raw.total_tokens === "number" ? raw.total_tokens : undefined,
     breakdown: parseUsageMoonshot(raw),
   };
-}
-
-function normalizeToolLoopLimit(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0
-    ? Math.floor(value)
-    : DEFAULT_MOONSHOT_MAX_TOOL_LOOPS;
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
