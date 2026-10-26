@@ -32,6 +32,16 @@ describe('createProxyChunkParser - per-stream closure isolation', () => {
     }))).toEqual([]);
   });
 
+  it('a unified usage frame emits exactly one usage, not repeated by the OpenAI-shape branch', () => {
+    const parser = createProxyChunkParser('moonshot');
+    const events = feed(parser, null, JSON.stringify({
+      type: 'usage', usage: { prompt_tokens: 30, completion_tokens: 12, total_tokens: 42 },
+    }));
+    const usageEvents = events.filter((event) => event.type === 'usage');
+    expect(usageEvents).toHaveLength(1);
+    expect(usageEvents[0]?.type === 'usage' ? usageEvents[0].usage.prompt_tokens : undefined).toBe(30);
+  });
+
   it('Kimi reads choices[0].usage when the top level has none (same shape as the recorded stream)', () => {
     const parser = createProxyChunkParser('moonshot');
     const events = feed(parser, null, JSON.stringify({

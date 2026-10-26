@@ -20,6 +20,7 @@
 // 4. Continuation events, usage summed and stripped across legs, and the 1..5 cap cannot be
 //    expressed through the generic loop's public surface.
 import type { ProviderRequest } from "../request-builders/types";
+import { effectiveToolLoopMaxSteps } from "../../tools/tool-loop-contracts";
 import type { UpstreamTransport } from "../../ports";
 import type { UnsupportedParamDroppedReporter, UnsupportedParamScope } from "../unsupported-param";
 import { toProviderError } from "../errors";
@@ -40,8 +41,8 @@ export async function adaptMoonshotToolLoopResponse(
   _onUnsupportedParamDropped?: UnsupportedParamDroppedReporter,
   _scope?: UnsupportedParamScope,
 ): Promise<Response> {
-  // Runtime recipe permits 1…5. The old hard cap of four silently ignored an official value.
-  const maxLoops = Math.max(1, Math.min(req.moonshotMaxToolLoops ?? 4, 5));
+  // Effective steps = min(server-delivered value, 8), default 6, the same formula as iOS and Android.
+  const maxLoops = effectiveToolLoopMaxSteps(req.moonshotMaxToolLoops);
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream<Uint8Array>({

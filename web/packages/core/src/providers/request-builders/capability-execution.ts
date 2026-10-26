@@ -14,6 +14,7 @@ import { compileOwnedPatches } from '../request-preference/owned-patch-compiler'
 import type { CapabilityKey, ExecutionKind, OwnerId, ProviderKind as RuntimeProviderKind } from '../request-preference/types';
 import type { CapabilityRecipeOmission, ProviderRequest, RequestParams } from './types';
 import type { ContinuationInstructionsMode } from '../../context/continuation';
+import { TOOL_LOOP_HARD_CAP } from '../../tools/tool-loop-contracts';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -456,7 +457,8 @@ function isRecipeExecutionShapeValid(value: JsonRecord): boolean {
   if (kind === 'client_tool_loop') {
     return Number.isInteger(value.maxToolLoops)
       && (value.maxToolLoops as number) >= 1
-      && (value.maxToolLoops as number) <= 5
+      // Same 1..8 bound as the server validation; the old Moonshot-specific 1..5 cap is retired.
+      && (value.maxToolLoops as number) <= TOOL_LOOP_HARD_CAP
       && value.continuationKind === 'tool_loop'
       && ((value.continuationVariant === 'fiber' && requestOps.length === 0 && isFormulaRecipe(value.formula))
         || (value.continuationVariant === 'default' && isMoonshotBuiltinOperations(requestOps)));
