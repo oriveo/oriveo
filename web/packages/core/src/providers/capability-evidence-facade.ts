@@ -1,4 +1,13 @@
 import type { GenerationParameterProfile } from './request-builders/types';
+import { endImplementsWireFamily } from './protocol-implementations';
+import { CONTROL_AUTO_AVAILABLE, CONTROL_UNAVAILABLE } from './request-preference/types';
+
+/**
+ * Input-class capability keys (the keys with family=input in capability_keys.v1.json), aligned verbatim with the contract file and
+ * locked by the reconciliation in ports/index.test.ts; change this together when the contract adds a key.
+ */
+export const INPUT_CAPABILITY_KEYS = ['vision_input', 'file_input', 'video_input'] as const;
+export type InputCapabilityKey = (typeof INPUT_CAPABILITY_KEYS)[number];
 
 export type CapabilitySupport = 'supported' | 'unsupported' | 'unknown';
 export type CapabilityEvidenceSource =
@@ -88,6 +97,8 @@ export interface CapabilityEvidenceCandidate {
   evidenceRevision?: string;
   observedAt?: number;
   expiresAt?: number;
+  /** The Server recipe reference behind this fact; only official recipe verdicts carry it. */
+  recipeRef?: string;
 }
 
 export interface CapabilityEvidenceResolution {
@@ -98,6 +109,8 @@ export interface CapabilityEvidenceResolution {
   requestPolicy: CapabilityRequestPolicy;
   reasonCode: CapabilityEvidenceReason;
   policyEvidence: Pick<CapabilityEvidenceCandidate, 'source' | 'grade'> | null;
+  /** The recipe reference of the winning candidate; not written when there is none. */
+  recipeRef?: string;
 }
 
 export interface GenerationParameterEvidenceContext {
@@ -304,6 +317,7 @@ function knownResolution(
       ? 'unsupported'
       : 'missing_evidence',
     policyEvidence: null,
+    ...(candidate.recipeRef ? { recipeRef: candidate.recipeRef } : {}),
   };
 }
 
@@ -427,4 +441,166 @@ function generationGrade(
   if (source === 'server_profile') return 'declared';
   if (source === 'relay_declaration') return 'declared';
   return 'legacy_unverified';
+}
+
+// ---------------------------------------------------------------------------
+// Input-capability projection (contract: model catalog and capability truth, section 3; fixture capability_evidence_contract.v1.json
+// inputCapabilityCases). Priority: hard block (kill switch, not implemented) > Relay override
+// (ignored for official) > negative cache > verdict.
+
+export type InputCapabilityVerdictState = typeof CONTROL_AUTO_AVAILABLE | 'unknown' | 'unavailable';
+
+export interface InputCapabilityVerdict {
+  state: InputCapabilityVerdictState;
+  reasonCode?: string;
+  wireFamily?: string;
+  sourceRefs?: readonly string[];
+}
+
+export interface InputCapabilityOverride {
+  op: 'add' | 'remove';
+}
+
+export type InputCapabilityConnection = 'official' | 'relay';
+
+export interface InputCapabilityProjectionInput {
+  key: InputCapabilityKey;
+  /** null = the payload lacks this key, projected as unknown. */
+  verdict: InputCapabilityVerdict | null;
+  /** Whether this client implements the outbound protocol for the capability; a verdict.wireFamily absent from this client's protocol table is also treated as not implemented. */
+  endImplements: boolean;
+  override: InputCapabilityOverride | null;
+  negativeCacheHit: boolean;
+  connection: InputCapabilityConnection;
+}
+
+export type InputCapabilityDisabledReason =
+  | 'disabled.kill_switch'
+  | 'disabled.wire_not_implemented'
+  | 'disabled.user_removed'
+  | 'disabled.rejected_recently'
+  | 'disabled.model_absent';
+
+declare const inputCapabilityProjectionBrand: unique symbol;
+
+/** Can only be produced by projectInputCapability; the brand field keeps it from being constructed outside the facade. */
+export interface InputCapabilityProjection {
+  readonly visible: boolean;
+  readonly editable: boolean;
+  readonly outbound: 'native_part' | 'placeholder';
+  readonly hint: 'first_attach_once' | null;
+  readonly disabledReason: InputCapabilityDisabledReason | null;
+  readonly [inputCapabilityProjectionBrand]: true;
+}
+
+export function projectInputCapability(input: InputCapabilityProjectionInput): InputCapabilityProjection {
+  const { verdict } = input;
+  const reasonCode = verdict?.state === 'unavailable' ? verdict.reasonCode : undefined;
+  // Hard block: no override can turn it over.
+  if (reasonCode === 'provider_kill_switch') return disabledProjection('disabled.kill_switch');
+  if (
+    !input.endImplements
+    || (verdict?.wireFamily != null && !endImplementsWireFamily(verdict.wireFamily))
+    || reasonCode === 'transport_not_supported'
+    || reasonCode === 'transport_not_implemented'
+  ) return disabledProjection('disabled.wire_not_implemented');
+  // Relay override; official connections ignore overrides.
+  if (input.connection === 'relay' && input.override) {
+    return input.override.op === 'add'
+      ? projection(true, true, 'native_part', null, null)
+      : disabledProjection('disabled.user_removed');
+  }
+  if (input.negativeCacheHit) return disabledProjection('disabled.rejected_recently');
+  const state = verdict?.state ?? 'unknown';
+  if (state === CONTROL_AUTO_AVAILABLE) return projection(true, true, 'native_part', null, null);
+  if (state === 'unknown') return projection(false, true, 'native_part', 'first_attach_once', null);
+  // Any other unavailable (model_capability_absent, managed_zero_payload, etc.) is treated as the model lacking the capability.
+  return disabledProjection('disabled.model_absent');
+}
+
+function disabledProjection(reason: InputCapabilityDisabledReason): InputCapabilityProjection {
+  return projection(false, false, 'placeholder', null, reason);
+}
+
+function projection(
+  visible: boolean,
+  editable: boolean,
+  outbound: InputCapabilityProjection['outbound'],
+  hint: InputCapabilityProjection['hint'],
+  disabledReason: InputCapabilityDisabledReason | null,
+): InputCapabilityProjection {
+  return { visible, editable, outbound, hint, disabledReason } as InputCapabilityProjection;
+}
+
+/**
+ * How to read the three-valued `parameterSupport` surface of metadata schema 2 (temperature / top_p / structured_output).
+ *
+ * Only schema 2 parameterSupport is recognised; a missing table / missing key / wrong shape is always unknown (send as is).
+ * The legacy field supportsTemperature is left to the legacy projection and not read here. A pure function, shared by the managed api and the chat outbound gate.
+ */
+export interface ParameterSupportVerdict {
+  /** The three-valued state word passed through as is; only {@link CONTROL_UNAVAILABLE} turns outbound off. */
+  state: string;
+  reasonCode?: string;
+}
+
+/** Generation parameter id -> parameterSupport key; structured output is json_schema among the generation parameters. */
+const PARAMETER_SUPPORT_KEY_BY_PARAMETER: Readonly<Record<string, string>> = {
+  temperature: 'temperature',
+  top_p: 'top_p',
+  json_schema: 'structured_output',
+};
+
+/** Take the verdict of this parameter as is; a missing table, missing key or wrong shape returns null (= unknown). */
+export function parameterSupportVerdict(
+  parameterSupport: unknown,
+  parameterId: string,
+): ParameterSupportVerdict | null {
+  const key = PARAMETER_SUPPORT_KEY_BY_PARAMETER[parameterId];
+  if (!key || !parameterSupport || typeof parameterSupport !== 'object') return null;
+  const entry = (parameterSupport as Record<string, unknown>)[key];
+  if (!entry || typeof entry !== 'object') return null;
+  const { state, reasonCode } = entry as { state?: unknown; reasonCode?: unknown };
+  if (typeof state !== 'string' || state === '') return null;
+  return { state, ...(typeof reasonCode === 'string' ? { reasonCode } : {}) };
+}
+
+/** Only an explicit unavailable is not sent; unknown and a missing key are sent. */
+export function parameterSupportAllows(parameterSupport: unknown, parameterId: string): boolean {
+  return parameterSupportVerdict(parameterSupport, parameterId)?.state !== CONTROL_UNAVAILABLE;
+}
+
+/**
+ * The final closing step of the chat outbound gate on a generation-parameter verdict: parameterSupport unavailable -> not sent (omit_unsupported);
+ * upstream rejected it by signature before (negative cache valid) -> not sent (omit_runtime_rejected); otherwise returned as is.
+ */
+export function gateGenerationParameterResolution(
+  resolution: CapabilityEvidenceResolution,
+  facts: { verdict: ParameterSupportVerdict | null; rejectedRecently: () => boolean },
+): CapabilityEvidenceResolution {
+  // After the verdict is changed to unsupported / runtime_rejected, the recipe of the originally winning candidate no longer applies.
+  const { recipeRef: _recipeRef, ...base } = resolution;
+  if (facts.verdict?.state === CONTROL_UNAVAILABLE) {
+    return {
+      ...base,
+      support: 'unsupported',
+      source: 'server_typed',
+      grade: 'declared',
+      requestPolicy: 'omit_unsupported',
+      reasonCode: 'unsupported',
+      policyEvidence: { source: 'server_typed', grade: 'declared' },
+    };
+  }
+  if (facts.rejectedRecently()) {
+    return {
+      ...base,
+      support: 'unsupported',
+      source: 'runtime_observation',
+      grade: 'observed',
+      requestPolicy: 'omit_runtime_rejected',
+      reasonCode: 'runtime_rejected',
+      policyEvidence: { source: 'runtime_observation', grade: 'observed' },
+    };
+  }
+  return resolution;
 }

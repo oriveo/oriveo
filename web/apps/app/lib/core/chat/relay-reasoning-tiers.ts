@@ -45,14 +45,16 @@ export function relayReasoningTiersFromEfforts(efforts: readonly string[]): Rela
 type RelayMatchedModel = AIModel & { relayMatchedProviderKind?: string };
 
 /**
- * The model's `reasoningEfforts` in model-facts: for a family matched by the official catalog (`relayMatchedProviderKind`) look up that family;
+ * The model's `reasoningEfforts` in model-facts: for a family matched by the official catalog (`relayMatchedProviderKind`) look up that family (canonical first);
  * only when there is no match read the cached by-model view. Return empty if neither is available.
  */
 export function relayModelFactsReasoningEfforts(model: AIModel): string[] {
   const matched = (model as RelayMatchedModel).relayMatchedProviderKind;
   if (matched) {
-    const facts = getModelFacts(matched, model.id)
-      ?? (model.canonicalModelId ? getModelFacts(matched, model.canonicalModelId) : undefined);
+    // The canonical id from the match result comes first (trimmed); fall back to the model id when it misses.
+    const canonical = model.canonicalModelId?.trim();
+    const facts = (canonical ? getModelFacts(matched, canonical) : undefined)
+      ?? (canonical !== model.id ? getModelFacts(matched, model.id) : undefined);
     return facts?.reasoningEfforts ?? [];
   }
   return cachedModelReasoningEffortsByModel(model.id) ?? [];

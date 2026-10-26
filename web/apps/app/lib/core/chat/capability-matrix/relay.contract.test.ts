@@ -43,7 +43,7 @@ import { sendLibraryAgentLeg } from '../../providers/proxy-client';
 import { __resetNativeFileFallbackForTest, sendWithNativeFileFallback } from '../../attachments/native-file-fallback';
 import { createAppStore } from '../../store/app-store';
 import { resolveAttachmentCapabilities, withoutUnreceivableImages } from '../attachment-policy';
-import { recordToolCallFallback, sendWithRelayRejectionLoop, toolCallRememberedUnsupported } from '../relay-rejection-loop';
+import { recordToolCallFallback, sendWithRelayRejectionLoop, toolCallVerdictForSend } from '../relay-rejection-loop';
 import { createRelayManualModel } from '../../provider-model-ops';
 import {
   beginCapabilityEvidenceIdentityIfAbsent,
@@ -356,6 +356,8 @@ describe('RELAY x attachments', () => {
     expect(resolveAttachmentCapabilities(provider, model, support).supportsImage).toBe(true);
     const options = buildProviderStreamOptions(provider, buildStreamOptionsFromIntent(model, 'automatic', false), model);
     const messages = withoutUnreceivableImages([userMessage([imageAttachment])], provider, model, options);
+    // Unknown vision still sends the real image, with no placeholder.
+    expect(messages[0]!.attachments).toEqual([imageAttachment]);
     const history = await buildOutboundChatHistory({}, { messages, provider, model, streamOptions: options });
     stubUpstream([reject400]);
     await drain(sendWithRelayRejectionLoop({
@@ -373,9 +375,9 @@ describe('RELAY x tools', () => {
     const identity: ToolCallRecoveryIdentity = {
       accountId: getActiveUIDSync(), connectionId: provider.id, authMode: 'bearer', canonicalModelId: 'tool-model', finalTransport: 'openai_chat',
     };
-    expect(toolCallRememberedUnsupported(provider, model, identity)).toBe(false);
+    expect(toolCallVerdictForSend(provider, model, identity) === false).toBe(false);
     recordToolCallFallback(provider, model, identity, { status: 400, structuredError: { error: { message: 'tools are not supported' } } } as never, 'openai_chat_completions');
-    const toolsEnabled = !toolCallRememberedUnsupported(provider, model, identity);
+    const toolsEnabled = toolCallVerdictForSend(provider, model, identity) !== false;
     expect(toolsEnabled).toBe(false);
     // The tool loop with toolsMode 'disabled' sends the definition of an empty registry (tool-call-loop), and the first leg goes out through production sendLibraryAgentLeg.
     const tools = toolsEnabled ? [{ type: 'function', function: { name: 'search', parameters: {} } }] : ToolRegistry.empty.definitions;

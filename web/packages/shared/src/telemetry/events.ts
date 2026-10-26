@@ -76,7 +76,9 @@ export type TelemetryEventName =
   | 'file_extraction_completed'
   | 'file_extraction_failed'
   | 'attachment_send_blocked'
-  | 'native_file_fallback';
+  | 'native_file_fallback'
+  // An upstream rejected media / parameters matching a known signature; the property allowlist is provider_kind / model_id / capability_key / signature_id / wire_family
+  | 'input_capability_rejected';
 
 export const TELEMETRY_EVENTS: readonly TelemetryEventName[] = [
   'app_opened',
@@ -131,6 +133,7 @@ export const TELEMETRY_EVENTS: readonly TelemetryEventName[] = [
   'file_extraction_failed',
   'attachment_send_blocked',
   'native_file_fallback',
+  'input_capability_rejected',
 ] as const;
 
 // Property names that must never reach a telemetry sink, whichever client is recording. A

@@ -2,7 +2,9 @@ import type { AIModel, Provider } from '@oriveo/shared';
 import type { GenerationParameterProfile } from '@oriveo/core/providers/request-builders/types';
 import type { StreamOptions } from '../providers/types';
 import {
+  gateGenerationParameterResolution,
   generationParameterEvidenceCandidates,
+  parameterSupportVerdict,
   resolveCapabilityEvidence,
   type CapabilityEvidenceCandidate,
   type CapabilityEvidenceQuery,
@@ -13,6 +15,7 @@ import type { CapabilityLearningIdentity } from '@oriveo/core/providers/unsuppor
 import { relayGenerationEndpointFingerprint } from '@oriveo/core/providers/relay-orchestrator';
 import { decidedTransport } from '@oriveo/core/providers/relay-effective';
 import { capabilityEvidenceIdentityForQuery } from '../providers/capability-evidence-identity';
+import { relayFirstSendTransport } from '../providers/relay-first-send-transport';
 import { resolveModelTransport } from '../providers/transport/model-transport-resolver';
 import { getActiveUIDSync } from '../../infra/storage/partition';
 import { canonicalFinalTransport, subscriptionFinalTransport } from './capability-preference-settings';
@@ -21,8 +24,14 @@ import type {
   RelayCapabilityEvidenceIdentity,
 } from '../capability/truth/capability-truth-adapter';
 import { capabilityTruthRegistry } from '../capability/truth/capability-truth-registry';
-import { currentCapabilityEvidenceModel } from '../capability/truth/evidence-model';
+import { currentCapabilityEvidenceModel, resolvedEvidenceCatalog } from '../capability/truth/evidence-model';
 import { providerFormOf } from '../capability/truth/provider-form';
+import {
+  inputVerdictRevision,
+  paramCapabilityKey,
+  readInputNegativeCache,
+  type InputNegativeCacheKey,
+} from '../capability/input-negative-cache';
 
 // Callers of these names are spread across chat and the model picker; the definitions moved into
 // capability/truth together with the adapters, and this entry point stays the same.
@@ -68,16 +77,19 @@ export function relayCapabilityEvidenceIdentity(
 ): RelayCapabilityEvidenceIdentity | undefined {
   if (providerFormOf(provider) !== 'relay') return undefined;
   // A Relay declaration is scoped to the endpoint selected by the actual
-  // dispatch options. Never reconstruct that endpoint from model metadata:
-  // image/Gemini routing can select a different final path.
-  if (!streamOptions?.relayTransport) return undefined;
+  // dispatch options. Without dispatch options (input entries, catalog and
+  // advanced boards) the protocol is the first-send protocol: an undecided
+  // protocol never reads the effective transport alone.
+  const options: StreamOptions = streamOptions?.relayTransport
+    ? streamOptions
+    : { ...streamOptions, relayTransport: relayFirstSendTransport(provider, model) };
   const identity = capabilityEvidenceIdentityForQuery(getActiveUIDSync(), provider.id);
   if (!identity) return undefined;
   try {
     const endpointFingerprint = relayGenerationEndpointFingerprint(
       provider.baseURLText,
       model.id,
-      streamOptions,
+      options,
       getRelayRuntimeConfig(),
     );
     return endpointFingerprint ? { ...identity, endpointFingerprint } : undefined;
@@ -296,9 +308,69 @@ export function resolveGenerationParameterEvidence(input: {
     credentialEpoch: query.credentialEpoch || undefined,
     endpointFingerprint: query.endpointFingerprint,
   });
-  return resolveCapabilityEvidence(
+  const resolution = resolveCapabilityEvidence(
     evidenceKey,
     query,
     candidates,
   );
+  return gateByParameterSupport(input.provider, input.model, input.parameterId, input.streamOptions, resolution);
+}
+
+/** The schema 2 parameterSupport of the current catalog model for an official connection; Relay and subscription do not read it (no catalog verdict). */
+function officialParameterSupport(provider: Provider, model: AIModel): unknown {
+  if (providerFormOf(provider) !== 'official') return undefined;
+  return (resolvedEvidenceCatalog(provider, model).model as { parameterSupport?: unknown } | null)?.parameterSupport;
+}
+
+/**
+ * Write / read target of the parameter negative cache (key `param:<name>` plus the verdict revision). Official connections only; returns null when the line cannot be identified.
+ * The write (upstream rejected the parameter by signature) and the read (the next outbound gate) go through the same function, so they hit the same entry.
+ */
+export function generationParameterNegativeCacheTarget(
+  provider: Provider,
+  model: AIModel,
+  streamOptions: StreamOptions | undefined,
+  parameter: string,
+): { key: InputNegativeCacheKey; verdictRevision: string } | null {
+  if (providerFormOf(provider) !== 'official') return null;
+  const transport = effectiveCapabilityTransport(provider, model, undefined, streamOptions);
+  if (!transport || transport === 'unknown') return null;
+  return {
+    key: {
+      connectionId: provider.id,
+      modelId: model.id,
+      wireFamily: transport,
+      capabilityKey: paramCapabilityKey(parameter),
+    },
+    verdictRevision: inputVerdictRevision(parameterSupportVerdict(officialParameterSupport(provider, model), parameter)),
+  };
+}
+
+/** Upstream has rejected this parameter by signature and the negative cache is still valid (within 7 days and the verdict revision unchanged). Official connections only. */
+export function generationParameterRejectedRecently(
+  provider: Provider,
+  model: AIModel,
+  streamOptions: StreamOptions | undefined,
+  parameter: string,
+): boolean {
+  const target = generationParameterNegativeCacheTarget(provider, model, streamOptions, parameter);
+  return Boolean(target && readInputNegativeCache(target.key, target.verdictRevision));
+}
+
+/**
+ * Three-valued parameterSupport gate: an explicit unavailable is not sent; unknown or a missing key keeps the original verdict (sent as is).
+ * When upstream has rejected the parameter by signature (negative cache still valid) the next request leaves it out.
+ */
+function gateByParameterSupport(
+  provider: Provider,
+  model: AIModel,
+  parameterId: string,
+  streamOptions: StreamOptions | undefined,
+  resolution: CapabilityEvidenceResolution,
+): CapabilityEvidenceResolution {
+  if (providerFormOf(provider) !== 'official') return resolution;
+  return gateGenerationParameterResolution(resolution, {
+    verdict: parameterSupportVerdict(officialParameterSupport(provider, model), parameterId),
+    rejectedRecently: () => generationParameterRejectedRecently(provider, model, streamOptions, parameterId),
+  });
 }

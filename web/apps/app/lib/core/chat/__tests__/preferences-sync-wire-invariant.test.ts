@@ -19,7 +19,10 @@ const metadataMocks = vi.hoisted(() => ({
   getCapabilityRuntime: vi.fn(() => ({ revision: 'runtime-r7' })),
   resolveCatalogModel: vi.fn(() => null),
 }));
-vi.mock('../../metadata/metadata-client', () => metadataMocks);
+vi.mock('../../metadata/metadata-client', async (importOriginal) => (await import('../../../__tests__/mocks/metadata-client')).metadataClientMock(importOriginal, metadataMocks));
+// The single exit of publish: it must never be called on the inbound merge path (inboundMergeIsQuiescent).
+const syncMocks = vi.hoisted(() => ({ didUpdatePreferences: vi.fn() }));
+vi.mock('../../sync-port', () => ({ getSyncAdapter: () => ({ didUpdatePreferences: syncMocks.didUpdatePreferences }) }));
 
 import {
   exportCapabilityPreferenceSyncPayload, mergeCapabilityPreferenceSyncPayload,
@@ -140,7 +143,7 @@ describe('capability_preference_sync.v1#wireInvariants', () => {
   // an empty local export must be exactly a zero-information envelope, and one with tombstones
   // must not.
   it('puts an empty local export exactly on the emptyEnvelopeNeverOutbound condition, while one with tombstones falls outside it', () => {
-    expect(capability.emptyEnvelopeNeverOutbound).toContain(' ');
+    expect(capability.emptyEnvelopeNeverOutbound).toContain('replaces it wholesale');
     const empty = exportCapabilityPreferenceSyncPayload();
     expect(empty.records).toEqual([]);
     expect(empty.tombstones).toEqual([]);
@@ -210,5 +213,44 @@ describe('generation_parameter_sync.v1#wireInvariants', () => {
     const merged = mergeGenerationParameterSyncPayload(remote);
     expect(merged.records).toHaveLength(1);
     expect(Object.keys(merged.records[0]!)).not.toContain('conversationId');
+  });
+});
+
+/**
+ * `wireInvariants.inboundMergeIsQuiescent`: merging the same remote envelope twice leaves the second merge with zero storage changes and zero publishes.
+ * Both Web merges only write locally and never call publish, so this holds naturally; the test locks it so nobody later adds a
+ * publish() inside a merge (iOS once notified its publisher on every merge write and formed a write-back loop dozens of times per second).
+ */
+describe('inboundMergeIsQuiescent', () => {
+  beforeEach(() => {
+    memory.clear();
+    syncMocks.didUpdatePreferences.mockClear();
+  });
+
+  const flushPublishQueue = () => new Promise((resolveFlush) => setTimeout(resolveFlush, 0));
+
+  it.each([
+    ['capability', capability, () => ({
+      schemaVersion: 2,
+      records: [{
+        recordId: `scope:model:${PROVIDER}:gpt-test:${TRANSPORT}`, scope: 'connection_model', providerId: PROVIDER,
+        canonicalModelId: 'gpt-test', transportIdentity: TRANSPORT, web: 'automatic', reasoningIntent: 'deep',
+        revision: 6, mutationId: '00000000-0000-4000-8000-000000000106',
+      }],
+      tombstones: [],
+    }), mergeCapabilityPreferenceSyncPayload],
+    ['generation', generation, () => contract('generation_parameter_sync.v1.json').payload, mergeGenerationParameterSyncPayload],
+  ] as const)('%s: the second merge makes zero storage changes and zero publishes', async (_name, invariants, remote, merge) => {
+    expect(invariants.inboundMergeIsQuiescent).toContain('zero local storage changes');
+    const payload = remote();
+    (merge as (raw: unknown) => unknown)(payload);
+    await flushPublishQueue();
+    const afterFirst = JSON.stringify([...memory.entries()]);
+    expect(afterFirst).not.toBe('[]');
+
+    (merge as (raw: unknown) => unknown)(payload);
+    await flushPublishQueue();
+    expect(JSON.stringify([...memory.entries()])).toBe(afterFirst);
+    expect(syncMocks.didUpdatePreferences).not.toHaveBeenCalled();
   });
 });

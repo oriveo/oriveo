@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as togetherService from "../together";
 
-vi.mock("../../../metadata/metadata-client", () => ({
+vi.mock("../../../metadata/metadata-client", async (importOriginal) => (await import("../../../../__tests__/mocks/metadata-client")).metadataClientMock(importOriginal, {
   initMetadata: vi.fn().mockResolvedValue(undefined),
   getProviderDefaultModelId: vi.fn().mockReturnValue(
     "meta-llama/Llama-3.3-70B-Instruct-Turbo",

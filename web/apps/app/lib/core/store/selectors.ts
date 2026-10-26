@@ -11,6 +11,7 @@ import {
   type ResolvedProviderCatalog,
 } from '../providers/catalog-resolver';
 import { getMetadataSnapshot } from '../metadata/metadata-client';
+import { mergeNonUsdCostTotals, type NonUsdCostTotals } from '../cost/cost-currency';
 
 /* ── Derived selectors ───────────────────────────────── */
 
@@ -165,10 +166,12 @@ export const selectStreamingConversationIds = (s: AppStore): string[] =>
 export function selectProviderStats(
   s: Pick<AppStore, 'conversations'>,
   providerId: string,
-): { totalConversations: number; totalMessages: number; totalCost: number } {
+): { totalConversations: number; totalMessages: number; totalCost: number; nonUsdTotals?: NonUsdCostTotals } {
   let totalConversations = 0;
   let totalMessages = 0;
   let totalCost = 0;
+  // Non-USD costs accumulate per currency and are never merged into the USD totalCost
+  let nonUsdTotals: NonUsdCostTotals | undefined;
 
   for (const c of s.conversations) {
     if (c.providerID === providerId) {
@@ -177,10 +180,13 @@ export function selectProviderStats(
         ? c.messages.filter((m) => m.state === 'delivered').length
         : (c.remoteMessageCount ?? 0);
       totalCost += c.estimatedCost;
+      nonUsdTotals = mergeNonUsdCostTotals(nonUsdTotals, c.nonUsdCostTotals);
     }
   }
 
-  return { totalConversations, totalMessages, totalCost };
+  return nonUsdTotals
+    ? { totalConversations, totalMessages, totalCost, nonUsdTotals }
+    : { totalConversations, totalMessages, totalCost };
 }
 
 /* ── Resolved catalog ─────────────────────────────────── */

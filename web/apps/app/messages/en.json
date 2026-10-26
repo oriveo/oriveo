@@ -175,7 +175,7 @@
     "capabilityRiskCost": "This field can increase what the provider charges.",
     "customRequestFieldsDocs": "Open official documentation",
     "customRequestFieldsPreview": "Redacted request delta preview",
-    "resendWithoutSetting": "Resend without this setting",
+    "resendWithoutSetting": "Retry without this setting",
     "generationBasicSettings": "Basic Settings",
     "saveConnectionDefaults": "Use as connection defaults",
     "generationDiagnosticsHistory": "Diagnostic history",
@@ -726,7 +726,11 @@
         "confirmAlsoPriceLine": "It also goes past the {line} threshold for {model}, so the whole request is billed at the long-context rate.",
         "confirmDontAsk": "Don't ask again in this chat",
         "confirmSend": "Send anyway"
-      }
+      },
+      "connectionRemovedBanner": "The connection this chat used was deleted.",
+      "modelRetiredBanner": "{model} has been retired.",
+      "modelRetiredSwitchTo": "Switch to {model}",
+      "lastUsedModelRetiredHint": "Your last model was retired. Now using {model}."
     },
     "providerSetup": {
       "title": "Add Provider",
@@ -1694,8 +1698,6 @@
       "errorHydrateTitle": "Could not load recent conversations",
       "errorHydrateMessage": "Please try again later or write manually.",
       "errorGenericTitle": "Generation failed, please write manually",
-      "errorAggregated": "Tried {count} providers, all failed.",
-      "errorAggregatedWithDetail": "Tried {count} providers, all failed. Last error: {error}",
       "backToSettings": "Back to Settings",
       "used": {
         "chip": "Memory",
@@ -1708,9 +1710,17 @@
       "groupPreferences": "Preferences",
       "groupInstructions": "Standing instructions",
       "groupProjects": "What I'm working on",
+      "groupConflicts": "Pick one to keep",
+      "conflictThisDevice": "This device's version",
+      "conflictOtherDevice": "Another device's version",
+      "conflictKeep": "Keep this",
       "itemPausedBadge": "Off",
       "itemPinnedA11y": "Pinned",
       "groupEpisodic": "Events & decisions",
+      "episodicLocalOnly": "Saved on this device only. Never synced.",
+      "conflictNewer": "Newer",
+      "conflictOlder": "Older",
+      "conflictKeepBoth": "Keep both",
       "showAll": "Show all ({count})",
       "kindDecision": "Decision",
       "kindEvent": "Event",
@@ -1764,7 +1774,47 @@
     "file": "Files",
     "web": "Web",
     "imageGeneration": "Image Gen",
-    "toolCall": "Tools"
+    "toolCall": "Tools",
+    "input": {
+      "hintFirstAttach": {
+        "image": "We haven't confirmed this model can see images yet. If it can't, we'll let you know",
+        "file": "We haven't confirmed this model can read files yet. If it can't, we'll let you know",
+        "video": "We haven't confirmed this model can watch videos yet. If it can't, we'll let you know"
+      },
+      "disabled": {
+        "modelAbsent": {
+          "image": "This model doesn't support image input",
+          "file": "This model doesn't support file input",
+          "video": "This model doesn't support video input"
+        },
+        "wireNotImplemented": {
+          "image": "This connection can't send images yet",
+          "file": "This connection can't send files yet",
+          "video": "This connection can't send videos yet"
+        },
+        "killSwitch": {
+          "image": "Image input is temporarily off for this provider",
+          "file": "File input is temporarily off for this provider",
+          "video": "Video input is temporarily off for this provider"
+        },
+        "rejectedRecently": {
+          "image": "This model just rejected an image",
+          "file": "This model just rejected a file",
+          "video": "This model just rejected a video"
+        },
+        "userRemoved": {
+          "image": "You turned off image input for this model",
+          "file": "You turned off file input for this model",
+          "video": "You turned off video input for this model"
+        }
+      },
+      "resendWithout": {
+        "image": "Resend without images",
+        "file": "Resend without files",
+        "video": "Resend without videos"
+      },
+      "bubbleNotSentToModel": "Not sent to this model"
+    }
   },
   "modelPricing": {
     "unknown": "Price unknown",

@@ -1,13 +1,18 @@
 'use client';
 
 import { useMemo } from 'react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import type { Provider } from '@oriveo/shared';
 import { isAggregatedProvider } from '@oriveo/shared';
 import { ProviderIcon } from '../ProviderIcon';
 import { relayIconSource } from '../relay-avatar';
 import { PROVIDER_BRAND_COLORS } from '../../lib/constants/provider-brand-colors';
-import { formatCost, COST_EPSILON } from '../../lib/utils/format-utils';
+import { COST_EPSILON } from '../../lib/utils/format-utils';
+import {
+  formatCostTotals,
+  hasNonUsdCostTotals,
+  type NonUsdCostTotals,
+} from '../../lib/core/cost/cost-currency';
 import { getProviderInstanceDisplayName } from '../../lib/core/providers/provider-display';
 import { getEffectiveStatusKind } from '../../lib/core/providers/provider-status';
 import { selectResolvedCatalog } from '../../lib/core/store/selectors';
@@ -18,9 +23,13 @@ import styles from './ProviderHeroCard.module.css';
 interface ProviderHeroCardProps {
   provider: Provider;
   monthlyCost: number;
+  /** Non-USD monthly totals, shown separately from monthlyCost. */
+  monthlyNonUsdTotals?: NonUsdCostTotals;
   /** Daily cost for the last 7 days, bucketed by UTC day, with the last entry being today.
    *  When empty the hero card derives a placeholder trend from the monthly cost. */
   dailyCostsLast7Days?: number[];
+  /** Daily non-USD totals for the last 7 days (local messages, last entry is today). */
+  dailyNonUsdCostsLast7Days?: Array<NonUsdCostTotals | undefined>;
   onClick: () => void;
 }
 
@@ -74,12 +83,15 @@ function formatRelativeTimeShort(iso: string, t: ReturnType<typeof useTranslatio
 export function ProviderHeroCard({
   provider,
   monthlyCost,
+  monthlyNonUsdTotals,
   dailyCostsLast7Days = [],
+  dailyNonUsdCostsLast7Days = [],
   onClick,
 }: ProviderHeroCardProps) {
   const t = useTranslations('pages.providerList');
   const tc = useTranslations('common');
   const tDetail = useTranslations('pages.providerDetail');
+  const locale = useLocale();
   const displayName = getProviderInstanceDisplayName(provider);
 
   // Brand color: take the light end of PROVIDER_BRAND_COLORS, mute it with hsbAdjust (HSB 0.62 x
@@ -90,7 +102,7 @@ export function ProviderHeroCard({
   const rawBrand = provider.kind === 'relay' ? '#8C5FF8' : brandPair.light;
   const subduedBrand = hsbAdjusted(rawBrand, 0.62, 0.88);
 
-  const isZeroCost = monthlyCost <= COST_EPSILON;
+  const isZeroCost = monthlyCost <= COST_EPSILON && !hasNonUsdCostTotals(monthlyNonUsdTotals);
 
   const effectiveKind = getEffectiveStatusKind(provider);
   // Visual channel: needsKey uses the yellow issue dot, while the label shows "Needs API Key" separately
@@ -146,6 +158,7 @@ export function ProviderHeroCard({
 
   const hasWeeklySignal = resolvedWeekly.some((v) => v > COST_EPSILON);
   const todayCost = resolvedWeekly[resolvedWeekly.length - 1] ?? 0;
+  const todayNonUsdTotals = dailyNonUsdCostsLast7Days[dailyNonUsdCostsLast7Days.length - 1];
   const maxValue = Math.max(...resolvedWeekly, 0.0001);
 
   // logo mask; Relay uses a symbol mark
@@ -219,7 +232,7 @@ export function ProviderHeroCard({
             <div className={styles.costStack}>
               <span className={styles.costLabel}>{t('metricsThisMonth')}</span>
               <span className={styles.costValue} data-zero={isZeroCost ? 'true' : undefined} suppressHydrationWarning>
-                {formatCost(monthlyCost) || '$0'}
+                {formatCostTotals(monthlyCost, monthlyNonUsdTotals, locale) || '$0'}
               </span>
             </div>
 
@@ -241,7 +254,7 @@ export function ProviderHeroCard({
                 </div>
                 <div className={styles.todayRow}>
                   <span className={styles.todayLabel}>{t('today')}</span>
-                  <span className={styles.todayValue}>{formatCost(todayCost) || '$0'}</span>
+                  <span className={styles.todayValue}>{formatCostTotals(todayCost, todayNonUsdTotals, locale) || '$0'}</span>
                 </div>
               </div>
             )}

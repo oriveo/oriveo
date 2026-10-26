@@ -1,7 +1,9 @@
 import type { AIModel, Provider, RelayRequestedConfig } from '@oriveo/shared';
 import { effectiveTransport } from '@oriveo/core/providers/relay-effective';
+import { resolveModelCapabilityEvidence } from './capability-evidence';
 import { nearestAcceptedReasoningTier } from './capability-recovery-runtime';
-import type { ModelControlStatus } from './model-control-capability-layout';
+import type { CapabilityControlPresentation } from './capability-control-presentation';
+import { resolveModelControlStatus, type ModelControlStatus } from './model-control-capability-layout';
 import { resolveRelayWebPresentation, type RelayWebFacts, type RelayWebStatusId } from './relay-web-probe-records';
 
 /**
@@ -37,6 +39,11 @@ export type ModelOptionCapabilityInput = {
   supportsChatTemplate: boolean;
   /** Facts of a local-engine connection (one with an engineProfile); when present, the thinking row follows the write-path table, not the protocol. */
   localEngine?: ModelOptionLocalEngine;
+  /**
+   * The model shows its thinking process when answering (facade truth, see `modelOptionShowsThinking`); read by the fixed read-only
+   * row for a model that thinks but has nothing selectable.
+   */
+  showsThinking?: boolean;
   /**
    * Relay-form web search facts: when present, the web row is a chat switch (selectedIntent = the chat web
    * preference already resolved through the default layer), shaped by the fixture presentationCases, not by the verdict state.
@@ -93,6 +100,8 @@ export type ModelOptionDisclosureStatus =
   | { kind: 'fixedByConnection' }
   /** Web search: "this model cannot search the web"; thinking: "this model has no thinking mode". */
   | { kind: 'modelLacksCapability' }
+  /** The model shows its thinking but exposes no adjustable level. */
+  | { kind: 'showsThinkingFixed' }
   | { kind: 'currentValue'; value: ModelOptionReadOnlyValue };
 
 export type ModelOptionCapabilityShape =
@@ -181,14 +190,52 @@ export function resolveModelOptionCapabilityShape(input: ModelOptionCapabilityIn
     case 'unknown':
       if (input.connection === 'custom') {
         if (capability === 'web') return connectionCannot();
-        return input.supportsChatTemplate ? chatTemplateShape(input) : customOnlyNotice('reasoning');
+        if (input.supportsChatTemplate) return chatTemplateShape(input);
+        return input.showsThinking ? showsThinkingFixed() : customOnlyNotice('reasoning');
       }
+      // The model thinks but has no selectable level: a fixed read-only row, not "not catalogued".
+      if (capability === 'reasoning' && input.showsThinking) return showsThinkingFixed();
       return {
         kind: 'notice', capability,
         status: capability === 'reasoning' ? 'modelDefault' : 'temporarilyUnavailable',
         body: { kind: 'notCatalogued', capability }, link: 'openSupportedModels',
       };
   }
+}
+
+/**
+ * Whether the model shows its thinking: read only from the facade `reasoning/thinking` (each form's adapter produces it from that form's source; a missing source = not shown).
+ */
+export function modelOptionShowsThinking(
+  provider: Provider | null | undefined,
+  model: AIModel | null | undefined,
+): boolean {
+  if (!provider || !model) return false;
+  return resolveModelCapabilityEvidence({ key: 'reasoning/thinking', provider, model }).support === 'supported';
+}
+
+function showsThinkingFixed(): ModelOptionCapabilityShape {
+  return { kind: 'disclosure', capability: 'reasoning', status: { kind: 'showsThinkingFixed' } };
+}
+
+/** Connection class: a relay is a custom connection, everything else counts as official. */
+export function modelOptionConnection(provider: Pick<Provider, 'kind'> | null | undefined): ModelOptionConnection {
+  return provider?.kind === 'relay' ? 'custom' : 'official';
+}
+
+/**
+ * Control facts of the thinking row (same source as the model options panel): control state -> status, declared levels, facade "shows thinking".
+ */
+export function modelOptionReasoningFacts(
+  provider: Provider | null | undefined,
+  model: AIModel | null | undefined,
+  control: Pick<CapabilityControlPresentation, 'state' | 'availableIntents' | 'reasonCode'>,
+): Pick<ModelOptionCapabilityInput, 'status' | 'availableIntents' | 'showsThinking'> {
+  return {
+    status: resolveModelControlStatus(control),
+    availableIntents: control.availableIntents,
+    showsThinking: modelOptionShowsThinking(provider, model),
+  };
 }
 
 /**

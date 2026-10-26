@@ -12,7 +12,7 @@ import { cleanupCloudAttachments } from './cleanup-attachments';
 import { sendMessage } from './operations-send';
 import type { ChatOpCtx, SendHandle } from './operations';
 import { deriveConversationMetadata, computeConversationActivityAt } from '../conversation-metadata';
-import { recalculateConversationCost } from './usage-tracking';
+import { recalculateConversationCostTotals } from './usage-tracking';
 import { ContextCompactionStore } from './context-compaction/context-compaction-store';
 
 export function editAndResend(
@@ -53,16 +53,23 @@ export function editAndResend(
   // Deletions that only take effect externally after confirmation (just before transport when there is no gate); on cancel none of them happen.
   const applyTailDeletion = () => {
     if (removedDeliveredIDs.length > 0) {
-      getSyncAdapter()?.didDeleteMessages(removedDeliveredIDs, conversation.id, remainingLastDelivered);
+      getSyncAdapter()?.didDeleteMessages(
+        removedDeliveredIDs,
+        conversation.id,
+        recalculateConversationCostTotals(remaining, { conversation, previousMessages: messages }),
+        remainingLastDelivered,
+      );
     }
     void ContextCompactionStore.invalidateAndSync(conversation.id, messages.map((m) => m.id), removedMsgs.map((m) => m.id));
     // The carried-over attachments are still in use, so their cloud objects must not be deleted; only clean up those of the messages removed after it.
     cleanupCloudAttachments(editedMessageAttachments ? removedMsgs.slice(1) : removedMsgs);
   };
+  const costTotals = recalculateConversationCostTotals(remaining, { conversation, previousMessages: messages });
   ctx.store.getState().updateConversation(conversation.id, {
     messages: remaining,
     ...deriveConversationMetadata(conversation, remaining),
-    estimatedCost: recalculateConversationCost(remaining),
+    estimatedCost: costTotals.estimatedCost,
+    nonUsdCostTotals: costTotals.nonUsdCostTotals,
     updatedAt: computeConversationActivityAt(remaining, conversation.createdAt),
   });
 
@@ -104,11 +111,16 @@ function restoreRemovedTail(ctx: ChatOpCtx, original: Conversation, removedMsgs:
   if (!latest) return;
   const present = new Set(latest.messages.map((m) => m.id));
   const restored = [...latest.messages, ...removedMsgs.filter((m) => !present.has(m.id))];
+  const costTotals = recalculateConversationCostTotals(restored, {
+    conversation: latest,
+    previousMessages: latest.messages,
+  });
   ctx.store.getState().updateConversation(original.id, {
     isDraft: original.isDraft,
     messages: restored,
     ...deriveConversationMetadata(latest, restored),
-    estimatedCost: recalculateConversationCost(restored),
+    estimatedCost: costTotals.estimatedCost,
+    nonUsdCostTotals: costTotals.nonUsdCostTotals,
     updatedAt: computeConversationActivityAt(restored, latest.createdAt),
   });
 }

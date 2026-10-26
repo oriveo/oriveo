@@ -1,14 +1,16 @@
 import type { AIModel, Provider } from '@oriveo/shared';
-import { decidedTransport, effectiveTransport } from '@oriveo/core/providers/relay-effective';
-import { resolveAttachmentCapabilities, resolveProviderAttachmentSupport } from '../../../lib/core/chat/attachment-policy';
+import { decidedTransport } from '@oriveo/core/providers/relay-effective';
+import { relayFirstSendTransport } from '../../../lib/core/providers/relay-first-send-transport';
+import { resolveProviderAttachmentSupport, visionCardFacts } from '../../../lib/core/chat/attachment-policy';
 import { resolveModelCapabilityEvidence } from '../../../lib/core/chat/capability-evidence';
 import { presentCapabilityControl } from '../../../lib/core/chat/capability-control-presentation';
 import { modelOptionLocalEngine } from '../../../lib/core/chat/model-option-capability-shape';
 import { visionState } from '../../../lib/core/chat/model-options-panel-model';
-import { isRelayNegativeCached } from '../../../lib/core/chat/relay-negative-cache';
-import { relayImageSupportUnknown, relayNegativeCacheModelKey } from '../../../lib/core/chat/relay-rejection-loop';
+import { relayInputOverrideValue } from '../../../lib/core/capability/capability-overrides';
+import { readInputNegativeCache } from '../../../lib/core/capability/input-negative-cache';
+import { inputNegativeCacheTarget } from '../../../lib/core/capability/truth/input-truth-adapter';
+import type { StreamOptions } from '../../../lib/core/providers/types';
 import { buildProviderStreamOptions, buildStreamOptionsFromIntent } from '../../../lib/core/chat/stream-options';
-import { providerFormOf } from '../../../lib/core/capability/truth/provider-form';
 import { setupProtocolForTransport, type SetupProtocol } from '../relay/new/setup-board';
 import { bindRelayKey, listingKeysOf, relayKeyIDs, relayKeyList, relayKeyRows, relayModelKeyState, relayShowsKeyUI } from '@oriveo/shared/relay/relay-keys';
 import { relayBindingFamily } from '../../../lib/core/provider-model-ops';
@@ -181,7 +183,7 @@ export function relayCatalogBoard(input: {
     const caps = catalogCaps(provider, model, now);
     return {
       model,
-      protocol: isLocal ? null : setupProtocolForTransport(effectiveTransport(provider, model)),
+      protocol: isLocal ? null : setupProtocolForTransport(relayFirstSendTransport(provider, model)),
       caps,
       status: lazyStatus(keyState.deniedOnCurrentKey, input.probeStates?.get(model.id)) ?? original,
       tapTarget: 'advanced',
@@ -195,7 +197,7 @@ export function relayCatalogBoard(input: {
     const caps = catalogCaps(provider, model, now);
     return {
       model,
-      protocol: isLocal ? null : setupProtocolForTransport(effectiveTransport(provider, model)),
+      protocol: isLocal ? null : setupProtocolForTransport(relayFirstSendTransport(provider, model)),
       caps,
       status: isLocal
         ? null
@@ -416,7 +418,7 @@ export function catalogCaps(provider: Provider, model: AIModel, now: number): Re
     resolveModelCapabilityEvidence({ key, provider, model, streamOptions }).support;
   const states: Record<RelayCatalogCap, RelayCatalogCapState> = {
     image: imageState(provider, model),
-    file: fileState(provider, model, now),
+    file: fileState(provider, model, streamOptions, now),
     thinking: thinkingState(provider, model),
     tool: evidence('tool_call'),
     web: evidence('web_search'),
@@ -426,11 +428,7 @@ export function catalogCaps(provider: Provider, model: AIModel, now: number): Re
 
 /** Vision: the same set of facts as the vision card (entry visible × no positive-evidence predicate). */
 function imageState(provider: Provider, model: AIModel): RelayCatalogCapState {
-  const state = visionState({
-    entryVisible: resolveAttachmentCapabilities(provider, model, resolveProviderAttachmentSupport(provider, model)).supportsImage,
-    isRelayForm: providerFormOf(provider) === 'relay',
-    noPositiveEvidence: relayImageSupportUnknown(provider, model),
-  });
+  const state = visionState(visionCardFacts(provider, model, resolveProviderAttachmentSupport(provider, model)));
   return state === 'available' ? 'supported' : state === 'unknown' ? 'unknown' : 'unsupported';
 }
 
@@ -438,18 +436,30 @@ function imageState(provider: Provider, model: AIModel): RelayCatalogCapState {
  * File: file override first (On → supported, Off → unsupported); otherwise if the Relay `file` negative cache has not expired → unsupported;
  * otherwise if the native file allowlist is non-empty → supported; otherwise unknown (draws the model fact, not per route).
  */
-function fileState(provider: Provider, model: AIModel, now: number): RelayCatalogCapState {
-  const override = model.relayCapabilityOverrides?.file?.value;
-  if (typeof override === 'boolean') return override ? 'supported' : 'unsupported';
-  const key = relayNegativeCacheModelKey(provider, model);
-  if (key && isRelayNegativeCached({ ...key, kind: 'file' }, now)) return 'unsupported';
+function fileState(provider: Provider, model: AIModel, streamOptions: StreamOptions | undefined, now: number): RelayCatalogCapState {
+  const override = relayInputOverrideValue(model, 'file_input');
+  if (override?.source === 'user') return override.value ? 'supported' : 'unsupported';
+  if (relayInputNegativeCached(provider, model, streamOptions, 'file_input', now)) return 'unsupported';
+  if (override) return override.value ? 'supported' : 'unsupported';
   return (model.nativeFileMimes?.length ?? 0) > 0 ? 'supported' : 'unknown';
 }
 
+/** Whether the input-capability negative cache v2 hits (same key and verdict revision as the projection and the send side). */
+export function relayInputNegativeCached(
+  provider: Provider,
+  model: AIModel,
+  streamOptions: StreamOptions | undefined,
+  key: 'vision_input' | 'file_input',
+  now: number,
+): boolean {
+  const target = inputNegativeCacheTarget(provider, model, streamOptions, key);
+  return target !== null && readInputNegativeCache(target.key, target.verdictRevision, now) !== null;
+}
+
 /**
- * Thinking: for a local connection (with engineProfile), if the engine declares a thinking key follow it; otherwise if there are adjustable thinking levels → supported; otherwise unknown.
- * The recipe's `unavailable` is not treated as unsupported: Relay models without evidence also land on it.
- * The branch "every level at the evidence layer is judged unsupported → unsupported" has no existing function in this app, so it is not done.
+  * Thinking: for a local connection (with engineProfile), if the engine declares a thinking key follow it; otherwise if there are adjustable thinking levels → supported; otherwise unknown.
+  * The recipe's `unavailable` is not treated as unsupported: Relay models without evidence also land on it.
+  * The branch "every level at the evidence layer is judged unsupported → unsupported" has no existing function in this app, so it is not done.
  */
 function thinkingState(provider: Provider, model: AIModel): RelayCatalogCapState {
   const declared = modelOptionLocalEngine(provider, model)?.declaredThinking;

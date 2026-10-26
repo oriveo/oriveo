@@ -1,0 +1,111 @@
+{
+  "$comment": "A conversation whose connection was deleted: it is not silently rewritten and no model is silently switched. Opening such a conversation shows the banner banner.connection_removed with the action choose_model in place of sending; the composer and picker do not present another connection's model as if it were this conversation's; send is blocked and nothing is sent through a fallback connection; the stored conversation provider / model ids are not rewritten on open or on send - only the user's explicit pick writes them, and from then on the conversation behaves normally. A new conversation is unaffected (normal default-model rules). A missing connection with no other usable connection still shows the banner (choose_model then opens the connection setup path). A connection is judged removed only after the local connection list has loaded. Each client names its tests CONNECTION_REMOVED_<id> (Web: it('CONNECTION-REMOVED-<id> ...')). Field 'localDeletionRecord' lists the connections the device's own deletion record holds.",
+  "v": 1,
+  "cases": [
+    {
+      "id": "open_shows_banner_no_rewrite",
+      "conversation": {
+        "providerId": "deleted-conn",
+        "modelId": "gpt-5.5"
+      },
+      "connections": [
+        "other-conn"
+      ],
+      "localDeletionRecord": [
+        "deleted-conn"
+      ],
+      "event": "open",
+      "expect": {
+        "banner": "banner.connection_removed",
+        "action": "choose_model",
+        "sendAllowed": false,
+        "storedProviderId": "deleted-conn",
+        "storedModelId": "gpt-5.5"
+      }
+    },
+    {
+      "id": "send_blocked_no_fallback",
+      "conversation": {
+        "providerId": "deleted-conn",
+        "modelId": "gpt-5.5"
+      },
+      "connections": [
+        "other-conn"
+      ],
+      "localDeletionRecord": [
+        "deleted-conn"
+      ],
+      "event": "send",
+      "expect": {
+        "banner": "banner.connection_removed",
+        "requestSent": false,
+        "storedProviderId": "deleted-conn",
+        "storedModelId": "gpt-5.5"
+      }
+    },
+    {
+      "id": "user_pick_rewrites_and_unblocks",
+      "conversation": {
+        "providerId": "deleted-conn",
+        "modelId": "gpt-5.5"
+      },
+      "connections": [
+        "other-conn"
+      ],
+      "localDeletionRecord": [
+        "deleted-conn"
+      ],
+      "event": {
+        "pick": {
+          "providerId": "other-conn",
+          "modelId": "deepseek-flash"
+        }
+      },
+      "expect": {
+        "banner": null,
+        "sendAllowed": true,
+        "storedProviderId": "other-conn",
+        "storedModelId": "deepseek-flash"
+      }
+    },
+    {
+      "id": "no_connection_left_still_banner",
+      "conversation": {
+        "providerId": "deleted-conn",
+        "modelId": "gpt-5.5"
+      },
+      "connections": [],
+      "localDeletionRecord": [
+        "deleted-conn"
+      ],
+      "event": "open",
+      "expect": {
+        "banner": "banner.connection_removed",
+        "action": "choose_model",
+        "sendAllowed": false,
+        "storedProviderId": "deleted-conn",
+        "storedModelId": "gpt-5.5"
+      }
+    },
+    {
+      "id": "existing_connection_unaffected",
+      "conversation": {
+        "providerId": "other-conn",
+        "modelId": "deepseek-flash"
+      },
+      "connections": [
+        "other-conn"
+      ],
+      "localDeletionRecord": [
+        "deleted-conn"
+      ],
+      "event": "open",
+      "expect": {
+        "banner": null,
+        "sendAllowed": true,
+        "storedProviderId": "other-conn",
+        "storedModelId": "deepseek-flash"
+      }
+    }
+  ]
+}

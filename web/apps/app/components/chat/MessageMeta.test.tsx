@@ -18,6 +18,7 @@ vi.mock('next-intl', () => ({
       'pages.chat.tokenUsage.cacheWrite': 'Cache write',
       'pages.chat.tokenUsage.total': 'Total',
       'pages.chat.tokenUsage.unavailable': 'Unavailable',
+      'pages.chat.contextCompaction.detailCostUnavailable': 'Not available',
       'pages.chat.capabilityResult.web': 'Web',
       'pages.chat.capabilityResult.requested': '{owner}: requested',
       'pages.chat.capabilityResult.observed': '{owner}: used',
@@ -79,6 +80,54 @@ describe('MessageMeta', () => {
     const chip = screen.getByRole('button', { name: 'This answer used your memory' });
     expect(chip.textContent).toBe('Memory');
     // At the end of the meta row next to provider / model, same pill style
+    const info = screen.getByText('GPT-4o').parentElement!;
+    expect(info.lastElementChild?.contains(chip)).toBe(true);
+    const pillClass = screen.getByText('GPT-4o').className;
+    expect(pillClass).not.toBe('');
+    expect(info.lastElementChild!.className.split(' ')).toContain(pillClass);
+  });
+
+  it('memory_chip_hidden_without_ids', () => {
+    renderMeta({ memoryItemIds: [] });
+    expect(screen.queryByRole('button', { name: 'This answer used your memory' })).toBeNull();
+
+    renderMeta({ memoryItemIds: undefined });
+    expect(screen.queryByRole('button', { name: 'This answer used your memory' })).toBeNull();
+  });
+
+  it('second_non_usd_currency_part_not_available: mixed-currency message shows USD first then the non-USD part; an unknown part follows as not available, never 0', () => {
+    const { unmount } = renderMeta({
+      estimatedCost: 0.25,
+      nonUsdCost: { currencyCode: 'CNY', amount: 0.12, costSource: 'localEstimate' },
+    });
+    expect(screen.getByText('$0.25 + CN¥0.12')).toBeTruthy();
+    unmount();
+
+    const { container } = renderMeta({
+      estimatedCost: 0.25,
+      nonUsdCost: { currencyCode: 'CNY', amount: 0, costSource: 'unknown' },
+    });
+    expect(screen.getByText('$0.25 + Not available')).toBeTruthy();
+    expect(container.querySelector('[data-cost-not-available="CNY"]')?.textContent).toBe('$0.25 + Not available');
+    expect(container.textContent).not.toContain('CNY');
+    expect(container.textContent).not.toContain('¥0');
+  });
+
+  it('non-USD-only message does not show $0', () => {
+    const { container } = renderMeta({
+      estimatedCost: 0,
+      nonUsdCost: { currencyCode: 'CNY', amount: 0.0039, costSource: 'localEstimate' },
+    });
+    expect(screen.getByText('CN¥0.0039')).toBeTruthy();
+    expect(container.textContent).not.toContain('$0');
+  });
+
+  it('memory_chip_shown_with_ids', () => {
+    renderMeta({ memoryItemIds: ['mem-1', 'mem-2'] });
+
+    const chip = screen.getByRole('button', { name: 'This answer used your memory' });
+    expect(chip.textContent).toBe('Memory');
+    // Sits at the end of the meta row with provider / model, in the same pill style
     const info = screen.getByText('GPT-4o').parentElement!;
     expect(info.lastElementChild?.contains(chip)).toBe(true);
     const pillClass = screen.getByText('GPT-4o').className;

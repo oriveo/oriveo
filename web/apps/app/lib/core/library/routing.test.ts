@@ -12,7 +12,8 @@ const getProviderCatalogStatus = vi.hoisted(() => vi.fn(() => "loaded"));
 const isLibraryFeatureEnabled = vi.hoisted(() => vi.fn());
 const isLibraryBuildEnabled = vi.hoisted(() => vi.fn());
 
-vi.mock("../metadata/metadata-client", () => ({
+vi.mock("../metadata/metadata-client", async (importOriginal) => (await import("../../__tests__/mocks/metadata-client")).metadataClientMock(importOriginal, {
+  normalizeModelFactsID: (id: string) => id,
   getLibraryRuntimeConfig,
   getModelFacts,
   getModelFactsRevision,
@@ -144,7 +145,7 @@ describe("isLibraryAgentSupported", () => {
     )).toBe("agent");
   });
 
-  it("keeps v2 true / false definitive while transport and denylist can still veto true", () => {
+  it("lets v2 toolCall:true through; with no tool evidence in the catalog a top-level toolCall:false counts as unknown and tools are still sent; transport and denylist can still veto", () => {
     resolveCatalogModel.mockReturnValue({
       canonicalModelId: "gpt-x",
       capabilityContractVersion: 2,
@@ -161,7 +162,8 @@ describe("isLibraryAgentSupported", () => {
       libraryAgentic: false,
       transport: "openai_chat",
     });
-    expect(isLibraryAgentSupported(provider(), model(), config)).toBe(false);
+    // A catalog hit with no tool evidence: a top-level toolCall:false is not evidence, so the verdict is unknown and tools are sent as usual.
+    expect(isLibraryAgentSupported(provider(), model(), config)).toBe(true);
 
     resolveCatalogModel.mockReturnValue({
       canonicalModelId: "gpt-x",
@@ -249,15 +251,16 @@ describe("isLibraryAgentSupported", () => {
    * value from the current catalog snapshot, which is one source of a wrong first decision on a
    * cold start.
    */
-  it("does not let a catalog libraryAgentic bypass missing tool evidence", () => {
+  it("a catalog hit without tool evidence is unknown and tools are still sent; libraryAgentic plays no part", () => {
     resolveCatalogModel.mockReturnValue({ libraryAgentic: true });
+    // A catalog hit with no tool evidence is unknown and tools are sent as usual; an old toolCall:false is not fallen back to.
     expect(
       isLibraryAgentSupported(
         provider(),
         model({ libraryAgentic: false, toolCall: false }),
         config,
       ),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("stays unknown and fails open on tools when there is no tool candidate", () => {
@@ -465,7 +468,8 @@ describe("isLibraryAgentSupported", () => {
     });
     getModelFacts.mockReturnValue({ toolCall: true });
 
-    expect(isLibraryAgentSupported(provider(), model({ toolCall: true }), config)).toBe(false);
+    // A catalog hit with no tool evidence is unknown and tools are sent as usual; modelFacts still plays no part.
+    expect(isLibraryAgentSupported(provider(), model({ toolCall: true }), config)).toBe(true);
     expect(getModelFacts).not.toHaveBeenCalled();
   });
 });

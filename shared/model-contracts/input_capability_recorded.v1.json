@@ -1,0 +1,608 @@
+{
+  "capturedAt": "2026-10-22T02:23:24Z",
+  "cases": [
+    {
+      "provider": "anthropic",
+      "model": "claude-fable-5",
+      "key": "file_input",
+      "state": "auto_available",
+      "wireFamily": "anthropic.document"
+    },
+    {
+      "provider": "anthropic",
+      "model": "claude-fable-5",
+      "key": "video_input",
+      "state": "unavailable",
+      "reasonCode": "transport_not_implemented"
+    },
+    {
+      "provider": "anthropic",
+      "model": "claude-fable-5",
+      "key": "vision_input",
+      "state": "auto_available",
+      "wireFamily": "anthropic.image"
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-flash",
+      "key": "file_input",
+      "state": "unavailable",
+      "reasonCode": "transport_not_supported",
+      "wireFamily": "openai_chat.file"
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-flash",
+      "key": "video_input",
+      "state": "unavailable",
+      "reasonCode": "transport_not_supported",
+      "wireFamily": "openai_chat.video_url"
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-flash",
+      "key": "vision_input",
+      "state": "auto_available",
+      "wireFamily": "openai_chat.image_url"
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-pro",
+      "key": "file_input",
+      "state": "unavailable",
+      "reasonCode": "transport_not_supported",
+      "wireFamily": "openai_chat.file"
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-pro",
+      "key": "video_input",
+      "state": "unavailable",
+      "reasonCode": "transport_not_supported",
+      "wireFamily": "openai_chat.video_url"
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-pro",
+      "key": "vision_input",
+      "state": "unavailable",
+      "reasonCode": "model_capability_absent",
+      "wireFamily": "openai_chat.image_url"
+    },
+    {
+      "provider": "fireworksAI",
+      "model": "accounts/fireworks/models/deepseek-v4p1-flash",
+      "key": "file_input",
+      "state": "unavailable",
+      "reasonCode": "transport_not_supported",
+      "wireFamily": "openai_chat.file"
+    },
+    {
+      "provider": "fireworksAI",
+      "model": "accounts/fireworks/models/deepseek-v4p1-flash",
+      "key": "video_input",
+      "state": "unknown",
+      "reasonCode": "catalog_silent",
+      "wireFamily": "openai_chat.video_url"
+    },
+    {
+      "provider": "fireworksAI",
+      "model": "accounts/fireworks/models/deepseek-v4p1-flash",
+      "key": "vision_input",
+      "state": "auto_available",
+      "wireFamily": "openai_chat.image_url"
+    },
+    {
+      "provider": "fireworksAI",
+      "model": "accounts/fireworks/models/glm-5p3",
+      "key": "vision_input",
+      "state": "unknown",
+      "reasonCode": "catalog_silent",
+      "wireFamily": "openai_chat.image_url"
+    },
+    {
+      "provider": "gemini",
+      "model": "gemini-2.5-computer-use-preview-10-2025",
+      "key": "file_input",
+      "state": "auto_available",
+      "wireFamily": "gemini.inline_data"
+    },
+    {
+      "provider": "gemini",
+      "model": "gemini-2.5-computer-use-preview-10-2025",
+      "key": "video_input",
+      "state": "unknown",
+      "reasonCode": "catalog_silent",
+      "wireFamily": "gemini.inline_data"
+    },
+    {
+      "provider": "gemini",
+      "model": "gemini-2.5-computer-use-preview-10-2025",
+      "key": "vision_input",
+      "state": "auto_available",
+      "wireFamily": "gemini.inline_data"
+    },
+    {
+      "provider": "gemini",
+      "model": "gemini-2.5-flash",
+      "key": "video_input",
+      "state": "auto_available",
+      "wireFamily": "gemini.inline_data"
+    },
+    {
+      "provider": "gemini",
+      "model": "gemini-2.5-flash-image",
+      "key": "file_input",
+      "state": "unavailable",
+      "reasonCode": "transport_not_implemented"
+    },
+    {
+      "provider": "gemini",
+      "model": "gemini-2.5-flash-image",
+      "key": "video_input",
+      "state": "unavailable",
+      "reasonCode": "transport_not_implemented"
+    },
+    {
+      "provider": "gemini",
+      "model": "gemini-2.5-flash-image",
+      "key": "vision_input",
+      "state": "unavailable",
+      "reasonCode": "transport_not_implemented"
+    },
+    {
+      "provider": "gemini",
+      "model": "gemini-nano-banana-2.1",
+      "key": "file_input",
+      "state": "unknown",
+      "reasonCode": "catalog_silent",
+      "wireFamily": "gemini.inline_data"
+    },
+    {
+      "provider": "gemini",
+      "model": "gemini-nano-banana-2.1",
+      "key": "vision_input",
+      "state": "unknown",
+      "reasonCode": "catalog_silent",
+      "wireFamily": "gemini.inline_data"
+    },
+    {
+      "provider": "grok",
+      "model": "grok-4.20-0309-non-reasoning",
+      "key": "file_input",
+      "state": "unknown",
+      "reasonCode": "official_source_insufficient",
+      "wireFamily": "openai_responses.input_file"
+    },
+    {
+      "provider": "grok",
+      "model": "grok-4.20-0309-non-reasoning",
+      "key": "video_input",
+      "state": "unavailable",
+      "reasonCode": "transport_not_implemented"
+    },
+    {
+      "provider": "grok",
+      "model": "grok-4.20-0309-non-reasoning",
+      "key": "vision_input",
+      "state": "unknown",
+      "reasonCode": "official_source_insufficient",
+      "wireFamily": "openai_responses.input_image"
+    },
+    {
+      "provider": "grok",
+      "model": "grok-imagine-image",
+      "key": "file_input",
+      "state": "unavailable",
+      "reasonCode": "transport_not_implemented"
+    },
+    {
+      "provider": "grok",
+      "model": "grok-imagine-image",
+      "key": "vision_input",
+      "state": "unavailable",
+      "reasonCode": "transport_not_implemented"
+    },
+    {
+      "provider": "groq",
+      "model": "allam-2-7b",
+      "key": "file_input",
+      "state": "unknown",
+      "reasonCode": "catalog_silent",
+      "wireFamily": "openai_chat.file"
+    },
+    {
+      "provider": "groq",
+      "model": "allam-2-7b",
+      "key": "video_input",
+      "state": "unknown",
+      "reasonCode": "catalog_silent",
+      "wireFamily": "openai_chat.video_url"
+    },
+    {
+      "provider": "groq",
+      "model": "allam-2-7b",
+      "key": "vision_input",
+      "state": "unknown",
+      "reasonCode": "catalog_silent",
+      "wireFamily": "openai_chat.image_url"
+    },
+    {
+      "provider": "miniMax",
+      "model": "MiniMax-M2",
+      "key": "file_input",
+      "state": "unknown",
+      "reasonCode": "catalog_silent",
+      "wireFamily": "openai_chat.file"
+    },
+    {
+      "provider": "miniMax",
+      "model": "MiniMax-M2",
+      "key": "video_input",
+      "state": "unavailable",
+      "reasonCode": "model_capability_absent",
+      "wireFamily": "openai_chat.video_url"
+    },
+    {
+      "provider": "miniMax",
+      "model": "MiniMax-M2",
+      "key": "vision_input",
+      "state": "unavailable",
+      "reasonCode": "model_capability_absent",
+      "wireFamily": "openai_chat.image_url"
+    },
+    {
+      "provider": "miniMax",
+      "model": "MiniMax-M3",
+      "key": "file_input",
+      "state": "unknown",
+      "reasonCode": "official_source_insufficient",
+      "wireFamily": "openai_chat.file"
+    },
+    {
+      "provider": "miniMax",
+      "model": "MiniMax-M3",
+      "key": "video_input",
+      "state": "auto_available",
+      "wireFamily": "openai_chat.video_url"
+    },
+    {
+      "provider": "miniMax",
+      "model": "MiniMax-M3",
+      "key": "vision_input",
+      "state": "auto_available",
+      "wireFamily": "openai_chat.image_url"
+    },
+    {
+      "provider": "miniMax",
+      "model": "image-01",
+      "key": "file_input",
+      "state": "unavailable",
+      "reasonCode": "transport_not_implemented"
+    },
+    {
+      "provider": "miniMax",
+      "model": "image-01",
+      "key": "video_input",
+      "state": "unavailable",
+      "reasonCode": "transport_not_implemented"
+    },
+    {
+      "provider": "miniMax",
+      "model": "image-01",
+      "key": "vision_input",
+      "state": "unavailable",
+      "reasonCode": "transport_not_implemented"
+    },
+    {
+      "provider": "mistral",
+      "model": "codestral-2508",
+      "key": "file_input",
+      "state": "unknown",
+      "reasonCode": "official_source_insufficient",
+      "wireFamily": "openai_chat.file"
+    },
+    {
+      "provider": "mistral",
+      "model": "codestral-2508",
+      "key": "video_input",
+      "state": "unknown",
+      "reasonCode": "catalog_silent",
+      "wireFamily": "openai_chat.video_url"
+    },
+    {
+      "provider": "mistral",
+      "model": "codestral-2508",
+      "key": "vision_input",
+      "state": "unknown",
+      "reasonCode": "catalog_silent",
+      "wireFamily": "openai_chat.image_url"
+    },
+    {
+      "provider": "moonshot",
+      "model": "kimi-k2.6",
+      "key": "file_input",
+      "state": "unknown",
+      "reasonCode": "official_source_insufficient",
+      "wireFamily": "openai_chat.file"
+    },
+    {
+      "provider": "moonshot",
+      "model": "kimi-k2.6",
+      "key": "video_input",
+      "state": "unknown",
+      "reasonCode": "catalog_silent",
+      "wireFamily": "openai_chat.video_url"
+    },
+    {
+      "provider": "moonshot",
+      "model": "kimi-k2.6",
+      "key": "vision_input",
+      "state": "unknown",
+      "reasonCode": "official_source_insufficient",
+      "wireFamily": "openai_chat.image_url"
+    },
+    {
+      "provider": "openAI",
+      "model": "chat-latest",
+      "key": "file_input",
+      "state": "unknown",
+      "reasonCode": "catalog_silent",
+      "wireFamily": "openai_chat.file"
+    },
+    {
+      "provider": "openAI",
+      "model": "chat-latest",
+      "key": "video_input",
+      "state": "unavailable",
+      "reasonCode": "transport_not_supported",
+      "wireFamily": "openai_chat.video_url"
+    },
+    {
+      "provider": "openAI",
+      "model": "chat-latest",
+      "key": "vision_input",
+      "state": "unknown",
+      "reasonCode": "catalog_silent",
+      "wireFamily": "openai_chat.image_url"
+    },
+    {
+      "provider": "openAI",
+      "model": "chatgpt-image-latest",
+      "key": "file_input",
+      "state": "unavailable",
+      "reasonCode": "transport_not_implemented"
+    },
+    {
+      "provider": "openAI",
+      "model": "chatgpt-image-latest",
+      "key": "vision_input",
+      "state": "unavailable",
+      "reasonCode": "transport_not_implemented"
+    },
+    {
+      "provider": "openAI",
+      "model": "gpt-4-turbo",
+      "key": "file_input",
+      "state": "auto_available",
+      "wireFamily": "openai_chat.file"
+    },
+    {
+      "provider": "openAI",
+      "model": "gpt-4-turbo",
+      "key": "vision_input",
+      "state": "auto_available",
+      "wireFamily": "openai_chat.image_url"
+    },
+    {
+      "provider": "openRouter",
+      "model": "aion-labs/aion-2.0",
+      "key": "file_input",
+      "state": "auto_available",
+      "wireFamily": "openai_chat.file"
+    },
+    {
+      "provider": "openRouter",
+      "model": "aion-labs/aion-2.0",
+      "key": "video_input",
+      "state": "unknown",
+      "reasonCode": "catalog_silent",
+      "wireFamily": "openai_chat.video_url"
+    },
+    {
+      "provider": "openRouter",
+      "model": "aion-labs/aion-2.0",
+      "key": "vision_input",
+      "state": "unknown",
+      "reasonCode": "catalog_silent",
+      "wireFamily": "openai_chat.image_url"
+    },
+    {
+      "provider": "openRouter",
+      "model": "amazon/nova-2-lite-v1",
+      "key": "video_input",
+      "state": "auto_available",
+      "wireFamily": "openai_chat.video_url"
+    },
+    {
+      "provider": "openRouter",
+      "model": "amazon/nova-2-lite-v1",
+      "key": "vision_input",
+      "state": "auto_available",
+      "wireFamily": "openai_chat.image_url"
+    },
+    {
+      "provider": "qwen",
+      "model": "ZHIPU/GLM-5.3",
+      "key": "file_input",
+      "state": "unknown",
+      "reasonCode": "catalog_silent",
+      "wireFamily": "openai_chat.file"
+    },
+    {
+      "provider": "qwen",
+      "model": "ZHIPU/GLM-5.3",
+      "key": "video_input",
+      "state": "unknown",
+      "reasonCode": "catalog_silent",
+      "wireFamily": "openai_chat.video_url"
+    },
+    {
+      "provider": "qwen",
+      "model": "ZHIPU/GLM-5.3",
+      "key": "vision_input",
+      "state": "unknown",
+      "reasonCode": "catalog_silent",
+      "wireFamily": "openai_chat.image_url"
+    },
+    {
+      "provider": "qwen",
+      "model": "kimi-k3",
+      "key": "vision_input",
+      "state": "auto_available",
+      "wireFamily": "openai_chat.image_url"
+    },
+    {
+      "provider": "qwen",
+      "model": "qwen-image-2.0",
+      "key": "file_input",
+      "state": "unavailable",
+      "reasonCode": "transport_not_implemented"
+    },
+    {
+      "provider": "qwen",
+      "model": "qwen-image-2.0",
+      "key": "video_input",
+      "state": "unavailable",
+      "reasonCode": "transport_not_implemented"
+    },
+    {
+      "provider": "qwen",
+      "model": "qwen-image-2.0",
+      "key": "vision_input",
+      "state": "unavailable",
+      "reasonCode": "transport_not_implemented"
+    },
+    {
+      "provider": "qwen",
+      "model": "qwen-omni-turbo",
+      "key": "video_input",
+      "state": "auto_available",
+      "wireFamily": "openai_chat.video_url"
+    },
+    {
+      "provider": "siliconFlow",
+      "model": "ByteDance-Seed/Seed-OSS-36B-Instruct",
+      "key": "file_input",
+      "state": "unavailable",
+      "reasonCode": "transport_not_supported",
+      "wireFamily": "openai_chat.file"
+    },
+    {
+      "provider": "siliconFlow",
+      "model": "ByteDance-Seed/Seed-OSS-36B-Instruct",
+      "key": "video_input",
+      "state": "unknown",
+      "reasonCode": "catalog_silent",
+      "wireFamily": "openai_chat.video_url"
+    },
+    {
+      "provider": "siliconFlow",
+      "model": "ByteDance-Seed/Seed-OSS-36B-Instruct",
+      "key": "vision_input",
+      "state": "unknown",
+      "reasonCode": "catalog_silent",
+      "wireFamily": "openai_chat.image_url"
+    },
+    {
+      "provider": "siliconFlow",
+      "model": "Qwen/Qwen3-VL-30B-A3B-Instruct",
+      "key": "video_input",
+      "state": "auto_available",
+      "wireFamily": "openai_chat.video_url"
+    },
+    {
+      "provider": "siliconFlow",
+      "model": "Qwen/Qwen3-VL-30B-A3B-Instruct",
+      "key": "vision_input",
+      "state": "auto_available",
+      "wireFamily": "openai_chat.image_url"
+    },
+    {
+      "provider": "togetherAI",
+      "model": "ByteDance-Seed/Seedream-3.0",
+      "key": "file_input",
+      "state": "unavailable",
+      "reasonCode": "transport_not_supported",
+      "wireFamily": "openai_chat.file"
+    },
+    {
+      "provider": "togetherAI",
+      "model": "ByteDance-Seed/Seedream-3.0",
+      "key": "video_input",
+      "state": "unknown",
+      "reasonCode": "catalog_silent",
+      "wireFamily": "openai_chat.video_url"
+    },
+    {
+      "provider": "togetherAI",
+      "model": "ByteDance-Seed/Seedream-3.0",
+      "key": "vision_input",
+      "state": "unknown",
+      "reasonCode": "catalog_silent",
+      "wireFamily": "openai_chat.image_url"
+    },
+    {
+      "provider": "togetherAI",
+      "model": "Qwen/Qwen3.5-9B",
+      "key": "vision_input",
+      "state": "auto_available",
+      "wireFamily": "openai_chat.image_url"
+    },
+    {
+      "provider": "zhipu",
+      "model": "cogview-3-flash",
+      "key": "file_input",
+      "state": "unavailable",
+      "reasonCode": "transport_not_implemented"
+    },
+    {
+      "provider": "zhipu",
+      "model": "cogview-3-flash",
+      "key": "video_input",
+      "state": "unavailable",
+      "reasonCode": "transport_not_implemented"
+    },
+    {
+      "provider": "zhipu",
+      "model": "cogview-3-flash",
+      "key": "vision_input",
+      "state": "unavailable",
+      "reasonCode": "transport_not_implemented"
+    },
+    {
+      "provider": "zhipu",
+      "model": "glm-4.5",
+      "key": "file_input",
+      "state": "unknown",
+      "reasonCode": "catalog_silent",
+      "wireFamily": "openai_chat.file"
+    },
+    {
+      "provider": "zhipu",
+      "model": "glm-4.5",
+      "key": "video_input",
+      "state": "unknown",
+      "reasonCode": "catalog_silent",
+      "wireFamily": "openai_chat.video_url"
+    },
+    {
+      "provider": "zhipu",
+      "model": "glm-4.5",
+      "key": "vision_input",
+      "state": "unknown",
+      "reasonCode": "catalog_silent",
+      "wireFamily": "openai_chat.image_url"
+    }
+  ]
+}

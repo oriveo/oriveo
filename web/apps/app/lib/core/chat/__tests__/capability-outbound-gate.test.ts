@@ -11,7 +11,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AIModel, Provider } from '@oriveo/shared';
 import type { CapabilityEvidenceCandidate } from '@oriveo/core/providers/capability-evidence-facade';
 
-vi.mock('../../metadata/metadata-client', () => ({
+vi.mock('../../metadata/metadata-client', async (importOriginal) => (await import('../../../__tests__/mocks/metadata-client')).metadataClientMock(importOriginal, {
   resolveCatalogModel: () => null,
   getMetadataRevision: () => undefined,
   getRelayRuntimeConfig: () => undefined,

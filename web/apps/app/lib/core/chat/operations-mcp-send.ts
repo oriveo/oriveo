@@ -23,7 +23,7 @@ import type {
 } from '@oriveo/shared';
 import type { ProxyToolCall } from '@oriveo/core/providers/request-builders/runtime';
 import type { GenerationParameterOverrides } from '@oriveo/core/providers/request-builders/types';
-import type { StreamUsage } from '@oriveo/core/providers/types';
+import type { ContentPart, StreamEvent, StreamHandle, StreamOptions, StreamUsage } from '@oriveo/core/providers/types';
 import { stopReasonFromError, stopReasonFromFinish } from './stop-reason-outcome';
 import { ToolCallLoop, type ToolCallLoopOptions } from '@oriveo/core/tools/tool-call-loop';
 import { ToolLoopError, type ToolLoopProgressEvent, type ToolLoopResult, type ToolRegistryEntry } from '@oriveo/core/tools/tool-loop-contracts';
@@ -33,6 +33,8 @@ import { oriveoAbortReason } from '@oriveo/core/util/abort-reason';
 import { mapErrorKindKey } from '../../utils/chat-stream-utils';
 import { transportInput } from './context-pipeline/transport-input';
 import { filterCurrentTurnAttachments, withoutUnreceivableImages } from './attachment-policy';
+import { resolveAttachmentLine } from '../attachments/attachment-transport-resolver';
+import { messagesCarryFilePart, nativeFileModeOf } from '@oriveo/core/providers/attachment-transport';
 import { getActiveUIDSync } from '../../infra/storage/partition';
 import { adoptMcpDraftServers, createMcpSendSession } from '../mcp/mcp-chat';
 import { currentMcpRuntimeConfig } from '../mcp/mcp-store';
@@ -41,7 +43,10 @@ import { normalizeModelFactsID, resolveCatalogModel } from '../metadata/metadata
 import { sendLibraryAgentLeg } from '../providers/proxy-client';
 import { trackEvent, telemetryProviderKind } from '../telemetry';
 import { withAdditionalBody } from './additional-body-settings';
-import { createAdditionalBodyRetryTap } from './additional-body-retry-tap';
+import { createAdditionalBodyRetryTap, isUpstreamContentEvent } from './additional-body-retry-tap';
+import { recordOfficialInputRejection } from '../capability/input-rejection-flow';
+import { rejectionMessagePatch } from '../capability/rejection-recovery';
+import { providerErrorRawBodyOf } from '@oriveo/core/providers/errors';
 import {
   appendText,
   completeRound,
@@ -57,7 +62,8 @@ import { markProposeMemoryDegraded, memoryToolsConnectionSupported, resolvePropo
 import { resolveSearchMemoryMode } from './search-memory-runtime';
 import { createProposeMemoryEntry, currentMemoryCandidateRepository } from './propose-memory-entry';
 import { effectiveCapabilityTransport } from './capability-evidence';
-import { recordToolCallFallback, toolCallRememberedUnsupported } from './relay-rejection-loop';
+import { recordToolCallFallback, toolCallVerdictForSend } from './relay-rejection-loop';
+import { prepareToolCallVerdict } from './tool-call-verdict';
 import { applyRelayToolRejection } from '../providers/relay-key-access-writeback';
 import { capabilityRuntimeIdentity, resolveCapabilityPreferences } from './capability-preference-settings';
 import {
@@ -65,7 +71,8 @@ import {
   type ToolCallRecoveryIdentity,
   type ToolCallRejectionContext,
 } from './capability-recovery-runtime';
-import { deriveCostFields, mergeMessageUsageFields } from './cost-fields';
+import { deriveCostFields, mergeMessageUsageFields, roundCostOf } from './cost-fields';
+import { addMessageCost } from '../cost/cost-currency';
 import { migrateDraftScopedModelControls } from './draft-scope-migration';
 import { generationParameterFallbackModelId, generationParameterProfileFingerprint, resolveGenerationParameterOverrides } from './generation-parameter-settings';
 import { createAssistantMessage, createUserMessage } from './message-factory';
@@ -160,6 +167,7 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
     skillId: params.skillId ?? params.conversation?.skillId,
     pinnedNoteIds: params.pinnedNoteIds,
     onNewConversation: params.onNewConversation,
+    attemptKind,
   });
   let sentReported = false;
   const reportSent = () => {
@@ -234,6 +242,7 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
 
   // The failure block reads send-path facts from the model leg, so the tap lives outside the try.
   let additionalBodyRetryTap: ReturnType<typeof createAdditionalBodyRetryTap> | undefined;
+  let inputRejectionTapRef: ReturnType<typeof createFirstLegInputRejectionTap> | undefined;
   const done = (async () => {
     try {
       // Normalization (failed / interrupted markers, kept target) is done by the assembler; here we only build the outbound history.
@@ -247,7 +256,7 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
       // Same vision criterion as the entry point (a relay with unknown vision support still sends images).
       const outbound = filterCurrentTurnAttachments(
         withoutUnreceivableImages(outboundDraft, params.provider, params.model, attachmentScopeOptions),
-        userMessage.id, params.provider, params.model);
+        userMessage.id, params.provider, params.model, undefined, attachmentScopeOptions);
       // The assembler (purpose toolLoopLeg) produces the single system message with the MCP safety prompt at the end; every leg reuses it as is.
       const toolLoopContext = await prepareToolLoopContext(ctx, {
         conversation: effectiveConversation,
@@ -321,6 +330,12 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
       const agentOutbound = await prepareAgentSubscriptionOutbound(store, params.provider, params.model, streamOptions);
       const retryTap = createAdditionalBodyRetryTap(agentOutbound.streamOptions);
       additionalBodyRetryTap = retryTap;
+      const inputRejectionTap = createFirstLegInputRejectionTap({
+        provider: params.provider, model: params.model, streamOptions: attachmentScopeOptions, signal: controller.signal,
+      });
+      inputRejectionTapRef = inputRejectionTap;
+      // Models outside the catalog first load the modelFacts revision from local storage, so a remembered rejection is not wrongly invalidated after a refresh.
+      await prepareToolCallVerdict(params.provider, params.model);
       const toolCallIdentity: ToolCallRecoveryIdentity = {
         accountId: sendingAccountId,
         connectionId: params.provider.id,
@@ -336,12 +351,18 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
       };
       // The upstream has explicitly rejected `tools` on this connection before, so tools are known to be
       // unsupported: send directly without them.
-      const toolsEnabled = !toolCallRememberedUnsupported(params.provider, params.model, toolCallIdentity);
+      // When the facade verdict is definite it takes precedence; only unknown falls back to connection-level memory (tool-call-order.v1).
+      const toolsEnabled = toolCallVerdictForSend(params.provider, params.model, toolCallIdentity) !== false;
       // When tools are known to be unsupported, propose_memory cannot be sent: run the fallback for this round.
       if (!toolsEnabled && proposeTicket) generateMemoryCandidate(store, proposeTicket, userMessage);
       // The effective generation parameters carry json_schema: do not register propose this round and use the fallback for the candidate (same decision as a plain send).
+      // The first leg carries a native file part and this route's tool loop takes no native files: run this round on the fallback (same rule as a plain send).
+      const nativeFilesBlockToolLoop = proposeTicket !== undefined && messagesCarryFilePart(history)
+        && nativeFileModeOf(await resolveAttachmentLine({
+          provider: params.provider, model: params.model, streamOptions: attachmentScopeOptions, toolLoop: true,
+        })) === 'off';
       if (toolsEnabled && proposeTicket && !memoryToolsConnectionSupported(
-        params.provider, params.model, params.freshUserSend?.webSearchEnabled, generationParameters,
+        params.provider, params.model, params.freshUserSend?.webSearchEnabled, generationParameters, nativeFilesBlockToolLoop,
       )) {
         generateMemoryCandidate(store, proposeTicket, userMessage);
         proposeEntry = undefined;
@@ -389,7 +410,7 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
             options: agentOutbound.streamOptions,
             toolLeg: { messages, tools },
           });
-          return retryTap.wrap(sendLibraryAgentLeg(
+          return inputRejectionTap.wrap(retryTap.wrap(sendLibraryAgentLeg(
             params.provider.kind,
             agentOutbound.apiKey,
             params.model.id,
@@ -398,7 +419,7 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
             requestBaseURLText(params.provider),
             transport.options,
             toolChoice,
-          ));
+          )), transport.messages);
         },
         signal: controller.signal,
         limits: mcpLoopLimits(runtimeConfig),
@@ -459,7 +480,8 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
         });
       }
 
-      const costInfo = deriveCostFields(result.usage, params.model, params.provider.kind, params.provider.authMode);
+      const costInfo = deriveCostFields(result.usage, params.model, params.provider, () => new Date(), undefined);
+      const roundCost = roundCostOf(costInfo, promptContext.retrievalCost);
       const reasoningText = (store.getState().streamingReasoningTexts[finalConvId] ?? '').trim();
       const deliveredText = appendText(initialText, result.text);
       const delivered: ChatMessage = withMemoryItemIds({
@@ -468,9 +490,8 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
         state: 'delivered',
         stopReason: stopReasonFromFinish(result.finish, deliveredText.trim() !== ''),
         ...(reasoningText ? { reasoningText } : {}),
-        estimatedCost:
-          (params.appendToAssistant ? assistantMessage.estimatedCost ?? 0 : 0) + costInfo.cost + promptContext.retrievalCost,
-        costSource: costInfo.costSource,
+        ...addMessageCost(params.appendToAssistant ? assistantMessage : undefined, roundCost),
+        costSource: roundCost.costSource,
         ...mergeMessageUsageFields(params.appendToAssistant ? assistantMessage : {}, costInfo),
         ...toolStepsPatch(),
         ...(result.stepLimitReached ? { toolStepLimitReached: true } : {}),
@@ -488,8 +509,8 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
         effectiveConversation,
         skillId: effectiveConversation?.skillId,
         usage: result.usage,
-        cost: costInfo.cost + promptContext.retrievalCost,
-        costSource: costInfo.costSource,
+        cost: roundCost.estimatedCost,
+        costSource: roundCost.costSource,
         servedModelID: undefined,
         processedAttachments: [],
         promptContext,
@@ -516,12 +537,13 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
       // Exactly one sent event per attempt: a stop or a failure also reports it first, through the same helper as the plain send.
       reportSent();
       const partialCost = latestUsage
-        ? deriveCostFields(latestUsage, params.model, params.provider.kind, params.provider.authMode)
+        ? deriveCostFields(latestUsage, params.model, params.provider, () => new Date(), undefined)
         : undefined;
-      const partialCostPatch: Partial<ChatMessage> = partialCost
+      const partialRound = partialCost ? roundCostOf(partialCost, retrievalCost) : undefined;
+      const partialCostPatch: Partial<ChatMessage> = partialCost && partialRound
         ? {
-            estimatedCost: (params.appendToAssistant ? assistantMessage.estimatedCost ?? 0 : 0) + partialCost.cost + retrievalCost,
-            costSource: partialCost.costSource,
+            ...addMessageCost(params.appendToAssistant ? assistantMessage : undefined, partialRound),
+            costSource: partialRound.costSource,
             ...mergeMessageUsageFields(params.appendToAssistant ? assistantMessage : {}, partialCost),
           }
         : {};
@@ -552,6 +574,7 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
       const failureTitle = failure.source === 'provider' ? PROVIDER_REQUEST_FAILED_TITLE : te(`${mapErrorKindKey(failure.kind)}.title`);
       // A round whose tools already ran gets no retry affordance: resending would execute the tools twice.
       const additionalBodyRetry = additionalBodyRetryTap?.resolve({ sideEffects: session.steps().length > 0 });
+      const rejectionPatch = inputRejectionTapRef?.rejection() ?? {};
       patchAssistantMessage(store, finalConvId, assistantMessage.id, {
         ...assistantMessage,
         text: partialText,
@@ -566,6 +589,7 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
         errorDetail: failure.detail,
         errorKind: failure.kind,
         ...(failure.source ? { errorSource: failure.source } : {}),
+        ...rejectionPatch,
         ...toolStepsPatch(),
         ...partialCostPatch,
       });
@@ -593,9 +617,68 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
   return {
     convId: finalConvId,
     msgId: assistantMessage.id,
-    abort: () => controller.abort(),
+    abort: () => controller.abort(oriveoAbortReason('mcp-send-cancel')),
     done,
     attemptKind,
+  };
+}
+
+/**
+ * When the first leg of a send with client tools (MCP / library agent) is rejected by the upstream before any output: handled the same way as the
+ * plain send's `runChatOutbound`, handing it to `recordOfficialInputRejection` to record a v2 negative cache by signature and report it
+ * (official connections only; Relay uses its own loop). It looks only at the first leg sent in the whole round; it does not retry or change
+ * the error, which still lands on the failure card as usual.
+ */
+export function createFirstLegInputRejectionTap(input: {
+  provider: Provider;
+  model: AIModel;
+  streamOptions: StreamOptions | undefined;
+  signal: AbortSignal;
+}) {
+  let legs = 0;
+  let laterLegOutput = false;
+  let recorded: ReturnType<typeof rejectionMessagePatch> = {};
+  return {
+    rejection: () => (laterLegOutput ? {} : recorded),
+    wrap<H extends StreamHandle>(handle: H, messages: ReadonlyArray<{ content: string | ContentPart[] }>): H {
+      legs += 1;
+      if (legs > 1) {
+        const observed = handle.stream.pipeThrough(new TransformStream<StreamEvent, StreamEvent>({
+          transform(event, controller) {
+            if (!laterLegOutput && isUpstreamContentEvent(event)) laterLegOutput = true;
+            controller.enqueue(event);
+          },
+        }));
+        return { ...handle, stream: observed };
+      }
+      if (input.provider.kind === 'relay') return handle;
+      let settled = false;
+      const stream = handle.stream.pipeThrough(new TransformStream<StreamEvent, StreamEvent>({
+        transform(event, controller) {
+          if (!settled && event.type === 'error') {
+            settled = true;
+            if (!input.signal.aborted) {
+              recorded = rejectionMessagePatch(recordOfficialInputRejection({
+                provider: input.provider,
+                model: input.model,
+                streamOptions: input.streamOptions,
+                messages,
+                error: {
+                  status: event.status,
+                  source: event.source,
+                  streamErrorFrame: event.streamErrorFrame,
+                  detail: providerErrorRawBodyOf(event) ?? event.errorDetail ?? event.error,
+                },
+              }));
+            }
+          } else if (!settled && isUpstreamContentEvent(event)) {
+            settled = true;
+          }
+          controller.enqueue(event);
+        },
+      }));
+      return { ...handle, stream };
+    },
   };
 }
 

@@ -4,6 +4,7 @@ import { getConversationById } from '../../infra/storage/idb';
 import { getActiveUIDSync } from '../../infra/storage/partition';
 import { loadSyncCore } from '../sync-lazy';
 import { normalizeUUID, sameNormalizedID } from '../../utils/id-utils';
+import { compareMessages } from './message-merge';
 
 const inflightConversationWarmups = new Map<string, Promise<Conversation | undefined>>();
 const inflightAnchorWarmups = new Map<string, Promise<Conversation | undefined>>();
@@ -79,11 +80,7 @@ export function mergeMessagesIntoConversation(
     }
   }
 
-  merged.sort((a, b) => {
-    const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-    const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-    return aTime - bTime;
-  });
+  merged.sort(compareMessages);
 
   return { ...conversation, messages: merged };
 }

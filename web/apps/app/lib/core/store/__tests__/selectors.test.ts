@@ -63,6 +63,27 @@ describe('selectProviderStats', () => {
     });
   });
 
+  it('omits the nonUsdTotals key when there are no non-USD totals', () => {
+    const state = makeState([makeConversation({ providerID: 'provider-1', estimatedCost: 1.25 })]);
+    expect('nonUsdTotals' in selectProviderStats(state, 'provider-1')).toBe(false);
+  });
+
+  it('mixed currencies: USD goes into totalCost, non-USD accumulates per currency and is never added across currencies', () => {
+    const state = makeState([
+      makeConversation({ providerID: 'provider-1', estimatedCost: 1.2, nonUsdCostTotals: { CNY: 3.5 } }),
+      makeConversation({ providerID: 'provider-1', estimatedCost: 0, nonUsdCostTotals: { CNY: 0.12, EUR: 1 } }),
+      makeConversation({ providerID: 'provider-2', estimatedCost: 9.99, nonUsdCostTotals: { CNY: 100 } }),
+    ]);
+
+    const stats = selectProviderStats(state, 'provider-1');
+    expect(stats).toEqual({
+      totalConversations: 2,
+      totalMessages: 0,
+      totalCost: 1.2,
+      nonUsdTotals: { CNY: expect.closeTo(3.62, 10), EUR: 1 },
+    });
+  });
+
   it('counts only delivered messages', () => {
     const state = makeState([
       makeConversation({

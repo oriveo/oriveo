@@ -16,6 +16,8 @@ import type { SkippedAttachment } from '../attachments/attachment-injector';
 import { outboundHistoryHasVideo, resolveAttachmentLine } from '../attachments/attachment-transport-resolver';
 import { telemetryProviderKind, trackEvent } from '../telemetry';
 import { buildProviderStreamOptions, buildStreamOptionsFromIntent } from './stream-options';
+import { resolveInputCapabilityProjections } from '../capability/truth/input-truth-adapter';
+import { providerFormOf } from '../capability/truth/provider-form';
 
 export interface AttachmentPreflightInput {
   attachments: Attachment[] | undefined;
@@ -46,7 +48,11 @@ export async function findUnsendableAttachmentsBeforeSend(
     );
     const line = await resolveAttachmentLine({ provider, model, streamOptions, toolLoop, ...(historyHasVideo ? { historyHasVideo } : {}) });
     if (!line.exact) return [];
-    const skipped = findUnsendableTextAttachments(attachments, model, line);
+    // Same criterion as the outbound history: when the file projection of an official connection is not native_part, files go through text injection and also count toward the text total.
+    const file = providerFormOf(provider) === 'official'
+      ? resolveInputCapabilityProjections(provider, model, streamOptions)?.file_input ?? null
+      : null;
+    const skipped = findUnsendableTextAttachments(attachments, model, line, file);
     if (skipped.length === 0) return [];
     blocked ??= skipped;
   }

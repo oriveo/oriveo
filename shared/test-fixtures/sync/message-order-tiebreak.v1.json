@@ -1,0 +1,137 @@
+{
+  "$comment": "Message ordering key shared by all three clients: (createdAt in milliseconds, roleRank, id). roleRank: user=0 < assistant=1 < other=2. After the reader truncates to milliseconds, the user and assistant messages of one turn can share a createdAt (older iOS writers wrote them back to back, and so did legacy data); on a tie the order must never be decided by UUID lexicographic order. Writers give the assistant message of a turn createdAt = user createdAt + 1ms. A missing createdAt (empty, or converting to <= 0 ms, as in imported legacy backups): when both are missing, insertion order is kept (no roleRank, no id comparison; cases with createdAtMs null use the messages array order as the insertion order); a missing one sorts before one that has a time.",
+  "v": 1,
+  "roleRank": {
+    "user": 0,
+    "assistant": 1,
+    "other": 2
+  },
+  "cases": [
+    {
+      "case": "sameMillis_userBeforeAssistant",
+      "messages": [
+        {
+          "id": "FFFFFFFF-0000-4000-8000-000000000001",
+          "role": "assistant",
+          "createdAtMs": 1790838000000
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000002",
+          "role": "user",
+          "createdAtMs": 1790838000000
+        }
+      ],
+      "expectedOrder": [
+        "00000000-0000-4000-8000-000000000002",
+        "FFFFFFFF-0000-4000-8000-000000000001"
+      ]
+    },
+    {
+      "case": "sameMillis_userBeforeAssistant_idReversed",
+      "messages": [
+        {
+          "id": "00000000-0000-4000-8000-000000000003",
+          "role": "assistant",
+          "createdAtMs": 1790838000000
+        },
+        {
+          "id": "FFFFFFFF-0000-4000-8000-000000000004",
+          "role": "user",
+          "createdAtMs": 1790838000000
+        }
+      ],
+      "expectedOrder": [
+        "FFFFFFFF-0000-4000-8000-000000000004",
+        "00000000-0000-4000-8000-000000000003"
+      ]
+    },
+    {
+      "case": "differentMillis_createdAtWins",
+      "messages": [
+        {
+          "id": "00000000-0000-4000-8000-000000000005",
+          "role": "user",
+          "createdAtMs": 1790838000001
+        },
+        {
+          "id": "FFFFFFFF-0000-4000-8000-000000000006",
+          "role": "assistant",
+          "createdAtMs": 1790838000000
+        }
+      ],
+      "expectedOrder": [
+        "FFFFFFFF-0000-4000-8000-000000000006",
+        "00000000-0000-4000-8000-000000000005"
+      ]
+    },
+    {
+      "case": "sameMillisSameRole_idAscending",
+      "messages": [
+        {
+          "id": "BBBBBBBB-0000-4000-8000-000000000007",
+          "role": "user",
+          "createdAtMs": 1790838000000
+        },
+        {
+          "id": "AAAAAAAA-0000-4000-8000-000000000008",
+          "role": "user",
+          "createdAtMs": 1790838000000
+        }
+      ],
+      "expectedOrder": [
+        "AAAAAAAA-0000-4000-8000-000000000008",
+        "BBBBBBBB-0000-4000-8000-000000000007"
+      ]
+    },
+    {
+      "case": "bothMissingCreatedAt_keepsInsertionOrder",
+      "messages": [
+        {
+          "id": "FFFFFFFF-0000-4000-8000-000000000009",
+          "role": "user",
+          "createdAtMs": null
+        },
+        {
+          "id": "00000000-0000-4000-8000-00000000000A",
+          "role": "assistant",
+          "createdAtMs": null
+        },
+        {
+          "id": "EEEEEEEE-0000-4000-8000-00000000000B",
+          "role": "user",
+          "createdAtMs": null
+        },
+        {
+          "id": "11111111-0000-4000-8000-00000000000C",
+          "role": "assistant",
+          "createdAtMs": null
+        }
+      ],
+      "expectedOrder": [
+        "FFFFFFFF-0000-4000-8000-000000000009",
+        "00000000-0000-4000-8000-00000000000A",
+        "EEEEEEEE-0000-4000-8000-00000000000B",
+        "11111111-0000-4000-8000-00000000000C"
+      ]
+    },
+    {
+      "case": "missingCreatedAt_sortsBeforePresent",
+      "messages": [
+        {
+          "id": "00000000-0000-4000-8000-00000000000D",
+          "role": "user",
+          "createdAtMs": 1790838000000
+        },
+        {
+          "id": "FFFFFFFF-0000-4000-8000-00000000000E",
+          "role": "assistant",
+          "createdAtMs": null
+        }
+      ],
+      "expectedOrder": [
+        "FFFFFFFF-0000-4000-8000-00000000000E",
+        "00000000-0000-4000-8000-00000000000D"
+      ]
+    }
+  ]
+}

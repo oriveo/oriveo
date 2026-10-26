@@ -44,6 +44,8 @@ export const CONTEXT_ASSEMBLE_CONSTANTS = {
   reminderMinUserMessages: 6,
   libraryEmptyEntry:
     'No relevant document was found in the connected Library sources. Say so plainly instead of inventing facts.',
+  deliveryVoice:
+    'The user is talking with you by voice and will hear your reply read aloud. Answer the way you would speak: short, natural sentences, usually under 80 words unless the user asks for detail. Do not use Markdown, tables, code blocks, lists, or emoji; say symbols and units in words. If the answer really needs code or a long list, give the gist in speech and say the full version is in the chat.',
   notes: {
     'oriveo-standing-instructions':
       "Standing instructions the user saved for all conversations. Follow them unless the conversation instructions or the user's current message say otherwise.",
@@ -115,6 +117,8 @@ export interface AssembleDynamic {
   /** Absent: no library envelope. Empty array: sources searched, nothing found (libraryEmptyEntry). */
   library?: LibraryEntry[];
   attachmentGuide?: string;
+  /** 'voice': append the <oriveo-delivery> envelope last in [D] (chat / toolLoopLeg / continue only). Absent / null: unchanged. */
+  delivery?: 'voice' | null;
 }
 
 export type AssembleWindowInput = Omit<WindowBudgetInput, 'budgetCap'> & { budgetCap?: BudgetCapOption };
@@ -318,7 +322,7 @@ function currentMessage(input: AssembleInput, text: string, attachments: Attachm
 function assembleImage(input: AssembleInput, budget: ContextWindowBudget): ContextPlan {
   const texts = [...input.history.filter((m) => m.role === 'user').map((m) => m.text), input.current ?? ''];
   const text = [...texts].reverse().map((t) => trimWhiteSpace(t)).find((t) => t.length > 0) ?? null;
-  // The image-style prefix takes only the style sentence from instructions, with no memory.
+  // The image-generation style prefix only takes the style sentence from instructions and carries no memory.
   const prefix = imageStylePrefix(input.conversation.instructions ?? '');
   const prompt = text !== null && prefix.length > 0 ? `${prefix}\n\n${text}` : text;
   return sealContextPlan({
@@ -457,7 +461,7 @@ function assemble(input: AssembleInput): ContextPlan {
   if (derived && coreEstimate > derived.systemMax) warnings.push('instructionsAndSkillOverShare');
 
   // -- messages --
-  // continue only appends the fixed continuation sentence and carries no attachments; for other purposes the current message is not appended when current is omitted.
+  // continue only appends the fixed continuation sentence and carries no attachments; for other purposes nothing is appended when current is absent.
   const current: ContextMessage | null =
     purpose === 'continue'
       ? currentMessage(input, constants.continuePrompt, [])
@@ -483,7 +487,7 @@ function assemble(input: AssembleInput): ContextPlan {
     unansweredMerged: sanitized.unansweredMerged,
     warnings,
     imagePrompt: null,
-    // Facts after shrinking: entries that were shrunk away do not count.
+    // facts after shrinking: entries that were shrunk away do not count.
     memoryIds: renderedMemoryIds(standing, facts),
   };
 
@@ -506,7 +510,7 @@ function assemble(input: AssembleInput): ContextPlan {
 
   const estimateBeforeDynamic = estimateSystemMessage(system, rhoHi) + estimateMessages(messages, rhoHi);
 
-  // -- [D] (chat, toolLoopLeg and continue; reminder is given only to chat / toolLoopLeg) --
+  // -- [D] (chat, toolLoopLeg and continue; reminder only for chat / toolLoopLeg) --
   let reminder = false;
   let dynamicText = '';
   if (purpose === 'chat' || purpose === 'toolLoopLeg' || purpose === 'continue') {
@@ -532,6 +536,10 @@ function assemble(input: AssembleInput): ContextPlan {
           : constants.reminderPointer;
       const note = constants.notes['oriveo-reminder'];
       parts.push(`<oriveo-reminder>\n<note>${note}</note>\n${body}\n</oriveo-reminder>`);
+    }
+    // Voice-tone envelope: constant text, not escaped, placed last after [D].
+    if (input.dynamic?.delivery === 'voice') {
+      parts.push(`<oriveo-delivery>\n${constants.deliveryVoice}\n</oriveo-delivery>`);
     }
     dynamicText = parts.join('\n\n');
     if (dynamicText.length > 0 && lastMessage) {

@@ -33,7 +33,19 @@ function modelOf(provider: Provider, modelId: string): AIModel | undefined {
   return provider.models.find((m) => m.id === modelId) ?? provider.catalogModels?.find((m) => m.id === modelId);
 }
 
-/** Conversation snapshot on the same basis as runChatOutbound: the chat plan has applied the newest library row for the current history. */
+/** Images, videos and files that keep their original bytes (usable as native file blocks) count as media; files the client already extracted to text do not. */
+function carriesMedia(message: ChatMessage): boolean {
+  return (message.attachments ?? []).some((attachment) => attachment.kind === 'image'
+    || attachment.kind === 'video'
+    || (attachment.kind === 'file' && Boolean(attachment.originalBase64Data)));
+}
+
+/**
+ * Conversation snapshot on the same basis as runChatOutbound: the chat plan has applied the newest library row for the current history.
+ * `firstMediaId`: the first message carrying media, found on the original conversation (before images are stripped); manual compaction
+ * only covers the history before it, and that message and everything after it stay as-is after the compaction result and are
+ * stripped by projection at outbound time.
+ */
 async function conversationSnapshot(conversationId: string) {
   const store = tryGetVanillaStore();
   if (!store) return null;
@@ -45,6 +57,7 @@ async function conversationSnapshot(conversationId: string) {
   if (!provider || !model) return null;
 
   // Same basis as runChatOutbound: attachments filtered by the current model's capabilities, window taken from the panel max output.
+  const firstMediaId = conversation.messages.find(carriesMedia)?.id ?? null;
   const scopeOptions = buildProviderStreamOptions(provider, buildStreamOptionsFromIntent(model, 'automatic', false), model);
   const messages: ChatMessage[] = withoutUnreceivableImages(conversation.messages, provider, model, scopeOptions);
   const latestUserText = [...messages].reverse().find((m) => m.role === 'user')?.text ?? '';
@@ -59,15 +72,20 @@ async function conversationSnapshot(conversationId: string) {
   const stored = await latestValidChatCheckpoint(conversationId, assembly);
   const applied = stored ? applyCheckpointRowAssembly(assembly, stored) : null;
   if (applied) plan = assembleChatPlan(applied, planOptions);
-  return { assembly, plan, provider, model, userMaxOutput, stored: applied ? stored : null };
+  return { assembly, plan, provider, model, userMaxOutput, stored: applied ? stored : null, firstMediaId };
 }
 
 type ConversationSnapshot = NonNullable<Awaited<ReturnType<typeof conversationSnapshot>>>;
 
-function coordinatorOf(snapshot: ConversationSnapshot) {
-  const { assembly, plan, provider, model, userMaxOutput } = snapshot;
+function coordinatorOf(snapshot: ConversationSnapshot, options: { retainMedia?: boolean } = {}) {
+  const { assembly, plan, provider, model, userMaxOutput, firstMediaId } = snapshot;
   return createCompactionCoordinator({
-    context: () => chatCompactionContextOf(assembly, plan, { provider, model, userMaxOutput }),
+    context: () => {
+      const ctx = chatCompactionContextOf(assembly, plan, { provider, model, userMaxOutput });
+      if (!ctx || !options.retainMedia || firstMediaId === null) return ctx;
+      const mediaIndex = ctx.messages.findIndex((message) => message.id === firstMediaId);
+      return mediaIndex < 0 ? ctx : { ...ctx, messages: ctx.messages.slice(0, mediaIndex) };
+    },
     summarize: (req, signal) => requestCompactionSummary({
       provider, model, req, chatSystem: plan.system, instructions: assembly.input.conversation.instructions ?? '', signal,
     }),
@@ -77,7 +95,7 @@ function coordinatorOf(snapshot: ConversationSnapshot) {
 export async function compactConversationNow(conversationId: string): Promise<CompactionResult> {
   const snapshot = await conversationSnapshot(conversationId);
   if (!snapshot) return noop();
-  return coordinatorOf(snapshot).compact(conversationId, 'manual');
+  return coordinatorOf(snapshot, { retainMedia: true }).compact(conversationId, 'manual');
 }
 
 /*

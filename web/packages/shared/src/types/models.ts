@@ -64,6 +64,18 @@ export interface CapabilityEvidenceCandidateView {
   expiresAt?: number;
 }
 
+/** One entry of the input-capability override delta (see the model catalog and capability truth contract section 5.8). */
+export interface InputCapabilityOverrideEntry {
+  op: 'add' | 'remove';
+  /** ISO time. */
+  setAt: string;
+  /** The server's status for this key when the user set the override. */
+  baseVerdict: string;
+}
+
+/** Only the three input keys can be overridden; a missing key = follow the server. */
+export type InputCapabilityOverrides = Partial<Record<'vision_input' | 'file_input' | 'video_input', InputCapabilityOverrideEntry>>;
+
 export interface AIModel {
   id: string;
   canonicalModelId?: string;
@@ -107,6 +119,12 @@ export interface AIModel {
   upstreamReasoningLevels?: string[];
   /** Local-only subscription `/models` default; excluded from cloud mappings. */
   upstreamDefaultReasoningLevel?: string;
+  /**
+   * Input modalities the upstream declares for this model (**subscription path only**: Codex `/models` `input_modalities`, lowercase).
+   * Missing = upstream declared nothing (Grok subscription declares none), so capability truth falls back to model-facts; declared but lacking some media = the model cannot take it.
+   * Same as `upstreamReasoningLevels`: persisted locally, not cloud-synced.
+   */
+  upstreamInputModalities?: string[];
   /** Local-only subscription protocol declaration (`responses` / `chat`). */
   upstreamApiBackend?: string;
   reasoningModeAvailable: boolean;
@@ -213,6 +231,11 @@ export interface AIModel {
   relayTransportSource?: RelayTransportSource;
   /** The user's manual override of this model's capabilities; a missing key means no override, so probing and facts apply. */
   relayCapabilityOverrides?: RelayCapabilityOverrides;
+  /**
+   * Input-capability overrides for Relay / custom endpoints (a delta, see the model catalog and capability truth contract section 5.8): kept on this device only.
+   * Each entry is validated on read through `normalizeCapabilityOverrides` and normalized with the legacy fields; keys the user never touched are absent.
+   */
+  capabilityOverrides?: InputCapabilityOverrides;
   /** Per-model capability declaration resolved by the local engine connector; also local only. Consumed only when the connection has an engineProfile. */
   engineDeclaration?: EngineDeclaration;
   /**
@@ -625,7 +648,16 @@ export interface ChatMessage {
   /** Set when the request carried an additional request body and the upstream rejected it before any event: the error card offers "retry without the additional request body". Stored locally only. */
   additionalBodyRetryEligible?: boolean;
   /** A pre-stream upstream 400 named exactly one panel generation parameter that was written: the error card points to it and offers "resend without this setting". Stored locally only. */
-  generationParameterRejection?: { parameterId: string };
+  /**
+   * Origin: `signatureId` is only set when an official connection named this parameter by signature; a generic panel verdict (relays can also produce it) does not set it.
+   * The failure card's two-button "action + switch model" layout only recognises records with a signature. Not cloud-synced (not in the sync-mappings allowlist); exported with the local backup.
+   */
+  generationParameterRejection?: { parameterId: string; signatureId?: string };
+  /**
+   * An official connection's first leg was rejected by upstream by signature (input_rejected) before any output, over a media kind this turn really sent:
+   * the failure card's "resend without that media" is driven only by this record, and the negative cache alone gives no action. Stored locally only, never synced.
+   */
+  inputRejection?: { capabilityKey: 'vision_input' | 'file_input' | 'video_input'; signatureId: string };
   /** A relay model was sent an image and the upstream rejected it (image support was unknown, so it was sent anyway): the error card says "images not supported" and offers "switch model". Stored locally only. */
   relayImageUnsupported?: boolean;
   /** A relay model was sent a native file block and the upstream rejected it, and the fallback chain did not recover: the error card says "these files are not supported" and offers "switch model". Stored locally only. */
@@ -676,6 +708,15 @@ export interface ChatMessage {
    * `unknown` means it could not be estimated.
    */
   costSource?: 'upstream' | 'localEstimate' | 'unknown' | 'subscription';
+  /**
+   * The only non-USD cost part (contract section 5.7): amount in the original currency, no conversion; estimatedCost / costSource describe the USD part only.
+   * When costSource is 'unknown' the amount is unusable (a second non-USD currency appeared on the same message). Absent when there is no non-USD part.
+   */
+  nonUsdCost?: {
+    currencyCode: string;
+    amount: number;
+    costSource: 'upstream' | 'localEstimate' | 'unknown' | 'subscription';
+  };
 }
 
 export interface ImageSettings {
@@ -703,7 +744,10 @@ export interface Conversation {
    */
   relayKind?: RelayKind;
   previewText: string;
+  /** The USD part of the conversation total. */
   estimatedCost: number;
+  /** The non-USD part of the conversation total: currency code -> total in the original currency; never added across currencies, zero-amount currencies are not written, absent when there is no non-USD part. */
+  nonUsdCostTotals?: Record<string, number>;
   isDraft: boolean;
   messages: ChatMessage[];
   draftText: string;
@@ -722,6 +766,11 @@ export interface Conversation {
   instructions?: string;
   /** Per-conversation context cap (wire value, see conversation-context-cap.v1.json); absent = follow the global setting. */
   contextCap?: 'auto' | 'unlimited' | number;
+  /**
+   * Local "thread complete" marker: kept in local IDB only, never cloud-synced. True after a local create or after every page of a whole-thread backfill succeeded;
+   * set to false when messages are written by window / fragment / mid-backfill or after a failure; absent counts as false. When true the conversation totals are recomputed from all local messages.
+   */
+  localThreadComplete?: boolean;
   /** Associated skill id, recorded when the conversation starts from a skill; immutable afterwards. */
   skillId?: string;
   /** Remote message count, shown as a fallback before messages are lazily loaded. */

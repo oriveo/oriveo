@@ -22,6 +22,9 @@ import {
   type RelayCatalogRow,
 } from './relay-catalog-board';
 import { recordRelayNegativeCache, RELAY_NEGATIVE_CACHE_TTL_MS } from '../../../lib/core/chat/relay-negative-cache';
+import { recordInputNegativeCache } from '../../../lib/core/capability/input-negative-cache';
+import { inputNegativeCacheTarget } from '../../../lib/core/capability/truth/input-truth-adapter';
+import { buildProviderStreamOptions, buildStreamOptionsFromIntent } from '../../../lib/core/chat/stream-options';
 import { rememberRelayCatalogEndpointTypes } from '../../../lib/core/providers/relay-probe-candidates';
 import { connectLocalEngineInBrowser } from '../../../lib/core/providers/local-browser-probe';
 import { createRelayManualModel, disableProviderModel, enableProviderModels } from '../../../lib/core/provider-model-ops';
@@ -531,10 +534,27 @@ describe('BOARD-CATALOG-06 relay five capabilities, three states', () => {
     beginCapabilityEvidenceIdentityIfAbsent(getActiveUIDSync(), provider.id);
     return provider;
   }
-  const negative = (provider: Provider, item: AIModel, kind: 'image' | 'file' | 'toolCall', at = NOW) =>
-    recordRelayNegativeCache({
-      connectionId: provider.id, modelId: item.id, transport: effectiveTransport(provider, item), kind,
-    }, at);
+  // Vision / file only honor negative cache v2 (key and verdict revision come from the production write target); tool still uses the v1 toolCall tier.
+  const negative = (provider: Provider, item: AIModel, kind: 'image' | 'file' | 'toolCall', at = NOW) => {
+    if (kind === 'toolCall') {
+      recordRelayNegativeCache({
+        connectionId: provider.id, modelId: item.id, transport: effectiveTransport(provider, item), kind,
+      }, at);
+      return;
+    }
+    const streamOptions = buildProviderStreamOptions(provider, buildStreamOptionsFromIntent(item, 'automatic', false), item);
+    const target = inputNegativeCacheTarget(provider, item, streamOptions, kind === 'image' ? 'vision_input' : 'file_input');
+    expect(target).not.toBeNull();
+    recordInputNegativeCache(target!.key, { signatureId: 'test.rejected', verdictRevision: target!.verdictRevision }, at);
+  };
+  // The projection and capability evidence judge negative cache expiry by Date.now(): this group pins the clock at NOW (faking Date only).
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(NOW);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   it('BOARD-CATALOG-06 order image / file / thinking / tool / web', () => {
     expect(RELAY_CATALOG_CAPS).toEqual(['image', 'file', 'thinking', 'tool', 'web']);
@@ -542,16 +562,25 @@ describe('BOARD-CATALOG-06 relay five capabilities, three states', () => {
     expect(rowOf(board(provider), 'blank').caps.map((cap) => cap.cap)).toEqual(['image', 'file', 'thinking', 'tool', 'web']);
   });
 
-  it('BOARD-CATALOG-06 vision: no evidence -> unknown; negative cache -> unsupported; override true beats the negative cache -> supported', () => {
+  it('BOARD-CATALOG-06 vision: no evidence -> unknown; negative cache -> unsupported; a tested override cannot beat the negative cache, a user override does', () => {
     const blank = model('blank');
     const provider = relayWith(blank);
     expect(capsOf(rowOf(board(provider), 'blank')).image).toBe('unknown');
     negative(provider, blank, 'image');
     expect(capsOf(rowOf(board(provider), 'blank')).image).toBe('unsupported');
 
-    const overridden = model('blank', { relayCapabilityOverrides: { image: { value: true, source: 'tested' } } });
-    const withOverride = { ...provider, models: [overridden], catalogModels: [overridden] };
-    expect(capsOf(rowOf(board(withOverride), 'blank')).image).toBe('supported');
+    const tested = model('blank', { relayCapabilityOverrides: { image: { value: true, source: 'tested' } } });
+    const withTested = { ...provider, models: [tested], catalogModels: [tested] };
+    expect(capsOf(rowOf(board(withTested), 'blank')).image).toBe('supported');
+    negative(withTested, tested, 'image');
+    expect(capsOf(rowOf(board(withTested), 'blank')).image).toBe('unsupported');
+
+    const added = model('blank', {
+      capabilityOverrides: { vision_input: { op: 'add', setAt: new Date(NOW).toISOString(), baseVerdict: 'unknown' } },
+    });
+    const withAdded = { ...provider, models: [added], catalogModels: [added] };
+    negative(withAdded, added, 'image');
+    expect(capsOf(rowOf(board(withAdded), 'blank')).image).toBe('supported');
   });
 
   it('BOARD-CATALOG-06 file: allowlist -> supported; unexpired negative cache -> unsupported; once expired it returns to the allowlist', () => {
@@ -569,6 +598,12 @@ describe('BOARD-CATALOG-06 relay five capabilities, three states', () => {
     const onProvider = relayWith(on);
     negative(onProvider, on, 'file');
     expect(capsOf(rowOf(board(onProvider), 'file-on')).file).toBe('supported');
+    // A tested override cannot beat the negative cache.
+    const tested = model('file-tested', { relayCapabilityOverrides: { file: { value: true, source: 'tested' } } });
+    const testedProvider = relayWith(tested);
+    expect(capsOf(rowOf(board(testedProvider), 'file-tested')).file).toBe('supported');
+    negative(testedProvider, tested, 'file');
+    expect(capsOf(rowOf(board(testedProvider), 'file-tested')).file).toBe('unsupported');
 
     const off = model('file-off', {
       nativeFileMimes: ['application/pdf'],

@@ -293,20 +293,20 @@ export function ModelCapabilityBadges({
   );
 }
 
-function orderByBadgeOrder(capabilities: string[], badgeOrder: string[]): string[] {
+function orderByBadgeOrder(badges: string[], badgeOrder: string[]): string[] {
   const indexByCap = new Map<string, number>();
   badgeOrder.forEach((cap, index) => indexByCap.set(cap, index));
 
   // Dedupe and filter: keep only what badgeOrder lists, in badgeOrder's order.
   const seen = new Set<string>();
   const filtered: string[] = [];
-  for (const cap of capabilities) {
+  for (const cap of badges) {
     if (seen.has(cap)) continue;
     if (!indexByCap.has(cap)) continue;
     seen.add(cap);
     filtered.push(cap);
   }
   filtered.sort((left, right) => (indexByCap.get(left)! - indexByCap.get(right)!));
-  if (capabilities.includes('toolCall') && !seen.has('toolCall')) filtered.push('toolCall');
+  if (badges.includes('toolCall') && !seen.has('toolCall')) filtered.push('toolCall');
   return filtered;
 }

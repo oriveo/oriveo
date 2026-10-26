@@ -165,7 +165,8 @@ export class ToolCallLoop {
         onProgress,
       );
       legTexts.push(leg.text);
-      usage = mergeToolLoopUsage(usage, leg.usage);
+      // The first leg takes its usage directly: the initial undefined means "no leg yet", not "this leg reported no usage".
+      usage = legIndex === 0 ? leg.usage : mergeToolLoopUsage(usage, leg.usage);
       if (usage) await onProgress({ type: 'usage', usage });
 
       if (leg.toolCalls.length === 0) {
@@ -420,7 +421,7 @@ export class ToolCallLoop {
       onProgress,
     );
     legTexts.push(finalLeg.text);
-    usage = mergeToolLoopUsage(usage, finalLeg.usage);
+    usage = legTexts.length === 1 ? finalLeg.usage : mergeToolLoopUsage(usage, finalLeg.usage);
     if (usage) await onProgress({ type: 'usage', usage });
     // With toolChoice = none there should be no more proposals; if one arrives anyway there is nowhere
     // to execute it, so hand it out instead of swallowing it.
@@ -546,13 +547,39 @@ function usageTotalTokens(usage: StreamUsage | undefined): number {
   return componentTotal;
 }
 
-/** Add up usage item by item across several requests (each leg of the tool loop, and the first leg plus the re-answer of a library downgrade). */
+/**
+ * Merge usage of a multi-leg message (each leg of the tool loop, the first leg plus the re-answer, a re-sent tail leg; contract section 5.7).
+ *
+ * Both arguments are legs that already happened (or their merged result): undefined = that part's upstream reported no usage, and the result
+ * carries `allLegsReported: false`, so the whole cost is unknown; tokens are still added up over the legs that reported. The result's `legs`
+ * keeps each leg's raw usage, and pricing estimates per leg (that leg's real upstream cost > estimate) and then adds them up, never re-estimating from the summed tokens.
+ */
 export function mergeToolLoopUsage(
   current: StreamUsage | undefined,
   next: StreamUsage | undefined,
 ): StreamUsage | undefined {
-  if (!next) return current;
-  if (!current) return next;
+  if (!current && !next) return undefined;
+  if (!current || !next) {
+    const reported = (current ?? next)!;
+    return { ...reported, allLegsReported: false };
+  }
+  const legs = [...legsOf(current), ...legsOf(next)];
+  const allLegsReported = current.allLegsReported !== false && next.allLegsReported !== false;
+  return {
+    ...sumLegUsage(current, next),
+    legs,
+    ...(allLegsReported ? {} : { allLegsReported: false as const }),
+  };
+}
+
+/** The legs inside one usage: a merged one returns its legs, a single leg is itself (with the merge markers removed). */
+function legsOf(usage: StreamUsage): readonly StreamUsage[] {
+  if (usage.legs) return usage.legs;
+  const { legs: _legs, allLegsReported: _all, ...leg } = usage;
+  return [leg];
+}
+
+function sumLegUsage(current: StreamUsage, next: StreamUsage): StreamUsage {
   const sumOptional = (left: number | undefined, right: number | undefined): number | undefined =>
     left == null && right == null ? undefined : (left ?? 0) + (right ?? 0);
   const leftBreakdown = current.breakdown;

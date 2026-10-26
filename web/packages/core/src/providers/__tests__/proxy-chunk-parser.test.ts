@@ -32,6 +32,17 @@ describe('createProxyChunkParser - per-stream closure isolation', () => {
     }))).toEqual([]);
   });
 
+  it('Kimi reads choices[0].usage when the top level has none (same shape as the recorded stream)', () => {
+    const parser = createProxyChunkParser('moonshot');
+    const events = feed(parser, null, JSON.stringify({
+      model: 'kimi-k2.5',
+      choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls', usage: { prompt_tokens: 20, completion_tokens: 1, total_tokens: 21 } }],
+    }));
+    const usage = events.find((event) => event.type === 'usage');
+    expect(usage?.type === 'usage' ? usage.usage.prompt_tokens : undefined).toBe(20);
+    expect(usage?.type === 'usage' ? usage.usage.completion_tokens : undefined).toBe(1);
+  });
+
   it('keeps input_tokens of two concurrent Anthropic streams separate when frames are interleaved', () => {
     const a = createProxyChunkParser('anthropic');
     const b = createProxyChunkParser('anthropic');
@@ -63,6 +74,20 @@ describe('createProxyChunkParser - per-stream closure isolation', () => {
     expect(bUsage.usage.prompt_tokens).toBe(999);
     expect(bUsage.usage.completion_tokens).toBe(7);
     expect(bUsage.usage.breakdown?.cachedInputTokens).toBe(0);
+  });
+
+  it('emits usage when only message_start carries it; emits none when neither does (same rule as the strategy)', () => {
+    const startOnly = createProxyChunkParser('anthropic');
+    feed(startOnly, 'message_start', JSON.stringify({ type: 'message_start', message: { usage: { input_tokens: 80 } } }));
+    const usage = feed(startOnly, 'message_delta', JSON.stringify({ type: 'message_delta', delta: { stop_reason: 'end_turn' } }))
+      .find((e) => e.type === 'usage') as Extract<StreamEvent, { type: 'usage' }> | undefined;
+    expect(usage?.usage.prompt_tokens).toBe(80);
+    expect(usage?.usage.completion_tokens).toBe(0);
+
+    const none = createProxyChunkParser('anthropic');
+    feed(none, 'message_start', JSON.stringify({ type: 'message_start', message: { id: 'msg_1' } }));
+    expect(feed(none, 'message_delta', JSON.stringify({ type: 'message_delta', delta: { stop_reason: 'end_turn' } }))
+      .some((e) => e.type === 'usage')).toBe(false);
   });
 
   it('keeps citation accumulation of two concurrent Responses streams separate', () => {

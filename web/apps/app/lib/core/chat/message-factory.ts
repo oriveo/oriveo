@@ -89,6 +89,8 @@ export function createNewConversation(params: {
     modelID: model.id,
     previewText: makePreviewText(userMessage),
     estimatedCost: 0,
+    // Created locally: the whole thread lives on this device
+    localThreadComplete: true,
     isDraft: false,
     messages,
     draftText: '',

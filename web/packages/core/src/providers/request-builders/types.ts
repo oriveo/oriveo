@@ -199,6 +199,8 @@ export interface ProviderRequest {
     | 'moonshot_formula_fiber_loop'
     | 'gemini_interactions';
   moonshotMaxToolLoops?: number;
+  /** Model catalog promptCache.policyRef; used when tool legs reassemble Anthropic turns to decide whether to add a breakpoint. Never serialized upstream. */
+  promptCachePolicyRef?: string;
   /** Panel generation parameters dropped by the per-item outbound decision (including the thinking linkage guard). Never serialized upstream. */
   droppedGenerationParameters?: DroppedGenerationParameter[];
   /** Context from when the builder wrote the generation parameters, so the thinking linkage guard can be evaluated once more after the recipe has written its thinking fields. Never serialized upstream. */

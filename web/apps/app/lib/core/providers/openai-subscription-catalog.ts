@@ -56,6 +56,8 @@ export function buildOpenAISubscriptionModels(
       ...(descriptor.supportedReasoningLevels.length > 0
         ? { upstreamReasoningLevels: descriptor.supportedReasoningLevels }
         : {}),
+      // Carry the first-party input modalities through as-is (omit them when upstream declares none); the subscription truth adapter uses them to decide image / file / video support.
+      ...(descriptor.inputModalities ? { upstreamInputModalities: descriptor.inputModalities } : {}),
       ...(descriptor.contextWindow ? { contextLength: descriptor.contextWindow } : {}),
       ...(summary ? { summary } : {}),
     };

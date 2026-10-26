@@ -3,7 +3,7 @@ import path from 'node:path';
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../metadata/metadata-client', () => ({
+vi.mock('../../metadata/metadata-client', async (importOriginal) => (await import('../../../__tests__/mocks/metadata-client')).metadataClientMock(importOriginal, {
   resolveCatalogModel: vi.fn(),
   getRelayRuntimeConfig: vi.fn(() => null),
   // The generation profile of an official provider is resolved by core dispatch from the

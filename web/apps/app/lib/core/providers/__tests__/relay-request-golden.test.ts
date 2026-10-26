@@ -177,12 +177,18 @@ function normalizeHeaders(raw: HeadersInit | undefined): Record<string, string> 
 
 interface Captured { method: string; url: string; headers: Record<string, string>; body: string }
 
-/** Stub global fetch: /api/metadata throws (metadata unreachable), the rest only record the first one. */
-function installFetchStub(): { first: () => Captured | undefined; count: () => number } {
+/** Stub global fetch: /api/metadata throws by default (metadata unreachable) and returns the given metadata when one is supplied; the rest only record the first call. */
+function installFetchStub(metadata?: Record<string, unknown>): { first: () => Captured | undefined; count: () => number } {
   const calls: Captured[] = [];
   vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-    if (url.includes('/api/metadata')) throw new Error('metadata unavailable in golden test');
+    if (url.includes('/api/metadata')) {
+      if (!metadata) throw new Error('metadata unavailable in golden test');
+      return new Response(JSON.stringify({ code: 0, message: 'ok', data: metadata }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
     calls.push({
       method: init?.method ?? 'GET',
       url,
@@ -220,8 +226,30 @@ function relayProvider(item: Manifest['relay'][number], model: AIModel): Provide
   } as Provider;
 }
 
-async function captureOfficial(item: Manifest['official'][number]): Promise<Captured> {
-  const stub = installFetchStub();
+/**
+ * The golden describes normal operation: the official Anthropic prompt cache breakpoints only honor the catalog promptCache.policyRef,
+ * and this case has metadata publish the model as anthropic.explicit so the production path itself produces a body with breakpoints.
+ */
+const OFFICIAL_EXPLICIT_PROMPT_CACHE_CASES = new Set(['official_anthropic']);
+
+function explicitPromptCacheMetadata(item: Manifest['official'][number]): Record<string, unknown> {
+  return {
+    version: 1,
+    updatedAt: '2026-10-19T00:00:00Z',
+    profiles: { reasoning: {}, webSearch: {}, imageGen: {} },
+    providers: {
+      [item.providerKind]: {
+        resolveMap: { [item.model]: item.model },
+        models: {
+          [item.model]: { canonicalModelId: item.model, promptCache: { policyRef: 'anthropic.explicit' } },
+        },
+      },
+    },
+  };
+}
+
+async function captureOfficial(item: Manifest['official'][number], withMetadata = OFFICIAL_EXPLICIT_PROMPT_CACHE_CASES.has(item.caseId)): Promise<Captured> {
+  const stub = installFetchStub(withMetadata ? explicitPromptCacheMetadata(item) : undefined);
   const req = await buildProviderRequest({
     providerKind: item.providerKind,
     apiKey: manifest.apiKey,
@@ -352,6 +380,15 @@ describe('RL2-MIGRATE-01 golden of existing outbound requests (Web)', () => {
       check(await recordOrUnsupported(item.caseId, () => captureRelay(provider, model)));
     });
   }
+
+  it('official Anthropic sets no cache_control breakpoint when metadata is unavailable', async () => {
+    const item = manifest.official.find((entry) => entry.caseId === 'official_anthropic')!;
+    const captured = await captureOfficial(item, false);
+    const body = JSON.parse(captured.body) as Record<string, unknown>;
+    expect(body.model).toBe(item.model);
+    expect(captured.body).not.toContain('cache_control');
+    expect(body.max_tokens).toBe(8192);
+  });
 
   it('RL2-MIGRATE-01 relay build does not rewrite provider.relayRequested or the model object', async () => {
     for (const item of manifest.relay) {

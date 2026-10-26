@@ -90,7 +90,7 @@ export function legacyCapabilityFallback(
   );
   if (capability === 'web') {
     // Manually added models and older persisted records can be missing the capabilities array entirely, so it must not be assumed present.
-    const byProfile = (current.capabilities ?? []).includes('web') && Boolean(current.webSearchProfile);
+    const byProfile = (current.capabilities ?? []).includes('web') && Boolean(current.webSearchProfile); // capability-lint-allow R1: the capability-control resolver reads the catalog web bit as an evidence source, same as iOS / Android CapabilityControlResolution
     return byProfile || evidenceSupported('web_search')
       ? { state: 'auto_available', availableIntents: ['off', 'automatic'], reasonCode: 'legacy_profile', viaLegacyProfile: true }
       : undefined;
@@ -146,7 +146,7 @@ function subscriptionCapabilityControl(
     // Grok subscription Responses always carries a real web_search (outbound ignores the preference) and the user
     // cannot turn it off: the reasonCode marks it always-on, so the panel shows a read-only "Always on" row
     // instead of a switch that has no effect.
-    return (model.capabilities ?? []).includes('web')
+    return (model.capabilities ?? []).includes('web') // capability-lint-allow R1: the capability-control resolver reads the catalog web bit as an evidence source, same as iOS / Android CapabilityControlResolution
       ? {
           state: 'auto_available',
           availableIntents: provider.kind === 'grok' ? ['automatic'] : ['off', 'automatic'],
@@ -358,11 +358,13 @@ export function hasExactCapabilityTransportRecipe(
   capability: CapabilityKey,
 ): boolean {
   if (!provider || !model) return false;
-  const control = model.capabilityControls?.[capability];
-  if (!control) return false;
-  if (control.state !== 'auto_available') return true;
+  if (!model.capabilityControls?.[capability]) return false;
+  // Web reads the facade verdict: anything other than supported has no recipe by contract; only supported needs the winning candidate's recipeRef.
+  const recipeRef = capability === 'web'
+    ? webRecipeRefFromEvidence(provider, model)
+    : controlRecipeRef(provider, model, capability);
+  if (recipeRef === true) return true;
   const runtime = getCapabilityRuntime();
-  const recipeRef = control.recipeRef;
   const modelTransport = getModelTransport(model.id, provider.kind) ?? model.transport;
   if (!runtime || !recipeRef || !modelTransport) return false;
   const recipe = runtime.recipes?.[recipeRef];
@@ -371,17 +373,28 @@ export function hasExactCapabilityTransportRecipe(
   return canonicalRecipeTransport(transport) === canonicalRecipeTransport(modelTransport);
 }
 
+/** Facade web verdict: not supported -> true (no recipe needed); supported -> the winning candidate's recipeRef (undefined if absent). */
+function webRecipeRefFromEvidence(provider: Provider, model: AIModel): string | true | undefined {
+  const resolution = resolveModelCapabilityEvidence({ key: 'web_search', provider, model });
+  return resolution.support === 'supported' ? resolution.recipeRef : true;
+}
+
+/** Capabilities the evidence facade has no key for (thinking / generation parameters): follow the control resolver's verdict, and take the Server control's recipe only when auto_available. */
+function controlRecipeRef(provider: Provider, model: AIModel, capability: CapabilityKey): string | true | undefined {
+  if (presentCapabilityControl(provider, model, capability).state !== 'auto_available') return true;
+  return model.capabilityControls?.[capability]?.recipeRef ?? undefined;
+}
+
 /** D0: missing capability knowledge is still user-configurable; only a negative verdict disables it. */
 export function capabilityControlIsConfigurable(
-  control: Pick<CapabilityControlPresentation, 'state'>,
+  presentation: Pick<CapabilityControlPresentation, 'state'>,
 ): boolean {
-  return control.state === 'auto_available' || control.state === 'unknown';
+  return presentation.state === 'auto_available' || presentation.state === 'unknown';
 }
 
 /**
  * The badge/filter verdict for model lists, resolved from the same function the
- * composer uses. `custom_only` deliberately does not earn a badge: the user
- * cannot turn it on without the developer switch.
+ * composer uses. Only `auto_available` earns a badge.
  */
 export function capabilityAvailableForDisplay(
   provider: Provider | undefined,
@@ -393,8 +406,8 @@ export function capabilityAvailableForDisplay(
   if (capability === 'web' && provider && model && providerFormOf(provider) === 'relay' && !provider.relayRequested?.engineProfile) {
     return resolveRelayWebPresentation(relayWebModelOptionFacts(provider, model), null).truth === 'supported';
   }
-  const control = presentCapabilityControl(provider, model, capability, resolvedModel);
-  return control.state === 'auto_available' || control.state === 'managed_only';
+  // A badge promises only what can really be done: managed_only / custom_only / unknown / unavailable never show one.
+  return presentCapabilityControl(provider, model, capability, resolvedModel).state === 'auto_available';
 }
 
 /**
@@ -405,6 +418,6 @@ export function capabilityAvailableForDisplay(
  * module because v2 state words are only allowed inside the registered verdict surface; rendering
  * components must not carry bare checks of their own.
  */
-export function resolveWebAvailableIntents(control: CapabilityControlPresentation): readonly string[] {
-  return control.state === 'auto_available' ? control.availableIntents : [];
+export function resolveWebAvailableIntents(presentation: CapabilityControlPresentation): readonly string[] {
+  return presentation.state === 'auto_available' ? presentation.availableIntents : [];
 }

@@ -169,8 +169,13 @@ export function enrichStoredModel(model: AIModel, providerKind: ProviderKind | s
   };
 }
 
+/**
+ * price display. `priceTier` is persisted and synced across clients; the stored value is generated without `format` (model-level price, USD notation);
+ * the render layer, which has a connection context, passes the selected currency and the UI locale when it calls with the selected region's price.
+ */
 export function resolveModelPricePresentation(
   metadata: Pick<ResolvedModelMetadata, 'pricingStatus' | 'pricing' | 'pricingUnit'> | null | undefined,
+  format?: { currencyCode: string; locale?: string },
 ): {
   priceTier: string;
   promptPrice: number | undefined;
@@ -198,6 +203,8 @@ export function resolveModelPricePresentation(
         priceTier: formatModelPriceTier(
           promptPerToken,
           completionPerToken,
+          format?.currencyCode,
+          format?.locale,
         ),
         promptPrice: promptPerToken,
         completionPrice: completionPerToken,

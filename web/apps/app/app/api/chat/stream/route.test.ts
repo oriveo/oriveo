@@ -17,6 +17,8 @@ vi.mock("@sentry/nextjs", () => ({
 // kind) are covered by runtime.test.ts. Switching ?view=index back to a full view turns this whole
 // file red.
 const METADATA_URL = "https://api.oriveoai.com/api/metadata?view=index";
+/** The mock route and the assertions ignore `&schema=N` when comparing URLs: the value of the requested schema is locked by runtime.test.ts. */
+const withoutSchema = (url: unknown): string => String(url).replace(/&schema=\d+$/, "");
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -75,7 +77,7 @@ describe("/api/chat/stream", () => {
   it('preserves an explicit non-streaming mode through the real route and returns provider JSON', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url = String(input);
-      if (url === METADATA_URL) return jsonResponse(buildMetadata({
+      if (withoutSchema(url) === METADATA_URL) return jsonResponse(buildMetadata({
         providers: { openAI: { resolveMap: { 'gpt-4.1': 'gpt-4.1' }, models: { 'gpt-4.1': { canonicalModelId: 'gpt-4.1' } } } },
       }));
       if (url === 'https://api.openai.com/v1/chat/completions') {
@@ -100,7 +102,7 @@ describe("/api/chat/stream", () => {
       .mockImplementation(async (input, init) => {
         const url = String(input);
 
-        if (url === METADATA_URL) {
+        if (withoutSchema(url) === METADATA_URL) {
           return jsonResponse(
             buildMetadata({
               profiles: {
@@ -166,7 +168,7 @@ describe("/api/chat/stream", () => {
       .mockImplementation(async (input, init) => {
         const url = String(input);
 
-        if (url === METADATA_URL) {
+        if (withoutSchema(url) === METADATA_URL) {
           return jsonResponse(
             buildMetadata({
               profiles: {
@@ -247,7 +249,7 @@ describe("/api/chat/stream", () => {
       .mockImplementation(async (input, init) => {
         const url = String(input);
 
-        if (url === METADATA_URL) {
+        if (withoutSchema(url) === METADATA_URL) {
           return jsonResponse(
             buildMetadata({
               providers: {
@@ -298,7 +300,7 @@ describe("/api/chat/stream", () => {
       .mockImplementation(async (input, init) => {
         const url = String(input);
 
-        if (url === METADATA_URL) {
+        if (withoutSchema(url) === METADATA_URL) {
           return jsonResponse(
             buildMetadata({
               providers: {
@@ -354,7 +356,7 @@ describe("/api/chat/stream", () => {
       .mockImplementation(async (input, init) => {
         const url = String(input);
 
-        if (url === METADATA_URL) {
+        if (withoutSchema(url) === METADATA_URL) {
           return jsonResponse(
             buildMetadata({
               profiles: {
@@ -422,7 +424,7 @@ describe("/api/chat/stream", () => {
       .mockImplementation(async (input, init) => {
         const url = String(input);
 
-        if (url === METADATA_URL) {
+        if (withoutSchema(url) === METADATA_URL) {
           return jsonResponse(
             buildMetadata({
               profiles: {
@@ -502,7 +504,7 @@ describe("/api/chat/stream", () => {
       .mockImplementation(async (input, init) => {
         const url = String(input);
 
-        if (url === METADATA_URL) {
+        if (withoutSchema(url) === METADATA_URL) {
           return jsonResponse(
             buildMetadata({
               profiles: {
@@ -582,7 +584,7 @@ describe("/api/chat/stream", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);
 
-      if (url === METADATA_URL) {
+      if (withoutSchema(url) === METADATA_URL) {
         return jsonResponse(
           buildMetadata({
             profiles: {
@@ -659,7 +661,7 @@ describe("/api/chat/stream", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);
 
-      if (url === METADATA_URL) {
+      if (withoutSchema(url) === METADATA_URL) {
         return jsonResponse(
           buildMetadata({
             profiles: {
@@ -730,7 +732,7 @@ describe("/api/chat/stream", () => {
     let upstreamCalls = 0;
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = String(input);
-      if (url === METADATA_URL) {
+      if (withoutSchema(url) === METADATA_URL) {
         return jsonResponse(buildMetadata({}));
       }
       if (url === "https://api.x.ai/v1/chat/completions") {
@@ -769,7 +771,7 @@ describe("/api/chat/stream", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);
 
-      if (url === METADATA_URL) {
+      if (withoutSchema(url) === METADATA_URL) {
         return jsonResponse(
           buildMetadata({
             providers: {
@@ -830,7 +832,7 @@ describe("/api/chat/stream", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);
 
-      if (url === METADATA_URL) {
+      if (withoutSchema(url) === METADATA_URL) {
         return jsonResponse(
           buildMetadata({
             profiles: {
@@ -892,7 +894,7 @@ describe("/api/chat/stream", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);
 
-      if (url === METADATA_URL) {
+      if (withoutSchema(url) === METADATA_URL) {
         return jsonResponse(
           buildMetadata({
             profiles: {
@@ -957,7 +959,7 @@ describe("/api/chat/stream", () => {
   it("adapts think tags inside MiniMax chat content into reasoning events", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = String(input);
-      if (url === METADATA_URL) {
+      if (withoutSchema(url) === METADATA_URL) {
         return jsonResponse(
           buildMetadata({
             profiles: { reasoning: {}, webSearch: {}, imageGen: {} },
@@ -1019,7 +1021,7 @@ describe("/api/chat/stream", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);
 
-      if (url === METADATA_URL) {
+      if (withoutSchema(url) === METADATA_URL) {
         return jsonResponse(
           buildMetadata({
             profiles: {
@@ -1084,7 +1086,7 @@ describe("/api/chat/stream", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);
 
-      if (url === METADATA_URL) {
+      if (withoutSchema(url) === METADATA_URL) {
         return jsonResponse(
           buildMetadata({
             profiles: {
@@ -1178,7 +1180,7 @@ describe("/api/chat/stream", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);
 
-      if (url === METADATA_URL) {
+      if (withoutSchema(url) === METADATA_URL) {
         return jsonResponse(
           buildMetadata({
             profiles: {
@@ -1273,7 +1275,7 @@ describe("/api/chat/stream", () => {
       .mockImplementation(async (input, init) => {
         const url = String(input);
 
-        if (url === METADATA_URL) {
+        if (withoutSchema(url) === METADATA_URL) {
           return jsonResponse(
             buildMetadata({
               profiles: {
@@ -1373,7 +1375,7 @@ describe("/api/chat/stream", () => {
       .mockImplementation(async (input) => {
         const url = String(input);
 
-        if (url === METADATA_URL) {
+        if (withoutSchema(url) === METADATA_URL) {
           return jsonResponse(
             buildMetadata({
               profiles: {
@@ -1442,7 +1444,7 @@ describe("/api/chat/stream", () => {
       .mockImplementation(async (input, init) => {
         const url = String(input);
 
-        if (url === METADATA_URL) {
+        if (withoutSchema(url) === METADATA_URL) {
           return jsonResponse(
             buildMetadata({
               profiles: {
@@ -1510,7 +1512,7 @@ describe("/api/chat/stream", () => {
       .mockImplementation(async (input, init) => {
         const url = String(input);
 
-        if (url === METADATA_URL) {
+        if (withoutSchema(url) === METADATA_URL) {
           return jsonResponse(
             buildMetadata({
               profiles: {
@@ -1578,7 +1580,7 @@ describe("/api/chat/stream", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);
 
-      if (url === METADATA_URL) {
+      if (withoutSchema(url) === METADATA_URL) {
         return jsonResponse(
           buildMetadata({
             profiles: {
@@ -1647,7 +1649,7 @@ describe("/api/chat/stream", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);
 
-      if (url === METADATA_URL) {
+      if (withoutSchema(url) === METADATA_URL) {
         return jsonResponse(
           buildMetadata({
             profiles: {
@@ -1672,6 +1674,8 @@ describe("/api/chat/stream", () => {
                 models: {
                   "claude-sonnet-4-5": {
                     canonicalModelId: "claude-sonnet-4-5",
+                    maxOutputTokens: 64000,
+                    promptCache: { policyRef: "anthropic.explicit" },
                     profiles: { reasoning: "ant_budget" },
                   },
                 },
@@ -1687,7 +1691,8 @@ describe("/api/chat/stream", () => {
           model: "claude-sonnet-4-5",
           stream: true,
           system: "System A\n\nSystem B",
-          max_tokens: 8192,
+          // The model's maxOutputTokens is not clamped to the protocol default of 8192.
+          max_tokens: 64000,
         });
         expect(body.thinking).toBeUndefined();
         expect(body.messages).toEqual([
@@ -1748,7 +1753,7 @@ describe("/api/chat/stream", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);
 
-      if (url === METADATA_URL) {
+      if (withoutSchema(url) === METADATA_URL) {
         return jsonResponse(
           buildMetadata({
             profiles: {
@@ -1861,7 +1866,7 @@ describe("/api/chat/stream", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);
 
-      if (url === METADATA_URL) {
+      if (withoutSchema(url) === METADATA_URL) {
         return jsonResponse(
           buildMetadata({
             providers: {
@@ -1912,7 +1917,7 @@ describe("/api/chat/stream", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);
 
-      if (url === METADATA_URL) {
+      if (withoutSchema(url) === METADATA_URL) {
         return jsonResponse(
           buildMetadata({
             providers: {
@@ -1957,7 +1962,7 @@ describe("/api/chat/stream", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = String(input);
 
-      if (url === METADATA_URL) {
+      if (withoutSchema(url) === METADATA_URL) {
         return jsonResponse(buildMetadata({}));
       }
 
@@ -1988,7 +1993,7 @@ describe("/api/chat/stream", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);
 
-      if (url === METADATA_URL) {
+      if (withoutSchema(url) === METADATA_URL) {
         return jsonResponse(
           buildMetadata({
             providers: {
@@ -2039,7 +2044,7 @@ describe("/api/chat/stream", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);
 
-      if (url === METADATA_URL) {
+      if (withoutSchema(url) === METADATA_URL) {
         return jsonResponse(
           buildMetadata({
             providers: {
@@ -2088,7 +2093,7 @@ describe("/api/chat/stream", () => {
     let messagesBody: Record<string, unknown> | undefined;
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);
-      if (url === METADATA_URL) {
+      if (withoutSchema(url) === METADATA_URL) {
         return jsonResponse(
           buildMetadata({
             profiles: {
@@ -2108,6 +2113,7 @@ describe("/api/chat/stream", () => {
                 models: {
                   "claude-sonnet-4": {
                     canonicalModelId: "claude-sonnet-4",
+                    promptCache: { policyRef: "anthropic.explicit" },
                     profiles: { webSearch: "ant_web_tool" },
                   },
                 },
@@ -2146,7 +2152,7 @@ describe("/api/chat/stream", () => {
     const bodies: Record<string, Record<string, unknown>> = {};
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);
-      if (url === METADATA_URL) {
+      if (withoutSchema(url) === METADATA_URL) {
         return jsonResponse(buildMetadata({ profiles: { reasoning: {}, webSearch: {}, imageGen: {} }, providers: {} }));
       }
       if (url === "https://api.anthropic.com/v1/messages" || url === "https://api.openai.com/v1/chat/completions") {
@@ -2179,7 +2185,7 @@ describe("/api/chat/stream", () => {
     let messagesBody: Record<string, unknown> | undefined;
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);
-      if (url === METADATA_URL) {
+      if (withoutSchema(url) === METADATA_URL) {
         return jsonResponse(
           buildMetadata({
             profiles: {
@@ -2228,7 +2234,7 @@ describe("/api/chat/stream", () => {
     let geminiBody: Record<string, unknown> | undefined;
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);
-      if (url === METADATA_URL) {
+      if (withoutSchema(url) === METADATA_URL) {
         return jsonResponse(
           buildMetadata({
             profiles: {
@@ -2279,7 +2285,7 @@ describe("/api/chat/stream", () => {
     let zhipuBody: Record<string, unknown> | undefined;
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);
-      if (url === METADATA_URL) {
+      if (withoutSchema(url) === METADATA_URL) {
         return jsonResponse(
           buildMetadata({
             profiles: {
@@ -2338,7 +2344,7 @@ describe("/api/chat/stream", () => {
     let orBody: Record<string, unknown> | undefined;
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);
-      if (url === METADATA_URL) {
+      if (withoutSchema(url) === METADATA_URL) {
         return jsonResponse(
           buildMetadata({
             profiles: {
@@ -2392,7 +2398,7 @@ describe("/api/chat/stream", () => {
   it("blocks a relay baseURL pointing at a cloud metadata IP with 403 and never fetches upstream", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = String(input);
-      if (url === METADATA_URL) {
+      if (withoutSchema(url) === METADATA_URL) {
         return jsonResponse(buildMetadata({}));
       }
       throw new Error(`Unexpected upstream fetch: ${url}`);
@@ -2415,7 +2421,7 @@ describe("/api/chat/stream", () => {
   it("blocks a relay baseURL pointing at a private IP with 403", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = String(input);
-      if (url === METADATA_URL) {
+      if (withoutSchema(url) === METADATA_URL) {
         return jsonResponse(buildMetadata({}));
       }
       throw new Error(`Unexpected upstream fetch: ${url}`);
@@ -2444,7 +2450,7 @@ describe("/api/chat/stream additional request body", () => {
   function stubFetch(onUpstream: (body: Record<string, unknown>) => Response) {
     return vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);
-      if (url === METADATA_URL) {
+      if (withoutSchema(url) === METADATA_URL) {
         return jsonResponse(buildMetadata({
           profiles: { reasoning: {}, webSearch: {}, imageGen: {} },
           providers: { openAI: { resolveMap: { "gpt-4.1": "gpt-4.1" }, models: { "gpt-4.1": { canonicalModelId: "gpt-4.1" } } } },

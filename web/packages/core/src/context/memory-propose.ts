@@ -1,8 +1,8 @@
 /**
- * Host tool propose_memory (contract: context-contracts/memory-propose.v2.json).
+ * Host tool propose_memory (contract: shared/context-contracts/memory-propose.v3.json; v3 propose-v3).
  * Pure: the tool definition sent to the model, the fixed tool_result, propose → pending candidate, the per-send mode
- * and the degrade rule. A proposal only ever yields a pending candidate through makeMemoryCandidate; nothing here
- * touches storage or writes an active item.
+ * and the degrade rule. A proposal only ever yields a pending candidate through makeMemoryCandidate, or (v3, scope
+ * conversation) an instruct sentence for the conversation-instruction bar; nothing here touches storage or writes an active item.
  */
 
 import {
@@ -21,8 +21,8 @@ import { trimWhiteSpace } from './white-space';
 export const PROPOSE_MEMORY_TOOL_NAME = 'propose_memory';
 
 const KINDS: readonly MemoryKind[] = ['instruction','project','goal','preference','identity','fact','decision','event'];
-export type ProposeMemoryScope = 'global' | 'folder' | 'unspecified';
-const SCOPES: readonly ProposeMemoryScope[] = ['global','folder','unspecified'];
+export type ProposeMemoryScope = 'global' | 'folder' | 'unspecified' | 'conversation';
+const SCOPES: readonly ProposeMemoryScope[] = ['global','folder','unspecified','conversation'];
 
 /** Canonical (OpenAI function) shape; each protocol family projects it with the shared tool projection. */
 export const PROPOSE_MEMORY_TOOL = {
@@ -30,7 +30,7 @@ export const PROPOSE_MEMORY_TOOL = {
   function: {
     name: PROPOSE_MEMORY_TOOL_NAME,
     description:
-      "Propose one long-term memory for the user to confirm. Call it only when the user's own message in this turn asks you to remember something for future conversations, or states a lasting fact or preference about themselves, or a decision or event they will want to look up later, that they clearly want kept beyond this conversation. One atomic statement per call, keeping the user's meaning and language; never record your own inference. Do not call it for: instructions such as 'from now on' or 'going forward' unless the user says they apply to all or future chats (those stay in this conversation); reminders and to-dos; questions, including 'can you remember...'; corrections or statements that something is no longer true; quoted, hypothetical or role-play text; anything containing passwords, keys, codes, payment or ID details, health, sexuality, religion, politics, ethnicity, criminal record or immigration status. Nothing is saved until the user confirms. After calling, continue your reply normally and do not mention the proposal.",
+      "Propose one long-term memory for the user to confirm, or one standing instruction for this conversation. Call it when the user's own message in this turn asks you to remember something for future conversations, or states a lasting fact or preference about themselves, or a decision or event they will want to look up later, that they clearly want kept beyond this conversation. Also call it when the user asks you to keep answering in a certain way for the rest of this conversation (from now on, going forward, always, never, every time...): set scope to conversation and kind to instruction. One atomic statement per call, keeping the user's meaning and language; never record your own inference. Do not call it for: reminders and to-dos; questions, including 'can you remember...'; corrections or statements that something is no longer true; quoted, hypothetical or role-play text; anything containing passwords, keys, codes, payment or ID details, health, sexuality, religion, politics, ethnicity, criminal record or immigration status. Nothing is saved until the user confirms. After calling, continue your reply normally and do not mention the proposal.",
     parameters: {
       type: 'object',
       properties: {
@@ -47,7 +47,8 @@ export const PROPOSE_MEMORY_TOOL = {
         scope: {
           type: 'string',
           enum: [...SCOPES],
-          description: 'global: the user said it applies to all chats; folder: the user said it applies to this project or folder; unspecified: the user named no scope.',
+          description:
+            'global: the user said it applies to all chats; folder: the user said it applies to this project or folder; unspecified: the user named no scope; conversation: a way of answering the user wants kept for the rest of this conversation only (use kind instruction).',
         },
         sourceQuote: {
           type: 'string',
@@ -66,6 +67,9 @@ export const PROPOSE_MEMORY_TOOL_RESULT =
 
 export const PROPOSE_MEMORY_MAX_PER_TURN = 3;
 
+/** Instruct outcomes per turn (v3); later conversation-scope calls skip instruct_limit. */
+export const PROPOSE_MEMORY_MAX_INSTRUCT_PER_TURN = 1;
+
 export type ProposeMemorySkipReason =
   | Exclude<MemoryCandidateSkipReason, 'no_suggestion' | 'auto_suggest_off'>
   | 'invalid_arguments'
@@ -74,11 +78,15 @@ export type ProposeMemorySkipReason =
   | 'secret'
   | 'special'
   | 'conversation_instruction'
+  | 'conversation_not_instruction'
+  | 'instruct_limit'
   | 'turn_limit';
 
 export type ProposeMemoryOutcome =
   | { action: 'create'; reason: null; candidate: MemoryCandidateRecord }
-  | { action: 'skip'; reason: ProposeMemorySkipReason; candidate: null };
+  | { action: 'skip'; reason: ProposeMemorySkipReason; candidate: null }
+  /** scope conversation (v3): the sentence goes to the conversation-instruction bar, never to memory. */
+  | { action: 'instruct'; reason: null; candidate: null; sentence: string };
 
 export interface ProposeMemoryContext {
   readonly conversationId: string;
@@ -99,11 +107,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-/** One propose_memory call → at most one pending candidate. priorInTurn = earlier calls of the same turn. */
+/**
+ * One propose_memory call → at most one pending candidate or one instruct sentence.
+ * priorInTurn = earlier calls of the same turn; priorInstructInTurn = earlier calls of the turn that yielded instruct.
+ */
 export function proposeMemoryCandidate(
   argumentsJson: string,
   context: ProposeMemoryContext,
   priorInTurn: number,
+  priorInstructInTurn = 0,
 ): ProposeMemoryOutcome {
   if (priorInTurn >= PROPOSE_MEMORY_MAX_PER_TURN) return skip('turn_limit');
   let args: unknown;
@@ -130,7 +142,13 @@ export function proposeMemoryCandidate(
   const sensitive = (text: string) => classifyMemoryIntent(text).sensitive;
   if ([context.userText, content, sourceQuote].some((t) => sensitive(t) === 'secret')) return skip('secret');
   if ([content, sourceQuote].some((t) => sensitive(t) === 'special')) return skip('special');
-  // A convention scoped to this conversation belongs to the "set as conversation instruction" path and does not produce a memory item
+  // v3: when the model states the conversation scope, hand it to the "set as conversation instruction" item and do not create a memory candidate
+  if (scope === 'conversation') {
+    if (kind !== 'instruction') return skip('conversation_not_instruction');
+    if (priorInstructInTurn >= PROPOSE_MEMORY_MAX_INSTRUCT_PER_TURN) return skip('instruct_limit');
+    return { action: 'instruct', reason: null, candidate: null, sentence: trimWhiteSpace(sourceQuote) };
+  }
+  // For other scopes, a convention that holds for this conversation still belongs to the "set as conversation instruction" item (lexical path), not to a memory item
   const v1 = classifyMemoryIntent(context.userText);
   if (v1.suggestion === 'conversationInstruction' || v1.blocked === 'conversation_scope') return skip('conversation_instruction');
   const outcome: MemoryCandidateOutcome = makeMemoryCandidate(

@@ -1500,9 +1500,14 @@
   transition: background var(--o-transition-fast), transform var(--o-transition-fast);
 }
 
-.modelChatBtn:hover {
+.modelChatBtn:hover:not(:disabled) {
   background: var(--o-pd-chatbtn-hover-bg);
   transform: scale(1.05);
+}
+
+.modelChatBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
 }
 
 .modelChatBtn:focus-visible {

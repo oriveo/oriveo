@@ -22,11 +22,14 @@ import type { ContentPart, StreamEvent, StreamHandle } from '../providers/types'
 import { telemetryProviderKind, trackEvent } from '../telemetry';
 import {
   RELAY_NEGATIVE_CACHE_STORAGE_KEY,
-  isRelayNegativeCached,
   recordRelayNegativeCache,
   type RelayNegativeCacheModelKey,
 } from '../chat/relay-negative-cache';
 import { safeLocalStorage } from '../../infra/storage/web-storage';
+import { recordRelayInputRejectionV2 } from '../capability/input-rejection-flow';
+import { INPUT_NEGATIVE_CACHE_STORAGE_KEY, readInputNegativeCache } from '../capability/input-negative-cache';
+import { inputNegativeCacheTarget, type InputNegativeCacheTarget } from '../capability/truth/input-truth-adapter';
+import { providerFormOf } from '../capability/truth/provider-form';
 
 export type OutboundHistoryMessage = {
   role: 'user' | 'assistant' | 'system';
@@ -46,19 +49,74 @@ function connectionKey(providerId: string, transport: AttachmentTransport): stri
   return `${providerId}\u0000${transport}`;
 }
 
+/**
+ * Key of the Relay connection's `file_input` negative cache v2 (the same target the send side writes on
+ * rejection); called for relays only (the caller judges the form). Returns null when the protocol family
+ * cannot be determined, or when the arguments are not a full connection / model object (production callers
+ * always pass full objects).
+ */
+export function relayFileInputTarget(
+  provider: { kind: string; id?: string },
+  model: { id: string },
+  streamOptions: Parameters<typeof inputNegativeCacheTarget>[2],
+): InputNegativeCacheTarget | null {
+  if (!isFullProvider(provider) || !isFullModel(model)) return null;
+  return inputNegativeCacheTarget(provider, model, streamOptions, 'file_input');
+}
+
+/**
+ * The `file_input` negative cache v2 target used to read "this connection rejected file blocks": relays and
+ * official connections both read v2 (official ones are written on a signature rejection, see
+ * `recordOfficialInputRejection`); null when the protocol family cannot be determined (not counted as
+ * rejected); undefined for other forms such as subscriptions (read the in-session record).
+ */
+export function nativeFileInputTarget(
+  provider: { kind: string; id?: string; authMode?: string },
+  model: { id: string },
+  streamOptions: Parameters<typeof inputNegativeCacheTarget>[2],
+): InputNegativeCacheTarget | null | undefined {
+  if (!provider.id) return undefined;
+  const form = providerFormOf(provider as Parameters<typeof providerFormOf>[0]);
+  if (form !== 'relay' && form !== 'official') return undefined;
+  return relayFileInputTarget(provider, model, streamOptions);
+}
+
+type TargetArgs = Parameters<typeof inputNegativeCacheTarget>;
+
+function isFullProvider(provider: { kind: string }): provider is TargetArgs[0] {
+  return 'models' in provider;
+}
+
+function isFullModel(model: { id: string }): model is TargetArgs[1] {
+  return 'name' in model;
+}
+
+/**
+ * Relays and official connections pass `relayInputTarget` (the `file_input` negative cache v2 target, see
+ * `nativeFileInputTarget`; null when the protocol family cannot be determined = not counted as rejected);
+ * only v2 is read, while the relay v1 `file` kind is still written alongside but no longer read. On an
+ * official hit, native files in history are injected as text instead, per the delivery contract. Other lines
+ * pass nothing (undefined) and read this page session's connection x line record.
+ */
 export function connectionRejectsNativeFiles(
   providerId: string | undefined,
   transport: AttachmentTransport,
-  relayKey?: RelayNegativeCacheModelKey | null,
+  relayInputTarget?: InputNegativeCacheTarget | null,
 ): boolean {
-  if (relayKey) return isRelayNegativeCached({ ...relayKey, kind: 'file' });
+  if (relayInputTarget !== undefined) {
+    return relayInputTarget !== null
+      && readInputNegativeCache(relayInputTarget.key, relayInputTarget.verdictRevision) !== null;
+  }
   return providerId !== undefined && rejectedConnections.has(connectionKey(providerId, transport));
 }
 
 /** Tests only. */
 export function __resetNativeFileFallbackForTest(): void {
   rejectedConnections.clear();
-  try { safeLocalStorage.removeItem(RELAY_NEGATIVE_CACHE_STORAGE_KEY); } catch { /* noop */ }
+  try {
+    safeLocalStorage.removeItem(RELAY_NEGATIVE_CACHE_STORAGE_KEY);
+    safeLocalStorage.removeItem(INPUT_NEGATIVE_CACHE_STORAGE_KEY);
+  } catch { /* noop */ }
 }
 
 /* -- Fallback version carried along with the outbound history -- */
@@ -73,6 +131,8 @@ interface TextFallback {
   transport: AttachmentTransport;
   /** Negative cache key for Relay-form connections; omitted for other lines. */
   relayKey?: RelayNegativeCacheModelKey;
+  /** Write target of the Relay-form `file_input` negative cache v2 (written alongside v1); omitted for other lines. */
+  relayInputTarget?: InputNegativeCacheTarget;
 }
 
 /**
@@ -101,7 +161,13 @@ function carriesFilePart(content: string | ContentPart[]): boolean {
 export function attachTextFallback(
   history: OutboundHistoryMessage[],
   fallbackHistory: OutboundHistoryMessage[],
-  connection: { providerId: string; providerKind: string; transport: AttachmentTransport; relayKey?: RelayNegativeCacheModelKey },
+  connection: {
+    providerId: string;
+    providerKind: string;
+    transport: AttachmentTransport;
+    relayKey?: RelayNegativeCacheModelKey;
+    relayInputTarget?: InputNegativeCacheTarget;
+  },
 ): void {
   if (history.length !== fallbackHistory.length) return;
   history.forEach((message, index) => {
@@ -120,6 +186,7 @@ interface FallbackPlan {
   providerKind: string;
   transport: AttachmentTransport;
   relayKey?: RelayNegativeCacheModelKey;
+  relayInputTarget?: InputNegativeCacheTarget;
 }
 
 /**
@@ -152,6 +219,7 @@ function resolveFallbackPlan(history: OutboundHistoryMessage[]): FallbackPlan | 
       providerKind: fallback.providerKind,
       transport: fallback.transport,
       ...(fallback.relayKey ? { relayKey: fallback.relayKey } : {}),
+      ...(fallback.relayInputTarget ? { relayInputTarget: fallback.relayInputTarget } : {}),
     };
   }
   return connection ? { history: rebuilt, ...connection } : null;
@@ -274,7 +342,10 @@ export function sendWithNativeFileFallback<H extends StreamHandle>(
             () => {
               if (plan.relayKey) {
                 // Statuses such as 413 that cannot be judged still fall back and resend, but write no negative cache.
-                if (isRelayRejection(firstError)) recordRelayNegativeCache({ ...plan.relayKey, kind: 'file' });
+                if (isRelayRejection(firstError)) {
+                  recordRelayNegativeCache({ ...plan.relayKey, kind: 'file' });
+                  recordRelayInputRejectionV2(plan.relayInputTarget);
+                }
               } else {
                 rejectedConnections.add(connectionKey(plan.providerId, plan.transport));
               }

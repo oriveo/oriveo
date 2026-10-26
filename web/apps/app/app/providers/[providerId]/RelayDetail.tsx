@@ -181,7 +181,7 @@ export function RelayDetail({ provider }: RelayDetailProps) {
   const credentialState = relayProviderCredentialState(provider);
   const isCleartextConnection = isCleartextRelayConnection(provider.relayRequested?.securityMode);
 
-  const { startChatWithModel: handleChatWithModel } = useProviderChatLauncher(provider);
+  const { startChatWithModel: handleChatWithModel, canStartChatWithModel } = useProviderChatLauncher(provider);
 
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [showAddModels, setShowAddModels] = useState(false);
@@ -1111,6 +1111,7 @@ export function RelayDetail({ provider }: RelayDetailProps) {
                       className={`${styles.modelChatBtn} ${catalogPartStyles.trailingButton}`}
                       data-trailing="newChat"
                       onClick={() => handleChatWithModel(model)}
+                      disabled={!canStartChatWithModel}
                       aria-label={tr('chatWithModel', { model: model.name })}
                       title={tr('chatWithModel', { model: model.name })}
                     >

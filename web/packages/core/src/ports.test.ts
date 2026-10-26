@@ -3,6 +3,7 @@ import type { MetadataLookupPort } from './ports';
 import type { ProviderError } from './providers/errors';
 import { createNoopTelemetryPort } from './ports';
 import { extractErrorSnippet } from './util/error-snippet';
+import { resolveRelayEnvelope } from './providers/relay-runtime-support';
 
 describe('core ports and pure utilities', () => {
   it('provides a no-op telemetry port that is safe for main and tests', async () => {
@@ -230,7 +231,9 @@ describe('core ports and pure utilities', () => {
 
     expect(metadata.lookupProviderConfig('openAI')?.validation?.authMode).toBe('bearer');
     expect(metadata.lookupProviderConfig('openAI')?.validation?.invalidKeySignals?.[0]?.status).toBe(401);
-    expect(metadata.lookupRelayRuntimeConfig()?.transportEnvelopes.gemini_generate_content.imageGeneration).toBe(true);
+    const runtimeConfig = metadata.lookupRelayRuntimeConfig();
+    expect(runtimeConfig).not.toBeNull();
+    expect(resolveRelayEnvelope('gemini_generate_content', runtimeConfig!)?.imageGeneration).toBe(true);
   });
 
   it('carries structured next action and source on provider errors', () => {

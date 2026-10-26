@@ -1,7 +1,15 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AIModel, Provider } from '@oriveo/shared';
 import * as capabilityFacade from '@oriveo/core/providers/capability-evidence-facade';
+import 'fake-indexeddb/auto';
+import {
+  __resetMetadataClientForTest,
+  __seedMetadataCacheForTest,
+  __settleMetadataBackgroundWorkForTest,
+  initMetadata,
+  resolveCatalogModel,
+} from '../../../lib/core/metadata/metadata-client';
 import { getVendorBadgePresentation, ModelBrowser } from './ModelBrowser';
 
 function makeModel(id: string, overrides: Partial<AIModel> = {}): AIModel {
@@ -47,6 +55,11 @@ function makeProvider(models: AIModel[]): Provider {
 describe('ModelBrowser', () => {
   beforeEach(() => {
     localStorage.clear();
+  });
+
+  afterEach(async () => {
+    await __settleMetadataBackgroundWorkForTest();
+    __resetMetadataClientForTest();
   });
 
   it('renders shortcut suppliers first and keeps groups collapsed by default', () => {
@@ -436,25 +449,79 @@ describe('ModelBrowser', () => {
     expect((screen.getByRole('button', { name: /addModel/i }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('recomputes an evidence-backed capability filter when its TTL expires', async () => {
-    vi.useFakeTimers();
+  it('renders row actions disabled when the caller cannot act (for example missing credentials)', () => {
+    const onToggleModel = vi.fn();
+    render(
+      <ModelBrowser
+        catalogModels={[makeModel('gpt-4o', { name: 'GPT-4o' })]}
+        providerKind="openAI"
+        providerLabel="OpenAI"
+        onToggleModel={onToggleModel}
+        actionLabel={(model) => `chatWithModel ${model.name}`}
+        actionsDisabled
+      />,
+    );
+
+    const row = screen.getByRole('button', { name: 'chatWithModel GPT-4o' }) as HTMLButtonElement;
+    expect(row.disabled).toBe(true);
+    fireEvent.click(row);
+    expect(onToggleModel).not.toHaveBeenCalled();
+  });
+
+  it('recomputes an evidence-backed capability filter when its TTL expires (tool_call)', async () => {
+    // Fake only the clock and timers: fake-indexeddb advances via setImmediate, which must not be faked.
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
     vi.setSystemTime(new Date('2026-08-09T00:00:00Z'));
     const expiresAt = Date.now() + 1_000;
-    const model = makeModel('evidence-model', {
-      name: 'Evidence Model',
+    const toolCandidate = {
+      key: 'tool_call',
+      support: 'supported',
+      source: 'server_profile',
+      grade: 'effect_verified',
+      scope: 'provider_model_transport',
+      providerKind: 'openAI',
+      modelId: 'evidence-model',
       transport: 'openai_chat',
-      capabilityEvidenceCandidates: [{
-        key: 'vision_input',
-        support: 'supported',
-        source: 'server_profile',
-        grade: 'effect_verified',
-        scope: 'provider_model_transport',
-        providerKind: 'openAI',
-        modelId: 'evidence-model',
-        transport: 'openai_chat',
-        expiresAt,
-      }],
+      expiresAt,
+    } as const;
+    const visionControls = { vision_input: { state: 'auto_available' } } as AIModel['capabilityControls'];
+    // Official tool_call candidates only take effect when the catalog matches: metadata delivers the same model with a TTL-bound candidate.
+    await __seedMetadataCacheForTest({
+      data: {
+        version: 2,
+        updatedAt: '2026-08-09T00:00:00Z',
+        contractVersion: 1,
+        providerConfigs: [],
+        profiles: { reasoning: {}, webSearch: {}, imageGen: {}, generation: {} },
+        providers: {
+          openAI: {
+            resolveMap: { 'evidence-model': 'evidence-model' },
+            models: {
+              'evidence-model': {
+                transport: 'openai_chat',
+                capabilityEvidenceCandidates: [toolCandidate],
+                // A decoded candidate shape must declare the view intact, otherwise the whole group is voided as a previously rejected view.
+                capabilityEvidenceViewMalformed: false,
+                capabilityControls: visionControls,
+              },
+            },
+          },
+        },
+      } as never,
+      timestamp: Date.now(),
     });
+    await initMetadata();
+    expect(resolveCatalogModel('evidence-model', 'openAI')?.capabilityEvidenceCandidates).toEqual([
+      expect.objectContaining({ key: 'tool_call', expiresAt }),
+    ]);
+    const model = {
+      ...makeModel('evidence-model', {
+        name: 'Evidence Model',
+        transport: 'openai_chat',
+        capabilityEvidenceCandidates: [toolCandidate],
+      }),
+      capabilityControls: visionControls,
+    };
     const provider = makeProvider([model]);
     const view = render(
       <ModelBrowser
@@ -466,7 +533,7 @@ describe('ModelBrowser', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'image' }));
+    fireEvent.click(screen.getByRole('button', { name: 'toolCall' }));
     expect(screen.getByText('Evidence Model')).toBeTruthy();
 
     await act(async () => {
@@ -474,6 +541,11 @@ describe('ModelBrowser', () => {
     });
     expect(screen.queryByText('Evidence Model')).toBeNull();
     expect(screen.getByText('noModelsFound')).toBeTruthy();
+
+    // The vision filter follows capabilityControls only, not the TTL: vision stays after the candidate expires.
+    fireEvent.click(screen.getByRole('button', { name: 'toolCall' }));
+    fireEvent.click(screen.getByRole('button', { name: 'image' }));
+    expect(screen.getByText('Evidence Model')).toBeTruthy();
 
     view.unmount();
     vi.clearAllTimers();

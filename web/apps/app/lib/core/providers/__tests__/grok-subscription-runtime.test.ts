@@ -12,7 +12,7 @@ import type { GrokSubscriptionAuthConfig } from '@oriveo/core/providers/grok-sub
 const getGrokSubscriptionAuthConfig = vi.fn<[], GrokSubscriptionAuthConfig | null>();
 const refreshMetadata = vi.fn(async () => {});
 
-vi.mock('../../metadata/metadata-client', () => ({
+vi.mock('../../metadata/metadata-client', async (importOriginal) => (await import('../../../__tests__/mocks/metadata-client')).metadataClientMock(importOriginal, {
   getGrokSubscriptionAuthConfig: () => getGrokSubscriptionAuthConfig(),
   refreshMetadata: () => refreshMetadata(),
 }));

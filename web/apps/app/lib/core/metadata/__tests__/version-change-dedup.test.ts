@@ -23,13 +23,32 @@ function buildPayload(contractVersion: number, version: number) {
   };
 }
 
+type MetadataClientModule = typeof import('../metadata-client');
+
+// The latest instance dynamically imported after vi.resetModules in a case; afterEach waits for its background refresh / persistence to settle before restoring,
+// so nothing leaks into the next case.
+let metadataInstance: MetadataClientModule | null = null;
+
+async function importMetadataClient(): Promise<MetadataClientModule> {
+  metadataInstance = await import('../metadata-client');
+  return metadataInstance;
+}
+
+async function restoreMetadataInstance(): Promise<void> {
+  if (!metadataInstance) return;
+  await metadataInstance.__settleMetadataBackgroundWorkForTest();
+  metadataInstance.__resetMetadataClientForTest();
+  metadataInstance = null;
+}
+
 describe('metadata onVersionChange dedup', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.restoreAllMocks();
     localStorage.clear();
   });
-  afterEach(() => {
+  afterEach(async () => {
+    await restoreMetadataInstance();
     localStorage.clear();
   });
 
@@ -43,7 +62,7 @@ describe('metadata onVersionChange dedup', () => {
       }),
     );
 
-    const metadataModule = await import('../metadata-client');
+    const metadataModule = await importMetadataClient();
     const { onVersionChange, refreshMetadata, __resetVersionListenersForTest } = metadataModule;
 
     __resetVersionListenersForTest();
@@ -75,7 +94,7 @@ describe('metadata onVersionChange dedup', () => {
     );
 
     const { onVersionChange, refreshMetadata, __resetVersionListenersForTest } =
-      await import('../metadata-client');
+      await importMetadataClient();
     __resetVersionListenersForTest();
 
     const listener = vi.fn();
@@ -96,7 +115,7 @@ describe('metadata onVersionChange dedup', () => {
 
   it('__resetVersionListenersForTest clears subscribers across test boundaries', async () => {
     const { onVersionChange, __resetVersionListenersForTest } =
-      await import('../metadata-client');
+      await importMetadataClient();
 
     const listener = vi.fn();
     onVersionChange(listener);
@@ -109,7 +128,7 @@ describe('metadata onVersionChange dedup', () => {
         headers: { 'Content-Type': 'application/json' },
       }),
     );
-    const { refreshMetadata } = await import('../metadata-client');
+    const { refreshMetadata } = await importMetadataClient();
     await refreshMetadata();
 
     expect(listener).not.toHaveBeenCalled();

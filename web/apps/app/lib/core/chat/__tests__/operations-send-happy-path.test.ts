@@ -19,6 +19,7 @@ import { generationParameterProfileFingerprint, saveGenerationParameterOverrides
 import type { StreamOptions } from '../../providers/types';
 import { CONTEXT_ASSEMBLE_CONSTANTS } from '@oriveo/core/context/assemble';
 import { PROPOSE_MEMORY_TOOL } from '@oriveo/core/context/memory-propose';
+import { resolveCatalogModel } from '../../metadata/metadata-client';
 
 const mocks = vi.hoisted(() => ({
   sendStream: vi.fn(),
@@ -100,11 +101,15 @@ vi.mock('../../skills/knowledge-api', () => ({
   retrieveKnowledgeSnippets: vi.fn(),
 }));
 
-vi.mock('../../metadata/metadata-client', () => ({
+vi.mock('../../metadata/metadata-client', async () => ({
+  // Tool decisions (routing gate / MCP switch) normalize the model id with the real rule.
+  normalizeModelFactsID: (await vi.importActual<typeof import('../../metadata/metadata-client')>('../../metadata/metadata-client')).normalizeModelFactsID,
   // These fixtures carry no metadata ETag, so identity has no revision and the negative cache fails closed (same behavior as before).
   // The send chain reads remote switches (context_reminder_enabled and so on); a missing one counts as on, matching the production default.
   isRuntimeFeatureEnabled: () => true,
   getMetadataRevision: () => undefined,
+  // Cost region selection (region-pricing.providerPricedAllInUsd) reads this provider's catalog model ids; this suite has no catalog.
+  listProviderModelIds: () => [],
   getCapabilityRuntime: () => undefined,
   // The send address is computed per request from endpointSource via requestBaseURLText; these fixtures
   // have no providerConfig, so the literal address is used.
@@ -117,15 +122,18 @@ vi.mock('../../metadata/metadata-client', () => ({
   // that single export unconditionally, so a test double missing it throws for the whole send path (these
   // fixtures have no metadata profile anyway).
   resolveGenerationProfileRef: vi.fn(() => undefined),
-  resolveCatalogModel: vi.fn(() => null),
+  // cost.ts takes the catalog price through resolveCatalogModel (only reached for paid providers; free short-circuits to $0). Give it a USD catalog price so cost > 0.
+  resolveCatalogModel: vi.fn(() => ({
+    pricingStatus: 'priced',
+    pricingUnit: 'per_token',
+    pricing: { promptPerToken: 0.000001, completionPerToken: 0.000002 },
+  })),
   // The send chain also asks whether this web search preference can reach the wire right now, and
   // that check reads the catalog transport through `presentCapabilityControl`. A test double missing it
   // throws for the whole send path as well.
   getModelTransport: vi.fn(() => undefined),
   getDeclaredReasoningLevels: vi.fn(() => []),
   getDeclaredReasoningDefaultLevel: vi.fn(() => undefined),
-  // cost.ts prices through lookupPricing (only reached for paid providers; free short-circuits to $0). Give it a real price so cost > 0.
-  lookupPricing: vi.fn(() => ({ promptPerToken: 0.000001, completionPerToken: 0.000002 })),
   getLibraryRuntimeConfig: vi.fn(() => ({
     version: 3,
     toolDescriptions: {},
@@ -275,6 +283,10 @@ describe('sendMessage happy path', () => {
       model,
       // The line is not resolved when there are no file attachments
       undefined,
+      // This turn's vision projection (the same one outbound-history and outbound sanitizing use)
+      expect.objectContaining({ outbound: expect.any(String) }),
+      // The official connection's file_input projection: the catalog gave no file verdict -> unknown -> native_part
+      expect.objectContaining({ outbound: 'native_part', hint: 'first_attach_once' }),
     );
     expect(mocks.captureException).not.toHaveBeenCalled();
     expect(assistant?.id).toBe(handle.msgId);
@@ -303,6 +315,48 @@ describe('sendMessage happy path', () => {
     expect(finalOptions?.customFragments).toBeUndefined();
     expect(finalOptions?.generationParameters).toBeUndefined();
     expect(finalOptions?.reasoning).toBeUndefined();
+  });
+
+  it('image generation returning 2 images: per-item pricing uses the production image count, per_image 0.04 x 2 = 0.08', async () => {
+    const catalog = vi.mocked(resolveCatalogModel);
+    const tokenCatalog = catalog.getMockImplementation();
+    catalog.mockImplementation((() => ({
+      pricingStatus: 'priced',
+      pricingUnit: 'per_image',
+      currencyCode: 'USD',
+      pricingV2: { currencyCode: 'USD', unit: 'per_image', perUnit: 0.04 },
+    })) as never);
+    try {
+      mocks.readStream.mockResolvedValueOnce({
+        fullText: '', reasoningText: '', usage: undefined, imageAttachments: [], servedModelID: 'img-next', citations: undefined,
+      });
+      mocks.processImageAttachments.mockResolvedValueOnce({
+        finalText: '',
+        processedAttachments: [
+          { id: 'img-1', kind: 'image', fileName: 'a.png', mimeType: 'image/png', localImageID: 'l1' },
+          { id: 'img-2', kind: 'image', fileName: 'b.png', mimeType: 'image/png', localImageID: 'l2' },
+        ],
+      });
+      const provider = makeProvider();
+      const model = makeModel({ id: 'img-next', name: 'Image Next' });
+      const conversation = makeConversation({ modelID: 'img-next' });
+      const store = createAppStore({ providers: [provider], conversations: [conversation] });
+
+      const handle = sendMessage(
+        { store, appendChunk: vi.fn(), te: (key) => key },
+        { text: 'draw two cats', prevMessages: [], conversation, provider, model, reasoningMode: 'automatic' },
+      );
+      await handle.done;
+
+      const assistant = store.getState().conversations.find((c) => c.id === 'conv-1')!
+        .messages.find((m) => m.role === 'assistant');
+      expect(assistant?.state).toBe('delivered');
+      expect(assistant?.attachments).toHaveLength(2);
+      expect(assistant?.estimatedCost).toBeCloseTo(0.08, 10);
+      expect(assistant?.costSource).toBe('localEstimate');
+    } finally {
+      catalog.mockImplementation(tokenCatalog!);
+    }
   });
 
   it('explicit model-control resend appends while preserving prior generated reasoning, attachments and citations', async () => {

@@ -1,5 +1,5 @@
 /**
- * Durable-directive detector (contract: context-contracts/directive-detector.v2.json, pipeline §7.4).
+ * Durable-directive detector (contract: shared/context-contracts/directive-detector.v2.json, pipeline §7.4).
  * Pure functions over Unicode code points; lexicon and constants come only from the generated directive-lexicon.ts.
  * Primitives are exported for package-internal reuse (memory-intent.v1 builds on them); behaviour is unchanged.
  */
@@ -12,8 +12,10 @@ import {
   DIRECTIVE_QUESTION_STARTERS,
   DIRECTIVE_QUOTE_PAIRS,
   DIRECTIVE_SENTENCE_ENDERS,
+  DIRECTIVE_SUGGESTION_LANGUAGES,
   type DirectiveLexiconLanguage,
   type DirectiveLexiconMode,
+  type DirectiveNearMarker,
 } from './directive-lexicon';
 import { trimWhiteSpace } from './white-space';
 
@@ -21,8 +23,8 @@ export type DirectiveKind = 'language' | 'format' | 'style' | 'other';
 export type DirectiveScope = 'conversation' | 'global';
 
 export type DirectiveDetection =
-  | { isDirective: false }
-  | { isDirective: true; span: string; kind: DirectiveKind; scope: DirectiveScope };
+  | { isDirective: false; lang: null }
+  | { isDirective: true; span: string; kind: DirectiveKind; scope: DirectiveScope; lang: string };
 
 const WHITE_SPACE_CP = /^[\u0009-\u000D\u0020\u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]$/u;
 export const WORD_CP = /^[\p{L}\p{N}\p{M}]$/u;
@@ -86,9 +88,18 @@ export function prepare(term: string): PreparedTerm {
   return { substring: norm(term), word: wordCore(term) };
 }
 
+/** A near-collocation marker: some `a` term, then some `b` term at most `within` tokens later. */
+export interface PreparedNear {
+  readonly a: readonly PreparedTerm[];
+  readonly b: readonly PreparedTerm[];
+  readonly within: number;
+}
+
 export interface PreparedLanguage {
+  readonly code: string;
   readonly mode: DirectiveLexiconMode;
   readonly markers: readonly PreparedTerm[];
+  readonly nearMarkers: readonly PreparedNear[];
   readonly verbs: readonly PreparedTerm[];
   readonly starts: readonly PreparedTerm[];
   readonly vetoes: readonly PreparedTerm[];
@@ -106,8 +117,14 @@ let preparedCache: readonly PreparedLanguage[] | null = null;
 export function preparedLexicon(): readonly PreparedLanguage[] {
   if (preparedCache) return preparedCache;
   preparedCache = DIRECTIVE_LEXICON.map((l: DirectiveLexiconLanguage) => ({
+    code: l.code,
     mode: l.mode,
     markers: [...l.markers, ...l.globalMarkers].map(prepare),
+    nearMarkers: l.nearMarkers.map((n: DirectiveNearMarker) => ({
+      a: n.a.map(prepare),
+      b: n.b.map(prepare),
+      within: n.within,
+    })),
     verbs: l.verbs.map(prepare),
     starts: l.starts.map(prepare),
     vetoes: l.vetoes.map(prepare),
@@ -140,6 +157,56 @@ function matches(mode: DirectiveLexiconMode, sentence: SentenceForms, term: Prep
 
 export function anyMatch(mode: DirectiveLexiconMode, sentence: SentenceForms, terms: readonly PreparedTerm[]): boolean {
   return terms.some((t) => matches(mode, sentence, t));
+}
+
+/** Tokens of one sentence for near markers: code points of norm() in substring mode, words of wordform() otherwise. */
+function tokensOf(mode: DirectiveLexiconMode, sentence: SentenceForms): string[] {
+  if (mode === 'substring') return [...sentence.norm];
+  return sentence.word.split(' ').filter((w) => w.length > 0);
+}
+
+function termTokens(mode: DirectiveLexiconMode, term: PreparedTerm): string[] {
+  if (mode === 'substring') return [...term.substring];
+  return term.word.split(' ').filter((w) => w.length > 0);
+}
+
+/** Marks every token index where an occurrence of one of `terms` starts (at = 'start') or ends (at = 'end', exclusive). */
+function markOccurrences(
+  mode: DirectiveLexiconMode,
+  tokens: readonly string[],
+  terms: readonly PreparedTerm[],
+  at: 'start' | 'end',
+): boolean[] {
+  const marks = new Array<boolean>(tokens.length + 1).fill(false);
+  for (const term of terms) {
+    const t = termTokens(mode, term);
+    if (t.length === 0) continue;
+    outer: for (let i = 0; i + t.length <= tokens.length; i++) {
+      for (let k = 0; k < t.length; k++) {
+        const token = tokens[i + k]!;
+        const ok = mode === 'prefix' && k === t.length - 1 ? token.startsWith(t[k]!) : token === t[k];
+        if (!ok) continue outer;
+      }
+      marks[at === 'start' ? i : i + t.length] = true;
+    }
+  }
+  return marks;
+}
+
+/** Linear sweep: some `a` occurrence ends at e, some `b` occurrence starts at s, e <= s <= e + within. */
+export function nearMatches(mode: DirectiveLexiconMode, sentence: SentenceForms, near: readonly PreparedNear[]): boolean {
+  if (near.length === 0) return false;
+  const tokens = tokensOf(mode, sentence);
+  return near.some((n) => {
+    const ends = markOccurrences(mode, tokens, n.a, 'end');
+    const starts = markOccurrences(mode, tokens, n.b, 'start');
+    let lastEnd = -1;
+    for (let i = 0; i <= tokens.length; i++) {
+      if (ends[i]) lastEnd = i;
+      if (starts[i] && lastEnd >= 0 && i - lastEnd <= n.within) return true;
+    }
+    return false;
+  });
 }
 
 export function passesStarts(
@@ -285,14 +352,20 @@ function kindOf(sentence: SentenceForms): DirectiveKind {
   return 'other';
 }
 
-function isDirectiveSentence(sentence: SentenceForms): boolean {
-  return preparedLexicon().some(
+/**
+ * Lexicon language of a directive sentence; null when none. Among the languages under which the sentence qualifies
+ * (lexicon key order), the first one in suggestionLanguages wins, else the first one.
+ */
+function directiveLanguage(sentence: SentenceForms): string | null {
+  const hits = preparedLexicon().filter(
     (l) =>
-      anyMatch(l.mode, sentence, l.markers) &&
+      (anyMatch(l.mode, sentence, l.markers) || nearMatches(l.mode, sentence, l.nearMarkers)) &&
       anyMatch(l.mode, sentence, l.verbs) &&
       !anyMatch(l.mode, sentence, l.vetoes) &&
       passesStarts(l, sentence),
   );
+  if (hits.length === 0) return null;
+  return (hits.find((l) => DIRECTIVE_SUGGESTION_LANGUAGES.includes(l.code)) ?? hits[0]).code;
 }
 
 /** Detects the first durable directive sentence in text; never changes anything by itself. */
@@ -300,15 +373,17 @@ export function detectDirective(text: string): DirectiveDetection {
   for (const s of sentences(text)) {
     if (isQuestion(s.masked)) continue;
     const f = forms(s.masked);
-    if (!isDirectiveSentence(f)) continue;
+    const lang = directiveLanguage(f);
+    if (lang === null) continue;
     return {
       isDirective: true,
       span: s.span,
       kind: kindOf(f),
       scope: anyLanguage(f, (l) => l.globalMarkers) ? 'global' : 'conversation',
+      lang,
     };
   }
-  return { isDirective: false };
+  return { isDirective: false, lang: null };
 }
 
 /** Image-generation style prefix from conversation instructions; empty when none. */

@@ -37,10 +37,28 @@ async function loadWith(trustedHosts: unknown) {
     } as never,
   });
   vi.spyOn(globalThis, 'fetch').mockResolvedValue({ status: 304, ok: false, json: vi.fn() } as unknown as Response);
-  const metadata = await import('../metadata-client');
+  const metadata = await importMetadataClient();
   await metadata.initMetadata();
   const { resolveOfficialEndpointOptions } = await import('../../../../components/providers/official-endpoint-utils');
   return { metadata, resolveOfficialEndpointOptions };
+}
+
+type MetadataClientModule = typeof import('../metadata-client');
+
+// The latest instance dynamically imported after vi.resetModules in a case; afterEach waits for its background refresh / persistence to settle before restoring,
+// so nothing leaks into the next case.
+let metadataInstance: MetadataClientModule | null = null;
+
+async function importMetadataClient(): Promise<MetadataClientModule> {
+  metadataInstance = await import('../metadata-client');
+  return metadataInstance;
+}
+
+async function restoreMetadataInstance(): Promise<void> {
+  if (!metadataInstance) return;
+  await metadataInstance.__settleMetadataBackgroundWorkForTest();
+  metadataInstance.__resetMetadataClientForTest();
+  metadataInstance = null;
 }
 
 describe('E2-TRUST-02 regionOptions pass trustedHosts', () => {
@@ -48,7 +66,8 @@ describe('E2-TRUST-02 regionOptions pass trustedHosts', () => {
     vi.resetModules();
     await pruneBlobs(() => true);
   });
-  afterEach(() => {
+  afterEach(async () => {
+    await restoreMetadataInstance();
     vi.restoreAllMocks();
   });
 

@@ -27,6 +27,7 @@
  */
 
 import type { ContentPart, StreamEvent } from '../../types';
+import { mediaTextFallback } from '../../attachment-transport';
 import type {
   BuildRequestInput,
   StreamContext,
@@ -36,15 +37,15 @@ import { citationFromRaw, mergeCitation, readPath } from '../citation-utils';
 import { deepMerge } from '../merge-utils';
 import { parseUsageQwen } from '../usage-parsers';
 
-function partsToString(parts: ContentPart[]): string {
+export function partsToString(parts: ContentPart[]): string {
   // DashScope documents multimodal messages separately; text is the default aggregation here
   // (Qwen-Plus / Max / Turbo all take text on the main path). Qwen is not on the native_pdf list,
   // so a file part should never arrive; if one does, turn it into a text note as a safety net.
   return parts
     .map((p) => {
       if (p.type === 'text') return p.text;
-      if (p.type === 'image_url') return `[image: ${p.image_url.url}]`;
-      if (p.type === 'video_url') return `[video: ${p.video_url.url}]`;
+      if (p.type === 'image_url') return mediaTextFallback('image', p.image_url.url, 'qwen_chat');
+      if (p.type === 'video_url') return mediaTextFallback('video', p.video_url.url, 'qwen_chat');
       if (p.type === 'file') {
         // Safety net: Qwen does not support native PDF, so emit an explanatory error
         if (p.file.extractionErrorCode) {

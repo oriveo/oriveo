@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocale, useTranslations } from 'next-intl';
-import { formatCost } from '../../lib/utils/format-utils';
+import { formatCostParts, notAvailableCostParts } from '../../lib/core/cost/cost-currency';
 import { formatCompactCount } from '../../lib/core/chat/context-compaction/context-compaction-presentation';
 import { CheckIcon, CopyIcon, RetryIcon } from '../icons';
 import { FilePlus2, ListChecks, MoreHorizontal } from 'lucide-react';
@@ -22,6 +22,8 @@ interface MessageMetaProps {
   providerName?: string;
   modelName?: string;
   estimatedCost: number;
+  /** Non-USD part; when an amount is unavailable it renders as "not available", never 0. */
+  nonUsdCost?: ChatMessage['nonUsdCost'];
   copied: boolean;
   onCopy: () => void;
   /** Retry action for a delivered message; undefined while in flight, which hides the retry button. */
@@ -37,7 +39,7 @@ interface MessageMetaProps {
 /**
  * Meta row under an assistant message: provider, model, cost pill, copy and retry.
  */
-export function MessageMeta({ providerName, modelName, estimatedCost, copied, onCopy, onRetry, onSaveNote, onCrosscheck, tokenUsage, capabilityResults, memoryItemIds }: MessageMetaProps) {
+export function MessageMeta({ providerName, modelName, estimatedCost, nonUsdCost, copied, onCopy, onRetry, onSaveNote, onCrosscheck, tokenUsage, capabilityResults, memoryItemIds }: MessageMetaProps) {
   const locale = useLocale();
   const t = useTranslations('pages.chat');
   const tCtx = useTranslations('contextMenu');
@@ -53,6 +55,13 @@ export function MessageMeta({ providerName, modelName, estimatedCost, copied, on
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   const hasSecondaryActions = true;
+  const costText = formatCostParts(estimatedCost, nonUsdCost, locale);
+  const notAvailableCurrencies = notAvailableCostParts(nonUsdCost);
+  // Unknown parts follow the amount as " + <not available>", without a currency prefix (cost-currency.v1).
+  const costPillText = [
+    costText,
+    ...notAvailableCurrencies.map(() => t('contextCompaction.detailCostUnavailable')),
+  ].filter(Boolean).join(' + ');
   const tokenTotal = messageTokenTotal(tokenUsage);
   // The Intl formatter is built only when the user actually opens a message menu, so the hot
   // render path of the message list does not allocate one formatter per cell.
@@ -168,9 +177,12 @@ export function MessageMeta({ providerName, modelName, estimatedCost, copied, on
       <div className={styles.metaInfo}>
         {providerName && <span className={styles.metaPill}>{providerName}</span>}
         {modelName && <span className={styles.metaPill}>{modelName}</span>}
-        {formatCost(estimatedCost) && (
-          <span className={styles.metaPill}>
-            {formatCost(estimatedCost)}
+        {costPillText && (
+          <span
+            className={styles.metaPill}
+            data-cost-not-available={notAvailableCurrencies.length > 0 ? notAvailableCurrencies.join(' ') : undefined}
+          >
+            {costPillText}
           </span>
         )}
         {capabilityResults?.map((result) => (

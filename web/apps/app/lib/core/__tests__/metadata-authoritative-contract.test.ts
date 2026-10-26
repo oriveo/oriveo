@@ -11,7 +11,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 interface AttachmentSupport {
   image: boolean;
@@ -128,11 +128,33 @@ function makeOkResponse(payload: unknown): Response {
   );
 }
 
+type MetadataClientModule = typeof import('../metadata/metadata-client');
+
+// The most recent instance dynamically imported after a case's vi.resetModules; afterEach waits for its background refresh / persistence to settle before restoring,
+// so nothing leaks into the next case.
+let metadataInstance: MetadataClientModule | null = null;
+
+async function importMetadataClient(): Promise<MetadataClientModule> {
+  metadataInstance = await import('../metadata/metadata-client');
+  return metadataInstance;
+}
+
+async function restoreMetadataInstance(): Promise<void> {
+  if (!metadataInstance) return;
+  await metadataInstance.__settleMetadataBackgroundWorkForTest();
+  metadataInstance.__resetMetadataClientForTest();
+  metadataInstance = null;
+}
+
 describe('metadata authoritative contract (Web)', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.restoreAllMocks();
     localStorage.clear();
+  });
+
+  afterEach(async () => {
+    await restoreMetadataInstance();
   });
 
   /**
@@ -142,7 +164,7 @@ describe('metadata authoritative contract (Web)', () => {
    */
   async function loadMetadataModule() {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeOkResponse(contract.metadata));
-    const mod = await import('../metadata/metadata-client');
+    const mod = await importMetadataClient();
     await mod.initMetadata();
     return mod;
   }

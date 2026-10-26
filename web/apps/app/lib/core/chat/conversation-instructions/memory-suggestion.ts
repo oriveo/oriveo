@@ -1,9 +1,9 @@
 /**
- * "Save to memory?" suggestion bar state (P6·U3 contract items 1, 2, 7).
+ * "Save to memory?" suggestion bar state.
  * Memory only, one at a time: a fresh send / conversation switch / restart drops it (not an ignore).
  * A background generate result only lands when no newer send happened and its message is still the
  * conversation's latest user message.
- * P10 contract items 4 and 7: the bar hangs under the turn's assistant message (shown once it stops streaming);
+ * The bar hangs under the turn's assistant message (shown once it stops streaming);
  * messageId stays the user message the candidate came from. In tool mode the first created propose_memory
  * candidate of the turn becomes the bar.
  */
@@ -56,6 +56,16 @@ function latestUserMessageId(store: StoreApi<AppStore>, conversationId: string):
     if (messages[i].role === 'user') return messages[i].id;
   }
   return null;
+}
+
+/** The ticket's send is still the latest one and its user message is still the conversation's latest. */
+export function isMemorySuggestionTicketLatest(store: StoreApi<AppStore>, ticket: MemorySuggestionTicket): boolean {
+  return isCurrent(ticket) && latestUserMessageId(store, ticket.conversationId) === ticket.messageId;
+}
+
+/** The ticket's send is still the latest one. */
+export function isMemorySuggestionTicketCurrent(ticket: MemorySuggestionTicket): boolean {
+  return isCurrent(ticket);
 }
 
 /** A fresh send: drop the current bar and invalidate any in-flight generate result. */

@@ -2,14 +2,19 @@ import 'fake-indexeddb/auto';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTranslator } from 'use-intl/core';
 import type { StoreApi } from 'zustand';
 import type { AIModel, AppPreference, Attachment, Conversation, Provider } from '@oriveo/shared';
 import { ContextBudget } from '@oriveo/core/context/budget';
 import { ContextSettingsPage } from '../../../app/settings/context/ContextSettingsPage';
-import { __seedMetadataCacheForTest, initMetadata } from '../../../lib/core/metadata/metadata-client';
-import { capPresentationInputOf } from '../../../lib/core/chat/context-visibility/cap-presentation';
+import {
+  __resetMetadataClientForTest,
+  __seedMetadataCacheForTest,
+  __settleMetadataBackgroundWorkForTest,
+  initMetadata,
+} from '../../../lib/core/metadata/metadata-client';
+import { capPresentationInputOf, capPricingOf } from '../../../lib/core/chat/context-visibility/cap-presentation';
 import {
   capConfirmInputOf,
   capConfirmModelName,
@@ -225,6 +230,11 @@ const CHAT_KEYS = [
 const SETTINGS_KEYS = ['priceLineReminder', 'priceLineReminderFooter'];
 
 describe('ContextCapConfirm', () => {
+  afterEach(async () => {
+    await __settleMetadataBackgroundWorkForTest();
+    __resetMetadataClientForTest();
+  });
+
   beforeEach(async () => {
     localStorage.clear();
     await setActiveUID('guest');
@@ -509,11 +519,12 @@ describe('ContextCapConfirm', () => {
     expect(composerAcceptsRestore({ text: '', attachments: [attachment] })).toBe(false);
 
     // The rollback also removes the "set as directive" and "save as memory?" suggestion bars hung on this send; other messages' bars stay
+    // The directive sentence uses an in-gate language (propose-v3: the lexical bar only honors suggestionLanguages)
     const conversation = {
       id: 'c-r', createdAt: 1, updatedAt: 1,
       messages: [
         { id: 'u-old', role: 'user', text: 'hi', state: 'delivered', createdAt: 1 },
-        { id: 'u-new', role: 'user', text: 'From now on, always reply in English.', state: 'delivered', createdAt: 2 },
+        { id: 'u-new', role: 'user', text: '\u4ee5\u540e\u6bcf\u6b21\u56de\u7b54\u90fd\u5148\u7ed9\u7ed3\u8bba', state: 'delivered', createdAt: 2 },
         { id: 'a-new', role: 'assistant', text: '', state: 'streaming', createdAt: 3 },
       ],
     } as unknown as Conversation;
@@ -523,7 +534,7 @@ describe('ContextCapConfirm', () => {
     } as unknown as StoreApi<AppStore>;
 
     expect(evaluateDirectiveSuggestion({
-      conversationId: 'c-r', messageId: 'u-old', text: 'From now on, always reply in English.', instructions: '',
+      conversationId: 'c-r', messageId: 'u-old', text: '\u4ee5\u540e\u6bcf\u6b21\u56de\u7b54\u90fd\u5148\u7ed9\u7ed3\u8bba', instructions: '',
     })).not.toBeNull();
     rollbackSendStart(store, 'c-r', ['u-new', 'a-new']);
     expect(getPendingDirectiveSuggestion()?.messageId).toBe('u-old');
@@ -532,7 +543,7 @@ describe('ContextCapConfirm', () => {
     expect(getPendingMemorySuggestion()?.messageId).toBe('u-old');
 
     expect(evaluateDirectiveSuggestion({
-      conversationId: 'c-r', messageId: 'u-new', text: 'From now on, always reply in English.', instructions: '',
+      conversationId: 'c-r', messageId: 'u-new', text: '\u4ee5\u540e\u6bcf\u6b21\u56de\u7b54\u90fd\u5148\u7ed9\u7ed3\u8bba', instructions: '',
     })).not.toBeNull();
     showMemoryOffHint(beginMemorySuggestion('c-r', 'u-new', 'a-new'));
     expect(getPendingMemorySuggestion()?.messageId).toBe('u-new');
@@ -643,5 +654,76 @@ describe('ContextCapConfirm', () => {
     expect(isVisibleConversation(after)).toBe(false);
     expect(mocks.sendStream).not.toHaveBeenCalled();
     expect(store.getState().contextCapConfirmations).toEqual({});
+  });
+});
+
+describe('capPricingOf picks the region price by connection', () => {
+  const KIMI_ID = 'kimi-long-context-test';
+  const model = { id: KIMI_ID, name: KIMI_ID, capabilities: ['text'], isAvailable: true } as unknown as AIModel;
+
+  afterEach(async () => {
+    await __settleMetadataBackgroundWorkForTest();
+    __resetMetadataClientForTest();
+  });
+
+  async function seedKimi() {
+    const data = {
+      version: 1,
+      contractVersion: 1,
+      updatedAt: '2026-10-20T00:00:00Z',
+      profiles: { reasoning: {}, webSearch: {}, imageGen: {} },
+      providers: {
+        moonshot: {
+          models: {
+            [KIMI_ID]: {
+              canonicalModelId: KIMI_ID,
+              capabilities: ['text'],
+              currencyCode: 'USD',
+              pricingUnit: 'per_token',
+              pricingStatus: 'priced',
+              pricing: {
+                promptPerMToken: 0.6,
+                completionPerMToken: 2.5,
+                longContext: { thresholdTokens: 128000, promptPerMToken: 1.2, completionPerMToken: 5 },
+              },
+              regionPricing: [{
+                regionScope: 'cn',
+                currencyCode: 'CNY',
+                pricingStatus: 'priced',
+                pricingUnit: 'per_token',
+                pricing: {
+                  promptPerMToken: 4,
+                  completionPerMToken: 16,
+                  longContext: { thresholdTokens: 128000, promptPerMToken: 8, completionPerMToken: 32 },
+                },
+              }],
+            },
+          },
+        },
+      },
+      providerConfigs: [],
+    };
+    await __seedMetadataCacheForTest({ data: data as never, timestamp: Date.now() });
+    await initMetadata();
+  }
+
+  it('a cn connection takes the cn region price in CNY, an intl connection takes the model-level USD', async () => {
+    await seedKimi();
+    const cn = { id: 'moonshot-cn', kind: 'moonshot', endpointSource: 'region:cn', baseURLText: 'https://api.moonshot.cn/v1' } as unknown as Provider;
+    const intl = { id: 'moonshot-intl', kind: 'moonshot', endpointSource: 'region:intl', baseURLText: 'https://api.moonshot.ai/v1' } as unknown as Provider;
+    const cnPricing = capPricingOf(cn, model, 128000);
+    expect(cnPricing?.currencyCode).toBe('CNY');
+    expect(cnPricing?.base.prompt).toBeCloseTo(4, 10);
+    expect(cnPricing?.long).toEqual({ prompt: 8, completion: 32 });
+    const intlPricing = capPricingOf(intl, model, 128000);
+    expect(intlPricing?.currencyCode).toBe('USD');
+    expect(intlPricing?.base.prompt).toBeCloseTo(0.6, 10);
+    expect(intlPricing?.long).toEqual({ prompt: 1.2, completion: 5 });
+  });
+
+  it('a Relay connection gets no catalog price', async () => {
+    await seedKimi();
+    const relay = { id: 'relay-1', kind: 'relay', baseURLText: 'https://relay.example.com/v1' } as unknown as Provider;
+    expect(capPricingOf(relay, model, 128000)).toBeNull();
   });
 });

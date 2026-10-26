@@ -20,6 +20,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const LEGACY_KEY = 'oriveo:metadata';
 const LEGACY_ETAG_KEY = 'oriveo:metadata:etag';
 const CURRENT_KEY = 'oriveo:metadata:c1';
+/** Split-view key after merging index + manifest (METADATA_SPLIT_HEAD_KEY_FOR_TESTING in metadata-client). */
+const SPLIT_HEAD_KEY = 'oriveo:metadata:split:c1:head';
 
 function buildPayload(contractVersion: number, version = 1) {
   return {
@@ -41,6 +43,25 @@ async function readBucket(key: string) {
 async function clearBuckets() {
   const { pruneBlobs } = await import('../../../infra/storage/blob-cache');
   await pruneBlobs('oriveo:metadata:c', []);
+  await pruneBlobs('oriveo:metadata:split:', []);
+}
+
+type MetadataClientModule = typeof import('../metadata-client');
+
+// The latest instance dynamically imported after vi.resetModules in a case; afterEach waits for its background refresh / persistence to settle before restoring,
+// so nothing leaks into the next case.
+let metadataInstance: MetadataClientModule | null = null;
+
+async function importMetadataClient(): Promise<MetadataClientModule> {
+  metadataInstance = await import('../metadata-client');
+  return metadataInstance;
+}
+
+async function restoreMetadataInstance(): Promise<void> {
+  if (!metadataInstance) return;
+  await metadataInstance.__settleMetadataBackgroundWorkForTest();
+  metadataInstance.__resetMetadataClientForTest();
+  metadataInstance = null;
 }
 
 describe('metadata cache bucketing and storage medium', () => {
@@ -55,6 +76,7 @@ describe('metadata cache bucketing and storage medium', () => {
     await clearBuckets();
   });
   afterEach(async () => {
+    await restoreMetadataInstance();
     await new Promise((r) => setTimeout(r, 20));
     localStorage.clear();
     await clearBuckets();
@@ -68,7 +90,7 @@ describe('metadata cache bucketing and storage medium', () => {
       }),
     );
 
-    const { initMetadata } = await import('../metadata-client');
+    const { initMetadata } = await importMetadataClient();
     await initMetadata();
 
     // Wait for requestIdleCallback -> setTimeout -> IDB put to finish
@@ -101,7 +123,7 @@ describe('metadata cache bucketing and storage medium', () => {
       }),
     );
 
-    const { initMetadata } = await import('../metadata-client');
+    const { initMetadata } = await importMetadataClient();
     await initMetadata();
 
     expect(localStorage.getItem(LEGACY_KEY)).toBeNull();
@@ -115,6 +137,7 @@ describe('metadata cache bucketing and storage medium', () => {
     // The old cache sits in the c1 bucket
     const { writeBlob } = await import('../../../infra/storage/blob-cache');
     await writeBlob(CURRENT_KEY, { data: buildPayload(1, 10), etag: null });
+    await writeBlob(SPLIT_HEAD_KEY, { index: { data: 'not-an-index', etag: null }, manifest: { catalogCheckedAt: {} }, indexStoredAt: 0 });
 
     // The backend starts returning contractVersion = 2, an update within the client support window
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
@@ -124,7 +147,7 @@ describe('metadata cache bucketing and storage medium', () => {
       }),
     );
 
-    const { initMetadata } = await import('../metadata-client');
+    const { initMetadata } = await importMetadataClient();
     await initMetadata();
     await new Promise((r) => setTimeout(r, 30));
 
@@ -135,6 +158,8 @@ describe('metadata cache bucketing and storage medium', () => {
 
     // The old c1 bucket is cleared
     expect(await readBucket(CURRENT_KEY)).toBeNull();
+    // The merged index + manifest key is not under the lean bucket prefix: a lean generation cleanup cannot delete it by mistake
+    expect(await readBucket(SPLIT_HEAD_KEY)).not.toBeNull();
 
     // A network round trip is required; the stale cache must not be reused
     expect(fetchMock).toHaveBeenCalled();
@@ -161,7 +186,7 @@ describe('metadata cache bucketing and storage medium', () => {
     );
 
     try {
-      const { initMetadata, getMetadataSnapshot } = await import('../metadata-client');
+      const { initMetadata, getMetadataSnapshot } = await importMetadataClient();
       await expect(initMetadata()).resolves.toBeUndefined();
       expect(fetchMock).toHaveBeenCalled();
       // A failed cache write must not break the session: the snapshot has to be in memory

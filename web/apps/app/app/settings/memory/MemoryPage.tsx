@@ -43,7 +43,7 @@ import {
   type MemoryEpisodicChoice,
   type MemoryEditorSession,
 } from './MemoryItemEditor';
-import { MemoryItemList, MemorySpectrum, visibleMemoryItems, type MemoryL3ConflictPair } from './MemoryItemList';
+import { groupMemoryItems, MemoryItemList, MemorySpectrum, visibleMemoryItems, type MemoryL3ConflictPair } from './MemoryItemList';
 import {
   MemoryCategoryGlyph,
   MemoryEpisodicGlyph,
@@ -119,6 +119,8 @@ export function MemoryPage() {
 
   const localDeviceId = useMemo(() => getOrCreateStableWebDeviceId(), []);
   const visibleItems = useMemo(() => visibleMemoryItems(memoryItems ?? []), [memoryItems]);
+  // Group once; the list and the side spectrum share the result.
+  const memoryGroups = useMemo(() => groupMemoryItems(visibleItems), [visibleItems]);
 
   const [editor, setEditor] = useState<MemoryEditorSession | null>(null);
   const [editorKey, setEditorKey] = useState(0);
@@ -735,7 +737,7 @@ export function MemoryPage() {
               />
             ) : (
               <MemoryItemList
-                items={visibleItems}
+                groups={memoryGroups}
                 localDeviceId={localDeviceId}
                 folderNames={folderNames}
                 onAdd={(category) => openNewEditor(category)}
@@ -752,7 +754,7 @@ export function MemoryPage() {
           </section>
 
           <aside className={styles.sidebar}>
-            {!rawView && <MemorySpectrum items={visibleItems} />}
+            {!rawView && <MemorySpectrum groups={memoryGroups} />}
             {!rawView && inboxEntry}
             {!rawView && hasRecentConversations && (
               <button

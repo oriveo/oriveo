@@ -94,6 +94,41 @@ describe('enrichRelayLocalModel', () => {
     expect(enriched.relayMatchSource).toBe('transport_first');
   });
 
+  it('model id differs from the official id: matches by the canonicalModelId on the model and inherits capabilities', () => {
+    resolveMock.mockReturnValueOnce({
+      matchedProviderKind: 'openAI',
+      canonicalModelId: 'gpt-5.4',
+      source: 'transport_first',
+      metadata: makeMatchedMetadata({ canonicalModelId: 'gpt-5.4', capabilities: ['text', 'image'] }),
+    });
+    const local = makeLocalModel({ id: 'my-gpt', canonicalModelId: 'gpt-5.4', capabilities: ['text'] });
+
+    const enriched = enrichRelayLocalModel(local, 'openai_responses', DEFAULT_RELAY_RUNTIME_CONFIG);
+
+    expect(resolveMock).toHaveBeenCalledWith('gpt-5.4', { transportPriority: 'openAI' });
+    expect(enriched.id).toBe('my-gpt');
+    expect(enriched.capabilities).toEqual(['text', 'image']);
+    expect(enriched.relayMatchedProviderKind).toBe('openAI');
+  });
+
+  it('falls back to matching by model id when canonicalModelId finds nothing', () => {
+    resolveMock.mockImplementation((modelId: string) => (modelId === 'gpt-5.4'
+      ? {
+          matchedProviderKind: 'openAI',
+          canonicalModelId: 'gpt-5.4',
+          source: 'transport_first',
+          metadata: makeMatchedMetadata({ canonicalModelId: 'gpt-5.4', capabilities: ['text', 'image'] }),
+        }
+      : null));
+    const local = makeLocalModel({ id: 'gpt-5.4', canonicalModelId: 'retired-alias', capabilities: ['text'] });
+
+    const enriched = enrichRelayLocalModel(local, 'openai_responses', DEFAULT_RELAY_RUNTIME_CONFIG);
+
+    expect(resolveMock.mock.calls.map(([id]) => id)).toEqual(['retired-alias', 'gpt-5.4']);
+    expect(enriched.capabilities).toEqual(['text', 'image']);
+    expect(enriched.relayMatchedProviderKind).toBe('openAI');
+  });
+
   it('a manual model (bare ID with isManual=true) keeps the user name, unions capabilities with the official ones and merges pricing', () => {
     resolveMock.mockReturnValueOnce({
       matchedProviderKind: 'openAI',

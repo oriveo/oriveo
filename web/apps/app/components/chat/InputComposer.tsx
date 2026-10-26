@@ -12,10 +12,17 @@ import { Brain, FileText, Globe, Library, Quote, SlidersHorizontal } from 'lucid
 import { AttachmentIcon, StopIcon, SendIcon, CloseIcon } from '../icons';
 import { AttachmentSizeLimitDialog } from './AttachmentSizeLimitDialog';
 import { NoteReferencePreview } from './NoteReferencePreview';
-import { resolveAttachmentCapabilities, buildAcceptAttribute } from '../../lib/core/chat/attachment-policy';
+import {
+  attachmentEntryDisabledMessageKey,
+  attachmentMediaOf,
+  buildAcceptAttribute,
+  type AttachmentCapabilities,
+} from '../../lib/core/chat/attachment-policy';
+import { consumeFirstAttachHint, firstAttachHintMessageKey } from '../../lib/core/capability/input-capability-hint';
 import { useAppStore } from '../../providers/StoreProvider';
 import { useAttachmentIntake, type AttachmentsChange } from '../../lib/hooks/useAttachmentIntake';
 import type { ProviderAttachmentSupport } from '../../lib/core/metadata/metadata-client';
+import type { ConnectionRemovedPrompt } from '../../lib/core/chat/active-selection';
 import styles from './InputComposer.module.css';
 import type { LibraryDocumentRef } from '../../lib/core/library/types';
 import { QuoteContextChip } from './QuoteContextChip';
@@ -101,6 +108,22 @@ interface InputComposerProps {
    * appears above the input and sending is disabled; "Choose model" goes through onOpenModelSwitcher.
    */
   modelRemovedConnectionName?: string;
+  /**
+   * The connection bound to the conversation was deleted (contract key banner.connection_removed): when set, a
+   * notice bar appears and sending is disabled; "Choose model" goes through onOpenModelSwitcher or
+   * onOpenConnectionSetup depending on the target. Takes precedence over the model-removed / retired banners.
+   */
+  connectionRemoved?: ConnectionRemovedPrompt | null;
+  /** Add-connection entry opened by "Choose model" when there is no connection at all. */
+  onOpenConnectionSetup?: () => void;
+  /**
+   * Display name of the conversation model when an official-provider model was retired or is missing: when set, a
+   * "retired" banner appears and sending is disabled. With a successor name the button reads "Switch to {successor}"
+   * and goes through onSwitchToSuccessor; otherwise "Choose model" goes through onOpenModelSwitcher.
+   */
+  modelRetiredName?: string;
+  modelRetiredSuccessorName?: string;
+  onSwitchToSuccessor?: () => void;
   /** Extra notices in the composer card's notice slot (the third-tidy-up notice, the expensive-model notice, etc.), sharing the slot with "model removed". */
   composerNotices?: React.ReactNode;
   /** The only way forward when the relay protocol is undetermined: the panel does not route itself, ChatView pushes the provider detail page. */
@@ -115,6 +138,10 @@ interface InputComposerProps {
   onFindModelsSupportingParameter?: (parameterId: string) => void;
   /* Provider attachment support - provider-level attachment protocol limits. */
   providerAttachmentSupport?: ProviderAttachmentSupport | null;
+  /** Attachment capabilities of the current provider x model: computed once by ChatView and shared by drag-and-drop / paste and the composer. */
+  attachmentCapabilities: AttachmentCapabilities;
+  /** Attachment rejection gate (ChatView's useAttachmentRejectionGate); not passed when there is no connection, so picking files / pasting skips the gate. */
+  canAcceptAttachment?: (attachment: Attachment) => boolean;
   /** Current conversation provider.kind normalized to snake_case by telemetryProviderKind(), used for attachment_added reporting. */
   providerKind?: string;
   /** Visual placement. "home" lifts the composer into the empty-chat workspace. */
@@ -338,11 +365,18 @@ export function InputComposer({
   onSelectAlternativeModel,
   onOpenModelSwitcher,
   modelRemovedConnectionName,
+  connectionRemoved,
+  onOpenConnectionSetup,
+  modelRetiredName,
+  modelRetiredSuccessorName,
+  onSwitchToSuccessor,
   onOpenConnectionSettings,
   onOpenConnectionWebSearch,
   onOpenRelayModelAdvanced,
   onFindModelsSupportingParameter,
   providerAttachmentSupport,
+  attachmentCapabilities,
+  canAcceptAttachment,
   providerKind,
   presentation = 'docked',
   relatedNotes = [],
@@ -366,6 +400,7 @@ export function InputComposer({
   // exact is important: next-intl otherwise renders a raw key in production locales.
   const tCommon = useTranslations('common');
   const tLibrary = useTranslations('library');
+  const tInput = useTranslations('capability.input');
   const locale = useLocale();
   // Hover preview card for reference chips: only one is open at a time so cards never overlap.
   const [openNoteId, setOpenNoteId] = useState<string | null>(null);
@@ -447,11 +482,28 @@ export function InputComposer({
     setHasModelBehaviorOverride(Boolean(active && Object.values(active).some((item) => item?.state !== 'inherit')));
   }, [currentModel, generationParameterConversationId, generationParameterProvider]);
 
-  const { supportsImage, supportsAttachment } = resolveAttachmentCapabilities(
-    generationParameterProvider,
-    currentModel,
-    providerAttachmentSupport,
-  );
+  const { supportsImage, supportsAttachment } = attachmentCapabilities;
+  const attachmentDisabledKey = attachmentEntryDisabledMessageKey(attachmentCapabilities);
+  const attachmentDisabledReason = attachmentDisabledKey ? tInput(attachmentDisabledKey) : undefined;
+
+  // When image / file / video support is unknown, show a light hint on the first attachment: once per device per model, recorded when shown.
+  // Attachments from drag-and-drop and global paste also arrive through `attachments`, so look at the newly added ones here.
+  const seenAttachmentIdsRef = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const seen = seenAttachmentIdsRef.current;
+    seenAttachmentIdsRef.current = new Set(attachments.map((attachment) => attachment.id));
+    // Attachments present on the first render (including draft restore) do not count as "just attached".
+    if (!seen) return;
+    for (const attachment of attachments) {
+      if (seen.has(attachment.id)) continue;
+      const media = attachmentMediaOf(attachment);
+      if (media === 'text') continue;
+      if (consumeFirstAttachHint(generationParameterProvider?.id, currentModel?.id, attachmentCapabilities.projections[media])) {
+        showToast(tInput(firstAttachHintMessageKey(media)), 4000, undefined, 'info');
+        break;
+      }
+    }
+  }, [attachmentCapabilities, attachments, currentModel?.id, generationParameterProvider?.id, tInput]);
   const showLibraryContextButton = Boolean(onAddLibraryContext);
 
   const {
@@ -466,6 +518,7 @@ export function InputComposer({
     supportsImage,
     providerKind,
     currentModel,
+    canAcceptAttachment,
   });
 
   // Keep controlled updates, draft restore, and send/reset in sync with the textarea height.
@@ -514,7 +567,7 @@ export function InputComposer({
     };
   }, [closeModelControlsWithFocus, modelControlsOpen]);
 
-  const sendBlockedByRemovedModel = Boolean(modelRemovedConnectionName);
+  const sendBlockedByRemovedModel = Boolean(connectionRemoved) || Boolean(modelRemovedConnectionName) || Boolean(modelRetiredName);
   const requestSend = useCallback(() => {
     if (isStreaming || !value.trim() || sendBlockedByRemovedModel) return;
     const generation = ++sendGenerationRef.current;
@@ -782,7 +835,19 @@ export function InputComposer({
             </div>
           </div>
         )}
-        {modelRemovedConnectionName && (
+        {connectionRemoved && (
+          <div className={styles.attachmentSyncBanner} data-tone="warning" role="status" data-testid="connection-removed-banner">
+            <span className={styles.modelRemovedBannerText}>{t('connectionRemovedBanner')}</span>
+            <button
+              type="button"
+              className={styles.modelRemovedBannerAction}
+              onClick={connectionRemoved.target === 'connection_setup' ? onOpenConnectionSetup : onOpenModelSwitcher}
+            >
+              {t('modelRemovedChoose')}
+            </button>
+          </div>
+        )}
+        {!connectionRemoved && modelRemovedConnectionName && (
           <div className={styles.attachmentSyncBanner} data-tone="warning" role="status" data-testid="model-removed-banner">
             <span className={styles.modelRemovedBannerText}>
               {t('modelRemovedBanner', { connection: modelRemovedConnectionName })}
@@ -790,6 +855,22 @@ export function InputComposer({
             <button type="button" className={styles.modelRemovedBannerAction} onClick={onOpenModelSwitcher}>
               {t('modelRemovedChoose')}
             </button>
+          </div>
+        )}
+        {!connectionRemoved && !modelRemovedConnectionName && modelRetiredName && (
+          <div className={styles.attachmentSyncBanner} data-tone="warning" role="status" data-testid="model-retired-banner">
+            <span className={styles.modelRemovedBannerText}>
+              {t('modelRetiredBanner', { model: modelRetiredName })}
+            </span>
+            {modelRetiredSuccessorName && onSwitchToSuccessor ? (
+              <button type="button" className={styles.modelRemovedBannerAction} onClick={onSwitchToSuccessor}>
+                {t('modelRetiredSwitchTo', { model: modelRetiredSuccessorName })}
+              </button>
+            ) : (
+              <button type="button" className={styles.modelRemovedBannerAction} onClick={onOpenModelSwitcher}>
+                {t('modelRemovedChoose')}
+              </button>
+            )}
           </div>
         )}
         {contextCompacting && generationParameterConversationId && (
@@ -866,7 +947,7 @@ export function InputComposer({
         {/* Bottom row: tools left, send right */}
         <div className={styles.bottomRow}>
           <div className={styles.tools}>
-              {supportsAttachment && (
+              {/* The entry is always visible: when no kind of attachment is accepted it is greyed out with the reason. */}
                 <>
                   <ComposerToolButton
                     icon={(
@@ -874,8 +955,11 @@ export function InputComposer({
                     )}
                     label={t('attachFile')}
                     ariaLabel={t('attachFile')}
+                    ariaDescription={attachmentDisabledReason}
+                    title={attachmentDisabledReason}
                     count={hasAttachments ? attachments.length : undefined}
                     emphasized={hasAttachments}
+                    disabled={!supportsAttachment}
                     onClick={() => fileInputRef.current?.click()}
                   />
                   <input
@@ -887,7 +971,6 @@ export function InputComposer({
                     onChange={handleFileInput}
                   />
                 </>
-              )}
 
             {/* The entry point stays reachable; the panel explains why a control cannot be edited. */}
             <ComposerToolButton

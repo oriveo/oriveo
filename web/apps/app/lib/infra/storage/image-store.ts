@@ -15,9 +15,15 @@ interface ImageStoreSchema extends DBSchema {
       // would store two copies in IDB and add another to the backup bundle.
       thumbnail?: Blob;
       mimeType: string;
+      // Save time (ms): the orphan sweep uses it for the 24 h grace period. A plain record field
+      // with no index, so no IDB version bump is needed; older records lack it and the first
+      // sweep stamps them.
+      savedAt?: number;
     };
   };
 }
+
+export type StoredImageRecord = ImageStoreSchema['images']['value'];
 
 let currentImageDBName: string | null = null;
 let dbPromise: Promise<IDBPDatabase<ImageStoreSchema>> | null = null;
@@ -86,6 +92,16 @@ export function resetImageDBConnection() {
 
 /* ── Storage ────────────────────────────────────────────── */
 
+// Image ids saved during this run: extra protection for the launch orphan sweep beyond the savedAt
+// grace period (an image just saved but not yet written to the conversation store must not be
+// deleted as an orphan). Only grows, released with the page lifecycle.
+const sessionSavedIds = new Set<string>();
+
+/** Whether this id was saved during this run (used by the orphan sweep grace check). */
+export function wasImageSavedThisSession(id: string): boolean {
+  return sessionSavedIds.has(id);
+}
+
 /** Save the original image and its thumbnail */
 export async function saveImage(
   id: string,
@@ -94,8 +110,16 @@ export async function saveImage(
   mimeType: string,
   expectedUID?: string,
 ) {
+  // Record before writing: leave no gap between the write committing and the record for the sweep to exploit.
+  sessionSavedIds.add(id);
   const db = await getDB(expectedUID);
-  await db.put('images', { id, data, ...(thumbnail ? { thumbnail } : {}), mimeType });
+  await db.put('images', {
+    id,
+    data,
+    ...(thumbnail ? { thumbnail } : {}),
+    mimeType,
+    savedAt: Date.now(),
+  });
 }
 
 /* ── Reading ────────────────────────────────────────────── */
@@ -131,10 +155,44 @@ export async function loadThumbnailData(id: string): Promise<Blob | null> {
 
 /* ── Deletion and checks ────────────────────────────────────── */
 
-/** Delete an image */
-export async function deleteImage(id: string, expectedUID?: string) {
+/** Delete one image (original + thumbnail); returns the bytes freed (read from Blob metadata only, 0 when unavailable), for cleanup logging. */
+export async function deleteImage(id: string, expectedUID?: string): Promise<number> {
   const db = await getDB(expectedUID);
-  await db.delete('images', id);
+  const tx = db.transaction('images', 'readwrite');
+  const record = await tx.store.get(id);
+  await tx.store.delete(id);
+  await tx.done;
+  return recordBytes(record);
+}
+
+function blobBytes(value: unknown): number {
+  const size = (value as { size?: unknown } | null | undefined)?.size;
+  return typeof size === 'number' && Number.isFinite(size) ? size : 0;
+}
+
+function recordBytes(record: StoredImageRecord | undefined): number {
+  return record ? blobBytes(record.data) + blobBytes(record.thumbnail) : 0;
+}
+
+/** All image ids in this partition's image store (keys only, no Blob reads). */
+export async function listImageIds(expectedUID?: string): Promise<string[]> {
+  const db = await getDB(expectedUID);
+  return db.getAllKeys('images');
+}
+
+/** All records in this partition's image store (Blobs are only handles, bytes are not read into the JS heap); the orphan sweep reads savedAt and size from them. */
+export async function listImageRecords(expectedUID?: string): Promise<StoredImageRecord[]> {
+  const db = await getDB(expectedUID);
+  return db.getAll('images');
+}
+
+/** Stamp the save time on an old record that lacks savedAt; writes nothing when the record is gone or already has savedAt. Writes the image store only. */
+export async function stampImageSavedAt(id: string, savedAt: number, expectedUID?: string) {
+  const db = await getDB(expectedUID);
+  const tx = db.transaction('images', 'readwrite');
+  const record = await tx.store.get(id);
+  if (record && record.savedAt === undefined) await tx.store.put({ ...record, savedAt });
+  await tx.done;
 }
 
 /**

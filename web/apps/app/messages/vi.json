@@ -175,7 +175,7 @@
     "capabilityRiskCost": "Trường này có thể làm tăng phí nhà cung cấp thu.",
     "customRequestFieldsDocs": "Mở tài liệu chính thức",
     "customRequestFieldsPreview": "Xem trước delta yêu cầu đã che",
-    "resendWithoutSetting": "Gửi lại mà không có cài đặt này",
+    "resendWithoutSetting": "Thử lại không dùng cài đặt này",
     "generationBasicSettings": "Cài đặt cơ bản",
     "saveConnectionDefaults": "Dùng làm mặc định kết nối",
     "generationDiagnosticsHistory": "Lịch sử chẩn đoán",
@@ -726,7 +726,11 @@
         "confirmAlsoPriceLine": "Yêu cầu này còn vượt ngưỡng tăng giá {line} của {model}, nên cả yêu cầu bị tính theo giá ngữ cảnh dài.",
         "confirmDontAsk": "Không hỏi lại trong cuộc trò chuyện này",
         "confirmSend": "Vẫn gửi"
-      }
+      },
+      "connectionRemovedBanner": "Kết nối mà cuộc trò chuyện này dùng đã bị xóa.",
+      "modelRetiredBanner": "{model} đã ngừng cung cấp.",
+      "modelRetiredSwitchTo": "Chuyển sang {model}",
+      "lastUsedModelRetiredHint": "Mô hình bạn dùng lần trước đã ngừng cung cấp. Hiện đang dùng {model}."
     },
     "providerSetup": {
       "title": "Thêm nhà cung cấp",
@@ -1694,8 +1698,6 @@
       "errorHydrateTitle": "Không thể tải các cuộc trò chuyện gần đây",
       "errorHydrateMessage": "Vui lòng thử lại sau hoặc tự viết.",
       "errorGenericTitle": "Tạo không thành công, vui lòng viết thủ công",
-      "errorAggregated": "Đã thử {count} nhà cung cấp, đều thất bại.",
-      "errorAggregatedWithDetail": "Đã thử {count} nhà cung cấp, đều thất bại. Lỗi cuối: {error}",
       "backToSettings": "Quay lại Cài đặt",
       "used": {
         "chip": "Bộ nhớ",
@@ -1708,9 +1710,17 @@
       "groupPreferences": "Cách trả lời mong muốn",
       "groupInstructions": "Chỉ dẫn luôn áp dụng",
       "groupProjects": "Việc tôi đang làm",
+      "groupConflicts": "Chọn một bản để giữ",
+      "conflictThisDevice": "Bản trên thiết bị này",
+      "conflictOtherDevice": "Bản trên thiết bị khác",
+      "conflictKeep": "Giữ bản này",
       "itemPausedBadge": "Đã tắt",
       "itemPinnedA11y": "Đã ghim",
       "groupEpisodic": "Sự kiện và quyết định",
+      "episodicLocalOnly": "Chỉ lưu trên thiết bị này. Không bao giờ đồng bộ.",
+      "conflictNewer": "Mới hơn",
+      "conflictOlder": "Cũ hơn",
+      "conflictKeepBoth": "Giữ cả hai",
       "showAll": "Hiện tất cả ({count})",
       "kindDecision": "Quyết định",
       "kindEvent": "Sự kiện",
@@ -1764,7 +1774,47 @@
     "file": "Tệp",
     "web": "Web",
     "imageGeneration": "Tạo ảnh",
-    "toolCall": "Công cụ"
+    "toolCall": "Công cụ",
+    "input": {
+      "hintFirstAttach": {
+        "image": "Chưa xác nhận được mô hình này có đọc được ảnh hay không. Nếu thất bại, bạn sẽ được thông báo",
+        "file": "Chưa xác nhận được mô hình này có đọc được tệp hay không. Nếu thất bại, bạn sẽ được thông báo",
+        "video": "Chưa xác nhận được mô hình này có hiểu được video hay không. Nếu thất bại, bạn sẽ được thông báo"
+      },
+      "disabled": {
+        "modelAbsent": {
+          "image": "Mô hình này không hỗ trợ đầu vào hình ảnh",
+          "file": "Mô hình này không hỗ trợ đầu vào tệp",
+          "video": "Mô hình này không hỗ trợ đầu vào video"
+        },
+        "wireNotImplemented": {
+          "image": "Kết nối này chưa gửi được ảnh",
+          "file": "Kết nối này chưa gửi được tệp",
+          "video": "Kết nối này chưa gửi được video"
+        },
+        "killSwitch": {
+          "image": "Tính năng gửi hình ảnh cho nhà cung cấp này đang tạm tắt",
+          "file": "Tính năng gửi tệp cho nhà cung cấp này đang tạm tắt",
+          "video": "Tính năng gửi video cho nhà cung cấp này đang tạm tắt"
+        },
+        "rejectedRecently": {
+          "image": "Mô hình này vừa từ chối một ảnh",
+          "file": "Mô hình này vừa từ chối một tệp",
+          "video": "Mô hình này vừa từ chối một video"
+        },
+        "userRemoved": {
+          "image": "Bạn đã tắt tính năng gửi hình ảnh cho mô hình này",
+          "file": "Bạn đã tắt tính năng gửi tệp cho mô hình này",
+          "video": "Bạn đã tắt tính năng gửi video cho mô hình này"
+        }
+      },
+      "resendWithout": {
+        "image": "Gửi lại không kèm ảnh",
+        "file": "Gửi lại không kèm tệp",
+        "video": "Gửi lại không kèm video"
+      },
+      "bubbleNotSentToModel": "Không gửi cho mô hình này"
+    }
   },
   "modelPricing": {
     "unknown": "Giá không rõ",

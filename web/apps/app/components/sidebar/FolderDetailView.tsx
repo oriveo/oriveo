@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useAppStore } from '../../providers/StoreProvider';
 import { getVanillaStore } from '../../providers/StoreProvider';
 import * as folderOps from '../../lib/core/folder-ops';
@@ -11,7 +11,7 @@ import { getFolderColorPair } from '@oriveo/shared';
 import { BackButton } from '@oriveo/ui';
 import { isVisibleConversation, sortConversationsByActivity } from '../../lib/utils/conversation-list';
 import { stripMarkdownForPreview } from '../../lib/utils/markdown-preview';
-import { formatCost } from '../../lib/utils/format-utils';
+import { formatCostTotals } from '../../lib/core/cost/cost-currency';
 import { warmConversationInStore } from '../../lib/core/chat/conversation-bootstrap';
 import { showToast } from '../Toast';
 
@@ -22,6 +22,7 @@ interface FolderDetailViewProps {
 export function FolderDetailView({ folderId }: FolderDetailViewProps) {
   const router = useRouter();
   const t = useTranslations('sidebar');
+  const locale = useLocale();
   const folder = useAppStore((s) => s.folders.find((f) => f.id === folderId));
   // No filter/map inside a selector: the store equality function here is hardcoded to
   // Object.is (StoreProvider), so returning a new array means every store write re-renders
@@ -147,37 +148,40 @@ export function FolderDetailView({ folderId }: FolderDetailViewProps) {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {filtered.map((conv) => (
-              <button
-                key={conv.id}
-                type="button"
-                onClick={() => handleSelectConversation(conv.id)}
-                style={{
-                  display: 'flex', flexDirection: 'column', gap: 4,
-                  padding: '12px 16px', borderRadius: 'var(--o-radius-md)',
-                  border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left',
-                  transition: 'background 150ms ease',
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--o-surface-raised)')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
-              >
-                <span style={{ fontSize: 'var(--o-text-sm)', fontWeight: 500, color: 'var(--o-text)' }}>
-                  {conv.title || t('untitled')}
-                </span>
-                {conv.previewText && (
-                  <span style={{
-                    fontSize: 'var(--o-text-xs)', color: 'var(--o-text-tertiary)',
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}>
-                    {stripMarkdownForPreview(conv.previewText)}
+            {filtered.map((conv) => {
+              const costText = formatCostTotals(conv.estimatedCost, conv.nonUsdCostTotals, locale);
+              return (
+                <button
+                  key={conv.id}
+                  type="button"
+                  onClick={() => handleSelectConversation(conv.id)}
+                  style={{
+                    display: 'flex', flexDirection: 'column', gap: 4,
+                    padding: '12px 16px', borderRadius: 'var(--o-radius-md)',
+                    border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left',
+                    transition: 'background 150ms ease',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--o-surface-raised)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                >
+                  <span style={{ fontSize: 'var(--o-text-sm)', fontWeight: 500, color: 'var(--o-text)' }}>
+                    {conv.title || t('untitled')}
                   </span>
-                )}
-                <div style={{ display: 'flex', gap: 8, fontSize: 10, color: 'var(--o-text-tertiary)', opacity: 0.8 }}>
-                  {Math.max(conv.messages.length, conv.remoteMessageCount ?? 0) > 0 && <span>{t('messagesCount', { count: Math.max(conv.messages.length, conv.remoteMessageCount ?? 0) })}</span>}
-                  {conv.estimatedCost > 0 && <span>{formatCost(conv.estimatedCost)}</span>}
-                </div>
-              </button>
-            ))}
+                  {conv.previewText && (
+                    <span style={{
+                      fontSize: 'var(--o-text-xs)', color: 'var(--o-text-tertiary)',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {stripMarkdownForPreview(conv.previewText)}
+                    </span>
+                  )}
+                  <div style={{ display: 'flex', gap: 8, fontSize: 10, color: 'var(--o-text-tertiary)', opacity: 0.8 }}>
+                    {Math.max(conv.messages.length, conv.remoteMessageCount ?? 0) > 0 && <span>{t('messagesCount', { count: Math.max(conv.messages.length, conv.remoteMessageCount ?? 0) })}</span>}
+                    {costText && <span>{costText}</span>}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>

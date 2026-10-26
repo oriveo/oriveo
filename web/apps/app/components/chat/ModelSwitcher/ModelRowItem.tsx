@@ -2,7 +2,7 @@ import { Check } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { AIModel, Provider } from "@oriveo/shared";
 import { MODEL_ROW_MAX_CAPABILITY_BADGES, ModelCapabilityBadges } from "../ModelCapabilityBadge";
-import { useModelPriceTierLabel } from "../model-price-tier-label";
+import { useConnectionModelPricing, useModelPriceTierLabel } from "../model-price-tier-label";
 import styles from "../ModelSwitcher.module.css";
 import {
   cleanModelName,
@@ -34,7 +34,8 @@ export function ModelRowItem({
   const cleanedName = cleanModelName(model.name);
   const vendorPrefix = extractVendorFromName(model.name);
   const ctxLabel = formatContextLength(model.contextLength);
-  const priceTierLabel = useModelPriceTierLabel(model.priceTier);
+  const connectionPricing = useConnectionModelPricing(model, provider);
+  const priceTierLabel = useModelPriceTierLabel(connectionPricing?.priceTier ?? model.priceTier);
   const showPriceTier = Boolean(priceTierLabel) && !isFreeModel(model);
   const visibleCapabilities = visibleModelCapabilityBadges(
     provider,

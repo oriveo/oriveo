@@ -1,12 +1,15 @@
 /**
-  * Image placeholder for text-only wires (attachment delivery contract; capability spec on text-only wires).
+ * Image placeholder for text-only wires (attachment delivery contract section 10; capability spec on text-only wires).
  *
-  * The placeholder literal is shared by all three clients and the shared fixture is authoritative: each case asserts that the wire's declared placeholder == the fixture bytes, and that the wire's
-  * production request builder, given "one image + one sentence", produces a request body that contains the placeholder line and no image block at all.
+ * The placeholder literal is shared by all three clients and the shared fixture is authoritative: each case asserts that the wire's declared placeholder == the fixture bytes.
+ * Wires without byModel (this client sends text only): the production request builder, given "one image + one sentence", produces a request body that contains the placeholder line and no image block.
+ * Wires with byModel go row by row, per (model, server verdict), through the production outbound path (outbound cleanup -> outbound-history -> server builder):
+ * native_part gives a body with an image block and no placeholder; placeholder gives only the placeholder line and no image block.
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { AIModel, ChatMessage, Provider } from '@oriveo/shared';
 import {
   type AttachmentTransport,
   attachmentTransportProfile,
@@ -19,11 +22,20 @@ import { buildMiniMaxAnthropicMessagesRequest } from '@oriveo/core/providers/req
 import type { ProxyMessage } from '@oriveo/core/providers/request-builders/runtime';
 import type { RequestParams } from '@oriveo/core/providers/request-builders/types';
 import { buildLlamaCppNativePrompt } from '@oriveo/core/providers/relay-orchestrator';
+import { buildOutboundChatHistory, filterOutboundAttachments } from '../../chat/outbound-history';
+import { buildProviderStreamOptions, buildStreamOptionsFromIntent } from '../../chat/stream-options';
+
+interface ByModelRow {
+  model: string;
+  vision: { state: string; reasonCode?: string; wireFamily?: string };
+  outbound: 'native_part' | 'placeholder';
+}
 
 interface PlaceholderCase {
   id: string;
   placeholder: string;
   routes: { web: AttachmentTransport };
+  byModel?: ByModelRow[];
 }
 
 const FIXTURE = JSON.parse(readFileSync(
@@ -56,13 +68,47 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-/** Outbound artifact of each wire's production builder for one image + one sentence. */
+function imageTurn(text: string): ChatMessage {
+  return {
+    id: 'u-image', role: 'user', text, providerKind: 'deepseek', providerName: 'P',
+    modelName: 'm', estimatedCost: 0, state: 'delivered', createdAt: '2026-10-12T00:00:00Z',
+    attachments: [{ id: 'img-1', kind: 'image', fileName: 'cat.png', mimeType: 'image/png', base64Data: 'AAAA' }],
+  } as unknown as ChatMessage;
+}
+
+/** Fixture row (model, server verdict) -> connection and model objects: official wires put the verdict into capabilityControls as is. */
+function connectionOf(transport: AttachmentTransport, row: ByModelRow): { provider: Provider; model: AIModel } {
+  const model = {
+    id: row.model, name: row.model, capabilities: ['text'], reasoningModeAvailable: false,
+    isAvailable: true, isDefault: true, priceTier: '$',
+    transport: 'openai_chat_completions', capabilityControls: { vision_input: row.vision },
+  } as unknown as AIModel;
+  const kind = transport === 'deepseek_chat' ? 'deepseek' : 'miniMax';
+  const provider = {
+    id: `official-${kind}`, kind, status: { kind: 'connected' }, models: [model], catalogModels: [{ ...model }],
+    apiKey: '', apiKeyPreview: '',
+  } as unknown as Provider;
+  return { provider, model };
+}
+
+/** Production outbound path: outbound cleanup (filterOutboundAttachments) -> outbound-history -> the server builder of that wire. */
+async function outboundBody(transport: AttachmentTransport, row: ByModelRow, turn: ChatMessage): Promise<unknown> {
+  const { provider, model } = connectionOf(transport, row);
+  const streamOptions = buildProviderStreamOptions(provider, buildStreamOptionsFromIntent(model, 'automatic', false), model);
+  const messages = filterOutboundAttachments({ messages: [turn], currentTurnId: turn.id, provider, model, streamOptions });
+  const history = await buildOutboundChatHistory({}, { messages, provider, model, streamOptions }) as ProxyMessage[];
+  const built: RequestParams = { providerKind: provider.kind as RequestParams['providerKind'], apiKey: 'k', modelID: model.id, messages: history };
+  switch (transport) {
+    case 'deepseek_chat': return buildDeepSeekRequest(built, null, false).body;
+    case 'minimax_chat': return buildMiniMaxRequest(built, null, null).body;
+    case 'minimax_anthropic_messages': return buildMiniMaxAnthropicMessagesRequest(built, MINIMAX_ANTHROPIC_ROUTE as never).body;
+    default: throw new Error(`no outbound probe for ${transport}`);
+  }
+}
+
+/** Wires this client sends as text only (no byModel in the fixture): outbound artifact of the production builder for one image + one sentence. */
 const BUILT_BODY: Record<string, () => unknown> = {
-  deepseek_chat: () => buildDeepSeekRequest(params('deepseek'), null, false).body,
   relay_llamacpp_native: () => buildLlamaCppNativePrompt(IMAGE_MESSAGE as never),
-  minimax_chat: () => buildMiniMaxRequest(params('miniMax'), null, null).body,
-  minimax_anthropic_messages: () =>
-    buildMiniMaxAnthropicMessagesRequest(params('miniMax'), MINIMAX_ANTHROPIC_ROUTE as never).body,
   gemini_interactions: () =>
     buildGeminiInteractionsRequest(params('gemini'), GEMINI_INTERACTIONS_ROUTE as never).body,
 };
@@ -97,6 +143,7 @@ describe('text wire image placeholder = shared fixture', () => {
   });
 
   for (const entry of FIXTURE.cases) {
+    if (entry.byModel) continue;
     const caseName = `IMAGE-PLACEHOLDER-${entry.id}`;
     it(`${caseName} wire declaration == fixture, production builder outbound has only the placeholder and no image block`, async () => {
       const transport = entry.routes.web;
@@ -111,9 +158,30 @@ describe('text wire image placeholder = shared fixture', () => {
       expect(findImageBlock(body)).toBeNull();
     });
   }
+
+  for (const entry of FIXTURE.cases) {
+    for (const row of entry.byModel ?? []) {
+      const caseName = `IMAGE-PLACEHOLDER-${entry.id}-${row.model}`;
+      it(`${caseName} verdict ${row.vision.state} -> production outbound ${row.outbound}`, async () => {
+        const transport = entry.routes.web;
+        expect(attachmentTransportProfile(transport).imagePlaceholderText).toBe(entry.placeholder);
+
+        const body = await outboundBody(transport, row, imageTurn('what is in this picture'));
+        const serialized = JSON.stringify(body);
+        expect(serialized).toContain('what is in this picture');
+        if (row.outbound === 'native_part') {
+          expect(findImageBlock(body), caseName).not.toBeNull();
+          expect(serialized).not.toContain(entry.placeholder);
+        } else {
+          expect(serialized).toContain(entry.placeholder);
+          expect(findImageBlock(body), caseName).toBeNull();
+        }
+      });
+    }
+  }
 });
 
-describe('tool leg (MCP / library) uses the same wire placeholder as a normal send', () => {
+describe('tool leg (MCP / library) uses the same outbound rule as a normal send', () => {
   const TOOL = {
     type: 'function' as const,
     function: { name: 'library_search', description: 'Search', parameters: { type: 'object', properties: {} } },
@@ -121,16 +189,17 @@ describe('tool leg (MCP / library) uses the same wire placeholder as a normal se
   const placeholderOf = (id: string) => FIXTURE.cases.find((entry) => entry.id === id)!.placeholder;
 
   for (const [id, providerKind] of [['deepseek_chat', 'deepseek'], ['minimax_chat', 'miniMax']] as const) {
-    it(`TOOL-LEG-IMAGE-PLACEHOLDER-${id} production tool leg request body contains the fixture placeholder and no image_url`, async () => {
+    it(`TOOL-LEG-IMAGE-PLACEHOLDER-${id} production tool leg writes no placeholder of its own: an image part that arrives goes out as image_url`, async () => {
       // When /api/chat/stream carries tools, dispatch wraps the tool leg wire adapter (same construction as route.ts).
+      // An image part only exists when the projection said native_part; on placeholder the outbound cleanup already swapped in the placeholder line, the same as a normal send.
       const request = await buildProviderRequest({
         ...params(providerKind), tools: [TOOL], toolChoice: 'auto',
       }, async () => null);
       const serialized = JSON.stringify(request.body);
       expect(serialized).toContain('"tools"');
-      expect(serialized).toContain(placeholderOf(id));
+      expect(serialized).not.toContain(placeholderOf(id));
       expect(serialized).toContain('what is in this picture');
-      expect(findImageBlock(request.body)).toBeNull();
+      expect(findImageBlock(request.body)).toBe('image_url');
     });
   }
 });

@@ -246,6 +246,23 @@ function applyManualOfficialPricing(
   };
 }
 
+/** The official catalog model that a local Relay model matches (enrichment and the render-layer price label share one match); null when there is no match. */
+export function resolveRelayOfficialMatch(
+  model: Pick<AIModel, 'id' | 'canonicalModelId'>,
+  transport: RelayTransportKey | undefined,
+  runtimeConfig: RelayRuntimeConfig,
+): ReturnType<typeof resolveCatalogModelAcrossProvidersWithProvider> {
+  // canonicalModelId is only used for pricing and official capability inheritance: when present, match by it first,
+  // and fall back to the model id when nothing is found; without it, match by the model id directly.
+  const options = { transportPriority: transportProviderPriority(transport, runtimeConfig) };
+  const canonicalId = model.canonicalModelId?.trim();
+  if (canonicalId) {
+    const byCanonical = resolveCatalogModelAcrossProvidersWithProvider(resolvedRelayModelId(canonicalId), options);
+    if (byCanonical || canonicalId === model.id) return byCanonical;
+  }
+  return resolveCatalogModelAcrossProvidersWithProvider(resolvedRelayModelId(model.id), options);
+}
+
 /**
  * Apply official catalog enrichment to a single Relay local model.
  * No match returns the model unchanged; a match merges the official display data, capabilities and
@@ -261,9 +278,7 @@ export function enrichRelayLocalModel(
   // This branch goes through `applyManualOfficialPricing`, which inherits the official capabilities (union) / profiles / pricing and the native-file fields and keeps the user's displayName.
   const isRelayManualModel = localModel.isManual === true
     || localModel.id.trim().startsWith('relay-manual-');
-  const matchResult = resolveCatalogModelAcrossProvidersWithProvider(resolvedRelayModelId(localModel.id), {
-    transportPriority: transportProviderPriority(transport, runtimeConfig),
-  });
+  const matchResult = resolveRelayOfficialMatch(localModel, transport, runtimeConfig);
   if (!matchResult) {
     return { ...localModel };
   }

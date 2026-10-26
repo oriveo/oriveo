@@ -19,7 +19,7 @@ export interface StartSkillConversationOptions {
  * Create a draft conversation from a skill:
  *   - resolve the model the skill recommends
  *   - create it and write it to the store (isDraft=true, with skillId already bound)
- *   - set activeConversationId and lastUsedModelRef
+ *   - set activeConversationId; last-used is left alone (it only changes when the user sends or picks a model)
  *   - defer one task before the fire-and-forget usage record, so SkillsLanding does not
  *     reflow in the same frame it unmounts in
  */
@@ -44,6 +44,8 @@ export function startConversationWithSkill(
     modelID: resolved.model.id,
     previewText: '',
     estimatedCost: 0,
+    // Created locally: the whole thread lives on this device
+    localThreadComplete: true,
     isDraft: true,
     messages: [],
     draftText: '',
@@ -56,10 +58,6 @@ export function startConversationWithSkill(
   const state = store.getState();
   state.addConversation(conversation);
   state.setActiveConversationId(conversation.id);
-  state.setLastUsedModelRef({
-    providerID: resolved.provider.id,
-    modelID: resolved.model.id,
-  });
 
   scheduleSkillUseRecord(store, skill.id);
 

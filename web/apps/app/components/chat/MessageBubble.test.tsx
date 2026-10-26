@@ -1,7 +1,17 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ChatMessage, Provider } from "@oriveo/shared";
+import { makeRelayRequested, type ChatMessage, type Provider } from "@oriveo/shared";
 import { MessageBubble } from "./MessageBubble";
+import type { AIModel, Conversation } from "@oriveo/shared";
+import { recordInputNegativeCache } from "../../lib/core/capability/input-negative-cache";
+import enMessages from "../../messages/en.json";
+import { inputNegativeCacheTarget, resolveInputCapabilityProjections } from "../../lib/core/capability/truth/input-truth-adapter";
+import { createRelayManualModel } from "../../lib/core/provider-model-ops";
+import {
+  beginCapabilityEvidenceIdentityIfAbsent,
+  resetCapabilityEvidenceIdentitiesForTesting,
+} from "../../lib/core/providers/capability-evidence-identity";
+import { getActiveUIDSync } from "../../lib/infra/storage/partition";
 import {
   USER_MESSAGE_FOLD_THRESHOLD,
   userMessagePreview,
@@ -86,9 +96,17 @@ vi.mock("./MessageRecoveryCard", () => ({
     onContinue,
     primaryActionLabel,
     onPrimaryAction,
+    resendWithoutMedia,
+    rejectionRecoveryLayout,
+    onSwitchModel,
+    onSwitchKey,
     errorTitle,
     errorDetail,
   }: {
+    onSwitchKey?: () => void;
+    resendWithoutMedia?: string;
+    rejectionRecoveryLayout?: boolean;
+    onSwitchModel?: () => void;
     errorTitle?: string;
     errorDetail?: string;
     onRetry?: () => void;
@@ -96,7 +114,12 @@ vi.mock("./MessageRecoveryCard", () => ({
     primaryActionLabel?: string;
     onPrimaryAction?: () => void;
   }) => (
-    <div data-testid="message-recovery-card" data-error-title={errorTitle} data-error-detail={errorDetail}>
+    <div
+      data-testid="message-recovery-card"
+      data-error-title={errorTitle}
+      data-error-detail={errorDetail}
+      data-rejection-recovery-layout={rejectionRecoveryLayout ? "true" : undefined}
+    >
       {onRetry ? (
         <button type="button" onClick={onRetry}>
           regenerateBtn
@@ -107,9 +130,19 @@ vi.mock("./MessageRecoveryCard", () => ({
           continueBtn
         </button>
       ) : null}
-      {primaryActionLabel && onPrimaryAction ? (
+      {(primaryActionLabel ?? (resendWithoutMedia ? `resendWithout.${resendWithoutMedia}` : undefined)) && onPrimaryAction ? (
         <button type="button" onClick={onPrimaryAction}>
-          {primaryActionLabel}
+          {primaryActionLabel ?? `resendWithout.${resendWithoutMedia}`}
+        </button>
+      ) : null}
+      {onSwitchModel ? (
+        <button type="button" onClick={onSwitchModel}>
+          mockSwitchModel
+        </button>
+      ) : null}
+      {onSwitchKey ? (
+        <button type="button" onClick={onSwitchKey}>
+          mockSwitchKey
         </button>
       ) : null}
     </div>
@@ -839,6 +872,33 @@ describe("MessageBubble", () => {
     expect(onRetryWithoutCustom).toHaveBeenCalledTimes(1);
   });
 
+  it('signature names enable_search (not a panel parameter): the title uses the web-search capability copy, and en does not contain the raw parameter name', () => {
+    mockCreateModelDisplayLookup.mockReturnValue({ resolve: vi.fn().mockReturnValue(null) });
+    render(
+      <MessageBubble
+        message={{
+          ...baseMessage,
+          id: 'assistant-signature-param-rejected',
+          state: 'failed',
+          errorTitle: 'requestFailed.title',
+          errorDetail: 'This model does not support enable_search.',
+          errorSource: 'provider',
+          generationParameterRejection: { parameterId: 'enable_search' },
+        }}
+        provider={provider}
+        onRetryWithoutCustom={vi.fn()}
+        isLastMessage
+      />,
+    );
+    const titleKey = screen.getByTestId('message-recovery-card').getAttribute('data-error-title')!;
+    expect(titleKey).toBe('common.capabilityControlWebSearch');
+    const en = enMessages as unknown as Record<string, unknown>;
+    const enTitle = titleKey.split('.').reduce<unknown>((node, part) => (node as Record<string, unknown>)?.[part], en);
+    expect(typeof enTitle).toBe('string');
+    expect(enTitle).not.toContain('enable_search');
+    expect(screen.getByRole('button', { name: 'resendWithoutSetting' })).toBeTruthy();
+  });
+
   it('RL2-NEGCACHE-03 relay image rejected: the body says images are unsupported and the primary action is switching models', () => {
     mockCreateModelDisplayLookup.mockReturnValue({ resolve: vi.fn().mockReturnValue(null) });
     const onSwitchModel = vi.fn();
@@ -954,5 +1014,253 @@ describe("MessageBubble", () => {
     );
     expect(screen.queryByTestId("tool-fallback-notice")).toBeNull();
     expect(screen.queryByTestId("unhandled-tool-call-card")).toBeNull();
+  });
+
+  describe("upstream rejects images by signature", () => {
+    const visionModel = (state: string, reasonCode?: string): AIModel => ({
+      id: "vision-model", name: "Vision Model", capabilities: ["text"], transport: "openai_chat_completions",
+      reasoningModeAvailable: false, isAvailable: true, isDefault: true, priceTier: "$",
+      capabilityControls: {
+        vision_input: { state, ...(reasonCode ? { reasonCode } : {}), wireFamily: "openai_chat.image_url" },
+      },
+    } as unknown as AIModel);
+    const officialProvider = (model: AIModel): Provider => ({ ...provider, id: "official-1", models: [model] });
+    const turnMessages = (model: AIModel): [ChatMessage, ChatMessage] => [
+      { ...baseMessage, id: "u-1", role: "user", text: "look", modelID: model.id, providerID: "official-1",
+        attachments: [imageAttachment] },
+      { ...baseMessage, id: "a-1", text: "", modelID: model.id, providerID: "official-1", state: "failed",
+        errorTitle: "Provider request failed", errorDetail: "Unexpected item type in content", errorSource: "provider" },
+    ];
+
+    beforeEach(() => {
+      localStorage.clear();
+      mockCreateModelDisplayLookup.mockReturnValue({ resolve: vi.fn().mockReturnValue(null) });
+    });
+
+    it.each([
+      ["vision_input", "image"],
+      ["file_input", "file"],
+      ["video_input", "video"],
+    ] as const)("a failed message that recorded %s as rejected by signature: the recovery card primary action is resending without %s, and only a click resends", (capabilityKey, media) => {
+      const model = visionModel("unknown", "catalog_silent");
+      const [user, failed] = turnMessages(model);
+      const rejected: ChatMessage = { ...failed, inputRejection: { capabilityKey, signatureId: "test.signature" } };
+      const onRetry = vi.fn();
+      render(
+        <MessageBubble
+          message={rejected}
+          provider={officialProvider(model)}
+          conversation={{ id: "c-1", messages: [user, rejected] } as unknown as Conversation}
+          onRetry={onRetry}
+          isLastMessage
+        />,
+      );
+      expect(onRetry).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: `resendWithout.${media}` }));
+      expect(onRetry).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      ["media", "resendWithout.image"],
+      ["parameter", "resendWithoutSetting"],
+    ] as const)("WEB-REJECTION-RECOVERY-byok_not_rate_limited_passes_switch_model (%s)", (kind, actionLabel) => {
+      const model = visionModel("unknown", "catalog_silent");
+      const [user, failed] = turnMessages(model);
+      const rejected: ChatMessage = kind === "media"
+        ? { ...failed, inputRejection: { capabilityKey: "vision_input", signatureId: "test.signature" } }
+        : { ...failed, errorDetail: "Unsupported value: 'temperature'", generationParameterRejection: { parameterId: "temperature", signatureId: "test.signature" } };
+      const onRetry = vi.fn();
+      const onRetryWithoutCustom = vi.fn();
+      const onSwitchModel = vi.fn();
+      render(
+        <MessageBubble
+          message={rejected}
+          provider={officialProvider(model)}
+          conversation={{ id: "c-1", messages: [user, rejected] } as unknown as Conversation}
+          onRetry={onRetry}
+          onRetryWithoutCustom={onRetryWithoutCustom}
+          onSwitchModel={onSwitchModel}
+          isLastMessage
+        />,
+      );
+      // BYOK, not rate limited: the card still receives the switch-model callback and the rejected one-tap action layout marker.
+      expect(screen.getByTestId("message-recovery-card").getAttribute("data-rejection-recovery-layout")).toBe("true");
+      fireEvent.click(screen.getByRole("button", { name: "mockSwitchModel" }));
+      expect(onSwitchModel).toHaveBeenCalledTimes(1);
+      fireEvent.click(screen.getByRole("button", { name: actionLabel }));
+      expect(kind === "media" ? onRetry : onRetryWithoutCustom).toHaveBeenCalledTimes(1);
+    });
+
+    /** Relay with multiple keys, the current key rejected and an alternate available (same shape as the RelaySwitchKeyDialog fixture). */
+    const relayMultiKeyProvider = (): Provider => {
+      const requested = makeRelayRequested("openai_compatible");
+      requested.authMode = "bearer";
+      requested.transport = "openai_chat_completions";
+      requested.resolvedAPIBaseURL = "https://api.myrelay.dev/v1";
+      const userTransport = { relayTransport: "openai_chat_completions" as const, relayTransportSource: "user" as const };
+      const relayModel = (id: string, extra: Partial<AIModel> = {}): AIModel => ({
+        id, name: id, capabilities: ["text"], reasoningModeAvailable: false, isAvailable: true, isDefault: false,
+        priceTier: "", ...extra,
+      });
+      return {
+        id: "relay-switch-key",
+        kind: "relay",
+        customName: "myrelay.dev",
+        status: { kind: "connected" },
+        apiKey: "sk-a-0123456789abcdef",
+        apiKeyPreview: "sk-a...cdef",
+        baseURLText: "https://api.myrelay.dev",
+        relayKind: "openai_compatible",
+        relayRequested: requested,
+        relayKeys: [
+          { id: "initial", name: "OpenAI", apiKey: "", status: { state: "ok", httpStatus: 200 } },
+          { id: "k-b", name: "Claude", apiKey: "sk-b-0123456789abcdef", status: { state: "invalid", httpStatus: 401 } },
+        ],
+        models: [relayModel("gpt-4o", { relayKeyID: "initial", relayDeniedKeyID: "initial", ...userTransport })],
+        catalogModels: [relayModel("gpt-4o", { relayListedByKeyIDs: ["initial", "k-b"] })],
+      } as Provider;
+    };
+
+    it("WEB-REJECTION-RECOVERY-panel_parameter_keeps_generic_layout", () => {
+      // Generic panel-parameter verdict (stream-runner, no signature source) on a multi-key relay: no two-button layout, switch key is still offered.
+      const relay = relayMultiKeyProvider();
+      const failed: ChatMessage = {
+        ...baseMessage, id: "a-relay", text: "", modelID: "gpt-4o", providerID: relay.id, state: "failed",
+        errorTitle: "Provider request failed", errorDetail: "Unsupported value: 'temperature'", errorSource: "provider",
+        generationParameterRejection: { parameterId: "temperature" },
+      };
+      const onRetryWithoutCustom = vi.fn();
+      render(
+        <MessageBubble
+          message={failed}
+          provider={relay}
+          onRetry={vi.fn()}
+          onRetryWithoutCustom={onRetryWithoutCustom}
+          onSwitchModel={vi.fn()}
+          isLastMessage
+        />,
+      );
+      const card = screen.getByTestId("message-recovery-card");
+      expect(card.getAttribute("data-rejection-recovery-layout")).toBeNull();
+      expect(screen.getByRole("button", { name: "mockSwitchKey" })).toBeTruthy();
+      // The original layout of non-rate-limited BYOK does not offer switch model.
+      expect(screen.queryByRole("button", { name: "mockSwitchModel" })).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "resendWithoutSetting" }));
+      expect(onRetryWithoutCustom).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      ["relay_image_with_input_rejection", {
+        relayImageUnsupported: true,
+        inputRejection: { capabilityKey: "vision_input", signatureId: "test.signature" },
+      }],
+      // Custom fragment / additional body: even with a signature parameter recorded, the primary action stays each one's own exit, with no two-button layout.
+      ["custom_fragment", {
+        errorKind: "customRequestFieldsRejected",
+        generationParameterRejection: { parameterId: "temperature", signatureId: "test.signature" },
+      }],
+      ["additional_body", {
+        errorKind: "additionalBodyRejected",
+        generationParameterRejection: { parameterId: "temperature", signatureId: "test.signature" },
+      }],
+      ["capability_recovery", {
+        generationParameterRejection: { parameterId: "temperature", signatureId: "test.signature" },
+        capabilityRecovery: {
+          version: 1, action: "user_confirmed_resend_without_located_setting", source: "custom",
+          owners: ["generation"], locatedPointers: [],
+        },
+      }],
+    ] as const)("WEB-REJECTION-RECOVERY-no_two_button_layout_without_action (%s)", (_kind, extra) => {
+      const model = visionModel("unknown", "catalog_silent");
+      const [user, failed] = turnMessages(model);
+      const message = { ...failed, ...extra } as unknown as ChatMessage;
+      render(
+        <MessageBubble
+          message={message}
+          provider={officialProvider(model)}
+          conversation={{ id: "c-1", messages: [user, message] } as unknown as Conversation}
+          onRetry={vi.fn()}
+          onRetryWithoutCustom={vi.fn()}
+          onSwitchModel={vi.fn()}
+          isLastMessage
+        />,
+      );
+      expect(screen.getByTestId("message-recovery-card").getAttribute("data-rejection-recovery-layout")).toBeNull();
+    });
+
+    it("only a negative cache (projection rejected_recently) and no rejection record on the failed message: no resend without images", () => {
+      const model = visionModel("unknown", "catalog_silent");
+      const official = officialProvider(model);
+      // The production write entry records the rejection and the production facade reads the projection as rejected_recently; the action still trusts only the message's own record.
+      const target = inputNegativeCacheTarget(official, model, undefined, "vision_input")!;
+      recordInputNegativeCache(target.key, { signatureId: "dashscope.unexpected_item_type", verdictRevision: target.verdictRevision });
+      expect(resolveInputCapabilityProjections(official, model, undefined)?.vision_input.disabledReason)
+        .toBe("disabled.rejected_recently");
+      const [user, failed] = turnMessages(model);
+      render(
+        <MessageBubble
+          message={failed}
+          provider={official}
+          conversation={{ id: "c-1", messages: [user, failed] } as unknown as Conversation}
+          onRetry={vi.fn()}
+          isLastMessage
+        />,
+      );
+      expect(screen.queryByRole("button", { name: "resendWithout.image" })).toBeNull();
+    });
+
+    it("no rejection record: no resend without images", () => {
+      const model = visionModel("unknown", "catalog_silent");
+      const [user, failed] = turnMessages(model);
+      render(
+        <MessageBubble
+          message={failed}
+          provider={officialProvider(model)}
+          conversation={{ id: "c-1", messages: [user, failed] } as unknown as Conversation}
+          onRetry={vi.fn()}
+          isLastMessage
+        />,
+      );
+      expect(screen.queryByRole("button", { name: "resendWithout.image" })).toBeNull();
+    });
+
+    it("an image in the user message that this model cannot receive (projected as placeholder): marked as not sent to this model", () => {
+      const model = visionModel("unavailable", "model_capability_absent");
+      const [user] = turnMessages(model);
+      render(<MessageBubble message={user} provider={officialProvider(model)} />);
+      expect(screen.getByText("bubbleNotSentToModel")).toBeTruthy();
+    });
+
+    it("an image the model can receive is not marked", () => {
+      const model = visionModel("auto_available");
+      const [user] = turnMessages(model);
+      render(<MessageBubble message={user} provider={officialProvider(model)} />);
+      expect(screen.queryByText("bubbleNotSentToModel")).toBeNull();
+    });
+
+    it("an image already sent in a Relay conversation (vision unknown, no caller send context): fill in the context before judging, not marked as unsent", () => {
+      const requested = makeRelayRequested("openai_compatible");
+      requested.authMode = "none";
+      requested.securityMode = "local_http";
+      requested.transport = "openai_chat_completions";
+      requested.resolvedAPIBaseURL = "http://127.0.0.1:8080/v1";
+      const model = createRelayManualModel("relay-vision-unknown");
+      const relay = {
+        ...provider, id: "relay-1", kind: "relay", models: [model], catalogModels: [model], apiKey: "", apiKeyPreview: "",
+        baseURLText: "http://127.0.0.1:8080", relayKind: "openai_compatible", relayRequested: requested,
+        relayResolvedBaseURLText: "http://127.0.0.1:8080/v1", relayResolvedTransport: "openai_chat_completions",
+        relayResolvedAuthMode: "none",
+      } as Provider;
+      resetCapabilityEvidenceIdentitiesForTesting();
+      beginCapabilityEvidenceIdentityIfAbsent(getActiveUIDSync(), relay.id);
+      try {
+        const user: ChatMessage = { ...baseMessage, id: "u-relay", role: "user", text: "look", modelID: model.id,
+          providerID: relay.id, providerKind: "relay", attachments: [imageAttachment] };
+        render(<MessageBubble message={user} provider={relay} />);
+        expect(screen.queryByText("bubbleNotSentToModel")).toBeNull();
+      } finally {
+        resetCapabilityEvidenceIdentitiesForTesting();
+      }
+    });
   });
 });

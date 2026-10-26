@@ -26,7 +26,7 @@ import { gateCapConfirm, CapConfirmCancelledError } from '../../../lib/core/chat
 import { capConfirmStateKey, type CapConfirmAttempt, type CapConfirmState } from '../../../lib/core/chat/context-visibility/cap-confirm';
 import { setPreference } from '../../../lib/infra/storage/preferences';
 import { stopFamilyForProvider } from '../../../lib/core/chat/stop-reason-outcome';
-import { offerDirectiveSuggestion } from '../../../lib/core/chat/conversation-instructions/directive-suggestion';
+import { offerDirectiveSuggestion, offerInstructSuggestion } from '../../../lib/core/chat/conversation-instructions/directive-suggestion';
 import { beginMemorySuggestion, resolveMemorySuggestion } from '../../../lib/core/chat/conversation-instructions/memory-suggestion';
 import type { ContextShotPage } from './context-shots-pages';
 import type { ContextShotsModelEntry, ContextShotsModel, ContextShotsCheckpoint, ContextShotsLedger, ContextShotsManifestPage, ContextShotsManifest } from './context-shots-manifest';
@@ -419,7 +419,9 @@ export async function applyContextShotPlan(plan: ContextShotPlan, store: StoreAp
   const ledger = contextShotLedgerRow(plan, rows[0]?.checkpointId ?? null);
   if (ledger) await appendContextManifest(ledger);
   if (plan.conversationId && plan.directive) {
-    offerDirectiveSuggestion(store, plan.conversationId, plan.directive.message, plan.directive.assistantId, 'tool');
+    // The sample sentence is English: from propose-v3 the lexicon entries are gated by suggestionLanguages, so the shot uses tool-mode instruct to produce the entry (sentence = the user's original text, trimmed), same as iOS / Android.
+    const ticket = offerDirectiveSuggestion(store, plan.conversationId, plan.directive.message, plan.directive.assistantId, 'tool');
+    offerInstructSuggestion(store, ticket, (plan.directive.message.text ?? '').trim());
   }
   if (plan.conversationId && plan.memory) {
     const ticket = beginMemorySuggestion(plan.conversationId, plan.memory.userId, plan.memory.assistantId);

@@ -10,7 +10,7 @@ interface FixtureInput extends Omit<AssembleInput, 'window' | 'history'> {
 }
 
 interface AssembleContract {
-  constants: { notes: Record<string, string>; continuePrompt: string; reminderPointer: string; instructionsHeader: string };
+  constants: { notes: Record<string, string>; continuePrompt: string; reminderPointer: string; instructionsHeader: string; deliveryVoice: string };
   cases: Array<{ id: string; input: FixtureInput; expected: Record<string, unknown> }>;
 }
 
@@ -49,6 +49,7 @@ describe('ContextContractAssemble', () => {
     expect(ContextAssembler.constants.continuePrompt).toBe(contract.constants.continuePrompt);
     expect(ContextAssembler.constants.reminderPointer).toBe(contract.constants.reminderPointer);
     expect(ContextAssembler.constants.instructionsHeader).toBe(contract.constants.instructionsHeader);
+    expect(ContextAssembler.constants.deliveryVoice).toBe(contract.constants.deliveryVoice);
   });
 
   it.each(contract.cases.map((c) => [c.id, c] as const))('%s', (id, c) => {

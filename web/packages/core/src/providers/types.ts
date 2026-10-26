@@ -27,6 +27,13 @@ export interface StreamUsage {
   total_tokens?: number;
   breakdown?: UsageBreakdown;
   /**
+   * Only present after a multi-leg message is merged (tool loop / first leg plus re-answer / re-sent tail leg; contract section 5.7):
+   * the usage of each leg that reported it; pricing estimates per leg and then adds them up. Absent for a single-leg message.
+   */
+  legs?: readonly StreamUsage[];
+  /** False when a leg did not report usage at merge time: the whole cost is unknown. Absent = every leg reported. */
+  allLegsReported?: false;
+  /**
    * Normalised usage snapshot that can be stored directly on a single message. Managed billing
    * settles on this field, so its generic cache-write bucket is not disguised as an Anthropic
    * 5m/1h pricing field.

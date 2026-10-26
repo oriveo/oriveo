@@ -105,4 +105,17 @@ describe('ProviderDetailBrandHero', () => {
     expect(screen.getByText('apiKey')).toBeTruthy();
     expect(screen.queryByText('signedInWithChatGPT')).toBeNull();
   });
+
+  // Availability and the click share one model-selection result; when every model is delisted the selection is null and the button is hidden, instead of staying clickable and jumping to a stale model.
+  it('hides start chat when the selection result is null (all delisted) even if the connection still has models', () => {
+    render(<ProviderDetailBrandHero provider={provider} onStartChat={() => {}} startChatModelID={null} />);
+
+    expect(screen.queryByText('newChat')).toBeNull();
+  });
+
+  it('shows start chat when selection yields a model', () => {
+    render(<ProviderDetailBrandHero provider={provider} onStartChat={() => {}} startChatModelID="gpt-5.5" />);
+
+    expect(screen.getByText('newChat')).toBeTruthy();
+  });
 });

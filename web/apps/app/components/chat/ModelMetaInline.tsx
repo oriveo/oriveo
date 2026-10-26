@@ -1,11 +1,11 @@
 'use client';
 
 import type { AIModel, Provider } from '@oriveo/shared';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { formatPerMillionPrice } from '../../lib/utils/format-utils';
 import { formatContextLength } from './ModelSwitcher/model-switcher-data';
 import { MODEL_ROW_MAX_CAPABILITY_BADGES, ModelCapabilityBadges } from './ModelCapabilityBadge';
-import { useModelPriceTierLabel } from './model-price-tier-label';
+import { useConnectionModelPricing, useModelPriceTierLabel } from './model-price-tier-label';
 import {
   visibleModelCapabilityBadges,
   type ModelCapabilityPresentation,
@@ -15,6 +15,8 @@ import { useCapabilityEvidenceExpiry } from '../../lib/core/chat/use-capability-
 interface ModelMetaInlineProps {
   model: AIModel;
   provider?: Provider;
+  /** Catalog provider kind used for the model-level price when there is no connection context. */
+  providerKind?: string;
   containerClassName: string;
   priceClassName: string;
   size?: 'xs' | 'sm' | 'md';
@@ -27,6 +29,9 @@ interface ModelMetaInlineProps {
 interface ModelCommercialMetaInlineProps {
   model: Pick<
     AIModel,
+    | 'id'
+    | 'priceTier'
+    | 'relayTransport'
     | 'contextLength'
     | 'promptPrice'
     | 'completionPrice'
@@ -35,27 +40,38 @@ interface ModelCommercialMetaInlineProps {
     | 'cacheWrite5mPerMToken'
     | 'cacheWrite1hPerMToken'
   >;
+  /** Connection context: unit prices follow its selected region pricing and currency. */
+  provider?: Provider;
+  /** Catalog provider kind used for the model-level price when there is no connection context. */
+  providerKind?: string;
   containerClassName: string;
   itemClassName: string;
 }
 
 export function ModelCommercialMetaInline({
   model,
+  provider,
+  providerKind,
   containerClassName,
   itemClassName,
 }: ModelCommercialMetaInlineProps) {
   const t = useTranslations('pages.providerDetail');
   const tm = useTranslations('pages.providerDetail.tokenPrices');
+  const locale = useLocale();
+  const connectionPricing = useConnectionModelPricing(model, provider, providerKind);
+  const prices = connectionPricing ?? model;
+  const currency = { code: connectionPricing?.currencyCode ?? 'USD', locale };
   const context = formatContextLength(model.contextLength);
-  const cacheWrite = model.cacheWrite5mPerMToken ?? model.cacheCreationInputPerMToken;
+  const cacheWrite = prices.cacheWrite5mPerMToken ?? prices.cacheCreationInputPerMToken;
   const items = [
     context ? `${t('contextLength')} ${context}` : null,
-    formatPerTokenPrice(model.promptPrice, (value) => tm('input', { count: value })),
-    formatPerTokenPrice(model.completionPrice, (value) => tm('output', { count: value })),
-    formatPerMillionPriceLabel(model.cacheReadInputPerMToken, (value) => tm('cacheRead', { count: value })),
-    formatPerMillionPriceLabel(cacheWrite, (value) => tm('cacheWrite', { count: value })),
+    formatPerTokenPrice(prices.promptPrice, currency, (value) => tm('input', { count: value })),
+    formatPerTokenPrice(prices.completionPrice, currency, (value) => tm('output', { count: value })),
+    formatPerMillionPriceLabel(prices.cacheReadInputPerMToken, currency, (value) => tm('cacheRead', { count: value })),
+    formatPerMillionPriceLabel(cacheWrite, currency, (value) => tm('cacheWrite', { count: value })),
     formatPerMillionPriceLabel(
-      model.cacheWrite1hPerMToken,
+      prices.cacheWrite1hPerMToken,
+      currency,
       (value) => `${tm('cacheWrite', { count: value })} 1h`,
     ),
   ].filter((item): item is string => Boolean(item));
@@ -71,20 +87,27 @@ export function ModelCommercialMetaInline({
   );
 }
 
+interface PriceCurrency {
+  code: string;
+  locale: string;
+}
+
 function formatPerTokenPrice(
   value: number | undefined,
+  currency: PriceCurrency,
   label: (formatted: string) => string,
 ): string | null {
   if (value == null || !Number.isFinite(value) || value <= 0) return null;
-  return label(formatPerMillionPrice(value));
+  return label(formatPerMillionPrice(value, currency.code, currency.locale));
 }
 
 function formatPerMillionPriceLabel(
   value: number | undefined,
+  currency: PriceCurrency,
   label: (formatted: string) => string,
 ): string | null {
   if (value == null || !Number.isFinite(value) || value <= 0) return null;
-  return label(formatPerMillionPrice(value / 1_000_000));
+  return label(formatPerMillionPrice(value / 1_000_000, currency.code, currency.locale));
 }
 
 export function ModelMetaInline({
@@ -104,12 +127,14 @@ function EvidenceAwareModelMetaInline(props: Omit<ModelMetaInlineProps, 'observe
 function ModelMetaInlineContent({
   model,
   provider,
+  providerKind,
   containerClassName,
   priceClassName,
   size = 'sm',
   capabilityPresentation,
 }: Omit<ModelMetaInlineProps, 'observeEvidenceExpiry'>) {
-  const priceTierLabel = useModelPriceTierLabel(model.priceTier);
+  const connectionPricing = useConnectionModelPricing(model, provider, providerKind);
+  const priceTierLabel = useModelPriceTierLabel(connectionPricing?.priceTier ?? model.priceTier);
   const hasPrice = Boolean(priceTierLabel);
   const capabilities = visibleModelCapabilityBadges(provider, model, capabilityPresentation);
   const hasCapabilities = capabilities.length > 0;

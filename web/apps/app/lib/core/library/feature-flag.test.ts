@@ -8,7 +8,7 @@ import {
 
 const getLibraryRuntimeConfig = vi.hoisted(() => vi.fn());
 
-vi.mock("../metadata/metadata-client", () => ({ getLibraryRuntimeConfig }));
+vi.mock("../metadata/metadata-client", async (importOriginal) => (await import("../../__tests__/mocks/metadata-client")).metadataClientMock(importOriginal, { getLibraryRuntimeConfig }));
 
 describe("isLibraryFeatureEnabled", () => {
   afterEach(() => {

@@ -131,6 +131,16 @@ vi.mock('../../core/telemetry', async (importOriginal) => ({
   trackEvent: mockTrackEvent,
 }));
 
+// Tombstones and catalog status read by the retirement check: tombstones are empty and the catalog is pending (-> available) by default;
+// the retirement test adds one entry and flips the catalog to loaded.
+const mockGetProviderRetiredModels = vi.hoisted(() => vi.fn((): unknown[] => []));
+const mockGetProviderCatalogStatus = vi.hoisted(() => vi.fn((): 'loaded' | 'pending' | 'absent' => 'pending'));
+vi.mock('../../core/metadata/metadata-client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../core/metadata/metadata-client')>()),
+  getProviderRetiredModels: mockGetProviderRetiredModels,
+  getProviderCatalogStatus: mockGetProviderCatalogStatus,
+}));
+
 const streamOptionsFailure = vi.hoisted(() => ({ error: null as Error | null }));
 vi.mock('../../core/chat/stream-options', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../core/chat/stream-options')>();
@@ -634,6 +644,122 @@ describe('useStreamChat send', () => {
     expect(mocks.mockContinueAnswering).not.toHaveBeenCalled();
     expect(mocks.mockUpdateConversation).not.toHaveBeenCalled();
     expect(mocks.mockStoreState.conversations[0]?.modelID).toBe('claude-4-haiku');
+  });
+
+  it('official conversation model retired: send / retry / continue / regenerate make zero requests, the conversation model is unchanged, no_model is recorded', async () => {
+    mockTrackEvent.mockClear();
+    mockGetProviderCatalogStatus.mockReturnValue('loaded');
+    mockGetProviderRetiredModels.mockReturnValue([
+      { id: 'deepseek-chat', displayName: 'DeepSeek Chat', retiredAt: '2026-07-24T00:00:00Z', routedTo: 'deepseek-flash' },
+    ]);
+    const officialProvider: any = {
+      ...provider,
+      id: 'deepseek-1',
+      kind: 'deepSeek',
+      models: [
+        { ...currentModel, id: 'deepseek-chat', name: 'DeepSeek Chat' },
+        { ...currentModel, id: 'deepseek-flash', name: 'DeepSeek Flash', isDefault: true },
+      ],
+    };
+    const retiredConversation: any = {
+      id: 'conversation-1',
+      providerID: officialProvider.id,
+      providerKind: 'deepSeek',
+      modelID: 'deepseek-chat',
+      messages: [
+        { id: 'user-1', role: 'user', text: 'Hello', state: 'delivered' },
+        { id: 'assistant-1', role: 'assistant', text: 'Hi', state: 'delivered' },
+      ],
+    };
+    mocks.mockStoreState.providers = [officialProvider];
+    mocks.mockStoreState.conversations = [retiredConversation];
+
+    try {
+      // A render snapshot that is still on the fallback model (stale) must not be sent with either.
+      const stale = renderHook(() => useStreamChat({
+        provider: officialProvider,
+        currentModel: officialProvider.models[1],
+        conversation: retiredConversation,
+        messages: retiredConversation.messages,
+        reasoningMode: 'automatic',
+        onSendFailed: vi.fn(),
+      }));
+      let outcome: unknown;
+      await act(async () => {
+        outcome = await stale.result.current.send('Hello again', retiredConversation.messages, retiredConversation);
+      });
+
+      // ChatView gets "no current model" from resolveActiveSelection: the other entry points return right away.
+      const retired = renderHook(() => useStreamChat({
+        provider: officialProvider,
+        currentModel: undefined as any,
+        conversation: retiredConversation,
+        messages: retiredConversation.messages,
+        reasoningMode: 'automatic',
+        onSendFailed: vi.fn(),
+      }));
+      await act(async () => {
+        await retired.result.current.retry('assistant-1');
+        await retired.result.current.continueAnswering('assistant-1');
+        await retired.result.current.editAndResend('user-1', 'edited');
+      });
+
+      expect(outcome).toBe(SEND_BLOCKED);
+      expect(mockTrackEvent).toHaveBeenCalledWith('chat_send_blocked', { reason: 'no_model', provider_kind: 'deepseek' });
+      expect(mocks.mockLoadChatOperations).not.toHaveBeenCalled();
+      expect(mocks.mockSendMessage).not.toHaveBeenCalled();
+      expect(mocks.mockContinueAnswering).not.toHaveBeenCalled();
+      expect(mocks.mockUpdateConversation).not.toHaveBeenCalled();
+      expect(mocks.mockStoreState.conversations[0]?.modelID).toBe('deepseek-chat');
+    } finally {
+      mockGetProviderRetiredModels.mockReturnValue([]);
+      mockGetProviderCatalogStatus.mockReturnValue('pending');
+    }
+  });
+
+  it('while the catalog is pending, an official conversation model that is not enabled is sent as the stored id, not swapped for the default model, and the conversation model is unchanged', async () => {
+    mocks.mockSendMessage.mockReturnValue({
+      abort: vi.fn(),
+      convId: 'conversation-1',
+      msgId: 'assistant-2',
+      done: Promise.resolve(),
+    });
+    const officialProvider: any = {
+      ...provider,
+      id: 'deepseek-1',
+      kind: 'deepSeek',
+      models: [{ ...currentModel, id: 'deepseek-flash', name: 'DeepSeek Flash', isDefault: true }],
+    };
+    const pendingConversation: any = {
+      id: 'conversation-1',
+      providerID: officialProvider.id,
+      providerKind: 'deepSeek',
+      modelID: 'deepseek-old',
+      messages: [
+        { id: 'user-1', role: 'user', text: 'Hello', state: 'delivered' },
+        { id: 'assistant-1', role: 'assistant', text: 'Hi', state: 'delivered' },
+      ],
+    };
+    mocks.mockStoreState.providers = [officialProvider];
+    mocks.mockStoreState.conversations = [pendingConversation];
+
+    const { result } = renderHook(() => useStreamChat({
+      provider: officialProvider,
+      currentModel: officialProvider.models[0],
+      conversation: pendingConversation,
+      messages: pendingConversation.messages,
+      reasoningMode: 'automatic',
+      onSendFailed: vi.fn(),
+    }));
+    await act(async () => {
+      await result.current.send('Hello again', pendingConversation.messages, pendingConversation);
+    });
+
+    expect(mockGetProviderCatalogStatus).toHaveBeenCalled();
+    expect(mocks.mockSendMessage).toHaveBeenCalledTimes(1);
+    expect(mocks.mockSendMessage.mock.calls[0]?.[1]?.model?.id).toBe('deepseek-old');
+    expect(mocks.mockStoreState.conversations[0]?.modelID).toBe('deepseek-old');
+    expect(mocks.mockStoreState.conversations[0]?.providerID).toBe('deepseek-1');
   });
 });
 

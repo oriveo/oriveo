@@ -16,7 +16,7 @@ const RADIUS = (SIZE - STROKE) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 /**
- * P4·U4 composer context ring (contract item 2): fixed at the right end of the tools row, 28px.
+ * composer context ring (contract item 2): fixed at the right end of the tools row, 28px.
  * Only the ring label is drawn inside (HTML overlay, not SVG text); hidden unless display is percent.
  */
 export function ContextUsageRing({ summary, onOpen }: ContextUsageRingProps) {

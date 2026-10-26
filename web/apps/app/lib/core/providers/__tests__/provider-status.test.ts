@@ -112,6 +112,22 @@ describe('provider-status', () => {
     }))).toBe('connected');
   });
 
+  // Local engines get no separate exemption, only authMode counts: an engine that requires a key (Open WebUI, bearer) with an empty key is still missing a key.
+  it('derives needsKey for a local engine relay that requires a key (authMode bearer)', () => {
+    expect(getEffectiveStatusKind(provider({
+      kind: 'relay',
+      apiKey: '',
+      baseURLText: 'http://192.168.31.250:3000',
+      relayRequested: {
+        transport: 'openai_chat_completions',
+        authMode: 'bearer',
+        securityMode: 'local_http',
+        engineProfile: 'openwebui',
+        resolvedAPIBaseURL: 'http://192.168.31.250:3000/api',
+      },
+    }))).toBe('needsKey');
+  });
+
   // Anchor: a cloud relay (no engineProfile) with an empty key must still derive needsKey, so the exemption does not weaken the missing-key rule.
   it('still derives needsKey for a cloud relay with an empty key', () => {
     expect(getEffectiveStatusKind(provider({

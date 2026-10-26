@@ -42,6 +42,8 @@ interface ModelBrowserProps {
   onToggleModel: (model: AIModel) => void;
   actionLabel?: (model: AIModel) => string;
   renderActionIcon?: () => ReactNode;
+  /** Disables the row action as a whole (e.g. the detail page chat row when the connection lacks credentials): rows render disabled and clicks do nothing. */
+  actionsDisabled?: boolean;
   preserveCatalogOrder?: boolean;
   /**
    * Relay / local model library: gives the board row by model id. When provided, the row content is
@@ -74,12 +76,15 @@ interface SearchResultItem {
 interface ModelRowProps {
   model: AIModel;
   provider?: Provider;
+  /** Catalog kind for the model-level price label when `provider` (connection) is absent. */
+  providerKind: ProviderKind;
   /** In nested mode the row sits inside a group card: no vendor icon, and a transparent spacer aligns the title with the group header. */
   nested: boolean;
   onAdd: () => void;
   t: (key: string) => string;
   actionLabel?: string;
   renderActionIcon?: () => ReactNode;
+  actionsDisabled?: boolean;
   capabilityProjector: ModelCapabilityPresentationProjector;
   /** Only passed in flat / search mode; not shown when nested. */
   groupId?: string;
@@ -97,6 +102,7 @@ export function ModelBrowser({
   onToggleModel,
   actionLabel,
   renderActionIcon,
+  actionsDisabled,
   preserveCatalogOrder = false,
   relayRows,
   hideBrowseChrome = false,
@@ -280,6 +286,7 @@ export function ModelBrowser({
                 key={`${groupId}::${model.id}`}
                 model={model}
                 provider={provider}
+                providerKind={providerKind}
                 nested={false}
                 groupId={groupId}
                 groupTitle={groupTitle}
@@ -287,6 +294,7 @@ export function ModelBrowser({
                 t={t}
                 actionLabel={actionLabel?.(model)}
                 renderActionIcon={renderActionIcon}
+                actionsDisabled={actionsDisabled}
                 capabilityProjector={capabilityProjector}
                 relayRow={relayRows?.get(model.id)}
                 onOpen={onOpenRow ? () => onOpenRow(model) : undefined}
@@ -394,11 +402,13 @@ export function ModelBrowser({
                             key={model.id}
                             model={model}
                             provider={provider}
+                            providerKind={providerKind}
                             nested
                             onAdd={() => onToggleModel(model)}
                             t={t}
                             actionLabel={actionLabel?.(model)}
                             renderActionIcon={renderActionIcon}
+                            actionsDisabled={actionsDisabled}
                             capabilityProjector={capabilityProjector}
                             relayRow={relayRows?.get(model.id)}
                             onOpen={onOpenRow ? () => onOpenRow(model) : undefined}
@@ -420,11 +430,13 @@ export function ModelBrowser({
               key={model.id}
               model={model}
               provider={provider}
+              providerKind={providerKind}
               nested={false}
               onAdd={() => onToggleModel(model)}
               t={t}
               actionLabel={actionLabel?.(model)}
               renderActionIcon={renderActionIcon}
+              actionsDisabled={actionsDisabled}
               capabilityProjector={capabilityProjector}
               relayRow={relayRows?.get(model.id)}
               onOpen={onOpenRow ? () => onOpenRow(model) : undefined}
@@ -446,18 +458,20 @@ export function ModelBrowser({
 function ModelRow({
   model,
   provider,
+  providerKind,
   nested,
   onAdd,
   t,
   actionLabel,
   renderActionIcon,
+  actionsDisabled,
   capabilityProjector,
   groupId,
   groupTitle,
   relayRow,
   onOpen,
 }: ModelRowProps) {
-  const canAdd = model.isAvailable;
+  const canAdd = model.isAvailable && !actionsDisabled;
   const label = actionLabel ?? `${t('addModel')}: ${model.name}`;
   const relayRowLabel = useRelayCatalogRowLabel();
   if (relayRow) {
@@ -523,6 +537,7 @@ function ModelRow({
         <ModelMetaInline
           model={model}
           provider={provider}
+          providerKind={providerKind}
           observeEvidenceExpiry={false}
           capabilityPresentation={provider ? capabilityProjector(provider, model) : undefined}
           containerClassName={styles.modelMeta}
@@ -530,6 +545,8 @@ function ModelRow({
         />
         <ModelCommercialMetaInline
           model={model}
+          provider={provider}
+          providerKind={providerKind}
           containerClassName={styles.modelSpecs}
           itemClassName={styles.modelSpec}
         />

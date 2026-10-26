@@ -78,7 +78,7 @@ import { getCapabilityRuntime, normalizeModelFactsID } from '../metadata/metadat
 import { effectiveCapabilityTransport, resolveModelCapabilityEvidence } from './capability-evidence';
 import { trackEvent, telemetryProviderKind, telemetryModelID } from '../telemetry';
 import * as Sentry from '@sentry/nextjs';
-import { deriveCostFields, mergeMessageUsageFields } from './cost-fields';
+import { deriveCostFields, generatedImageUnits, mergeMessageUsageFields, roundCostOf } from './cost-fields';
 import { mergeCitationsWithExisting } from './cost-fields';
 import {
   buildProviderSentryContext,
@@ -86,7 +86,10 @@ import {
   shouldReportProviderError,
   createProviderSentryError,
 } from './error-reporting';
-import { recalculateConversationCost } from './usage-tracking';
+import { recalculateConversationCostTotals } from './usage-tracking';
+import { addMessageCost } from '../cost/cost-currency';
+import { recordOfficialInputRejection } from '../capability/input-rejection-flow';
+import { attachOfficialInputRejection, officialInputRejectionOf } from '../capability/rejection-recovery';
 import { unbilledSkillRetrievalUsage, type PromptInjectionContext } from './prompt-injection';
 import { runStreamPipeline, type StreamPipelineResult } from './stream-runner';
 import { transportInput, type TransportInput } from './context-pipeline/transport-input';
@@ -101,7 +104,8 @@ import { continuationCaptured, continuationSendCompleted, continuationSendInterr
 import { getSyncAdapter } from '../sync-port';
 import type { ChatOpCtx, SendHandle } from './operations';
 import { prepareMcpSend } from '../mcp/mcp-chat';
-import { generateMemoryCandidate, offerDirectiveSuggestion } from './conversation-instructions/directive-suggestion';
+import { oriveoAbortReason } from '@oriveo/core/util/abort-reason';
+import { generateMemoryCandidate, offerDirectiveSuggestion, offerInstructSuggestion } from './conversation-instructions/directive-suggestion';
 import { resolveProposedMemorySuggestion, type MemorySuggestionTicket } from './conversation-instructions/memory-suggestion';
 import { markProposeMemoryDegraded, memoryToolsConnectionSupported, resolveProposeMemoryMode } from './propose-memory-runtime';
 import {
@@ -450,7 +454,7 @@ export function sendMessage(
   const done = (async () => {
     try {
       if (directContextDocuments.length > 0 || serverResearch) {
-        setAbortFn(() => directContextController.abort());
+        setAbortFn(() => directContextController.abort(oriveoAbortReason('direct-context-cancel')));
       }
       if (typeof navigator !== 'undefined' && !navigator.onLine) {
         // Use the networkError helper rather than a hand-made literal: it returns a real Error
@@ -605,9 +609,9 @@ export function sendMessage(
       });
 
       const { finalText, processedAttachments } = await processImageAttachments(fullText, imageAttachments);
-      const costInfo = deriveCostFields(usage, model, provider.kind, provider.authMode);
-      const generationCost = costInfo.cost;
-      const cost = generationCost + promptContext.retrievalCost;
+      const costInfo = deriveCostFields(usage, model, provider, () => new Date(), generatedImageUnits(processedAttachments));
+      const roundCost = roundCostOf(costInfo, promptContext.retrievalCost);
+      const cost = roundCost.estimatedCost;
       const completedAt = new Date().toISOString();
 
       const trimmedReasoning = reasoningText.trim();
@@ -627,7 +631,7 @@ export function sendMessage(
       const deliveredAssistantMsg: ChatMessage = withMemoryItemIds({
         ...assistantMsg, text: finalText, state: 'delivered' as const,
         stopReason: abortRequested ? 'interrupted' : stopReasonFromFinish(pipeline.finish, fullText.trim() !== ''),
-        estimatedCost: (appendToAssistant ? assistantMsg.estimatedCost ?? 0 : 0) + cost,
+        ...addMessageCost(appendToAssistant ? assistantMsg : undefined, roundCost),
         ...(mergedReasoning ? { reasoningText: mergedReasoning } : {}),
         ...(mergedReasoning && mergedReasoningDurationMs !== undefined ? { reasoningDurationMs: mergedReasoningDurationMs } : {}),
         ...(capabilityResults.length > 0 ? { capabilityResults } : {}),
@@ -636,7 +640,7 @@ export function sendMessage(
         ...(researchSteps ? { researchSteps } : {}),
         attachments: mergedAttachments.length > 0 ? mergedAttachments : undefined,
         ...(mergedCitations && mergedCitations.length > 0 ? { citations: mergedCitations } : {}),
-        costSource: costInfo.costSource,
+        costSource: roundCost.costSource,
         ...mergeMessageUsageFields(appendToAssistant ? assistantMsg : {}, costInfo),
       }, outbound.memoryIds, Boolean(appendToAssistant));
 
@@ -647,7 +651,11 @@ export function sendMessage(
         latestConversation?.messages ?? prevMessages,
         persistUserMessage ? [latestUserMsg, deliveredAssistantMsg] : [deliveredAssistantMsg],
       );
-      const updatedCost = recalculateConversationCost(completedMessages);
+      const totalsBase = latestConversation ?? conversation;
+      const costTotals = recalculateConversationCostTotals(completedMessages, totalsBase
+        ? { conversation: totalsBase, previousMessages: latestConversation?.messages ?? prevMessages }
+        : null);
+      const updatedCost = costTotals.estimatedCost;
       const baseConv = conversation ?? latestConversation;
       if (!baseConv) {
         // Conversation deleted concurrently while streaming: discard this result, write nothing to the store, report no sync or telemetry.
@@ -657,6 +665,7 @@ export function sendMessage(
         messages: completedMessages,
         ...deriveConversationMetadata(baseConv, completedMessages),
         estimatedCost: updatedCost,
+        nonUsdCostTotals: costTotals.nonUsdCostTotals,
         updatedAt: computeConversationActivityAt(completedMessages, baseConv.createdAt),
       });
 
@@ -676,7 +685,7 @@ export function sendMessage(
         skillId,
         usage,
         cost,
-        costSource: costInfo.costSource,
+        costSource: roundCost.costSource,
         servedModelID,
         processedAttachments,
         promptContext,
@@ -751,11 +760,16 @@ export function sendMessage(
         );
         const baseConv = conversation ?? latestConversation;
         if (baseConv) {
-          const updatedCost = recalculateConversationCost(completedMessages);
+          const costTotals = recalculateConversationCostTotals(completedMessages, {
+            conversation: latestConversation ?? baseConv,
+            previousMessages: latestConversation?.messages ?? prevMessages,
+          });
+          const updatedCost = costTotals.estimatedCost;
           store.getState().updateConversation(finalConvId, {
             messages: completedMessages,
             ...deriveConversationMetadata(baseConv, completedMessages),
             estimatedCost: updatedCost,
+            nonUsdCostTotals: costTotals.nonUsdCostTotals,
             updatedAt: computeConversationActivityAt(completedMessages, baseConv.createdAt),
           });
           const snapshot = store.getState().conversations.find((c) => c.id === finalConvId);
@@ -824,6 +838,7 @@ export function sendMessage(
         && (err as { additionalBodyRetryEligible?: unknown }).additionalBodyRetryEligible === true);
       // A 400 before the stream starts that names one panel parameter exactly: the error card says which one and the user decides whether to resend without it.
       const generationParameterRejection = generationParameterRejectionOf(err);
+      const inputRejection = officialInputRejectionOf(err);
       const relayImageUnsupported = Boolean(err && typeof err === 'object'
         && (err as { relayImageUnsupported?: unknown }).relayImageUnsupported === true);
       const relayFileUnsupported = !relayImageUnsupported && Boolean(err && typeof err === 'object'
@@ -863,6 +878,7 @@ export function sendMessage(
         errorTitle: !additionalBodyRetry && pe.source === 'provider' ? PROVIDER_REQUEST_FAILED_TITLE : te(errorTitleKey),
         ...(additionalBodyRetry ? { additionalBodyRetryEligible: true } : {}),
         ...(generationParameterRejection ? { generationParameterRejection } : {}),
+        ...(inputRejection ? { inputRejection } : {}),
         ...(relayImageUnsupported ? { relayImageUnsupported: true } : {}),
         ...(relayFileUnsupported ? { relayFileUnsupported: true } : {}),
         errorDetail: additionalBodyFailure ? additionalBodyFailure.errorDetail : customFragmentFailure
@@ -1498,6 +1514,13 @@ export async function runChatOutbound<L extends { entries: LibraryEntry[] }>(
     try {
       return await runPipeline();
     } catch (error) {
+      // The upstream of an official connection rejects media / parameters by signature: record a v2 negative cache (a parameter is recorded as `param:<name>` and omitted next time), no retry;
+      // the error still lands on the failure card as usual (Relay uses its own loop).
+      if (provider.kind !== 'relay' && !req.isAbortRequested()) {
+        attachOfficialInputRejection(error, recordOfficialInputRejection({
+          provider, model, streamOptions: attachmentScopeOptions, messages: attempt.transport.messages, error,
+        }));
+      }
       const rejectionContext = error && typeof error === 'object'
         ? (error as { toolCallRejectionContext?: unknown }).toolCallRejectionContext
         : undefined;
@@ -1597,6 +1620,7 @@ export async function runChatOutbound<L extends { entries: LibraryEntry[] }>(
   };
   // Each propose call writes its candidate in order (counted per round); the first create of the round becomes the suggestion strip; failures only warn.
   let proposedInTurn = 0;
+  let instructedInTurn = 0;
   const applyProposeMemoryCalls = async (calls: CompletedToolCall[]): Promise<void> => {
     if (!proposeMemory || calls.length === 0) return;
     const { ticket, userMessage } = proposeMemory;
@@ -1607,16 +1631,28 @@ export async function runChatOutbound<L extends { entries: LibraryEntry[] }>(
       const { getOrCreateStableWebDeviceId } = await import('../bootstrap');
       const items = createMemoryItemRepository({ store, uid, deviceId: getOrCreateStableWebDeviceId() });
       const repository = createMemoryCandidateRepository({ uid, items });
+      const countedBefore = proposedInTurn;
       for (const call of calls) {
-        const candidate = await repository.propose(call.arguments, proposedInTurn, {
-          userText: userMessage.text ?? '',
-          messageId: userMessage.id,
-          conversationId,
-          folderId: conv?.folderID ?? null,
-        });
+        const prior = proposedInTurn;
         proposedInTurn += 1;
-        resolveProposedMemorySuggestion(store, ticket, candidate);
+        try {
+          const candidate = await repository.propose(call.arguments, prior, {
+            userText: userMessage.text ?? '',
+            messageId: userMessage.id,
+            conversationId,
+            folderId: conv?.folderID ?? null,
+            priorInstructInTurn: instructedInTurn,
+            onInstruct: (sentence) => {
+              instructedInTurn += 1;
+              offerInstructSuggestion(store, ticket, sentence);
+            },
+          });
+          resolveProposedMemorySuggestion(store, ticket, candidate);
+        } catch (error) {
+          console.warn('[memory-candidate] propose failed', error);
+        }
       }
+      proposedInTurn = countedBefore + calls.length;
     } catch (error) {
       console.warn('[memory-candidate] propose failed', error);
     }
@@ -1949,12 +1985,14 @@ function applyResearchStepsToMessage(
   });
 }
 
-function generationParameterRejectionOf(error: unknown): { parameterId: string } | undefined {
+function generationParameterRejectionOf(error: unknown): { parameterId: string; signatureId?: string } | undefined {
   const value = error && typeof error === 'object'
     ? (error as { generationParameterRejection?: unknown }).generationParameterRejection
     : undefined;
-  const parameterId = value && typeof value === 'object' ? (value as { parameterId?: unknown }).parameterId : undefined;
-  return typeof parameterId === 'string' && parameterId ? { parameterId } : undefined;
+  if (!value || typeof value !== 'object') return undefined;
+  const { parameterId, signatureId } = value as { parameterId?: unknown; signatureId?: unknown };
+  if (typeof parameterId !== 'string' || !parameterId) return undefined;
+  return typeof signatureId === 'string' && signatureId ? { parameterId, signatureId } : { parameterId };
 }
 
 /** The relay web switch reads the fixed identity: the web value resolved under the protocol-bearing identity is replaced by it; thinking levels are untouched. */

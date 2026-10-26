@@ -9,7 +9,7 @@ const runtime = vi.hoisted(() => ({
 // resolveCatalogModel/getDeclaredReasoningLevels feed the legacy fallback with the Server
 // profile; these fixtures always return empty, so every assertion here exercises the pure
 // v2 decision, and the fallback branch has dedicated cases below.
-vi.mock('../metadata/metadata-client', () => ({
+vi.mock('../metadata/metadata-client', async (importOriginal) => (await import('../../__tests__/mocks/metadata-client')).metadataClientMock(importOriginal, {
   getCapabilityRuntime: () => runtime.current,
   getModelTransport: () => runtime.transport,
   resolveCatalogModel: () => runtime.catalog ?? null,
@@ -164,6 +164,14 @@ describe('candidate models must carry a recipe for the exact transport', () => {
     expect(hasExactCapabilityTransportRecipe(
       provider, catalogModel({ state: 'auto_available', recipeRef: 'web_recipe' }), 'web',
     )).toBe(true);
+  });
+
+  it('does not count a model whose decision has no recipeRef', () => {
+    runtime.current = { recipes: { web_recipe: { transport: { protocol: 'openai_responses' } } }, sourceIndex: {} };
+    runtime.transport = 'openai_responses';
+    expect(hasExactCapabilityTransportRecipe(
+      provider, catalogModel({ state: 'auto_available' }), 'web',
+    )).toBe(false);
   });
 
   it('does not count a model whose recipe was written for another protocol', () => {

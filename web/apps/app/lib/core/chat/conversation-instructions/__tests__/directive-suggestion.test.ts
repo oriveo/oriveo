@@ -3,8 +3,11 @@
  * "Set as instruction" suggestion bar: the detection module + the production sendMessage handing off to detection.
  * After a new user send at the same place, memory candidates are generated in the background.
  * A new send is routed by propose_memory mode; in tool mode the v1 memory routing does not run.
+ * Propose v3: in tool mode the instruction bar only comes from the model's instruct outcome; the fallback-route lexical bar only honors suggestionLanguages.
  */
 import 'fake-indexeddb/auto';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AIModel, Conversation, Provider } from '@oriveo/shared';
 
@@ -39,6 +42,7 @@ vi.mock('../../../metadata/metadata-client', async () => ({
 import { detectDirective } from '@oriveo/core/context/directive-detector';
 import { resetDBConnection } from '../../../../infra/storage/idb';
 import { getActiveUIDSync } from '../../../../infra/storage/partition';
+import { setPreference } from '../../../../infra/storage/preferences';
 import { createMemoryCandidateRepository } from '../../../memory/memory-candidate-repository';
 import { createMemoryItemRepository } from '../../../memory/memory-item-repository';
 import { createAppStore } from '../../../store/app-store';
@@ -50,15 +54,22 @@ import {
   getDirectiveSuggestionIgnoreCount,
   getPendingDirectiveSuggestion,
   ignoreDirectiveSuggestion,
+  offerInstructSuggestion,
 } from '../directive-suggestion';
-import { __resetMemorySuggestionForTest, getPendingMemorySuggestion } from '../memory-suggestion';
+import { __resetMemorySuggestionForTest, beginMemorySuggestion, getPendingMemorySuggestion } from '../memory-suggestion';
 import {
   __resetProposeMemoryDegradedForTest,
   markProposeMemoryDegraded,
   resolveProposeMemoryMode,
 } from '../../propose-memory-runtime';
 
-const DIRECTIVE = 'From now on, always reply in English.';
+// The fallback-route lexical bar only honors suggestionLanguages (propose v3), so the fixture sentence is zh-Hans.
+const DIRECTIVE = '\u4ee5\u540e\u6bcf\u6b21\u56de\u7b54\u90fd\u5148\u7ed9\u7ed3\u8bba';
+const EN_DIRECTIVE = 'From now on, always reply in English.';
+
+const PROPOSE_V3 = JSON.parse(readFileSync(
+  resolve(__dirname, '../../../../../../../../shared/context-contracts/memory-propose.v3.json'), 'utf8',
+)) as { instructBarCases: Array<{ id: string; sentence: string; instructions: string; ignoreCount: number; expected: { show: boolean } }> };
 
 const provider = {
   id: 'p-1', kind: 'openAI', status: { kind: 'connected' }, models: [], catalogModels: [], apiKey: 'sk-test', apiKeyPreview: '••test',
@@ -106,6 +117,8 @@ beforeEach(async () => {
 
 describe('directive suggestion', () => {
   it('suggestion_shown_for_directive_message', async () => {
+    // Tool mode does not run the lexical route (propose v3); this connection is already degraded, so fallback uses the lexical bar.
+    markProposeMemoryDegraded('p-1', 'gpt-4');
     const conv = conversation();
     const store = createAppStore({ providers: [provider], conversations: [conv] });
     const ctx = { store, appendChunk: vi.fn(), te: (key: string) => key };
@@ -170,6 +183,15 @@ describe('directive suggestion', () => {
     expect(empty.getState().conversations[0].instructions).toBe(expectedSentence());
   });
 
+  it('suggestion_sentence_trims_unicode_white_space_and_keeps_bom', () => {
+    // The lexical sentence is trimmed by Unicode White_Space: U+FEFF is not in it, so it is kept next to the directive (String.prototype.trim would strip it).
+    // The detector itself does not treat a leading U+FEFF as a directive, so the trailing side is the one that reaches trim.
+    const text = `${DIRECTIVE}\uFEFF`;
+    expect(detectDirective(text)).toMatchObject({ isDirective: true, span: text });
+    const suggestion = evaluateDirectiveSuggestion({ conversationId: 'conv-1', messageId: 'm-bom', text, instructions: '' });
+    expect(suggestion?.sentence).toBe(`${DIRECTIVE}\uFEFF`);
+  });
+
   it('suggestion_skipped_when_already_in_instructions', () => {
     expect(evaluate('conv-1', `Be concise.\n${expectedSentence()}`)).toBeNull();
     expect(getPendingDirectiveSuggestion()).toBeNull();
@@ -195,7 +217,7 @@ describe('directive suggestion', () => {
   });
 
   it('memory_candidate_generated_on_fresh_send', async () => {
-    const REMEMBER = 'Remember that I prefer concise answers';
+    const REMEMBER = '\u8bb0\u4f4f\u6211\u504f\u597d\u7b80\u6d01\u56de\u7b54';
     const conv = conversation({ folderID: 'folder-1' } as Partial<Conversation>);
     const off = conversation({ id: 'conv-off', useMemory: false });
     const store = createAppStore({ providers: [provider], conversations: [conv, off] });
@@ -234,7 +256,7 @@ describe('directive suggestion', () => {
 });
 
 describe('propose memory mode', () => {
-  const REMEMBER = 'Remember that I prefer concise answers';
+  const REMEMBER = '\u8bb0\u4f4f\u6211\u504f\u597d\u7b80\u6d01\u56de\u7b54';
 
   it('attaches tools on a new send when tools are available', async () => {
     const conv = conversation();
@@ -254,12 +276,12 @@ describe('propose memory mode', () => {
     expect(await candidates.pending()).toEqual([]);
     expect(getPendingMemorySuggestion()).toBeNull();
 
-    // The "set as instruction" bar is unchanged
+    // Propose v3: tool mode does not run the lexical instruction bar; no bar unless the model calls the tool.
     await sendMessage(ctx, {
       text: DIRECTIVE, prevMessages: store.getState().conversations[0].messages, conversation: conv,
       provider, model, reasoningMode: 'automatic',
     }).done;
-    expect(getPendingDirectiveSuggestion()?.sentence).toBe(expectedSentence());
+    expect(getPendingDirectiveSuggestion()).toBeNull();
   });
 
   it('skips tools and uses the fallback when the connection cannot carry them', () => {
@@ -288,5 +310,135 @@ describe('propose memory mode', () => {
     markProposeMemoryDegraded('p-1', 'gpt-4');
     expect(resolveProposeMemoryMode(base)).toBe('fallback');
     expect(resolveProposeMemoryMode({ ...base, model: { ...model, id: 'gpt-4o' } })).toBe('tool');
+  });
+});
+
+describe('propose v3 conversation instructions (model route + fallback language gate)', () => {
+  const EN_TEXT = 'Thanks for the list! From now on, reply in bullet points.';
+  const EN_SENTENCE = 'From now on, reply in bullet points.';
+  const call = (id: string, args: Record<string, string>) => ({ id, name: 'propose_memory', arguments: JSON.stringify(args) });
+  const instructArgs = (sourceQuote: string, kind = 'instruction') => ({
+    proposition: 'Reply in bullet points.', kind, scope: 'conversation', sourceQuote,
+  });
+
+  function setupTool(conv = conversation()) {
+    const store = createAppStore({ providers: [provider], conversations: [conv] });
+    const ctx = { store, appendChunk: vi.fn(), te: (key: string) => key };
+    const uid = getActiveUIDSync();
+    const candidates = createMemoryCandidateRepository({
+      uid,
+      items: createMemoryItemRepository({ store, uid, deviceId: 'device-test', sync: () => null }),
+    });
+    expect(resolveProposeMemoryMode({ store, conversationId: conv.id, provider, model, freshSend: true })).toBe('tool');
+    return { store, ctx, candidates, conv };
+  }
+
+  /** The first leg ends with the given propose_memory calls; the last leg is plain body text. */
+  function firstLegCalls(...calls: ReturnType<typeof call>[]) {
+    mocks.readStream.mockResolvedValueOnce({
+      fullText: '', reasoningText: '', usage: undefined, imageAttachments: [], toolCalls: calls,
+    });
+  }
+
+  async function sendTool(text: string, setup: ReturnType<typeof setupTool>) {
+    await sendMessage(setup.ctx, {
+      text, prevMessages: [], conversation: setup.conv, provider, model, reasoningMode: 'automatic',
+    }).done;
+    const msgs = setup.store.getState().conversations.find((c) => c.id === setup.conv.id)!.messages;
+    return msgs.filter((m) => m.role === 'user').at(-1)!;
+  }
+
+  it('instruct_from_conversation_scope_shows_instruction_bar', async () => {
+    const setup = setupTool();
+    firstLegCalls(call('call_1', instructArgs(EN_SENTENCE)));
+    const userMsg = await sendTool(EN_TEXT, setup);
+
+    // The model route is not language gated: the bar shows even though en is not in suggestionLanguages
+    expect(getPendingDirectiveSuggestion()).toEqual({ conversationId: 'conv-1', messageId: userMsg.id, sentence: EN_SENTENCE });
+    // instruct creates no memory candidate and shows no memory bar
+    expect(await setup.candidates.pending()).toEqual([]);
+    expect(getPendingMemorySuggestion()).toBeNull();
+    acceptDirectiveSuggestion(setup.store);
+    expect(setup.store.getState().conversations[0].instructions).toBe(EN_SENTENCE);
+  });
+
+  it('instruct_with_non_instruction_kind_is_skipped', async () => {
+    const setup = setupTool();
+    firstLegCalls(call('call_1', instructArgs(EN_SENTENCE, 'preference')));
+    await sendTool(EN_TEXT, setup);
+    expect(getPendingDirectiveSuggestion()).toBeNull();
+    expect(await setup.candidates.pending()).toEqual([]);
+  });
+
+  it('instruct_quote_not_in_user_message_is_skipped', async () => {
+    const setup = setupTool();
+    firstLegCalls(call('call_1', instructArgs('From now on, reply in haiku.')));
+    await sendTool(EN_TEXT, setup);
+    expect(getPendingDirectiveSuggestion()).toBeNull();
+  });
+
+  it('instruct_already_in_instructions_is_skipped', async () => {
+    const setup = setupTool(conversation({ instructions: `Be concise.\n${EN_SENTENCE}` }));
+    firstLegCalls(call('call_1', instructArgs(EN_SENTENCE)));
+    await sendTool(EN_TEXT, setup);
+    expect(getPendingDirectiveSuggestion()).toBeNull();
+
+    // Shared fixture instructBarCases: the ignore / substring / length conditions match the lexical route
+    for (const c of PROPOSE_V3.instructBarCases) {
+      const store = createAppStore({
+        providers: [provider],
+        conversations: [conversation({ id: 'conv-bar', instructions: c.instructions, messages: [{ id: `u-${c.id}`, role: 'user', text: 'x' }] } as Partial<Conversation>)],
+      });
+      setPreference('directive_suggestion_ignores:conv-bar', c.ignoreCount);
+      const ticket = beginMemorySuggestion('conv-bar', `u-${c.id}`, `a-${c.id}`);
+      expect(offerInstructSuggestion(store, ticket, c.sentence) !== null, c.id).toBe(c.expected.show);
+    }
+  });
+
+  it('instruct_second_in_turn_is_skipped', async () => {
+    const setup = setupTool();
+    const text = 'From now on, reply in English. Also, never use emojis.';
+    firstLegCalls(
+      call('call_1', instructArgs('From now on, reply in English.')),
+      call('call_2', instructArgs('never use emojis.')),
+    );
+    await sendTool(text, setup);
+    expect(getPendingDirectiveSuggestion()?.sentence).toBe('From now on, reply in English.');
+    // After ignoring the first one, the second in the same turn does not fill in
+    ignoreDirectiveSuggestion();
+    expect(getPendingDirectiveSuggestion()).toBeNull();
+  });
+
+  it('tool_mode_does_not_run_lexical_suggestion', async () => {
+    const setup = setupTool();
+    expect(detectDirective(DIRECTIVE)).toMatchObject({ isDirective: true, lang: 'zh-Hans' });
+    await sendTool(DIRECTIVE, setup);
+    expect(getPendingDirectiveSuggestion()).toBeNull();
+    // An instruct from a stale ticket (a newer send exists) does not show a bar either
+    const stale = beginMemorySuggestion('conv-1', 'old', 'a-old');
+    beginMemorySuggestion('conv-1', 'new', 'a-new');
+    expect(offerInstructSuggestion(setup.store, stale, EN_SENTENCE)).toBeNull();
+  });
+
+  it('fallback_lexical_suggestion_only_for_gated_languages', async () => {
+    markProposeMemoryDegraded('p-1', 'gpt-4');
+    const conv = conversation();
+    const store = createAppStore({ providers: [provider], conversations: [conv] });
+    const ctx = { store, appendChunk: vi.fn(), te: (key: string) => key };
+    expect(resolveProposeMemoryMode({ store, conversationId: 'conv-1', provider, model, freshSend: true })).toBe('fallback');
+
+    // The en detector matches, but en is not in suggestionLanguages -> no bar
+    expect(detectDirective(EN_DIRECTIVE)).toMatchObject({ isDirective: true, lang: 'en' });
+    await sendMessage(ctx, {
+      text: EN_DIRECTIVE, prevMessages: [], conversation: conv, provider, model, reasoningMode: 'automatic',
+    }).done;
+    expect(getPendingDirectiveSuggestion()).toBeNull();
+
+    // zh-Hans is inside the gate -> bar shows
+    await sendMessage(ctx, {
+      text: DIRECTIVE, prevMessages: store.getState().conversations[0].messages, conversation: conv,
+      provider, model, reasoningMode: 'automatic',
+    }).done;
+    expect(getPendingDirectiveSuggestion()?.sentence).toBe(expectedSentence());
   });
 });

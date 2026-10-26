@@ -25,8 +25,9 @@ import type { RequestParams } from '@oriveo/core/providers/request-builders/type
 import type { StreamOptions } from '../providers/types';
 import { browserOfficialMetadata, DEFAULT_RELAY_RUNTIME_CONFIG, getRelayRuntimeConfig } from '../metadata/metadata-client';
 import { isMoonshotChinaBaseURL } from '../providers/adapters/moonshot';
-import { effectiveTransport } from '@oriveo/core/providers/relay-effective';
-import { connectionRejectsNativeFiles } from './native-file-fallback';
+import { relayFirstSendTransport } from '../providers/relay-first-send-transport';
+import { connectionRejectsNativeFiles, nativeFileInputTarget } from './native-file-fallback';
+import { relayInputOverrideValue } from '../capability/capability-overrides';
 import type { RelayNegativeCacheModelKey } from '../chat/relay-negative-cache';
 import { requestBaseURLText } from '../providers/endpoint-source';
 import { applyOutboundAttachmentBudget } from './outbound-attachment-budget';
@@ -44,18 +45,21 @@ export interface ResolvedAttachmentLine extends AttachmentLine {
 
 /**
  * Key under which a relay's native-file rejection is recorded in the local negative cache (connection x model
- * x effective protocol); the send side writes the same key. Returns undefined for other kinds and when the
- * connection id is unavailable (the in-process connection x line memory applies then).
+ * x the protocol actually sent this turn); the send side writes the same key. `sentTransport` is the
+ * relayTransport of this turn's dispatch params (Chat when an attachment falls back to Chat); when omitted
+ * it defaults to the first-send protocol, not the effective protocol. Returns undefined for other kinds and
+ * when the connection id is unavailable (the in-process connection x line memory applies then).
  */
 export function relayNativeFileCacheKey(
-  provider: Pick<Provider, 'kind' | 'baseURLText'> & Partial<Pick<Provider, 'id' | 'relayRequested'>>,
-  model: Pick<AIModel, 'id'> & Partial<Pick<AIModel, 'relayTransport'>>,
+  provider: Provider,
+  model: AIModel,
+  sentTransport?: string,
 ): RelayNegativeCacheModelKey | undefined {
   if (provider.kind !== 'relay' || !provider.id) return undefined;
   return {
     connectionId: provider.id,
     modelId: model.id,
-    transport: effectiveTransport({ baseURLText: provider.baseURLText, relayRequested: provider.relayRequested }, model),
+    transport: sentTransport ?? relayFirstSendTransport(provider, model),
   };
 }
 
@@ -69,7 +73,7 @@ function relayEnvelopeRejectsNativeFile(protocol: StreamOptions['relayTransport'
 
 export interface AttachmentLineInput {
   provider: Pick<Provider, 'kind' | 'authMode' | 'baseURLText'> & Partial<Pick<Provider, 'id' | 'relayRequested'>>;
-  model: Pick<AIModel, 'id' | 'upstreamApiBackend'> & Partial<Pick<AIModel, 'relayTransport' | 'relayCapabilityOverrides'>>;
+  model: Pick<AIModel, 'id' | 'upstreamApiBackend'> & Partial<Pick<AIModel, 'relayTransport' | 'relayCapabilityOverrides' | 'capabilityOverrides'>>;
   /** The result of `buildProviderStreamOptions(provider, buildStreamOptionsFromIntent(...), model)`. */
   streamOptions?: StreamOptions;
   /** This request carries client tools (MCP / library agent leg). */
@@ -87,8 +91,8 @@ export async function resolveAttachmentLine(input: AttachmentLineInput): Promise
     transport,
     toolLoop,
     exact: true,
-    // This connection already rejected file blocks (a fallback resend succeeded): go straight to text and skip the extra round trip. Relays read the local negative cache by model x protocol.
-    ...(connectionRejectsNativeFiles(provider.id, transport, relayNativeFileCacheKey(provider, model))
+    // This connection already rejected file blocks: go straight to text and skip the extra round trip. Relays and official connections read the local `file_input` negative cache v2.
+    ...(connectionRejectsNativeFiles(provider.id, transport, nativeFileInputTarget(provider, model, streamOptions))
       ? { nativeFilesSuppressed: true } : {}),
   });
   const unknown = (): ResolvedAttachmentLine => ({
@@ -100,7 +104,7 @@ export async function resolveAttachmentLine(input: AttachmentLineInput): Promise
   if (provider.kind === 'relay') {
     // A relay request with tools goes through /api/chat/stream and is always Chat Completions.
     const transport = toolLoop ? 'relay_openai_chat' : relayAttachmentTransport(streamOptions?.relayTransport);
-    const fileOverride = model.relayCapabilityOverrides?.file?.value;
+    const fileOverride = relayInputOverrideValue(model, 'file_input')?.value;
     if (typeof fileOverride !== 'boolean') return exact(transport);
     // File override: Off always means text; On beats the `file` negative cache, but text still applies when the protocol envelope does not accept native files.
     const suppressed = !fileOverride

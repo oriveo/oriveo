@@ -19,7 +19,7 @@ import type { OpenAISubscriptionAuthConfig } from '@oriveo/core/providers/openai
 const getOpenAISubscriptionAuthConfig = vi.fn<[], OpenAISubscriptionAuthConfig | null>();
 const refreshMetadata = vi.fn(async () => {});
 
-vi.mock('../../metadata/metadata-client', () => ({
+vi.mock('../../metadata/metadata-client', async (importOriginal) => (await import('../../../__tests__/mocks/metadata-client')).metadataClientMock(importOriginal, {
   getOpenAISubscriptionAuthConfig: () => getOpenAISubscriptionAuthConfig(),
   refreshMetadata: () => refreshMetadata(),
 }));

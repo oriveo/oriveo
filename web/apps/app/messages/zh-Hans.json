@@ -175,7 +175,7 @@
     "capabilityRiskCost": "此字段可能增加供应商收取的费用。",
     "customRequestFieldsDocs": "打开官方文档",
     "customRequestFieldsPreview": "脱敏请求增量预览",
-    "resendWithoutSetting": "不带该设置重发",
+    "resendWithoutSetting": "不带该设置重试",
     "generationBasicSettings": "常用",
     "saveConnectionDefaults": "设为连接默认",
     "generationDiagnosticsHistory": "诊断历史",
@@ -726,7 +726,11 @@
         "confirmAlsoPriceLine": "这次还会越过 {model} 的 {line} 加价线，整个请求按长上下文价计费。",
         "confirmDontAsk": "本对话不再提示",
         "confirmSend": "仍然发送"
-      }
+      },
+      "connectionRemovedBanner": "这个对话用的连接已删除。",
+      "modelRetiredBanner": "{model} 已下架。",
+      "modelRetiredSwitchTo": "切换到 {model}",
+      "lastUsedModelRetiredHint": "上次使用的模型已下架，已改用 {model}。"
     },
     "providerSetup": {
       "title": "添加供应商",
@@ -1694,8 +1698,6 @@
       "errorHydrateTitle": "无法加载近期对话",
       "errorHydrateMessage": "请稍后重试，或手动编写。",
       "errorGenericTitle": "生成失败，请手动编写",
-      "errorAggregated": "已尝试 {count} 个供应商，均失败。",
-      "errorAggregatedWithDetail": "已尝试 {count} 个供应商，均失败。最后错误：{error}",
       "backToSettings": "返回设置",
       "used": {
         "chip": "记忆",
@@ -1708,9 +1710,17 @@
       "groupPreferences": "偏好",
       "groupInstructions": "长期指令",
       "groupProjects": "在做的事",
+      "groupConflicts": "需要你选一条",
+      "conflictThisDevice": "这台设备的版本",
+      "conflictOtherDevice": "另一台设备的版本",
+      "conflictKeep": "留这条",
       "itemPausedBadge": "已停用",
       "itemPinnedA11y": "已置顶",
       "groupEpisodic": "事件与决定",
+      "episodicLocalOnly": "只保存在这台设备上，不会同步。",
+      "conflictNewer": "较新",
+      "conflictOlder": "较早",
+      "conflictKeepBoth": "两条都留",
       "showAll": "显示全部（{count}）",
       "kindDecision": "决定",
       "kindEvent": "事件",
@@ -1764,7 +1774,47 @@
     "file": "文件",
     "web": "联网",
     "imageGeneration": "生图",
-    "toolCall": "工具"
+    "toolCall": "工具",
+    "input": {
+      "hintFirstAttach": {
+        "image": "尚未确认该模型能否识图，失败会告诉你",
+        "file": "尚未确认该模型能否读文件，失败会告诉你",
+        "video": "尚未确认该模型能否看视频，失败会告诉你"
+      },
+      "disabled": {
+        "modelAbsent": {
+          "image": "此模型不支持图片输入",
+          "file": "此模型不支持文件输入",
+          "video": "此模型不支持视频输入"
+        },
+        "wireNotImplemented": {
+          "image": "当前连接还不能发送图片",
+          "file": "当前连接还不能发送文件",
+          "video": "当前连接还不能发送视频"
+        },
+        "killSwitch": {
+          "image": "该供应商的图片输入暂时关闭",
+          "file": "该供应商的文件输入暂时关闭",
+          "video": "该供应商的视频输入暂时关闭"
+        },
+        "rejectedRecently": {
+          "image": "该模型刚拒绝过图片",
+          "file": "该模型刚拒绝过文件",
+          "video": "该模型刚拒绝过视频"
+        },
+        "userRemoved": {
+          "image": "你已为此模型关闭图片输入",
+          "file": "你已为此模型关闭文件输入",
+          "video": "你已为此模型关闭视频输入"
+        }
+      },
+      "resendWithout": {
+        "image": "去掉图片重发",
+        "file": "去掉文件重发",
+        "video": "去掉视频重发"
+      },
+      "bubbleNotSentToModel": "未发送给此模型"
+    }
   },
   "modelPricing": {
     "unknown": "价格未知",

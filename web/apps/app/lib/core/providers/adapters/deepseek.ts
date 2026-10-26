@@ -20,6 +20,7 @@ import {
 } from "./openai-compatible";
 import { USE_PROXY, syncModelsProxy } from "../proxy-client";
 import { parseUsageDeepSeek } from "../transport/usage-parsers";
+import { attachmentTransportProfile } from '@oriveo/core/providers/attachment-transport';
 import type {
   ContentPart,
   StreamEvent,
@@ -87,7 +88,7 @@ export function sendMessageStream(
       role: message.role,
       content: typeof message.content === "string"
         ? message.content
-        : flattenContentParts(message.content),
+        : deepSeekContent(message.content),
     })),
   };
   void options;
@@ -158,6 +159,14 @@ function buildDeepSeekSyncResult(remoteModels: RemoteModel[]): SyncResult {
   };
 }
 
+/** With images, send `image_url` like OpenAI Chat (image parts only exist when the projection judged them sendable); other parts keep the text fallback. */
+function deepSeekContent(parts: ContentPart[]) {
+  if (!parts.some((part) => part.type === "image_url")) return flattenContentParts(parts);
+  return parts.map((part) => part.type === "image_url"
+    ? { type: "image_url" as const, image_url: { url: part.image_url.url } }
+    : { type: "text" as const, text: flattenContentParts([part]) });
+}
+
 function flattenContentParts(parts: ContentPart[]): string {
   // DeepSeek uses the markdown-v1 format; without an ATTACHMENT_FILE block the text is
   // concatenated directly. File attachments are normally already handled by
@@ -168,10 +177,10 @@ function flattenContentParts(parts: ContentPart[]): string {
       return part.text;
     }
     if (part.type === "image_url") {
-      return "[Image omitted: unsupported by DeepSeek]";
+      return "";
     }
     if (part.type === "video_url") {
-      return "[Video omitted: unsupported by DeepSeek]";
+      return attachmentTransportProfile("deepseek_chat").videoPlaceholderText ?? "";
     }
     // File part fallback: reaching here means buildChatHistory did not handle it, which is
     // an exceptional path. Emit the documented format so the model never sees raw base64.

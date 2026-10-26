@@ -3,13 +3,11 @@ import type { AIModel } from '@oriveo/shared';
 import { estimateCost } from '../cost';
 
 // Mock metadata-client
-vi.mock('../../metadata/metadata-client', () => ({
-  lookupPricing: vi.fn(() => null),
+vi.mock('../../metadata/metadata-client', async (importOriginal) => (await import('../../../__tests__/mocks/metadata-client')).metadataClientMock(importOriginal, {
   resolveCatalogModel: vi.fn(() => null),
 }));
 
-import { lookupPricing, resolveCatalogModel } from '../../metadata/metadata-client';
-const mockLookupPricing = vi.mocked(lookupPricing);
+import { resolveCatalogModel } from '../../metadata/metadata-client';
 const mockResolveCatalogModel = vi.mocked(resolveCatalogModel);
 
 const model: AIModel = {
@@ -19,9 +17,16 @@ const model: AIModel = {
   promptPrice: 0.00003, completionPrice: 0.00006,
 };
 
+/** Catalog USD per-token price (estimateCost reads it through resolveCatalogModel). */
+function perTokenCatalog(promptPerToken: number, completionPerToken: number) {
+  return {
+    pricingStatus: 'priced',
+    pricingUnit: 'per_token',
+    pricing: { promptPerToken, completionPerToken },
+  } as never;
+}
+
 beforeEach(() => {
-  mockLookupPricing.mockReset();
-  mockLookupPricing.mockReturnValue(null);
   mockResolveCatalogModel.mockReset();
   mockResolveCatalogModel.mockReturnValue(null);
 });
@@ -47,21 +52,18 @@ describe('estimateCost', () => {
 
   it('looks the metadata service up by providerKind when the model has no pricing', () => {
     const noPriceModel = { ...model, promptPrice: undefined, completionPrice: undefined };
-    mockLookupPricing.mockReturnValue({
-      promptPerToken: 0.000015,
-      completionPerToken: 0.00006,
-    });
+    mockResolveCatalogModel.mockReturnValue(perTokenCatalog(0.000015, 0.00006));
 
     const cost = estimateCost(
       { prompt_tokens: 1000, completion_tokens: 500 },
       noPriceModel,
       'openAI',
     );
-    expect(mockLookupPricing).toHaveBeenCalledWith('gpt-4', 'openAI');
+    expect(mockResolveCatalogModel).toHaveBeenCalledWith('gpt-4', 'openAI');
     expect(cost).toBeCloseTo(0.000015 * 1000 + 0.00006 * 500);
   });
 
-  it('non-token metadata pricing falls back to costPerUnit', () => {
+  it('returns null for per-unit metadata pricing when the unit count is unavailable (unknown, never estimated as one unit)', () => {
     const noPriceModel = { ...model, id: 'gpt-image-1', promptPrice: undefined, completionPrice: undefined };
     mockResolveCatalogModel.mockReturnValue({
       canonicalModelId: 'gpt-image-1',
@@ -80,8 +82,19 @@ describe('estimateCost', () => {
     );
 
     expect(mockResolveCatalogModel).toHaveBeenCalledWith('gpt-image-1', 'openAI');
-    expect(mockLookupPricing).not.toHaveBeenCalled();
-    expect(cost).toBe(0.04);
+    expect(cost).toBeNull();
+  });
+
+  it('treats metadata without a pricingUnit as per_token', () => {
+    const noPriceModel = { ...model, promptPrice: undefined, completionPrice: undefined };
+    mockResolveCatalogModel.mockReturnValue({
+      pricingStatus: 'priced',
+      pricing: { promptPerToken: 0.000002, completionPerToken: 0.000008, costPerUnit: 0.04 },
+    } as never);
+
+    const cost = estimateCost({ prompt_tokens: 1000, completion_tokens: 500 }, noPriceModel, 'openAI');
+
+    expect(cost).toBeCloseTo(0.000002 * 1000 + 0.000008 * 500, 12);
   });
 
   it('returns null (unknown price) when the model has no pricing and no providerKind', () => {
@@ -92,7 +105,7 @@ describe('estimateCost', () => {
 
   it('returns null (unknown price) when the model has no pricing and the metadata service has no data', () => {
     const noPriceModel = { ...model, promptPrice: undefined, completionPrice: undefined };
-    mockLookupPricing.mockReturnValue(null);
+    mockResolveCatalogModel.mockReturnValue(null);
 
     const cost = estimateCost(
       { prompt_tokens: 1000, completion_tokens: 500 },
@@ -102,30 +115,28 @@ describe('estimateCost', () => {
     expect(cost).toBeNull();
   });
 
-  it('does not query the metadata service when the model has pricing (even with a providerKind)', () => {
-    estimateCost({ prompt_tokens: 100, completion_tokens: 50 }, model, 'openAI');
-    expect(mockLookupPricing).not.toHaveBeenCalled();
+  it("uses the model's own price when it has one (even if the catalog also has a price)", () => {
+    mockResolveCatalogModel.mockReturnValue(perTokenCatalog(1, 1));
+    const cost = estimateCost({ prompt_tokens: 100, completion_tokens: 50 }, model, 'openAI');
+    expect(cost).toBeCloseTo(0.00003 * 100 + 0.00006 * 50);
   });
 
   it('fuzzy match: a date-suffixed model ID finds pricing through the metadata resolveMap', () => {
     const dateModel = { ...model, id: 'gpt-4-0125-preview', promptPrice: undefined, completionPrice: undefined };
-    mockLookupPricing.mockReturnValue({
-      promptPerToken: 0.00001,
-      completionPerToken: 0.00003,
-    });
+    mockResolveCatalogModel.mockReturnValue(perTokenCatalog(0.00001, 0.00003));
 
     const cost = estimateCost(
       { prompt_tokens: 1000, completion_tokens: 500 },
       dateModel,
       'openAI',
     );
-    expect(mockLookupPricing).toHaveBeenCalledWith('gpt-4-0125-preview', 'openAI');
+    expect(mockResolveCatalogModel).toHaveBeenCalledWith('gpt-4-0125-preview', 'openAI');
     expect(cost).toBeCloseTo(0.00001 * 1000 + 0.00003 * 500);
   });
 
   it('returns null for an unknown model (no own pricing and no metadata)', () => {
     const unknownModel = { ...model, id: 'custom-fine-tune-abc123', promptPrice: undefined, completionPrice: undefined };
-    mockLookupPricing.mockReturnValue(null);
+    mockResolveCatalogModel.mockReturnValue(null);
 
     const cost = estimateCost(
       { prompt_tokens: 500, completion_tokens: 200 },

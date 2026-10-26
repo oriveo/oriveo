@@ -602,6 +602,8 @@ describe('Codex subscription - catalog and upstream-declared capabilities', () =
       supportedReasoningLevels: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
       defaultReasoningLevel: 'low',
       supportsImageInput: true,
+      // The first-hand input modalities are copied verbatim (the source of the subscription input projection's verdict).
+      inputModalities: ['text', 'image'],
       contextWindow: 272000,
     });
   });
@@ -620,6 +622,8 @@ describe('Codex subscription - catalog and upstream-declared capabilities', () =
     expect(bare?.supportsWebSearch).toBe(false);
     expect(bare?.supportedReasoningLevels).toEqual([]);
     expect(bare?.contextWindow).toBeUndefined();
+    // When upstream gives no input_modalities array it is undeclared, not declared empty.
+    expect(bare?.inputModalities).toBeUndefined();
   });
 });
 

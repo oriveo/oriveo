@@ -2,7 +2,8 @@
 
 import { memo, type ReactNode } from 'react';
 import type { Provider, ProviderKind, RelayKind } from '@oriveo/shared';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
+import { formatCostTotals } from '../../lib/core/cost/cost-currency';
 import { MenuIcon } from '../icons';
 import { ModelTrigger } from './ModelTrigger';
 import type { MemoryItem } from '@oriveo/core/context/memory-items';
@@ -40,14 +41,19 @@ interface TopBarProps {
   isStreaming?: boolean;
   /** Conversation cost */
   conversationCost?: number;
+  /** Non-USD part of the conversation total; shown separately from conversationCost and never added to it. */
+  conversationNonUsdCostTotals?: Record<string, number>;
   /** Shows the instructions badge next to the model name; clicking it opens chat settings. */
   hasInstructions?: boolean;
   onOpenSettings?: () => void;
 }
 
-export const TopBar = memo(function TopBar({ transparentChrome, modelName, providerKind, relayKind, relayProvider, sidebarOpen, onToggleSidebar, onModelClick, modelSwitcher, extraActions, memoryItems, useMemory, onToggleMemory, skillIcon, skillName, isStreaming, conversationCost, hasInstructions, onOpenSettings }: TopBarProps) {
+export const TopBar = memo(function TopBar({ transparentChrome, modelName, providerKind, relayKind, relayProvider, sidebarOpen, onToggleSidebar, onModelClick, modelSwitcher, extraActions, memoryItems, useMemory, onToggleMemory, skillIcon, skillName, isStreaming, conversationCost, conversationNonUsdCostTotals, hasInstructions, onOpenSettings }: TopBarProps) {
   const tSidebar = useTranslations('sidebar');
   const tSettings = useTranslations('pages.chat.conversationSettings');
+  const locale = useLocale();
+  // Same cost format as messages and lists: USD first, non-USD parts shown per currency and never added together.
+  const costText = formatCostTotals(conversationCost ?? 0, conversationNonUsdCostTotals, locale);
 
   return (
     <div className={styles.bar} data-topbar data-transparent={transparentChrome ? 'true' : undefined}>
@@ -95,12 +101,8 @@ export const TopBar = memo(function TopBar({ transparentChrome, modelName, provi
         <MemoryPopover memoryItems={memoryItems} useMemory={useMemory} onToggleMemory={onToggleMemory} />
       </div>
 
-      {!!conversationCost && conversationCost > 0 && !isStreaming && (
-        <span className={styles.costPill}>
-          {conversationCost < 0.01
-            ? `$${conversationCost.toFixed(4)}`
-            : `$${conversationCost.toFixed(2)}`}
-        </span>
+      {costText && !isStreaming && (
+        <span className={styles.costPill}>{costText}</span>
       )}
 
       {extraActions}

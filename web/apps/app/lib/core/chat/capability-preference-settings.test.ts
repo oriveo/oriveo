@@ -7,7 +7,7 @@ const metadataMocks = vi.hoisted(() => ({
     ? { canonicalModelId: 'canonical-model', transport: 'openai_responses' }
     : null),
 }));
-vi.mock('../metadata/metadata-client', () => metadataMocks);
+vi.mock('../metadata/metadata-client', async (importOriginal) => (await import('../../__tests__/mocks/metadata-client')).metadataClientMock(importOriginal, metadataMocks));
 import {
   capabilityPreferenceRecordId, deleteCapabilityPreferences, exportCapabilityPreferenceSyncPayload,
   mergeCapabilityPreferenceSyncPayload, resolveCapabilityPreferences, saveCapabilityPreferences,

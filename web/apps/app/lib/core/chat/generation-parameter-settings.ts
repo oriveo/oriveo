@@ -665,6 +665,14 @@ function normalizedSyncRecord(value: unknown): GenerationParameterSyncRecord | u
   };
 }
 
+// Contract wireInvariants.timestampFormat: outbound is always .SSSZ, inbound also accepts no fractional digits.
+// canonical and merge share this one normalization so the same instant with different fractional digits
+// is not judged unequal and written back; an unparseable value is kept as is.
+function canonicalSyncTimestamp(value: string): string {
+  const ms = Date.parse(value);
+  return Number.isNaN(ms) ? value : new Date(ms).toISOString();
+}
+
 function normalizedSyncPreset(value: unknown): GenerationParameterSyncPreset | undefined {
   if (!value || typeof value !== 'object') return undefined;
   const item = value as Partial<GenerationParameterSyncPreset>;
@@ -679,7 +687,7 @@ function normalizedSyncPreset(value: unknown): GenerationParameterSyncPreset | u
     modelId: item.modelId,
     profileKey: item.profileKey,
     values: syncSafeValues(item.values),
-    createdAt: item.createdAt,
+    createdAt: canonicalSyncTimestamp(item.createdAt),
     revision: item.revision!,
     mutationId: item.mutationId,
   };

@@ -73,6 +73,10 @@ interface ProfileBase {
   toolLoopNativeFileBlock: NativeFileBlock | null;
   /** Placeholder text standing in for each image when this line can only send plain text. */
   imagePlaceholderText?: string;
+  /** Placeholder text standing in for each video when this line does not accept video. */
+  videoPlaceholderText?: string;
+  /** Placeholder text standing in for each file when this line does not accept files; `{filename}` is replaced with the file name. */
+  filePlaceholderText?: string;
 }
 
 /** A line without a native file block can only be `off`: otherwise a file routed to native would reach neither the body nor the request. */
@@ -92,6 +96,8 @@ const GEMINI_NATIVE_BYTES = 20 * MB;
  * has its own placeholder (DeepSeek) keeps it.
  */
 export const TEXT_ONLY_ROUTE_IMAGE_PLACEHOLDER = '[Image omitted: this route sends text only]';
+/** Same as above for video: the literal is the image placeholder with Image replaced by Video. No file name. */
+export const TEXT_ONLY_ROUTE_VIDEO_PLACEHOLDER = '[Video omitted: this route sends text only]';
 
 function textOnly(wrapper: AttachmentWrapperVersion, imagePlaceholderText?: string): AttachmentTransportProfile {
   return {
@@ -129,6 +135,7 @@ const PROFILES = {
     nativeFiles: 'off',
     wrapper: 'xml-v1', maxNativeBytes: GEMINI_NATIVE_BYTES, toolLoopNativeFileBlock: null,
     imagePlaceholderText: TEXT_ONLY_ROUTE_IMAGE_PLACEHOLDER,
+    videoPlaceholderText: TEXT_ONLY_ROUTE_VIDEO_PLACEHOLDER,
   },
   // The tool leg is Chat Completions as well; turning on tools does not downgrade files to text.
   openrouter_chat: {
@@ -144,16 +151,24 @@ const PROFILES = {
     wrapper: 'xml-v1', maxNativeBytes: DEFAULT_NATIVE_BYTES, toolLoopNativeFileBlock: null,
   },
   // The image placeholder is written by the builder (`withImagePlaceholders`).
-  minimax_chat: textOnly('markdown-v1', TEXT_ONLY_ROUTE_IMAGE_PLACEHOLDER),
+  minimax_chat: {
+    ...textOnly('markdown-v1', TEXT_ONLY_ROUTE_IMAGE_PLACEHOLDER),
+    videoPlaceholderText: TEXT_ONLY_ROUTE_VIDEO_PLACEHOLDER,
+  },
   // The builder reuses the Anthropic Messages content, but MiniMax does not accept documents, and images become a placeholder.
   minimax_anthropic_messages: {
     nativeFileBlock: 'document',
     nativeFiles: 'off',
     wrapper: 'markdown-v1', maxNativeBytes: DEFAULT_NATIVE_BYTES, toolLoopNativeFileBlock: null,
     imagePlaceholderText: TEXT_ONLY_ROUTE_IMAGE_PLACEHOLDER,
+    videoPlaceholderText: TEXT_ONLY_ROUTE_VIDEO_PLACEHOLDER,
   },
-  // content takes a string only; the image placeholder is written by the builder (`buildDeepSeekMessages`).
-  deepseek_chat: textOnly('markdown-v1', '[Image omitted: unsupported by DeepSeek]'),
+  // content takes a string only; the image / video / file placeholders are written by the builder (`buildDeepSeekMessages`).
+  deepseek_chat: {
+    ...textOnly('markdown-v1', '[Image omitted: unsupported by DeepSeek]'),
+    videoPlaceholderText: '[Video omitted: unsupported by DeepSeek]',
+    filePlaceholderText: '[File omitted: {filename}]',
+  },
   qwen_chat: textOnly('markdown-v1'),
   moonshot_chat: textOnly('markdown-v1'),
   // api.moonshot.cn is called directly from the browser (not through /api/chat/stream).
@@ -204,6 +219,22 @@ const PROFILES = {
 
 export function attachmentTransportProfile(transport: AttachmentTransport): AttachmentTransportProfile {
   return PROFILES[transport];
+}
+
+/**
+ * The text line used when a protocol does not accept some media and image_url / video_url is degraded to body text.
+ * A data: URL is always replaced by the route placeholder (the generic TEXT_ONLY_ROUTE_* placeholder when the route profile declares none),
+ * so inline base64 is never written into the text; http(s) remote URLs stay `[image|video: url]`.
+ */
+export function mediaTextFallback(
+  kind: 'image' | 'video',
+  url: string,
+  transport?: AttachmentTransport,
+): string {
+  if (!/^data:/i.test(url)) return `[${kind}: ${url}]`;
+  const profile: AttachmentTransportProfile | undefined = transport ? PROFILES[transport] : undefined;
+  if (kind === 'image') return profile?.imagePlaceholderText ?? TEXT_ONLY_ROUTE_IMAGE_PLACEHOLDER;
+  return profile?.videoPlaceholderText ?? TEXT_ONLY_ROUTE_VIDEO_PLACEHOLDER;
 }
 
 /** The line of one send: the outbound transport + whether this request carries client tools (the tool leg's message conversion is separate code). */

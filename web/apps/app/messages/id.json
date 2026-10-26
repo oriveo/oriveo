@@ -175,7 +175,7 @@
     "capabilityRiskCost": "Kolom ini dapat menambah biaya yang ditagih penyedia.",
     "customRequestFieldsDocs": "Buka dokumentasi resmi",
     "customRequestFieldsPreview": "Pratinjau delta permintaan tersunting",
-    "resendWithoutSetting": "Kirim ulang tanpa pengaturan ini",
+    "resendWithoutSetting": "Coba lagi tanpa pengaturan ini",
     "generationBasicSettings": "Pengaturan Dasar",
     "saveConnectionDefaults": "Gunakan sebagai default koneksi",
     "generationDiagnosticsHistory": "Riwayat diagnostik",
@@ -604,7 +604,7 @@
         "detailTitle": "Pemadatan konteks",
         "detailSummary": "Ringkasan",
         "detailKept": "{count, plural, other {{count} pesan Anda disimpan apa adanya}}",
-        "detailFallbackNote": "Balasan AI sebelumnya tidak lagi dikirim ke model; pesan Anda sendiri tetap disertakan. Semua pesan di atas tetap ada di chat ini dan tetap bisa dibaca serta disalin.",
+        "detailFallbackNote": "Balasan AI sebelumnya tidak lagi dikirim ke model; pesan Anda sendiri tetap disertakan. Semua pesan di atas tetap ada di percakapan ini dan tetap bisa dibaca serta disalin.",
         "detailModel": "Model",
         "detailCost": "Biaya",
         "detailCostUnavailable": "Tidak tersedia",
@@ -613,16 +613,16 @@
         "actionCompact": "Padatkan konteks",
         "actionRecompact": "Padatkan lagi",
         "actionClear": "Batalkan pemadatan",
-        "actionNewChatWithSummary": "Chat baru dengan ringkasan",
-        "toastNoop": "Chat ini masih cukup pendek. Belum ada yang perlu dipadatkan.",
+        "actionNewChatWithSummary": "Percakapan baru dengan ringkasan",
+        "toastNoop": "Percakapan ini masih cukup pendek. Belum ada yang perlu dipadatkan.",
         "toastFallback": "Ringkasan AI tidak berhasil, jadi hanya pesan Anda sendiri yang disimpan.",
         "toastCleared": "Pemadatan dibatalkan. Mulai sekarang, seluruh riwayat akan dikirim.",
         "inProgress": "Memadatkan konteks…",
         "cancel": "Batal",
-        "thirdHint": "Chat ini sudah dipadatkan 3 kali, jadi detail awal yang terlihat oleh model makin sedikit. Anda bisa memulai chat baru dan membawa ringkasannya.",
-        "thirdHintNewChat": "Chat baru",
+        "thirdHint": "Percakapan ini sudah dipadatkan 3 kali, jadi detail awal yang terlihat oleh model makin sedikit. Anda bisa memulai percakapan baru dan membawa ringkasannya.",
+        "thirdHintNewChat": "Percakapan baru",
         "thirdHintDismiss": "Mengerti",
-        "quoteLabel": "Ringkasan chat sebelumnya"
+        "quoteLabel": "Ringkasan percakapan sebelumnya"
       },
       "conversationSettings": {
         "title": "Pengaturan percakapan",
@@ -726,7 +726,11 @@
         "confirmAlsoPriceLine": "Permintaan ini juga melewati ambang harga {model} di {line}, sehingga seluruh permintaan dikenai harga konteks panjang.",
         "confirmDontAsk": "Jangan tanya lagi di percakapan ini",
         "confirmSend": "Tetap kirim"
-      }
+      },
+      "connectionRemovedBanner": "Koneksi yang dipakai percakapan ini sudah dihapus.",
+      "modelRetiredBanner": "{model} sudah dihentikan.",
+      "modelRetiredSwitchTo": "Beralih ke {model}",
+      "lastUsedModelRetiredHint": "Model yang terakhir Anda pakai sudah dihentikan. Sekarang memakai {model}."
     },
     "providerSetup": {
       "title": "Tambahkan Penyedia",
@@ -1694,8 +1698,6 @@
       "errorHydrateTitle": "Tidak dapat memuat percakapan terbaru",
       "errorHydrateMessage": "Coba lagi nanti atau tulis manual.",
       "errorGenericTitle": "Pembuatan gagal, harap tulis secara manual",
-      "errorAggregated": "Mencoba {count} penyedia, semua gagal.",
-      "errorAggregatedWithDetail": "Mencoba {count} penyedia, semua gagal. Kesalahan terakhir: {error}",
       "backToSettings": "Kembali ke Pengaturan",
       "used": {
         "chip": "Memori",
@@ -1708,17 +1710,25 @@
       "groupPreferences": "Preferensi",
       "groupInstructions": "Instruksi tetap",
       "groupProjects": "Sedang dikerjakan",
+      "groupConflicts": "Pilih versi yang disimpan",
+      "conflictThisDevice": "Versi di perangkat ini",
+      "conflictOtherDevice": "Versi di perangkat lain",
+      "conflictKeep": "Simpan yang ini",
       "itemPausedBadge": "Nonaktif",
       "itemPinnedA11y": "Disematkan",
       "groupEpisodic": "Peristiwa & keputusan",
+      "episodicLocalOnly": "Hanya disimpan di perangkat ini. Tidak pernah disinkronkan.",
+      "conflictNewer": "Lebih baru",
+      "conflictOlder": "Lebih lama",
+      "conflictKeepBoth": "Simpan keduanya",
       "showAll": "Tampilkan semua ({count})",
       "kindDecision": "Keputusan",
       "kindEvent": "Peristiwa",
       "itemDate": "Tanggal",
-      "scopeAll": "Semua obrolan",
+      "scopeAll": "Semua percakapan",
       "scopeFolderNamed": "Folder “{name}”",
       "scopeFolder": "Folder",
-      "scopeConversation": "Satu obrolan",
+      "scopeConversation": "Satu percakapan",
       "actionEdit": "Edit",
       "actionPin": "Sematkan",
       "actionUnpin": "Lepas sematan",
@@ -1751,7 +1761,7 @@
       "extractionTitleDraft": "Buat draf memori dengan AI?",
       "extractionTitleOrganize": "Pecah menjadi entri dengan AI?",
       "extractionModel": "Dikirim ke: {provider} · {model}",
-      "extractionScopeDraft": "Yang dikirim: pesan Anda sendiri ke penyedia ini dari maksimal 5 obrolan terbaru, 500 karakter pertama dari tiap obrolan. Balasan AI tidak disertakan.",
+      "extractionScopeDraft": "Yang dikirim: pesan Anda sendiri ke penyedia ini dari maksimal 5 percakapan terbaru, 500 karakter pertama dari tiap percakapan. Balasan AI tidak disertakan.",
       "extractionScopeOrganize": "Yang dikirim: seluruh teks memori ini.",
       "extractionNoFallback": "Jika permintaan gagal, penyedia lain tidak akan digunakan.",
       "extractionSend": "Kirim"
@@ -1764,7 +1774,47 @@
     "file": "File",
     "web": "Web",
     "imageGeneration": "Buat gambar",
-    "toolCall": "Alat"
+    "toolCall": "Alat",
+    "input": {
+      "hintFirstAttach": {
+        "image": "Belum dipastikan apakah model ini bisa membaca gambar. Jika gagal, Anda akan diberi tahu",
+        "file": "Belum dipastikan apakah model ini bisa membaca file. Jika gagal, Anda akan diberi tahu",
+        "video": "Belum dipastikan apakah model ini bisa memahami video. Jika gagal, Anda akan diberi tahu"
+      },
+      "disabled": {
+        "modelAbsent": {
+          "image": "Model ini tidak mendukung input gambar",
+          "file": "Model ini tidak mendukung input file",
+          "video": "Model ini tidak mendukung input video"
+        },
+        "wireNotImplemented": {
+          "image": "Koneksi ini belum bisa mengirim gambar",
+          "file": "Koneksi ini belum bisa mengirim file",
+          "video": "Koneksi ini belum bisa mengirim video"
+        },
+        "killSwitch": {
+          "image": "Input gambar untuk penyedia ini dinonaktifkan sementara",
+          "file": "Input file untuk penyedia ini dinonaktifkan sementara",
+          "video": "Input video untuk penyedia ini dinonaktifkan sementara"
+        },
+        "rejectedRecently": {
+          "image": "Model ini baru saja menolak gambar",
+          "file": "Model ini baru saja menolak file",
+          "video": "Model ini baru saja menolak video"
+        },
+        "userRemoved": {
+          "image": "Anda telah menonaktifkan input gambar untuk model ini",
+          "file": "Anda telah menonaktifkan input file untuk model ini",
+          "video": "Anda telah menonaktifkan input video untuk model ini"
+        }
+      },
+      "resendWithout": {
+        "image": "Kirim ulang tanpa gambar",
+        "file": "Kirim ulang tanpa file",
+        "video": "Kirim ulang tanpa video"
+      },
+      "bubbleNotSentToModel": "Tidak dikirim ke model ini"
+    }
   },
   "modelPricing": {
     "unknown": "Harga tidak diketahui",

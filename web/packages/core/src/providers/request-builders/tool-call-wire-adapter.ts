@@ -4,13 +4,22 @@ import { SEARCH_MEMORY_TOOL_NAME } from '../../context/memory-search';
 import { ContextContinuation } from '../../context/continuation';
 import type { ProviderRequest, RequestParams } from './types';
 import { markAnthropicCacheBreakpoint } from '../relay-adapter';
+import { usesAnthropicExplicitPromptCache } from '../protocol-implementations';
 import type { ProxyMessage, ProxyToolCall, ProxyToolDefinition } from './runtime';
 import { buildOpenAIChatMessages, withImagePlaceholders } from './runtime';
 import {
   attachmentTransportProfile,
   dispatchedAttachmentTransport,
+  nativeFileBlockOf,
   outboundWireOf,
 } from '../attachment-transport';
+
+/** Wires whose image outbound is decided per model: the placeholder is written by the outbound sanitizer from the projection, and the builder sends images per the protocol. */
+const VERDICT_GATED_IMAGE_TRANSPORTS: ReadonlySet<string> = new Set([
+  'deepseek_chat',
+  'minimax_chat',
+  'minimax_anthropic_messages',
+]);
 
 export type WireProtocol = 'openai_chat' | 'openai_responses' | 'anthropic_messages' | 'gemini_generate';
 
@@ -25,15 +34,19 @@ export function applyToolCallWireAdapter(
   params: ToolCallWireParams,
 ): ProviderRequest {
   // The tool leg uses the same wire placeholder as a normal send: wires that can only send text replace each image with a placeholder line and send no image blocks.
+  // Wires with per-model verdict outbound (DeepSeek / MiniMax) do not write placeholders here: image parts only exist when the projection says they can go out.
   const transport = params.providerKind
     ? dispatchedAttachmentTransport(params.providerKind, outboundWireOf(request))
     : null;
-  const placeholder = transport ? attachmentTransportProfile(transport).imagePlaceholderText : undefined;
+  const placeholder = transport && !VERDICT_GATED_IMAGE_TRANSPORTS.has(transport)
+    ? attachmentTransportProfile(transport).imagePlaceholderText
+    : undefined;
   const adapted = {
     ...request,
     body: adaptBody(protocolForRequest(request), request.body, {
       ...params,
       instructionsMode: request.continuationCapture?.instructionsMode,
+      explicitPromptCache: usesAnthropicExplicitPromptCache(request.promptCachePolicyRef),
       messages: withImagePlaceholders(params.messages, placeholder),
     }),
   };
@@ -56,12 +69,18 @@ export function functionToolsForProtocol(protocol: WireProtocol, tools: ProxyToo
 function adaptBody(
   protocol: WireProtocol,
   original: Record<string, unknown>,
-  params: ToolCallWireParams & { instructionsMode?: 'resend' | 'omit' },
+  params: ToolCallWireParams & { instructionsMode?: 'resend' | 'omit'; explicitPromptCache?: boolean },
 ): Record<string, unknown> {
   const body = { ...original };
   if (protocol === 'openai_chat') {
-    // OpenRouter's tool leg uses the same Chat request body as a plain send: native `file` blocks are kept as usual.
-    body.messages = openAIChatMessages(params.messages, params.providerKind === 'openRouter');
+    // Native `file` blocks on a tool leg depend only on the wire table (currently only OpenRouter's tool leg keeps them).
+    const chatTransport = params.providerKind
+      ? dispatchedAttachmentTransport(params.providerKind, 'openai_chat')
+      : null;
+    body.messages = openAIChatMessages(
+      params.messages,
+      chatTransport !== null && nativeFileBlockOf({ transport: chatTransport, toolLoop: true }) === 'file',
+    );
     appendTools(body, params.tools && functionToolsForProtocol(protocol, params.tools));
     if (params.tools?.length) body.tool_choice = params.toolChoice ?? 'auto';
     return body;
@@ -87,9 +106,9 @@ function adaptBody(
   }
   if (protocol === 'anthropic_messages') {
     const mapped = anthropicMessages(params.messages);
-    // The tool loop assembles Anthropic turns itself: official Anthropic re-places the single breakpoint the same way as the builder (last non-[D] block of the tool_result turn);
-    // other lines using the Messages endpoint, such as MiniMax, are left as they are.
-    if (params.providerKind === 'anthropic') {
+    // The tool loop assembles Anthropic turns itself: official Anthropic re-places the single breakpoint the same way as the builder (last non-[D] block of the tool_result turn),
+    // and likewise only when the catalog verdict promptCache.policyRef is anthropic.explicit; other lines using the Messages endpoint, such as MiniMax, are left as they are.
+    if (params.providerKind === 'anthropic' && params.explicitPromptCache) { // capability-lint-allow R2: Anthropic explicit cache breakpoint, unrelated to attachments
       markAnthropicCacheBreakpoint(mapped.messages as Array<Record<string, unknown>>, params.options?.dynamicText);
     }
     body.messages = mapped.messages;

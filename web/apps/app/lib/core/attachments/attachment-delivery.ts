@@ -14,6 +14,7 @@ import {
   type SkippedAttachment,
   AttachmentInjector,
 } from './attachment-injector';
+import type { InputCapabilityProjection } from '@oriveo/core/providers/capability-evidence-facade';
 import { decideAttachmentRoute } from './attachment-router';
 import { type ExtractionErrorCode, hasUsableExtractedText, resolveFileExtractionLimits } from './file-text-extractor';
 
@@ -25,9 +26,11 @@ export function resolveFileAttachmentDelivery(
   attachment: Attachment,
   model: AIModel | null | undefined,
   line: AttachmentLine | undefined,
+  /** file_input projection of an official connection: when not native_part, no native block is sent and the file is injected as text. Omitted / null = no restriction. */
+  fileProjection?: InputCapabilityProjection | null,
 ): FileAttachmentDelivery {
   // AttachmentRouter is the single place that decides native vs client_extract; without a line, always inject text.
-  const route = model && line ? decideAttachmentRoute(attachment, line, model) : 'client_extract';
+  const route = model && line ? decideAttachmentRoute(attachment, line, model, fileProjection) : 'client_extract';
   if (route === 'native' && attachment.originalBase64Data) {
     return { route: 'native', originalBase64Data: attachment.originalBase64Data };
   }
@@ -63,12 +66,13 @@ export function findUnsendableTextAttachments(
   attachments: Attachment[] | undefined,
   model: AIModel | null | undefined,
   line: AttachmentLine | undefined,
+  fileProjection?: InputCapabilityProjection | null,
 ): SkippedAttachment[] {
   if (!attachments || attachments.length === 0) return [];
   const payloads: AttachmentPayload[] = [];
   for (const attachment of attachments) {
     if (attachment.kind !== 'file') continue;
-    const delivery = resolveFileAttachmentDelivery(attachment, model, line);
+    const delivery = resolveFileAttachmentDelivery(attachment, model, line, fileProjection);
     if (delivery.route === 'client_extract') payloads.push(delivery.payload);
   }
   if (payloads.length === 0) return [];

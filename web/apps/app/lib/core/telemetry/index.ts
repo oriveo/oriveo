@@ -66,12 +66,19 @@ export function setTelemetrySuperProperties(props: TelemetryProperties): void {
 }
 
 /**
- * Normalises a provider kind into the lowercase form used by every client, so the same provider
- * groups together no matter which app recorded the event.
+ * Normalises a provider kind into the form used by every client, so the same provider groups
+ * together no matter which app recorded the event. The mobile clients' historical values are
+ * the reference: togetherAI -> together, fireworksAI -> fireworks, everything else lowercased
+ * (openAI -> openai, openRouter -> openrouter, siliconFlow -> siliconflow, miniMax -> minimax).
  */
+const TELEMETRY_PROVIDER_KIND_OVERRIDES: Readonly<Record<string, string>> = {
+  togetherAI: 'together',
+  fireworksAI: 'fireworks',
+};
+
 export function telemetryProviderKind(kind: string | null | undefined): string {
   if (!kind) return 'unknown';
-  return kind.toLowerCase();
+  return TELEMETRY_PROVIDER_KIND_OVERRIDES[kind] ?? kind.toLowerCase();
 }
 
 /**

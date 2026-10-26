@@ -2,6 +2,12 @@ import { useState, useCallback, useRef } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import type { AIModel, Attachment } from '@oriveo/shared';
 import { appendAttachmentsWithinLimit, importAttachmentFiles } from '../core/attachments/attachment-import';
+import {
+  attachmentAcceptance,
+  attachmentDisabledMessageKey,
+  type AttachmentCapabilities,
+} from '../core/chat/attachment-policy';
+import { showToast } from '../../components/Toast';
 
 /**
  * The next state of the attachment tray: either the array itself or a function of the current
@@ -18,6 +24,40 @@ interface UseAttachmentIntakeParams {
   providerKind?: string;
   /** The currently selected model: import truncates and checks the total against its text limits; defaults apply when omitted. */
   currentModel?: AIModel | null;
+  /**
+   * Judges each attachment one by one (see useAttachmentRejectionGate); when given, both file picking and
+   * pasting go through this gate, and a pasted image is handed to it even when images are not accepted so
+   * it can reject the image and explain why.
+   */
+  canAcceptAttachment?: (attachment: Attachment) => boolean;
+}
+
+/**
+ * Rejection gate for the attachment entry points: judges each attachment against the attachment
+ * capabilities of the current model x provider; when an image / PDF / video is rejected, a light toast
+ * states the reason for that media (the same reason within one rejected batch is shown only once).
+ */
+export function useAttachmentRejectionGate(capabilities: AttachmentCapabilities) {
+  const t = useTranslations('capability.input');
+  const pendingRef = useRef<Set<string> | null>(null);
+  return useCallback((attachment: Attachment) => {
+    const verdict = attachmentAcceptance(attachment, capabilities);
+    if (verdict.accepted) return true;
+    if (verdict.media !== 'text' && verdict.reason) {
+      const message = t(attachmentDisabledMessageKey(verdict.reason, verdict.media));
+      if (!pendingRef.current) {
+        const batch = new Set<string>();
+        pendingRef.current = batch;
+        // Import runs the gate synchronously one by one, so by the next microtask this batch is fully judged.
+        queueMicrotask(() => {
+          pendingRef.current = null;
+          showToast([...batch].join('\n'), 4000, undefined, 'warning');
+        });
+      }
+      pendingRef.current.add(message);
+    }
+    return false;
+  }, [capabilities, t]);
 }
 
 /**
@@ -31,6 +71,7 @@ export function useAttachmentIntake({
   supportsImage,
   providerKind,
   currentModel,
+  canAcceptAttachment,
 }: UseAttachmentIntakeParams) {
   const [showAttachmentSizeLimit, setShowAttachmentSizeLimit] = useState(false);
   const tfe = useTranslations('pages.chat.fileExtraction');
@@ -52,12 +93,13 @@ export function useAttachmentIntake({
         commit: (incoming, maxAttachments) =>
           onAttachmentsChange((current) => appendAttachmentsWithinLimit(current, incoming, maxAttachments)),
         model: currentModel,
+        canAcceptAttachment,
         onRejectedBySize: () => setShowAttachmentSizeLimit(true),
         uiLanguage: locale,
         translate: tfe,
       });
     },
-    [currentModel, locale, onAttachmentsChange, providerKind, tfe],
+    [canAcceptAttachment, currentModel, locale, onAttachmentsChange, providerKind, tfe],
   );
 
   const handleFileInput = useCallback(
@@ -73,7 +115,8 @@ export function useAttachmentIntake({
 
   const handlePaste = useCallback(
     (e: React.ClipboardEvent) => {
-      if (!onAttachmentsChange || !supportsImage) return;
+      // With a rejection gate, a pasted image is handed to it even when images are not accepted: it is rejected with a reason instead of being silently swallowed.
+      if (!onAttachmentsChange || (!supportsImage && !canAcceptAttachment)) return;
       const files = Array.from(e.clipboardData.items)
         .filter((item) => item.type.startsWith('image/'))
         .map((item) => item.getAsFile())
@@ -82,7 +125,7 @@ export function useAttachmentIntake({
         handleAddFiles(files);
       }
     },
-    [supportsImage, onAttachmentsChange, handleAddFiles],
+    [supportsImage, canAcceptAttachment, onAttachmentsChange, handleAddFiles],
   );
 
   const handleRemoveAttachment = useCallback(

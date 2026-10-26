@@ -4,10 +4,11 @@
  * from a MiniMax model id; without the exact decoded route the dispatcher keeps the normal
  * OpenAI-compatible MiniMax request.
  */
+import { resolveAnthropicMaxTokens } from '../protocol-implementations';
 import { resolveProviderBaseURL } from '../url-utils';
 import { credentialHeader } from './generation-parameters';
+import { buildAnthropicRequestPayload } from './runtime';
 import { attachmentTransportProfile } from '../attachment-transport';
-import { buildAnthropicRequestPayload, withImagePlaceholders } from './runtime';
 import type { MiniMaxAnthropicMessagesRoute } from './capability-execution';
 import type { ProviderRequest, RequestParams } from './types';
 
@@ -16,17 +17,15 @@ export function buildMiniMaxAnthropicMessagesRequest(
   route: MiniMaxAnthropicMessagesRoute,
   maxOutputTokens?: number,
 ): ProviderRequest {
-  const payload = buildAnthropicRequestPayload(withImagePlaceholders(
+  // Images go out as Anthropic Messages image blocks; when the model does not accept images the outbound sanitizer has already replaced them with a placeholder line.
+  const payload = buildAnthropicRequestPayload(
     params.messages,
-    attachmentTransportProfile('minimax_anthropic_messages').imagePlaceholderText,
-  ));
+    attachmentTransportProfile('minimax_anthropic_messages').videoPlaceholderText,
+  );
   const body: Record<string, unknown> = {
     model: params.modelID,
-    max_tokens: typeof maxOutputTokens === 'number'
-      && Number.isFinite(maxOutputTokens)
-      && maxOutputTokens > 0
-      ? maxOutputTokens
-      : 8192,
+    // Explicit value > the model maxOutputTokens (dispatch synthesizes one input); only if neither exists is the protocol default used.
+    max_tokens: resolveAnthropicMaxTokens(maxOutputTokens),
     stream: params.stream !== false,
     messages: payload.messages,
   };

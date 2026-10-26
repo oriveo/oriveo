@@ -31,7 +31,7 @@ import styles from './MemorySuggestionBar.module.css';
 const serverSuggestion = (): MemorySuggestion | null => null;
 
 /**
- * P6·U3: the pending "save to memory?" suggestion for this conversation, or null.
+ * the pending "save to memory?" suggestion for this conversation, or null.
  * Switching away drops it (and any in-flight generate result) without counting as an ignore.
  */
 export function useMemorySuggestion(conversationId: string | null | undefined): MemorySuggestion | null {
@@ -57,7 +57,7 @@ function undoSave(items: MemoryItemRepository, itemId: string): void {
   items.remove(itemId).catch((error: unknown) => reportSilentError('memory-suggestion.undo', error));
 }
 
-/** P6·U3 bar rendered under the user message that produced a memory candidate (or the memory-off hint). */
+/** bar rendered under the user message that produced a memory candidate (or the memory-off hint). */
 export function MemorySuggestionBar({ suggestion }: { suggestion: MemorySuggestion }) {
   const t = useTranslations('pages.chat.memorySuggestion');
   const tCommon = useTranslations('common');

@@ -8,6 +8,7 @@
  * Cache strategy: IndexedDB blob plus memory, 24h TTL, with ETag revalidation.
  */
 
+import { decodePricingV2, type PricingV2 } from "../pricing/pricing-v2-estimate";
 import type {
   AIModel,
   ModelCapability,
@@ -48,17 +49,32 @@ import { APP_VERSION } from "../../version";
 import { readBlob, writeBlob, pruneBlobs, deleteBlob } from "../../infra/storage/blob-cache";
 import { safeLocalStorage } from "../../infra/storage/web-storage";
 import { SUPPORTED_CONTRACT_VERSION } from "./metadata-runtime";
+import { METADATA_REQUEST_SCHEMA, metadataSchemaQuery } from "./metadata-request-schema";
+import { loadBundledMetadata } from "./bundled-metadata";
 import { fetchWithReachability } from "../reachability/reachability-fetch";
-import { trackEvent } from "../telemetry";
+import { telemetryProviderKind, trackEvent } from "../telemetry";
 import {
   assembleLeanFromSplit,
   expandMetadataCatalog,
+  indexRetiredModels,
+  retiredSnapshotForCatalog,
   indexCatalogRevision,
   isMetadataIndexPayload,
   type CatalogRejectionReason,
   type ExpandedMetadataCatalog,
   type MetadataIndexPayload,
 } from "./metadata-split";
+import {
+  compareMetadataRevision,
+  decodeMetadataFullOrIndexV2,
+  isMetadataSchema2,
+  isMetadataSchema3,
+  metadataRevisionOf,
+  metadataSchemaOf,
+  comparableHeldRevision,
+  MODEL_ENTRY_INVALID,
+  type DroppedMetadataEntry,
+} from "./metadata-payload-v2";
 import {
   DEFAULT_LIBRARY_RUNTIME_CONFIG as SHARED_DEFAULT_LIBRARY_RUNTIME_CONFIG,
   type LibraryRuntimeConfig,
@@ -72,7 +88,6 @@ type CapabilityEvidenceCandidateView = NonNullable<AIModel["capabilityEvidenceCa
 
 export interface ProviderAttachmentSupport {
   image: boolean;
-  video?: boolean;
   nativeFile: boolean;
   textFileInline: boolean;
 }
@@ -343,10 +358,38 @@ interface ModelMetadata {
   capabilityEvidenceOwnedKeys?: unknown;
   /** Persisted schema-level validity bit; raw payload is never retained. */
   capabilityEvidenceViewMalformed?: unknown;
+  /** metadata schema 2: model lifecycle (deprecation / retirement); absent = unknown. */
+  lifecycle?: ModelLifecycle;
+  /** metadata schema 2: parameter support table, passed through to consumers as is. */
+  parameterSupport?: Record<string, unknown>;
+  /** Raw pricing v2 key; only enters ResolvedModelMetadata after allowlist decoding by decodePricingV2. */
+  pricingV2?: unknown;
+  /** Raw regional pricing key (contract section 5.7): only enters ResolvedModelMetadata after per-entry allowlist decoding by decodeRegionPricing. */
+  regionPricing?: unknown;
+}
+
+/** metadata schema 2 `$defs/lifecycle`. */
+export interface ModelLifecycle {
+  state: "deprecated" | "retired" | "retired_alias" | "unknown";
+  shutdownAt?: string;
+  signal?: "upstream_shutdown_date" | "upstream_inactive" | "litellm_deprecation_date";
+  /** The model the upstream routes to after retirement; the server and schema do not publish it yet, so the Web only carries the type and passes it through. */
+  routedTo?: string | null;
+}
+
+/** Catalog tombstone (model catalog and capability truth contract, section 8): the name and successor of a retired model. */
+export interface RetiredModel {
+  id: string;
+  displayName?: string;
+  retiredAt?: string;
+  /** The model the upstream routes the old id to; null = no successor. */
+  routedTo?: string | null;
 }
 
 interface ProviderData {
   displayName?: string;
+  /** Tombstones of retired models; absent = none. */
+  retiredModels?: RetiredModel[];
   attachmentSupport?: ProviderAttachmentSupport;
   defaultModelId?: string;
   validation?: ProviderValidation;
@@ -544,6 +587,16 @@ interface MetadataResponse {
   modelFactsRevision?: string;
 }
 
+/** One regional price: replaces the five model-level keys currencyCode / pricingStatus / pricingUnit / pricing / pricingV2. */
+export interface ResolvedRegionPricing {
+  regionScope: string;
+  currencyCode?: string;
+  pricingStatus: ModelPricingStatus;
+  pricingUnit?: string;
+  pricing: ResolvedModelMetadata["pricing"];
+  pricingV2?: PricingV2;
+}
+
 export interface ModelFacts {
   toolCall?: boolean;
   reasoning?: boolean;
@@ -584,6 +637,13 @@ export interface ResolvedModelMetadata {
   libraryAgentic?: boolean | null;
   /** Distinguishes an authoritative v2 null from a field that is simply absent under v1. */
   capabilityContractVersion?: number;
+  /** Pricing v2: a malformed shape drops the whole key and the model stays usable. */
+  pricingV2?: PricingV2;
+  /**
+   * Regional pricing (contract section 5.7): lists only regions other than the model-level regionScope; malformed entries are dropped one by one.
+   * Replacing the five model-level keys by the connection's effective region is in cost/region-pricing.ts.
+   */
+  regionPricing?: ResolvedRegionPricing[];
   pricing: {
     promptPerToken: number | null;
     completionPerToken: number | null;
@@ -653,6 +713,10 @@ export interface ResolvedModelMetadata {
   nativeFileMimes?: string[];
   /** Whether text PDFs go native by default. */
   pdfNativeDefault?: boolean;
+  /** metadata schema 2: model lifecycle; absent = unknown. */
+  lifecycle?: ModelLifecycle;
+  /** metadata schema 2: parameter support table. */
+  parameterSupport?: Record<string, unknown>;
   isDefault: boolean;
 }
 
@@ -735,7 +799,13 @@ interface SplitCatalogBlob {
   provider: string;
   revision: string;
   etag: string | null;
+  /** metadataRevision of this catalog response (schema 2 only); the next 200 uses it to decide advance or regress. */
+  metadataRevision?: number;
   resolveMap?: Record<string, string>;
+  /** Retired-model snapshot (contract section 9.8, see StoredCatalog.retiredModels); blobs older than the snapshot rule do not carry it. */
+  retiredModels?: RetiredModel[];
+  /** metadataSchema of the catalog body; blobs older than this field do not carry it (one with a revision can only be schema 2). */
+  metadataSchema?: number;
   models: Record<string, ModelMetadata>;
   generationParameters: NonNullable<MetadataResponse["generationParameterTables"]>;
   allowlistVersion: number;
@@ -748,17 +818,40 @@ interface SplitManifestBlob {
   catalogCheckedAt: Record<string, number>;
 }
 
+/**
+ * Index and manifest in one blob (a single writeBlob): written as two separate blobs, a failure or a
+ * page close in between would leave a new index paired with an old manifest (or the reverse).
+ */
+interface SplitHeadBlob {
+  index: SplitIndexBlob;
+  manifest: SplitManifestBlob;
+  /** When the index body was last adopted (200); a manifest-only rewrite does not touch it. */
+  indexStoredAt: number;
+}
+
 /** One provider's catalog in memory: allowlisted models plus its parameter tables. A null revision means it came from an older lean snapshot. */
 interface StoredCatalog {
   revision: string | null;
   etag: string | null;
+  metadataRevision?: number;
+  /** metadataSchema of the catalog body; a revision is only compared against a new body of the same schema. Defaults to 2 (revisions exist from schema 2 on). */
+  metadataSchema?: number;
   resolveMap?: Record<string, string>;
+  /**
+   * Retired-model snapshot: the tombstones as of when this catalog was adopted. Schema 3 takes the
+   * catalog's own; schema 1 / 2 take that provider's tombstones from the index of the time. It is
+   * used when assembling a schema 3 index. Absent means a row older than the snapshot rule: when
+   * the index moves to schema 3 it is backfilled from the previous index (backfillRetiredSnapshots).
+   */
+  retiredModels?: RetiredModel[];
   models: Record<string, ModelMetadata>;
   generationParameters: NonNullable<MetadataResponse["generationParameterTables"]>;
 }
 
 /** Current allowlist rewrite revision. Bump it when the rewrite rules change so existing caches are reprocessed. */
-const METADATA_ALLOWLIST_VERSION = 1;
+const METADATA_ALLOWLIST_VERSION = 2;
+/** The previous allowlist version: its field set is a subset of the current one, so a split cache at this version is read as last-good and used as is. */
+const LEGACY_SPLIT_ALLOWLIST_VERSION = 1;
 
 interface ModelFactsBlob {
   facts: Record<string, ModelFacts>;
@@ -826,13 +919,21 @@ function splitKeyPrefix(): string {
   return `${SPLIT_BLOB_KEY_PREFIX}c${SUPPORTED_CONTRACT_VERSION}:`;
 }
 
-function splitIndexKey(): string {
+function splitHeadKey(): string {
+  return `${splitKeyPrefix()}head`;
+}
+
+/** The separately stored index / manifest from before they were merged; read once during cold-start migration, migrated and deleted when found. */
+function legacySplitIndexKey(): string {
   return `${splitKeyPrefix()}index`;
 }
 
-function splitManifestKey(): string {
+function legacySplitManifestKey(): string {
   return `${splitKeyPrefix()}manifest`;
 }
+
+/** Test-only: key of the merged index + manifest blob. */
+export const METADATA_SPLIT_HEAD_KEY_FOR_TESTING = `${SPLIT_BLOB_KEY_PREFIX}c${SUPPORTED_CONTRACT_VERSION}:head`;
 
 function splitCatalogKey(providerKind: string): string {
   return `${splitKeyPrefix()}catalog:${providerKind}`;
@@ -845,14 +946,11 @@ export async function __readSplitMetadataCacheForTest(): Promise<{
   manifest: SplitManifestBlob | null;
   catalog: (providerKind: string) => Promise<{ value: SplitCatalogBlob; timestamp: number } | null>;
 }> {
-  const [index, manifest] = await Promise.all([
-    readBlob<SplitIndexBlob>(splitIndexKey()),
-    readBlob<SplitManifestBlob>(splitManifestKey()),
-  ]);
+  const head = (await readBlob<SplitHeadBlob>(splitHeadKey()))?.value;
   return {
-    index: index?.value ?? null,
-    indexTimestamp: index?.timestamp ?? null,
-    manifest: manifest?.value ?? null,
+    index: head?.index ?? null,
+    indexTimestamp: head?.indexStoredAt ?? null,
+    manifest: head?.manifest ?? null,
     catalog: (providerKind) => readBlob<SplitCatalogBlob>(splitCatalogKey(providerKind)),
   };
 }
@@ -934,8 +1032,6 @@ let projectedMetadataSnapshot: ReturnType<typeof projectMetadataSnapshot> | null
 /** Client-local content generation used by useSyncExternalStore consumers. */
 let metadataContentRevision = 0;
 let initPromise: Promise<void> | null = null;
-/** Bumped by test reset so an abandoned in-flight fetch cannot write back. */
-let metadataSessionEpoch = 0;
 /** Set by __seedMetadataCacheForTest; cleared by __resetMetadataClientForTest. */
 let suppressMetadataNetworkRefresh = false;
 let refreshPromise: Promise<void> | null = null;
@@ -945,6 +1041,47 @@ let refreshPromise: Promise<void> | null = null;
  * tracked only so that {@link __settleMetadataBackgroundWorkForTest} can wait for them to finish.
  */
 const pendingBackgroundWork = new Set<Promise<unknown>>();
+
+/**
+ * Module state epoch: only {@link __resetMetadataClientForTest} increments it, so it is constantly 0 in production.
+ *
+ * Fire-and-forget background refreshes are detached from the caller's scope; reset clears module variables but cannot abort an in-flight fetch,
+ * and a response that was issued before the reset and returns after it would, if committed as usual, write the previous case's snapshot / ETag into later cases of the same file.
+ * So wherever a network or idle callback comes back to this module to write state, it first checks the epoch it started with and drops the work if it differs.
+ */
+let metadataEpoch = 0;
+
+/** Thrown when the epoch at issue time was invalidated by a reset; swallowed by the catch in fetchMetadata and not treated as a network error. */
+class StaleMetadataEpochError extends Error {
+  constructor() {
+    super("metadata client was reset while the request was in flight");
+    this.name = "StaleMetadataEpochError";
+  }
+}
+
+/** The epoch each response was issued in, so {@link readJsonInEpoch} can check again after the body is parsed. */
+const responseEpochs = new WeakMap<Response, number>();
+
+function assertEpoch(epoch: number): void {
+  if (epoch !== metadataEpoch) throw new StaleMetadataEpochError();
+}
+
+/** fetch for the metadata snapshot path: if the epoch changed by the time the response arrives, throw StaleMetadataEpochError so the caller does not commit. */
+async function fetchInEpoch(url: string, init?: RequestInit): Promise<Response> {
+  const epoch = metadataEpoch;
+  const res = await fetchWithReachability(url, init);
+  assertEpoch(epoch);
+  responseEpochs.set(res, epoch);
+  return res;
+}
+
+/** Parsing the body also takes a tick: check the epoch again once it is parsed. */
+async function readJsonInEpoch(res: Response): ReturnType<Response["json"]> {
+  const json = await res.json();
+  const epoch = responseEpochs.get(res);
+  if (epoch !== undefined) assertEpoch(epoch);
+  return json;
+}
 
 function trackBackgroundWork<T>(work: Promise<T>): void {
   const settled = work.then(
@@ -986,6 +1123,10 @@ let cachedETagView: "index" | "lean" | null = null;
 /** The latest index (possibly not yet published into `cached`) and its ETag. */
 let splitIndex: MetadataIndexPayload | null = null;
 let splitIndexETag: string | null = null;
+/** When the index body in hand was adopted (persisted in SplitHeadBlob.indexStoredAt). */
+let splitIndexStoredAt: number | null = null;
+/** A combined index + manifest write is queued: several changes in the same tick hit disk once. */
+let splitHeadWriteScheduled = false;
 /** Loaded catalogs (last-good), keyed by catalog provider kind. */
 const splitCatalogs = new Map<string, StoredCatalog>();
 /** In-flight request per catalog, so each provider is fetched at most once at a time. */
@@ -1084,7 +1225,8 @@ export function __resetVersionListenersForTest(): void {
  * localStorage is left untouched; callers prepare their own cache fixtures.
  */
 export function __resetMetadataClientForTest(): void {
-  metadataSessionEpoch += 1;
+  // Invalidate background refreshes and idle writes started before the reset and not yet settled (see metadataEpoch).
+  metadataEpoch += 1;
   suppressMetadataNetworkRefresh = false;
   cached = null;
   cachedETag = null;
@@ -1107,6 +1249,8 @@ export function __resetMetadataClientForTest(): void {
   cachedETagView = null;
   splitIndex = null;
   splitIndexETag = null;
+  splitIndexStoredAt = null;
+  splitHeadWriteScheduled = false;
   splitCatalogs.clear();
   catalogFetches.clear();
   catalogFailureAt.clear();
@@ -1247,6 +1391,22 @@ export function getModelFacts(providerKind: string, modelID: string): ModelFacts
 
 export function getModelFactsRevision(): string | undefined {
   if (!modelFactsInitialized) void ensureModelFacts();
+  return peekModelFactsRevision();
+}
+
+/**
+ * Loads the persisted model-facts sidecar from local IDB only (no network). Tool-call
+ * rejection memory compares revisions right after a page reload, before the
+ * background refresh has run; without this the memory would be misjudged as stale.
+ */
+export async function ensurePersistedModelFacts(): Promise<void> {
+  if (modelFactsCache) return;
+  const persisted = await readBlob<ModelFactsBlob>(MODEL_FACTS_BLOB_KEY);
+  if (!modelFactsCache && persisted?.value) modelFactsCache = normalizeModelFactsBlob(persisted.value);
+}
+
+/** Current model-facts revision without triggering a load (tool-call rejection memory stamps/compares it). */
+export function peekModelFactsRevision(): string | undefined {
   return modelFactsCache?.revision ?? cached?.modelFactsRevision;
 }
 
@@ -1685,6 +1845,8 @@ function buildResolvedFromEntry(entry: {
         }),
     capabilityContractVersion,
     pricing: pricingStatus === "unknown" ? null : pricing,
+    ...pricingV2Field(entry.model.pricingV2),
+    ...regionPricingField(entry.model.regionPricing),
     profiles,
     ...(entry.model.capabilityControls ? { capabilityControls: entry.model.capabilityControls } : {}),
     ...(capabilityEvidenceCandidates !== undefined
@@ -1718,6 +1880,8 @@ function buildResolvedFromEntry(entry: {
         }
       : {}),
     ...(entry.model.pdfNativeDefault === true ? { pdfNativeDefault: true } : {}),
+    ...(isRecord(entry.model.lifecycle) ? { lifecycle: entry.model.lifecycle } : {}),
+    ...(isRecord(entry.model.parameterSupport) ? { parameterSupport: entry.model.parameterSupport } : {}),
     isDefault: entry.provider.defaultModelId === entry.canonicalModelId,
   };
   resolvedModelProjectionCache.set(entry.model, resolved);
@@ -1820,8 +1984,8 @@ export function getImageGenProfile(profileName: NullableString): {
 }
 
 /**
- * Outbound routes declared by the imageGen profile (images_api / chat_api / dashscope_multimodal / minimax_image_generation).
- * Read from the same /api/metadata payload as the request builder; returns null when not delivered.
+ * Outbound route declared by the imageGen profile (images_api / chat_api / dashscope_multimodal / minimax_image_generation).
+ * Reads the same /api/metadata payload as the request builders; returns null when not published.
  */
 export function getImageGenRoute(profileName: NullableString): string | null {
   const name = normalizeProfileRef(profileName);
@@ -2610,6 +2774,14 @@ export function getProviderDefaultModelId(
   providerKind: ProviderKind | string,
 ): string | undefined {
   return resolveProviderData(providerKind)?.defaultModelId;
+}
+
+/** Tombstone list of this provider's catalog; [] when the catalog / index does not publish it. */
+export function getProviderRetiredModels(
+  providerKind: ProviderKind | string,
+): RetiredModel[] {
+  const retired = resolveProviderData(providerKind)?.retiredModels;
+  return Array.isArray(retired) ? retired : [];
 }
 
 export function getProviderValidation(
@@ -3872,6 +4044,10 @@ function allowlistedMetadataModelFields(model: ModelMetadata): PublicMetadataMod
     "attachmentExtraction",
     "nativeFileMimes",
     "pdfNativeDefault",
+    "lifecycle",
+    "parameterSupport",
+    "pricingV2",
+    "regionPricing",
   ] as const satisfies readonly (keyof ModelMetadata)[];
   for (const key of publicKeys) {
     if (model[key] !== undefined) safe[key] = model[key];
@@ -3915,6 +4091,54 @@ function normalizePricing(model: ModelMetadata): {
     cacheWrite1hPerMToken: model.pricing.cacheWrite1hPerMToken,
     ...longContextField(model.pricing.longContext),
   };
+}
+
+function pricingV2Field(raw: unknown): { pricingV2?: PricingV2 } {
+  const decoded = decodePricingV2(raw);
+  return decoded ? { pricingV2: decoded } : {};
+}
+
+const REGION_PRICING_STATUSES: readonly string[] = ["priced", "free", "unknown"];
+const REGION_PRICING_UNITS: readonly string[] = ["per_token", "per_image", "per_second"];
+
+/**
+ * Per-entry allowlist decoding of regional pricing (contract section 5.7): a bad entry drops only
+ * itself while the model and the other entries stay; unknown keys inside an entry are ignored.
+ * Each entry is normalized like the model level (per-M to per-token, price cleared when unknown,
+ * pricingV2 decoded).
+ */
+function decodeRegionPricingEntry(raw: unknown): ResolvedRegionPricing | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const entry = raw as Record<string, unknown>;
+  const { regionScope, currencyCode, pricingStatus, pricingUnit, pricing } = entry;
+  if (typeof regionScope !== "string" || regionScope.length === 0) return null;
+  if (typeof currencyCode !== "string") return null;
+  if (typeof pricingStatus !== "string" || !REGION_PRICING_STATUSES.includes(pricingStatus)) return null;
+  if (typeof pricingUnit !== "string" || !REGION_PRICING_UNITS.includes(pricingUnit)) return null;
+  if (pricing !== null && (typeof pricing !== "object" || Array.isArray(pricing))) return null;
+  const asModel = {
+    pricingStatus,
+    pricingUnit,
+    pricing: pricing ?? undefined,
+  } as unknown as ModelMetadata;
+  const normalized = normalizePricing(asModel);
+  const status = normalizePricingStatus(asModel, normalized);
+  return {
+    regionScope,
+    currencyCode,
+    pricingStatus: status,
+    pricingUnit: normalizePricingUnit(pricingUnit),
+    pricing: status === "unknown" ? null : normalized,
+    ...pricingV2Field(entry.pricingV2),
+  };
+}
+
+function regionPricingField(raw: unknown): { regionPricing?: ResolvedRegionPricing[] } {
+  if (!Array.isArray(raw)) return {};
+  const decoded = raw
+    .map(decodeRegionPricingEntry)
+    .filter((entry): entry is ResolvedRegionPricing => entry !== null);
+  return decoded.length > 0 ? { regionPricing: decoded } : {};
 }
 
 /** Upper bound of the surcharge line (int32 max, identical on all clients). */
@@ -4109,8 +4333,8 @@ async function fetchMetadata(extraKinds: readonly string[] = []): Promise<void> 
     return;
   }
 
-  const epoch = metadataSessionEpoch;
-  refreshPromise = (async () => {
+  const epoch = metadataEpoch;
+  const current = (async () => {
     try {
       const indexOutcome = await fetchIndexOnce();
       if (indexOutcome === "unsupported") {
@@ -4124,7 +4348,6 @@ async function fetchMetadata(extraKinds: readonly string[] = []): Promise<void> 
       const wasSplit = sourceMode === "split";
       if (!wasSplit) seedCatalogsFromLeanSnapshot();
       const outcome = await syncCatalogs(neededCatalogKinds(requestedKinds), true);
-      if (epoch !== metadataSessionEpoch) return;
       if (indexOutcome === "updated" || !wasSplit || outcome.accepted) {
         publishSplitSnapshot();
         if (!wasSplit) retireLeanCache();
@@ -4132,15 +4355,33 @@ async function fetchMetadata(extraKinds: readonly string[] = []): Promise<void> 
         settleSyncOutcome(outcome);
       }
     } catch {
-      // A network error keeps the existing cache.
+      // A network error keeps the existing cache; a superseded epoch (StaleMetadataEpochError) commits nothing either.
     }
+    // The empty state after a reset must not be filled by a late round with the bundled snapshot.
+    if (epoch !== metadataEpoch) return;
+    await adoptBundledSnapshotIfEmpty();
   })();
+  refreshPromise = current;
 
   try {
-    await refreshPromise;
+    await current;
   } finally {
-    refreshPromise = null;
+    // A reset may have let a new round take the slot: only clear our own.
+    if (refreshPromise === current) refreshPromise = null;
   }
+}
+
+/**
+ * Cold start with no cache and the online fetch failed: start the catalog from the snapshot bundled
+ * at build time (schema 2 and up only). The etag is null so the next round fetches in full; the
+ * snapshot is not written to IDB and does not count as server confirmation, so any online response
+ * overrides it.
+ */
+async function adoptBundledSnapshotIfEmpty(): Promise<void> {
+  if (cached || METADATA_REQUEST_SCHEMA < 2) return;
+  const snapshot = await loadBundledMetadata();
+  if (!snapshot || cached) return;
+  adoptLeanSnapshot(snapshot as unknown as MetadataResponse, null, "lean", { bundled: true });
 }
 
 type IndexFetchOutcome = "updated" | "not_modified" | "unsupported" | "snapshot" | "failed";
@@ -4150,8 +4391,16 @@ type IndexFetchOutcome = "updated" | "not_modified" | "unsupported" | "snapshot"
  * are in); a 304 renews it and lifts this session's confirmation gate; a server that ignores the view
  * parameter and returns the full snapshot is adopted as a full snapshot.
  */
-async function fetchIndexOnce(): Promise<IndexFetchOutcome> {
-  const epoch = metadataSessionEpoch;
+/**
+ * One-time cache-bust value: only for the single index refetch after a revision mismatch. Cloudflare
+ * caches the index and each catalog independently per URL, so refetching the same index URL would hit
+ * the same stale edge copy; a URL carrying `fresh` always goes to origin.
+ */
+function oneTimeCacheBust(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+async function fetchIndexOnce(options: { bypassEdgeCache?: boolean } = {}): Promise<IndexFetchOutcome> {
   const headers: Record<string, string> = {};
   const validator = splitIndex
     ? splitIndexETag
@@ -4160,42 +4409,47 @@ async function fetchIndexOnce(): Promise<IndexFetchOutcome> {
       : null;
   if (validator) headers["If-None-Match"] = validator;
 
-  const res = await fetchWithReachability(
-    `${resolveMetadataBackendURL()}/api/metadata?view=index`,
+  const res = await fetchInEpoch(
+    `${resolveMetadataBackendURL()}/api/metadata?view=index${metadataSchemaQuery(METADATA_REQUEST_SCHEMA)}${
+      options.bypassEdgeCache ? `&fresh=${encodeURIComponent(oneTimeCacheBust())}` : ""
+    }`,
     { headers },
   );
-  if (epoch !== metadataSessionEpoch) return "failed";
   if (res.status === 304) {
-    if (!splitIndex) {
-      // With a full snapshot (or none yet) keep the lean semantics: a 304 confirms the copy in hand.
-      confirmCachedSnapshot();
-      return "snapshot";
-    }
     // In split mode a 304 to a request without a validator cannot be trusted: there is no matching
     // index body in hand.
-    if (!validator) return "failed";
-    const now = Date.now();
-    splitManifest = { ...splitManifest, indexCheckedAt: now };
-    persistSplitManifest();
-    if (sourceMode === "split") {
-      cachedAt = now;
-      confirmIndex();
-    }
-    return "not_modified";
+    if (splitIndex && !validator) return "failed";
+    return acknowledgeIndexUnchanged();
   }
   if (res.status === 400) return "unsupported";
   if (!res.ok) return "failed";
 
-  const json = await res.json();
-  if (epoch !== metadataSessionEpoch) return "failed";
-  const data = json?.data ?? json;
+  const json = await readJsonInEpoch(res);
+  let data = json?.data ?? json;
+  const revisionVerdict = compareMetadataRevision(heldIndexMetadataRevision(data), metadataRevisionOf(data));
+  // Equal revisions mean the same server snapshot: treat it as a 304 and do not rewrite the body.
+  if (revisionVerdict === "unchanged") return acknowledgeIndexUnchanged(res.headers.get("ETag"));
+  if (revisionVerdict === "reject") {
+    // Revision went backwards (an instance rolled back to an old snapshot, or a cache layer returned a stale response): reject it and keep what is in hand.
+    reportCatalogDiagnostic(INDEX_DIAGNOSTIC_KIND, "revision_regressed");
+    return "failed";
+  }
+  if (isMetadataIndexPayload(data) && isMetadataSchema2(data)) {
+    // Schema 2 index: a broken envelope rejects the whole payload (the index in hand is kept); a broken provider drops only that provider and is reported.
+    const decoded = decodeMetadataFullOrIndexV2(data);
+    if (decoded.envelope === "reject") return "failed";
+    reportDroppedMetadataEntries(decoded.dropped);
+    data = decoded.data;
+  }
   if (isMetadataIndexPayload(data)) {
     const contractVersion = (data as { contractVersion?: number }).contractVersion ?? 1;
     trackBackgroundWork(pruneStaleBuckets(contractVersion));
+    backfillRetiredSnapshots(splitIndex, data);
     splitIndex = data;
     splitIndexETag = res.headers.get("ETag");
-    splitManifest = { ...splitManifest, indexCheckedAt: Date.now() };
-    persistSplitIndex(data, splitIndexETag);
+    splitIndexStoredAt = Date.now();
+    splitManifest = { ...splitManifest, indexCheckedAt: splitIndexStoredAt };
+    persistSplitHead();
     // Catalogs whose revision changed under the new index are no longer confirmed; unchanged ones
     // still match a confirmed index.
     for (const kind of [...confirmedCatalogKinds]) {
@@ -4207,32 +4461,86 @@ async function fetchIndexOnce(): Promise<IndexFetchOutcome> {
     return "updated";
   }
   if (isRecord(data) && isRecord(data.providers)) {
-    adoptLeanSnapshot(data as unknown as MetadataResponse, res.headers.get("ETag"), "index");
-    return "snapshot";
+    return adoptLeanSnapshot(data as unknown as MetadataResponse, res.headers.get("ETag"), "index")
+      ? "snapshot"
+      : "failed";
   }
   return "failed";
 }
 
+/**
+ * Index 304 or equal revision: what is in hand is still the latest. With a full snapshot (or none
+ * yet) keep the lean semantics, i.e. confirm the copy in hand; in split mode renew the manifest
+ * timestamp without rewriting the body. When an equal-revision 200 brings a new ETag, it is persisted
+ * in the same write so the next conditional request uses the new value.
+ */
+function acknowledgeIndexUnchanged(etag: string | null = null): IndexFetchOutcome {
+  if (!splitIndex) {
+    if (etag && cached && cachedETag !== etag) {
+      cachedETag = etag;
+      persistCache(cached, (cached as MetadataResponse & { contractVersion?: number }).contractVersion ?? 1);
+    }
+    confirmCachedSnapshot();
+    return "snapshot";
+  }
+  const now = Date.now();
+  if (etag) splitIndexETag = etag;
+  splitManifest = { ...splitManifest, indexCheckedAt: now };
+  persistSplitHead();
+  if (sourceMode === "split") {
+    cachedAt = now;
+    confirmIndex();
+  }
+  return "not_modified";
+}
+
+/**
+ * Before moving to a schema 3 index, backfill the retired-model snapshot on cached catalogs that
+ * lack one: take that provider's tombstones from the pre-upgrade non-schema-3 index (read back from
+ * persistence at startup). A schema 3 index no longer carries tombstones, and without this the
+ * provider assembled after a failed catalog refetch would lose them.
+ */
+function backfillRetiredSnapshots(previous: MetadataIndexPayload | null, next: MetadataIndexPayload): void {
+  if (!previous || isMetadataSchema3(previous) || !isMetadataSchema3(next)) return;
+  for (const [kind, entry] of splitCatalogs) {
+    if (entry.retiredModels) continue;
+    const patched: StoredCatalog = {
+      ...entry,
+      retiredModels: (indexRetiredModels(previous, kind) ?? []) as RetiredModel[],
+    };
+    splitCatalogs.set(kind, patched);
+    persistSplitCatalog(kind, patched);
+  }
+}
+
+/** Placeholder kind for index-level diagnostics (revision regression), which have no specific provider. */
+const INDEX_DIAGNOSTIC_KIND = "index";
+
+/** Revision of the index in hand (or of the full snapshot fetched from the index URL). */
+function heldIndexMetadataRevision(incoming: unknown): number | null {
+  const held = splitIndex ?? (sourceMode === "lean" && cachedETagView === "index" ? cached : null);
+  if (!held) return null;
+  // Across schemas (e.g. cached schema 2, new body schema 3) revisions are not compared: the new data is accepted and replaces it.
+  return comparableHeldRevision(metadataRevisionOf(held), metadataSchemaOf(held), incoming) ?? null;
+}
+
 /** Fallback for older servers: the full lean view, exactly as before the index existed. */
 async function fetchLeanSnapshot(): Promise<void> {
-  const epoch = metadataSessionEpoch;
   const headers: Record<string, string> = {};
   const validator = sourceMode === "lean" && cachedETagView !== "index" ? cachedETag : null;
   if (validator) headers["If-None-Match"] = validator;
 
-  const res = await fetchWithReachability(
+  const res = await fetchInEpoch(
     `${resolveMetadataBackendURL()}/api/metadata?view=lean`,
     { headers },
   );
-  if (epoch !== metadataSessionEpoch) return;
   if (res.status === 304) {
     if (validator) confirmCachedSnapshot();
     return;
   }
   if (!res.ok) return;
 
-  const json = await res.json();
-  if (epoch !== metadataSessionEpoch) return;
+  const json = await readJsonInEpoch(res);
   // The backend wraps responses in { code, data, message }, so unwrap it.
   const data: MetadataResponse = json.data ?? json;
   adoptLeanSnapshot(data, res.headers.get("ETag"), "lean");
@@ -4258,11 +4566,21 @@ function confirmIndex(): void {
   emitVersionChange({ allowDedup: !justConfirmed });
 }
 
+/** Adopt a full snapshot; when the schema 2 full-snapshot envelope is invalid it is not adopted (returns false, last-good is kept). */
 function adoptLeanSnapshot(
-  data: MetadataResponse,
+  input: MetadataResponse,
   etag: string | null,
   etagView: "index" | "lean",
-): void {
+  options: { bundled?: boolean } = {},
+): boolean {
+  let data = input;
+  // Schema 2 only defines the full snapshot (no view) / index / catalog; the lean view is not covered, so it is adopted as is.
+  if (isMetadataSchema2(input) && input.view !== "lean") {
+    const decoded = decodeMetadataFullOrIndexV2(input);
+    if (decoded.envelope === "reject") return false;
+    reportDroppedMetadataEntries(decoded.dropped);
+    data = decoded.data as unknown as MetadataResponse;
+  }
   const contractVersion =
     (data as MetadataResponse & { contractVersion?: number })
       .contractVersion ?? 1;
@@ -4291,12 +4609,17 @@ function adoptLeanSnapshot(
   // representation makes the next catalog-external demand revalidate that
   // validator; it must never inherit the lean ETag.
   modelFactsInitialized = false;
-  cachedAt = Date.now();
+  // The bundled snapshot has no online timestamp: cachedAt stays null so isMetadataRefreshDue is still true and the next refresh in this session fetches online to override it.
+  cachedAt = options.bundled ? null : Date.now();
   metadataContentRevision += 1;
-  snapshotConfirmedThisSession = true;
-  persistCache(cached, contractVersion);
+  // The bundled snapshot is not server confirmation and does not enter the cache (the cache only stores online responses).
+  if (!options.bundled) {
+    snapshotConfirmedThisSession = true;
+    persistCache(cached, contractVersion);
+  }
   // A 200 always emits, because the content may be new.
   emitVersionChange();
+  return true;
 }
 
 /** The set of needed catalogs, limited to kinds the index actually lists. */
@@ -4357,7 +4680,8 @@ async function syncCatalogs(
       for (const kind of mismatched) reportCatalogDiagnostic(kind, "revision_mismatch");
       break;
     }
-    const refreshed = await fetchIndexOnce().catch((): IndexFetchOutcome => "failed");
+    // A mismatch is mostly the edge serving a new index with an old catalog (or the reverse): this refetch must bypass the edge cache and go to origin (section 5.9).
+    const refreshed = await fetchIndexOnce({ bypassEdgeCache: true }).catch((): IndexFetchOutcome => "failed");
     if (refreshed !== "updated" && refreshed !== "not_modified") {
       for (const kind of mismatched) reportCatalogDiagnostic(kind, "revision_mismatch");
       break;
@@ -4395,44 +4719,49 @@ async function ensureCatalog(
   }
   const inflight = catalogFetches.get(kind);
   if (inflight) return inflight;
-  const promise = fetchCatalog(kind, expected).finally(() => {
-    catalogFetches.delete(kind);
+  const promise: Promise<CatalogFetchOutcome> = fetchCatalog(kind, expected, index).finally(() => {
+    // After a reset the same provider may already have a new in-flight request: only delete our own.
+    if (catalogFetches.get(kind) === promise) catalogFetches.delete(kind);
   });
   catalogFetches.set(kind, promise);
   return promise;
 }
 
-async function fetchCatalog(kind: string, expectedRevision: string): Promise<CatalogFetchOutcome> {
-  const epoch = metadataSessionEpoch;
+/**
+ * `index` is the index at the moment the request was started (expectedRevision is registered from
+ * it): the retired-model snapshot must come from it, not from splitIndex after the await, because
+ * while the request is in flight the index may have been replaced by a schema 3 one without tombstones.
+ */
+async function fetchCatalog(
+  kind: string,
+  expectedRevision: string,
+  index: MetadataIndexPayload,
+): Promise<CatalogFetchOutcome> {
   const stored = splitCatalogs.get(kind);
   const headers: Record<string, string> = {};
   if (stored?.etag) headers["If-None-Match"] = stored.etag;
   let res: Response;
   try {
-    res = await fetchWithReachability(
-      `${resolveMetadataBackendURL()}/api/metadata?view=catalog&provider=${encodeURIComponent(kind)}`,
+    res = await fetchInEpoch(
+      // rev = the catalogRevision the current index registers for this provider: the URL is content-addressed, so a new revision always misses the edge cache.
+      `${resolveMetadataBackendURL()}/api/metadata?view=catalog&provider=${encodeURIComponent(kind)}${metadataSchemaQuery(METADATA_REQUEST_SCHEMA)}${
+        expectedRevision ? `&rev=${encodeURIComponent(expectedRevision)}` : ""
+      }`,
       { headers },
     );
-  } catch {
+  } catch (error) {
+    // A superseded epoch is not a failure of this catalog: no cooldown, rethrow to end the round.
+    if (error instanceof StaleMetadataEpochError) throw error;
     catalogFailureAt.set(kind, Date.now());
     return "failed";
   }
-  // A test reset abandoned this session: never write into the new one.
-  if (epoch !== metadataSessionEpoch) return "failed";
 
   if (res.status === 304) {
     if (!stored?.etag) {
       catalogFailureAt.set(kind, Date.now());
       return "failed";
     }
-    if (stored.revision !== expectedRevision) return "revision_mismatch";
-    confirmedCatalogKinds.add(kind);
-    splitManifest = {
-      ...splitManifest,
-      catalogCheckedAt: { ...splitManifest.catalogCheckedAt, [kind]: Date.now() },
-    };
-    persistSplitManifest();
-    return "current";
+    return acknowledgeCatalogUnchanged(kind, stored, expectedRevision);
   }
   if (res.status === 404) {
     // Listed in the index but the catalog is 404: this is not an empty catalog, keep the last-good copy.
@@ -4447,13 +4776,28 @@ async function fetchCatalog(kind: string, expectedRevision: string): Promise<Cat
 
   let data: unknown;
   try {
-    const json = await res.json();
+    const json = await readJsonInEpoch(res);
     data = isRecord(json) && json.data !== undefined ? json.data : json;
-  } catch {
+  } catch (error) {
+    if (error instanceof StaleMetadataEpochError) throw error;
     catalogFailureAt.set(kind, Date.now());
     return "failed";
   }
-  if (epoch !== metadataSessionEpoch) return "failed";
+  // Compare by the revision recorded in this provider's blob: equal is treated as a 304, a regression is rejected and last-good is kept.
+  const incomingRevision = metadataRevisionOf(data);
+  // A revision is only compared against a cached catalog of the same schema (across schemas it is taken as new data).
+  const revisionVerdict = compareMetadataRevision(
+    comparableHeldRevision(stored?.metadataRevision, stored?.metadataSchema ?? 2, data),
+    incomingRevision,
+  );
+  if (revisionVerdict === "unchanged" && stored) {
+    return acknowledgeCatalogUnchanged(kind, stored, expectedRevision, res.headers.get("ETag"));
+  }
+  if (revisionVerdict === "reject") {
+    catalogFailureAt.set(kind, Date.now());
+    reportCatalogDiagnostic(kind, "revision_regressed");
+    return "rejected";
+  }
   const expanded = expandMetadataCatalog(data, { provider: kind, revision: expectedRevision });
   if (!expanded.ok) {
     if (expanded.reason === "revision_mismatch") return "revision_mismatch";
@@ -4463,7 +4807,13 @@ async function fetchCatalog(kind: string, expectedRevision: string): Promise<Cat
     return "rejected";
   }
 
-  const entry = storedCatalogFromExpanded(expanded.catalog, res.headers.get("ETag"));
+  reportDroppedMetadataEntries(expanded.catalog.dropped);
+  const entry = storedCatalogFromExpanded(
+    expanded.catalog,
+    res.headers.get("ETag"),
+    incomingRevision,
+    retiredSnapshotForCatalog(expanded.catalog, index, kind) as RetiredModel[],
+  );
   splitCatalogs.set(kind, entry);
   catalogFailureAt.delete(kind);
   confirmedCatalogKinds.add(kind);
@@ -4475,10 +4825,45 @@ async function fetchCatalog(kind: string, expectedRevision: string): Promise<Cat
   return "accepted";
 }
 
+/**
+ * Catalog 304 or equal revision: the content is unchanged, and it only counts as confirmed when it
+ * matches the revision the index registered. When an equal-revision 200 brings a new ETag, the ETag
+ * is rewritten together with that provider's catalog blob (even if it does not match the index), so
+ * the next conditional request uses the new value.
+ */
+function acknowledgeCatalogUnchanged(
+  kind: string,
+  stored: StoredCatalog,
+  expectedRevision: string,
+  etag: string | null = null,
+): CatalogFetchOutcome {
+  // Persist the new ETag atomically first, whether or not it matches the index: the content really is unchanged and the validator must not regress.
+  const etagChanged = Boolean(etag) && etag !== stored.etag;
+  const entry: StoredCatalog = etagChanged ? { ...stored, etag } : stored;
+  if (etagChanged) splitCatalogs.set(kind, entry);
+  const matchesIndex = stored.revision === expectedRevision;
+  if (matchesIndex) {
+    confirmedCatalogKinds.add(kind);
+    splitManifest = {
+      ...splitManifest,
+      catalogCheckedAt: { ...splitManifest.catalogCheckedAt, [kind]: Date.now() },
+    };
+  }
+  if (etagChanged) {
+    // persistSplitCatalog also writes the index + manifest.
+    persistSplitCatalog(kind, entry);
+  } else if (matchesIndex) {
+    persistSplitHead();
+  }
+  return matchesIndex ? "current" : "revision_mismatch";
+}
+
 /** An expanded catalog goes through the same allowlist before it reaches memory or storage, so raw provenance is never persisted. */
 function storedCatalogFromExpanded(
   catalog: ExpandedMetadataCatalog,
   etag: string | null,
+  metadataRevision: number | null,
+  retiredSnapshot: RetiredModel[],
 ): StoredCatalog {
   const normalized = normalizeMetadataEvidenceViews({
     view: "lean",
@@ -4492,7 +4877,10 @@ function storedCatalogFromExpanded(
   return {
     revision: catalog.revision,
     etag,
+    ...(metadataRevision !== null ? { metadataRevision } : {}),
     ...(catalog.resolveMap ? { resolveMap: catalog.resolveMap } : {}),
+    retiredModels: retiredSnapshot,
+    metadataSchema: catalog.metadataSchema,
     models: normalized.providers[catalog.provider]?.models ?? {},
     generationParameters: catalog.generationParameters as StoredCatalog["generationParameters"],
   };
@@ -4514,6 +4902,7 @@ function seedCatalogsFromLeanSnapshot(): void {
       revision: null,
       etag: null,
       ...(provider.resolveMap ? { resolveMap: provider.resolveMap } : {}),
+      ...(provider.retiredModels ? { retiredModels: provider.retiredModels } : {}),
       models: provider.models,
       generationParameters: source.generationParameterTables ?? {},
     });
@@ -4559,10 +4948,24 @@ function requestCatalogLoad(kind: string): void {
 
 function reportCatalogDiagnostic(
   kind: string,
-  reason: CatalogRejectionReason | "not_found",
+  reason: CatalogRejectionReason | "not_found" | "revision_regressed" | typeof MODEL_ENTRY_INVALID,
+  entry?: Omit<DroppedMetadataEntry, "provider">,
 ): void {
-  // Only the provider kind and the reason enum are recorded, never any part of the response body.
-  trackEvent("metadata_catalog_rejected", { provider_kind: kind, reason });
+  // Only the provider kind and the reason enum are recorded (for per-entry drops also the modelId plus the first instancePath / keyword), never any part of the response body or field values.
+  // provider_kind goes through telemetryProviderKind (lowercased) like every other event; index-level reports use the fixed value "index".
+  trackEvent("metadata_catalog_rejected", {
+    provider_kind: kind === INDEX_DIAGNOSTIC_KIND ? kind : telemetryProviderKind(kind),
+    reason,
+    ...(entry?.modelId !== undefined ? { model_id: entry.modelId } : {}),
+    ...(entry ? { instance_path: entry.instancePath, keyword: entry.keyword } : {}),
+  });
+}
+
+/** Each provider / model dropped by schema 2 per-entry validation is reported once as model_entry_invalid. */
+function reportDroppedMetadataEntries(dropped: readonly DroppedMetadataEntry[]): void {
+  for (const { provider, ...entry } of dropped) {
+    reportCatalogDiagnostic(provider, MODEL_ENTRY_INVALID, entry);
+  }
 }
 
 function refreshInBackground(): void {
@@ -4582,11 +4985,13 @@ function scheduleIdle(callback: () => void): void {
       : (cb: () => void) => setTimeout(cb, 0);
   // A write started inside the callback is tracked before the callback returns, so the set never
   // goes empty between "callback queued" and "write settled".
+  // If the epoch at queue time was invalidated by a reset before the callback fires, this write belongs to the pre-reset state and is dropped.
+  const epoch = metadataEpoch;
   trackBackgroundWork(
     new Promise<void>((resolve) => {
       schedule(() => {
         try {
-          callback();
+          if (epoch === metadataEpoch) callback();
         } finally {
           resolve();
         }
@@ -4612,11 +5017,22 @@ function persistCache(data: MetadataResponse, contractVersion: number): void {
   });
 }
 
-function persistSplitIndex(data: MetadataIndexPayload, etag: string | null): void {
+/**
+ * Write index + manifest in one go (SplitHeadBlob). The in-memory state at write time is used, so several changes in the same tick
+ * (a new index, the confirmation times of several catalogs) hit disk once; nothing is written when the index has been replaced by a full snapshot (null).
+ */
+function persistSplitHead(): void {
+  if (splitHeadWriteScheduled) return;
+  splitHeadWriteScheduled = true;
   scheduleIdle(() => {
-    if (splitIndex !== data) return;
-    trackBackgroundWork(writeBlob<SplitIndexBlob>(splitIndexKey(), { data, etag }));
-    trackBackgroundWork(writeBlob<SplitManifestBlob>(splitManifestKey(), splitManifest));
+    splitHeadWriteScheduled = false;
+    const index = splitIndex;
+    if (!index) return;
+    trackBackgroundWork(writeBlob<SplitHeadBlob>(splitHeadKey(), {
+      index: { data: index, etag: splitIndexETag },
+      manifest: splitManifest,
+      indexStoredAt: splitIndexStoredAt ?? Date.now(),
+    }));
   });
 }
 
@@ -4627,52 +5043,73 @@ function persistSplitCatalog(kind: string, entry: StoredCatalog): void {
       provider: kind,
       revision: entry.revision,
       etag: entry.etag,
+      ...(entry.metadataRevision !== undefined ? { metadataRevision: entry.metadataRevision } : {}),
       ...(entry.resolveMap ? { resolveMap: entry.resolveMap } : {}),
+      ...(entry.retiredModels ? { retiredModels: entry.retiredModels } : {}),
+      ...(entry.metadataSchema !== undefined ? { metadataSchema: entry.metadataSchema } : {}),
       models: entry.models,
       generationParameters: entry.generationParameters,
       allowlistVersion: METADATA_ALLOWLIST_VERSION,
     }));
-    trackBackgroundWork(writeBlob<SplitManifestBlob>(splitManifestKey(), splitManifest));
   });
-}
-
-/** A 304 only updates timestamps: the manifest is small and the body blobs stay untouched. */
-function persistSplitManifest(): void {
-  const snapshot = splitManifest;
-  scheduleIdle(() => {
-    if (splitManifest !== snapshot) return;
-    trackBackgroundWork(writeBlob<SplitManifestBlob>(splitManifestKey(), snapshot));
-  });
+  persistSplitHead();
 }
 
 interface LoadedSplitCache {
   index: MetadataIndexPayload;
   etag: string | null;
+  indexStoredAt: number;
   catalogs: Map<string, StoredCatalog>;
   manifest: SplitManifestBlob;
   timestamp: number;
 }
 
+/**
+ * Read the combined index + manifest blob; when absent, look at the two older separate keys: if found
+ * they are migrated to the new key and the old ones deleted (the cache can be rebuilt from the
+ * network, so a failed migration only costs a cold fetch next time).
+ */
+async function readSplitHead(): Promise<SplitHeadBlob | null> {
+  const current = await readBlob<SplitHeadBlob>(splitHeadKey());
+  if (current) return current.value;
+  const [legacyIndex, legacyManifest] = await Promise.all([
+    readBlob<SplitIndexBlob>(legacySplitIndexKey()),
+    readBlob<SplitManifestBlob>(legacySplitManifestKey()),
+  ]);
+  if (!legacyIndex && !legacyManifest) return null;
+  let migrated: SplitHeadBlob | null = null;
+  if (legacyIndex && isRecord(legacyIndex.value) && isMetadataIndexPayload(legacyIndex.value.data)) {
+    migrated = {
+      index: legacyIndex.value,
+      manifest: legacyManifest?.value ?? { catalogCheckedAt: {} },
+      indexStoredAt: legacyIndex.timestamp,
+    };
+    await writeBlob<SplitHeadBlob>(splitHeadKey(), migrated);
+  }
+  await Promise.all([deleteBlob(legacySplitIndexKey()), deleteBlob(legacySplitManifestKey())]);
+  return migrated;
+}
+
 /** Read the split cache back. Unreadable, malformed or wrong-contract data counts as absent and never blocks startup. */
 async function readSplitCache(): Promise<LoadedSplitCache | null> {
   try {
-    const [indexEntry, manifestEntry] = await Promise.all([
-      readBlob<SplitIndexBlob>(splitIndexKey()),
-      readBlob<SplitManifestBlob>(splitManifestKey()),
-    ]);
-    const data = indexEntry?.value?.data;
-    if (!indexEntry || !isMetadataIndexPayload(data)) return null;
+    const head = await readSplitHead();
+    const indexBlob = isRecord(head) && isRecord(head.index) ? head.index : null;
+    const data = indexBlob?.data;
+    if (!head || !indexBlob || !isMetadataIndexPayload(data)) return null;
     const contractVersion = (data as { contractVersion?: number }).contractVersion ?? 1;
     if (contractVersion !== SUPPORTED_CONTRACT_VERSION) return null;
 
+    const storedManifest = isRecord(head.manifest) ? head.manifest : null;
     const manifest: SplitManifestBlob = {
-      ...(typeof manifestEntry?.value?.indexCheckedAt === "number"
-        ? { indexCheckedAt: manifestEntry.value.indexCheckedAt }
+      ...(typeof storedManifest?.indexCheckedAt === "number"
+        ? { indexCheckedAt: storedManifest.indexCheckedAt }
         : {}),
-      catalogCheckedAt: isRecord(manifestEntry?.value?.catalogCheckedAt)
-        ? manifestEntry.value.catalogCheckedAt
+      catalogCheckedAt: isRecord(storedManifest?.catalogCheckedAt)
+        ? storedManifest.catalogCheckedAt
         : {},
     };
+    const indexStoredAt = typeof head.indexStoredAt === "number" ? head.indexStoredAt : 0;
     const kinds = Object.keys(data.providers);
     const entries = await Promise.all(
       kinds.map((kind) => readBlob<SplitCatalogBlob>(splitCatalogKey(kind))),
@@ -4686,24 +5123,40 @@ async function readSplitCache(): Promise<LoadedSplitCache | null> {
         || value.provider !== kind
         || typeof value.revision !== "string"
         || !isRecord(value.models)
-        || value.allowlistVersion !== METADATA_ALLOWLIST_VERSION
       ) {
         return;
       }
+      if (value.allowlistVersion === LEGACY_SPLIT_ALLOWLIST_VERSION) {
+        // The version 1 allowlist is a subset of the current one and old blobs carry no raw fields, so they can be used as last-good as is;
+        // revision / ETag / metadata revision are not inherited, so the next refresh refetches this provider unconditionally and it does not count as confirmed this session.
+        catalogs.set(kind, {
+          revision: null,
+          etag: null,
+          ...(isRecord(value.resolveMap) ? { resolveMap: value.resolveMap } : {}),
+          models: value.models,
+          generationParameters: isRecord(value.generationParameters) ? value.generationParameters : {},
+        });
+        return;
+      }
+      if (value.allowlistVersion !== METADATA_ALLOWLIST_VERSION) return;
       catalogs.set(kind, {
         revision: value.revision,
         etag: typeof value.etag === "string" ? value.etag : null,
+        ...(typeof value.metadataRevision === "number" ? { metadataRevision: value.metadataRevision } : {}),
         ...(isRecord(value.resolveMap) ? { resolveMap: value.resolveMap } : {}),
+        ...(Array.isArray(value.retiredModels) ? { retiredModels: value.retiredModels } : {}),
+        ...(typeof value.metadataSchema === "number" ? { metadataSchema: value.metadataSchema } : {}),
         models: value.models,
         generationParameters: isRecord(value.generationParameters) ? value.generationParameters : {},
       });
     });
     return {
       index: data,
-      etag: typeof indexEntry.value.etag === "string" ? indexEntry.value.etag : null,
+      etag: typeof indexBlob.etag === "string" ? indexBlob.etag : null,
+      indexStoredAt,
       catalogs,
       manifest,
-      timestamp: Math.max(indexEntry.timestamp, manifest.indexCheckedAt ?? 0),
+      timestamp: Math.max(indexStoredAt, manifest.indexCheckedAt ?? 0),
     };
   } catch {
     return null;
@@ -4713,6 +5166,7 @@ async function readSplitCache(): Promise<LoadedSplitCache | null> {
 function commitSplitCache(split: LoadedSplitCache): void {
   splitIndex = split.index;
   splitIndexETag = split.etag;
+  splitIndexStoredAt = split.indexStoredAt;
   splitManifest = split.manifest;
   splitCatalogs.clear();
   for (const [kind, entry] of split.catalogs) splitCatalogs.set(kind, entry);

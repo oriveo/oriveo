@@ -22,7 +22,7 @@ const metadataMocks = vi.hoisted(() => ({
 }));
 
 // metadata-client mock: the transport decision comes only from metadata, falling back conservatively to openai_chat.
-vi.mock('../../../metadata/metadata-client', () => ({
+vi.mock('../../../metadata/metadata-client', async (importOriginal) => (await import('../../../../__tests__/mocks/metadata-client')).metadataClientMock(importOriginal, {
   getProviderTransport: vi.fn().mockReturnValue(null),
   getWebSearchProfile: vi.fn().mockReturnValue(null),
   getModelTransport: metadataMocks.getModelTransport,

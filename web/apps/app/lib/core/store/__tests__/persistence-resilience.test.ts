@@ -1,3 +1,4 @@
+import 'fake-indexeddb/auto';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Resilience behavior assertions: hydrate failures report to Sentry, the refreshProviderMetadata
@@ -10,6 +11,7 @@ const h = vi.hoisted(() => ({
   captureException: vi.fn(),
   getAllProviders: vi.fn(),
   getAllConversations: vi.fn(),
+  scanConversationsInChunks: vi.fn(),
   getAllFolders: vi.fn(),
   getAllNotes: vi.fn(),
   getAllNoteFolders: vi.fn(),
@@ -19,7 +21,9 @@ const h = vi.hoisted(() => ({
   deleteProvider: vi.fn(),
   putConversation: vi.fn(),
   putConversationPreservingHydratedMessages: vi.fn(),
+  putConversationPreservingHydratedMessagesReportingDroppedKeys: vi.fn(),
   deleteConversation: vi.fn(),
+  getConversationById: vi.fn(),
   putFolder: vi.fn(),
   deleteFolder: vi.fn(),
   setSessionValue: vi.fn(),
@@ -47,6 +51,7 @@ vi.mock('@sentry/nextjs', () => ({
 vi.mock('../../../infra/storage/idb', () => ({
   getAllProviders: h.getAllProviders,
   getAllConversations: h.getAllConversations,
+  scanConversationsInChunks: h.scanConversationsInChunks,
   getAllFolders: h.getAllFolders,
   getAllNotes: h.getAllNotes,
   getAllNoteFolders: h.getAllNoteFolders,
@@ -56,11 +61,14 @@ vi.mock('../../../infra/storage/idb', () => ({
   deleteProvider: h.deleteProvider,
   putConversation: h.putConversation,
   putConversationPreservingHydratedMessages: h.putConversationPreservingHydratedMessages,
+  putConversationPreservingHydratedMessagesReportingDroppedKeys: h.putConversationPreservingHydratedMessagesReportingDroppedKeys,
   deleteConversation: h.deleteConversation,
+  getConversationById: h.getConversationById,
   putFolder: h.putFolder,
   deleteFolder: h.deleteFolder,
   setSessionValue: h.setSessionValue,
 }));
+// Image cleanup goes through the real purgeUnreferencedImages: the reference set is read from the mocked getAllConversations, and deletes land on deleteImage here.
 vi.mock('../../../infra/storage/image-store', () => ({ deleteImage: h.deleteImage }));
 vi.mock('../../../infra/storage/preferences', () => ({
   getPreference: h.getPreference,
@@ -68,7 +76,7 @@ vi.mock('../../../infra/storage/preferences', () => ({
   removePreference: h.removePreference,
 }));
 vi.mock('../../sync-port', () => ({ getSyncAdapter: h.getSyncAdapter }));
-vi.mock('../../metadata/metadata-client', () => ({ initMetadata: h.initMetadata }));
+vi.mock('../../metadata/metadata-client', async (importOriginal) => (await import('../../../__tests__/mocks/metadata-client')).metadataClientMock(importOriginal, { initMetadata: h.initMetadata }));
 vi.mock('../../providers/catalog-model', () => ({
   enrichStoredModel: h.enrichStoredModel,
   deduplicateModels: h.deduplicateModels,
@@ -78,8 +86,10 @@ vi.mock('../stream-partial-backup', () => ({
   readStreamPartialBackup: h.readStreamPartialBackup,
   clearStreamPartialBackup: h.clearStreamPartialBackup,
 }));
-vi.mock('../../../infra/storage/partition', () => ({
+vi.mock('../../../infra/storage/partition', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../infra/storage/partition')>()),
   getActiveUIDSync: () => h.activeUID,
+  getActiveUID: async () => h.activeUID,
 }));
 
 import { createAppStore } from '../app-store';
@@ -108,11 +118,27 @@ beforeEach(() => {
   h.getPreference.mockImplementation((_key: string, fallback: unknown) => fallback);
   h.getAllProviders.mockResolvedValue([]);
   h.getAllConversations.mockResolvedValue([]);
+  // Chunked reference-set reads default to the getAllConversations mock, so existing cases keep injecting the reference set through it.
+  h.scanConversationsInChunks.mockImplementation(
+    async (uid: string, visit: (conversations: Conversation[]) => void) => {
+      const conversations = await h.getAllConversations(uid);
+      if (conversations.length > 0) visit(conversations);
+    },
+  );
   h.getAllFolders.mockResolvedValue([]);
   h.getAllNotes.mockResolvedValue([]);
   h.getAllNoteFolders.mockResolvedValue([]);
   h.getSessionValue.mockResolvedValue(null);
   h.putConversationPreservingHydratedMessages.mockResolvedValue(true);
+  // The subscriber writes through conversation-rewrite-image-purge; by default it delegates to the mock above, so existing assertions keep watching that one.
+  h.putConversationPreservingHydratedMessagesReportingDroppedKeys.mockImplementation(
+    async (conversation: Conversation, expectedUID?: string) => ({
+      written: await h.putConversationPreservingHydratedMessages(conversation, expectedUID),
+      droppedImageKeys: [],
+    }),
+  );
+  h.getConversationById.mockResolvedValue(undefined);
+  h.deleteConversation.mockResolvedValue(undefined);
   h.readStreamPartialBackup.mockReturnValue({});
   h.initMetadata.mockImplementation(async () => {});
   h.enrichStoredModel.mockImplementation((m: unknown) => ({ ...(m as object) }));
@@ -325,6 +351,102 @@ describe('subscribeConversations debounce cleanup on unsubscribe', () => {
       category: 'fire-and-forget',
       message: 'storage.conversation.persist',
     }));
+    unsub();
+  });
+});
+
+function imageMessage(id: string, attachmentID: string, localImageID: string): Conversation['messages'][number] {
+  return {
+    id, role: 'user', text: id, createdAt: new Date().toISOString(),
+    attachments: [{ id: attachmentID, kind: 'image', localImageID }],
+  } as unknown as Conversation['messages'][number];
+}
+
+describe('delete paths clean up images through purgeUnreferencedImages', () => {
+  it('conversationDelete_purgesFromIdbMessages', async () => {
+    const order: string[] = [];
+    // The store only holds the summary form (empty messages); the full messages live only in IDB
+    h.getConversationById.mockResolvedValue(makeConversation({
+      id: 'c-del',
+      messages: [imageMessage('m1', 'att-1', 'img-1'), imageMessage('m2', 'att-shared', 'img-shared')],
+    }));
+    h.deleteConversation.mockImplementation(async () => { order.push('delete'); });
+    h.getAllConversations.mockImplementation(async () => {
+      order.push('references');
+      return [makeConversation({ id: 'c-copy', messages: [imageMessage('m9', 'att-shared', 'img-shared')] })];
+    });
+    const store = createAppStore();
+    store.setState({
+      hydrationPhase: 'ready',
+      conversations: [makeConversation({ id: 'c-del', messages: [], remoteMessageCount: 2 })],
+    });
+    const unsub = subscribeConversations(store);
+
+    store.setState({ conversations: [] });
+
+    await vi.waitFor(() => expect(h.deleteImage).toHaveBeenCalledTimes(2));
+    expect(h.getConversationById).toHaveBeenCalledWith('c-del', 'user-A');
+    expect(h.deleteConversation).toHaveBeenCalledWith('c-del');
+    expect(order).toEqual(['delete', 'references']);
+    expect(h.deleteImage.mock.calls.map((call) => call[0]).sort()).toEqual(['att-1', 'img-1']);
+    expect(h.deleteImage.mock.calls.every((call) => call[1] === 'user-A')).toBe(true);
+    unsub();
+  });
+
+  it('messageRemoval_purgesUnreferencedImages', async () => {
+    // subscriber -> conversation-rewrite-image-purge -> real IDB write -> real purge (the reference set is read from the real IDB after the commit)
+    const realIdb = await vi.importActual<typeof import('../../../infra/storage/idb')>('../../../infra/storage/idb');
+    h.putConversationPreservingHydratedMessagesReportingDroppedKeys.mockImplementation(
+      realIdb.putConversationPreservingHydratedMessagesReportingDroppedKeys,
+    );
+    h.getAllConversations.mockImplementation(() => realIdb.getAllConversations('user-A'));
+    const kept = imageMessage('m1', 'att-keep', 'img-keep');
+    const before = makeConversation({
+      id: 'c-rewrite',
+      messages: [kept, imageMessage('m2', 'att-drop', 'img-drop')],
+    });
+    const store = createAppStore();
+    store.setState({ hydrationPhase: 'ready' });
+    const unsub = subscribeConversations(store);
+
+    store.setState({ conversations: [before] });
+    await vi.waitFor(async () => {
+      expect((await realIdb.getConversationById('c-rewrite', 'user-A'))?.messages).toHaveLength(2);
+    }, { timeout: 3000 });
+    expect(h.deleteImage).not.toHaveBeenCalled();
+
+    store.setState({ conversations: [{ ...before, messages: [kept] }] });
+
+    await vi.waitFor(() => expect(h.deleteImage).toHaveBeenCalledTimes(2), { timeout: 3000 });
+    expect(h.deleteImage.mock.calls.map((call) => call[0]).sort()).toEqual(['att-drop', 'img-drop']);
+    expect(h.deleteImage.mock.calls.every((call) => call[1] === 'user-A')).toBe(true);
+    const stored = await realIdb.getConversationById('c-rewrite', 'user-A');
+    expect(stored?.messages.map((message) => message.id)).toEqual(['m1']);
+    unsub();
+  });
+
+  it('batchDeleteConversations_singleReferenceRead', async () => {
+    const ids = ['c-1', 'c-2', 'c-3', 'c-4', 'c-5'];
+    h.getConversationById.mockImplementation(async (id: string) => makeConversation({
+      id,
+      messages: [imageMessage(`${id}-m1`, `att-${id}`, `img-${id}`)],
+    }));
+    const store = createAppStore();
+    store.setState({
+      hydrationPhase: 'ready',
+      conversations: ids.map((id) => makeConversation({ id, messages: [], remoteMessageCount: 1 })),
+    });
+    const unsub = subscribeConversations(store);
+
+    store.setState({ conversations: [] });
+
+    await vi.waitFor(() => expect(h.deleteImage).toHaveBeenCalledTimes(10));
+    expect(h.deleteConversation).toHaveBeenCalledTimes(5);
+    expect(h.scanConversationsInChunks.mock.calls.length).toBeLessThanOrEqual(2);
+    expect(h.getAllConversations.mock.calls.length).toBeLessThanOrEqual(2);
+    expect(h.deleteImage.mock.calls.map((call) => call[0]).sort()).toEqual(
+      ids.flatMap((id) => [`att-${id}`, `img-${id}`]).sort(),
+    );
     unsub();
   });
 });

@@ -27,6 +27,8 @@ import {
 } from '../../lib/core/chat/chat-template-thinking';
 import {
   modelOptionLocalEngine,
+  modelOptionConnection,
+  modelOptionReasoningFacts,
   resolveModelOptionCapabilityShape,
   type ModelOptionCapabilityInput,
   type ModelOptionLinkAction,
@@ -36,8 +38,7 @@ import {
   reasoningTierAfterTap,
   type ModelOptionsFileFacts,
 } from '../../lib/core/chat/model-options-panel-model';
-import { resolveAttachmentCapabilities, resolveProviderAttachmentSupport } from '../../lib/core/chat/attachment-policy';
-import { relayImageSupportUnknown } from '../../lib/core/chat/relay-rejection-loop';
+import { resolveProviderAttachmentSupport, visionCardFacts } from '../../lib/core/chat/attachment-policy';
 import { resolveAttachmentLine } from '../../lib/core/attachments/attachment-transport-resolver';
 import { modelPanelOutboundHasVideo } from '../../lib/core/chat/outbound-history';
 import { tryGetVanillaStore } from '../../providers/StoreProvider';
@@ -333,7 +334,8 @@ export function ModelOptionsPopover({
   ), [model, provider, transportIdentity]);
 
   const webStatus = resolveModelControlStatus(webControl);
-  const reasoningStatus = resolveModelControlStatus(reasoningControl);
+  const reasoningRowFacts = modelOptionReasoningFacts(provider, model, reasoningControl);
+  const reasoningStatus = reasoningRowFacts.status;
 
   /**
    * Available web-search levels. The decision lives in the registry surface
@@ -341,7 +343,6 @@ export function ModelOptionsPopover({
    * and web search and reasoning resolve their levels asymmetrically on purpose.
    */
   const webIntents = resolveWebAvailableIntents(webControl);
-  const reasoningIntents = reasoningControl.availableIntents;
 
   const webFacts = ownerFacts('web');
   const reasoningFacts = ownerFacts('reasoning');
@@ -498,7 +499,7 @@ export function ModelOptionsPopover({
     ? capabilityRuntimeIdentity(provider, model)?.finalTransport
       ?? (provider.kind === 'relay' ? decidedTransport(provider, model) : undefined)
     : undefined;
-  const connection = provider?.kind === 'relay' ? 'custom' : 'official';
+  const connection = modelOptionConnection(provider);
   const sharedCapabilityInput = {
     connection,
     protocolUndecided: identityGap === 'relayTransportUndecided' && editability === 'runtimeIdentityUnavailable',
@@ -521,22 +522,17 @@ export function ModelOptionsPopover({
   const reasoningInput: ModelOptionCapabilityInput = {
     ...sharedCapabilityInput,
     capability: 'reasoning',
-    status: reasoningStatus,
+    ...reasoningRowFacts,
     ...(localEngine ? { localEngine } : {}),
-    availableIntents: reasoningIntents,
     ...(reasoningIntent ? { selectedIntent: reasoningIntent } : {}),
     isWritable: canPersist && !reasoningFacts.isActive,
   };
   /**
-   * Vision card: visibility uses the same function as the composer's photo-library entry (vision entry criteria x whether the route accepts images); "unknown" and "image rejected on send" share one predicate.
+   * Vision card: reads the same vision projection as the composer's photo-library entry (editable decides visibility, visible decides "unknown").
    */
   const visionFacts = useMemo(() => {
     if (!provider || !model) return { entryVisible: false, isRelayForm: false, noPositiveEvidence: false };
-    return {
-      entryVisible: resolveAttachmentCapabilities(provider, model, resolveProviderAttachmentSupport(provider, model)).supportsImage,
-      isRelayForm: providerFormOf(provider) === 'relay',
-      noPositiveEvidence: relayImageSupportUnknown(provider, model),
-    };
+    return visionCardFacts(provider, model, resolveProviderAttachmentSupport(provider, model));
   }, [model, provider]);
   /**
    * File card: resolves the outbound route from the same inputs as the pre-send check, taking the panel's current web switch and treating the tool loop as false.

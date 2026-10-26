@@ -855,3 +855,23 @@ describe('resolveProviderCatalog — metadata enrichment', () => {
     expect(model.completionPrice).toBeUndefined();
   });
 });
+
+describe('resolveProviderCatalog · canonicalModelId omitted', () => {
+  // The server catalog omits a canonicalModelId that equals the tree id (metadata view contract): the omitted value must be filled in with the tree id,
+  // otherwise the canonicalKey date-suffix fallback would merge x and x-2024-08-06 into one entry.
+  it('fills in the tree id when a catalog model lacks canonicalModelId, and does not merge the dated sibling model', () => {
+    const metadata = makeMetadata({
+      openAI: {
+        models: {
+          'gpt-x': { displayName: 'GPT X', capabilities: ['text'] },
+          'gpt-x-2024-08-06': { displayName: 'GPT X 0806', capabilities: ['text'], canonicalModelId: 'gpt-x-2024-08-06' },
+        },
+      } as unknown as CatalogProviderMetadata,
+    });
+    const result = resolveProviderCatalog(makeProvider({ kind: 'openAI' }), metadata);
+    const byId = new Map(result.catalog.map((model) => [model.id, model]));
+    expect(byId.get('gpt-x')?.canonicalModelId).toBe('gpt-x');
+    expect(byId.get('gpt-x-2024-08-06')?.canonicalModelId).toBe('gpt-x-2024-08-06');
+    expect(result.catalog.map((model) => model.id).sort()).toEqual(['gpt-x', 'gpt-x-2024-08-06']);
+  });
+});

@@ -106,6 +106,8 @@ export function OfficialProviderDetail({ provider }: OfficialProviderDetailProps
   const {
     startChatWithModel: handleChatWithModel,
     startChatWithDefaultModel: handleStartChat,
+    startChatModelID,
+    canStartChatWithModel,
   } = useProviderChatLauncher(provider);
 
   const expandSettingsRow = useCallback((row: ProviderSettingsExpandedRow) => {
@@ -260,6 +262,7 @@ export function OfficialProviderDetail({ provider }: OfficialProviderDetailProps
       <ProviderDetailBrandHero
         provider={provider}
         onStartChat={handleStartChat}
+        startChatModelID={startChatModelID}
         onVerifyConnection={handleVerifyConnection}
         onEditApiKey={handleEditApiKey}
         onEditName={() => setShowRenameDialog(true)}
@@ -329,6 +332,7 @@ export function OfficialProviderDetail({ provider }: OfficialProviderDetailProps
                   />
                   <ModelCommercialMetaInline
                     model={model}
+                    provider={provider}
                     containerClassName={styles.modelSpecs}
                     itemClassName={styles.modelSpec}
                   />
@@ -350,6 +354,7 @@ export function OfficialProviderDetail({ provider }: OfficialProviderDetailProps
                     type="button"
                     className={styles.modelChatBtn}
                     onClick={() => handleChatWithModel(model)}
+                    disabled={!canStartChatWithModel}
                     aria-label={tr('chatWithModel', { model: model.name })}
                     title={tr('chatWithModel', { model: model.name })}
                   >

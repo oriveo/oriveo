@@ -18,7 +18,7 @@ export interface OverflowResult {
   via: OverflowVia | null;
 }
 
-/** Pattern group name -> extra regex sources; callers pass none until a remote key exists (D-99). */
+/** Pattern group name -> extra regex sources; callers pass none until a remote key exists. */
 export type OverflowExtraPatterns = Record<string, string[]>;
 
 const DEFAULT_PATTERNS: Readonly<Record<string, string>> = Object.freeze({

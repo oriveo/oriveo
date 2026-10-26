@@ -167,7 +167,7 @@ describe('full localization coverage - Memory copy is translated in every locale
     'errorNoProviderTitle', 'errorNoProviderMessage',
     'errorNotEnoughTitle', 'errorNotEnoughMessage',
     'errorHydrateTitle', 'errorHydrateMessage',
-    'errorGenericTitle', 'errorAggregated', 'errorAggregatedWithDetail',
+    'errorGenericTitle',
     // Web redesign additions, aligned with the product design language.
     'backToSettings',
   ];

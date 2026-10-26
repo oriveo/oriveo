@@ -62,7 +62,12 @@ describe('context shots shared sample manifest', () => {
     uninstall = fence.installRelayShotsFence();
     const data = await import('./context-shots-data');
     restoreMetadata = await data.loadContextShotsMetadata(loadManifest());
-  });
+    // The page and the client components it loads on demand take 6-8s to cold-transpile under full-suite concurrency: load them once here (timed separately) so it does not eat the 5s case budget.
+    await import('./[page]/page');
+    await import('./ContextShotsClient');
+    await import('./context-shots-manifest');
+    await import('./context-shots-pages');
+  }, 60_000);
 
   afterAll(() => {
     restoreMetadata?.();
@@ -333,7 +338,7 @@ describe('context shots shared sample manifest', () => {
     }
     mocks.manifestText = null;
     errors.mockRestore();
-  }, 30_000);
+  });
 });
 
 describe('server entry does not pull in client hooks', () => {

@@ -32,6 +32,21 @@ vi.mock('../attachment-policy', async (importOriginal) => {
     filterCurrentTurnAttachments: <T,>(messages: T[]) => messages,
   };
 });
+// Outbound history construction reads the same image-recognition projection (only native_part produces image parts): let it through together with the images, and use the real projection when measuring the real gate.
+vi.mock('../../capability/truth/input-truth-adapter', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../capability/truth/input-truth-adapter')>();
+  const { projectInputCapability } = await import('@oriveo/core/providers/capability-evidence-facade');
+  const native = (key: 'vision_input' | 'file_input' | 'video_input') => projectInputCapability({
+    key, verdict: { state: 'auto_available' }, endImplements: true, override: null, negativeCacheHit: false, connection: 'official',
+  });
+  return {
+    ...actual,
+    resolveInputCapabilityProjections: (...args: Parameters<typeof actual.resolveInputCapabilityProjections>) =>
+      (mocks.realImageGate
+        ? actual.resolveInputCapabilityProjections(...args)
+        : { vision_input: native('vision_input'), file_input: native('file_input'), video_input: native('video_input') }),
+  };
+});
 
 import { sendRelayStream } from '@oriveo/core/providers/relay-orchestrator';
 import { createAppStore } from '../../store/app-store';
@@ -39,6 +54,11 @@ import { __resetMetadataClientForTest } from '../../metadata/metadata-client';
 import { editAndResend, retryMessage, sendMessage } from '../operations';
 import { batchAppendStreaming } from '../stream-batcher';
 import { AttachmentInjector } from '../../attachments/attachment-injector';
+import {
+  beginCapabilityEvidenceIdentityIfAbsent,
+  resetCapabilityEvidenceIdentitiesForTesting,
+} from '../../providers/capability-evidence-identity';
+import { getActiveUIDSync } from '../../../infra/storage/partition';
 
 const provider = {
   id: 'relay-ctx', kind: 'relay', status: { kind: 'connected' }, models: [], catalogModels: [], apiKey: 'sk-relay', apiKeyPreview: '••',
@@ -146,6 +166,7 @@ beforeEach(() => {
 
 afterEach(() => {
   __resetMetadataClientForTest();
+  resetCapabilityEvidenceIdentitiesForTesting();
   localStorage.clear();
 });
 
@@ -202,13 +223,35 @@ describe('context pipeline send path', () => {
     expect(body.messages[body.messages.length - 1].role).toBe('user');
   });
 
-  it('vision_gate_image_only_keeps_placeholder', async () => {
+  it('vision_gate_unknown_sends_real_image', async () => {
     const store = newStore();
     const image: Attachment = { id: 'img-1', kind: 'image', fileName: 'cat.png', mimeType: 'image/png', base64Data: 'iVBORw0KGgo=' } as Attachment;
-    // Production vision gate: the fixture has no relay capability evidence identity, so the image is stripped; the relay Chat route declares no placeholder, so the generic placeholder is used.
+    // Production vision gate: for a Relay with a registered local connection identity, unknown image recognition (no negative evidence, no negative cache) sends the real image.
+    beginCapabilityEvidenceIdentityIfAbsent(getActiveUIDSync(), provider.id);
     mocks.realImageGate = true;
     try {
       await send(store, '', { attachments: [image] });
+    } finally {
+      mocks.realImageGate = false;
+    }
+    const call = mocks.sendStream.mock.calls[mocks.sendStream.mock.calls.length - 1];
+    const messages = call[3] as WireMessage[];
+    const last = messages[messages.length - 1];
+    expect(last.role).toBe('user');
+    expect(Array.isArray(last.content) && last.content.some((part) => part.type === 'image_url')).toBe(true);
+    expect(textOf(last)).not.toContain('[Image omitted');
+    expect(JSON.stringify(lastBody())).toContain('iVBORw0KGgo=');
+  });
+
+  it('vision_gate_image_only_keeps_placeholder', async () => {
+    const store = newStore();
+    const image: Attachment = { id: 'img-1', kind: 'image', fileName: 'cat.png', mimeType: 'image/png', base64Data: 'iVBORw0KGgo=' } as Attachment;
+    // Production vision gate: the fixture has no relay capability evidence identity (fail-closed), so the image is stripped; the relay Chat route declares no placeholder, so the generic placeholder is used.
+    // With an identity, the user overriding image recognition to off is stripped the same way.
+    const noVision = { ...model, relayCapabilityOverrides: { image: { value: false, source: 'user' } } } as AIModel;
+    mocks.realImageGate = true;
+    try {
+      await send(store, '', { attachments: [image], model: noVision });
     } finally {
       mocks.realImageGate = false;
     }

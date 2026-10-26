@@ -32,7 +32,7 @@ interface ContextCapPickerProps {
 }
 
 /**
- * P9·U7 "limit for this chat" picker, shown inside the context popover.
+ * "limit for this chat" picker, shown inside the context popover.
  * Options write immediately (follow = clear the conversation cap); the slider is bound to tick indices
  * and writes on release; the number field writes on blur / Enter.
  */

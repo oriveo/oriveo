@@ -408,9 +408,10 @@ function capabilityIntent(capability: CapabilityKey, params: RequestParams, norm
 }
 
 function parseRecipe(value: unknown): RuntimeRecipe | null {
-  if (!isRecord(value)
-    || typeof value.id !== 'string'
-    || typeof value.providerKind !== 'string'
+  if (!isRecord(value)) return null;
+  const recipeProviderKind: unknown = value.providerKind;
+  if (typeof value.id !== 'string'
+    || typeof recipeProviderKind !== 'string'
     || typeof value.capability !== 'string'
     || typeof value.executionKind !== 'string'
     || !Array.isArray(value.requestOps)) return null;

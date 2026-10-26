@@ -1,4 +1,7 @@
 /** Deterministic rejection, explicit resend and the local dormant cache. */
+import { peekModelFactsRevision } from '../metadata/metadata-client';
+import { safeLocalStorage } from '../../infra/storage/web-storage';
+
 export type RecoverySource = 'provider_recipe' | 'custom';
 export type RecoveryOwner = 'web' | 'reasoning' | 'generation';
 export type RecoveryAction = 'surface_error' | 'user_confirmed_resend_without_located_setting';
@@ -97,7 +100,13 @@ const TOOL_CALL_MAX_ENTRIES = 500;
 type ToolCallCacheEntry = ToolCallRecoveryIdentity & {
   supported: false;
   observedAt: number;
+  /** The modelFacts revision at record time (null = none then); a mismatch with the current one invalidates the entry. */
+  factsRevision: string | null;
 };
+
+function currentFactsRevision(): string | null {
+  return peekModelFactsRevision() ?? null;
+}
 
 // Kept word for word in sync with the runtime constants in the shared fixture, with 422 additionally
 // excluded: it usually means request entity validation failed, which says nothing about whether the
@@ -411,7 +420,9 @@ export function toolCallSupportIsRememberedFalse(
   identity: ToolCallRecoveryIdentity,
 ): boolean {
   if (!validToolCallIdentity(identity)) return false;
-  return readToolCallCache().has(toolCallCacheKey(identity));
+  const entry = readToolCallCache().get(toolCallCacheKey(identity));
+  // A modelFacts revision at record time that differs from the current one invalidates the entry; with no entry the revision is not read.
+  return entry !== undefined && entry.factsRevision === currentFactsRevision();
 }
 
 /** Called only after the explicit no-tools resend has completed successfully. */
@@ -421,7 +432,9 @@ export function recordToolCallSupportFalse(
 ): void {
   if (!validToolCallIdentity(identity) || typeof localStorage === 'undefined') return;
   const current = readToolCallCache();
-  const entry: ToolCallCacheEntry = { ...identity, supported: false, observedAt: now };
+  const entry: ToolCallCacheEntry = {
+    ...identity, supported: false, observedAt: now, factsRevision: currentFactsRevision(),
+  };
   current.set(toolCallCacheKey(entry), entry);
   const newest = [...current.values()]
     .sort((left, right) => right.observedAt - left.observedAt)
@@ -440,6 +453,20 @@ export function clearToolCallMemoryForConnection(
     entry.accountId === accountId && entry.connectionId === connectionId
   ));
   try { localStorage.setItem(TOOL_CALL_CACHE_KEY, JSON.stringify(retained)); } catch { /* quota is non-fatal */ }
+}
+
+/** The user edited the hand-entered tool_call declaration of some models: invalidate only the rejection memory of those models. */
+export function clearToolCallMemoryForModels(
+  accountId: string,
+  connectionId: string,
+  canonicalModelIds: readonly string[],
+): void {
+  if (canonicalModelIds.length === 0 || typeof localStorage === 'undefined') return;
+  const targets = new Set(canonicalModelIds);
+  const retained = [...readToolCallCache().values()].filter((entry) => !(
+    entry.accountId === accountId && entry.connectionId === connectionId && targets.has(entry.canonicalModelId)
+  ));
+  safeLocalStorage.setItem(TOOL_CALL_CACHE_KEY, JSON.stringify(retained));
 }
 
 function readToolCallCache(): Map<string, ToolCallCacheEntry> {
@@ -470,6 +497,7 @@ function validToolCallIdentity(value: ToolCallRecoveryIdentity): boolean {
 
 function isToolCallCacheEntry(value: unknown): value is ToolCallCacheEntry {
   return isRecord(value) && value.supported === false && typeof value.observedAt === 'number'
+    && (typeof value.factsRevision === 'string' || value.factsRevision === null)
     && typeof value.authMode === 'string'
     && typeof value.accountId === 'string' && typeof value.connectionId === 'string'
     && typeof value.canonicalModelId === 'string' && typeof value.finalTransport === 'string'

@@ -1,4 +1,5 @@
 import { type AttachmentLine, nativeFileModeOf } from '@oriveo/core/providers/attachment-transport';
+import type { InputCapabilityDisabledReason } from '@oriveo/core/providers/capability-evidence-facade';
 import type { ChatTemplateThinkingState } from './chat-template-thinking';
 import { generationParameterSummary, type GenerationParameterRow } from './generation-parameter-rows';
 import { modelControlFooterEntries, type ModelControlFooterEntry } from './model-control-capability-layout';
@@ -68,8 +69,14 @@ export type ModelOptionsVisionFacts = {
   /** The input box photo library entry is visible (`resolveAttachmentCapabilities(...).supportsImage`). */
   entryVisible: boolean;
   isRelayForm: boolean;
-  /** The model has no positive image recognition evidence at any level (`relayImageSupportUnknown`). */
+  /** The image recognition projection is not visible (unknown, same criterion for official and Relay); false when there is no projection (subscription). */
   noPositiveEvidence: boolean;
+  /** The image recognition projection as is; absent when there is no projection (subscription / missing provider). */
+  projection?: {
+    visible: boolean;
+    editable: boolean;
+    disabledReason: InputCapabilityDisabledReason | null;
+  };
 };
 
 /** Facts of the file card: the line comes from production `resolveAttachmentLine` (the Relay `file` negative cache is already folded into `nativeFilesSuppressed`). */
@@ -92,7 +99,13 @@ export type ModelOptionsTile =
     corner: 'switch' | 'levels' | 'chevron' | 'none';
     action?: ModelOptionLinkAction;
   }
-  | { kind: 'vision'; state: ModelOptionsVisionState; corner: 'check' | 'question' | 'x' }
+  | {
+    kind: 'vision';
+    state: ModelOptionsVisionState;
+    corner: 'check' | 'question' | 'x';
+    /** Projection disable reason of the "unsupported" state (a disabled control must state its reason); absent for unknown / available / no reason. */
+    disabledReason?: InputCapabilityDisabledReason;
+  }
   | { kind: 'file'; state: ModelOptionsFileState; corner: 'check' };
 
 /** "Actually sent this turn" lists only the choices that rewrite the request right now, with pinned web search first. */
@@ -177,10 +190,16 @@ export function modelOptionsTiles(input: {
   const tail = { ...(temperature ? { temperature } : {}), parameters };
   if (input.card.kind === 'protocolUndecided') return { tiles: [], summary: [], ...tail };
   const vision = visionState(input.vision);
+  const visionDisabledReason = vision === 'hidden' ? input.vision.projection?.disabledReason : null;
   return {
     tiles: [
       ...input.card.rows.map(capabilityTile),
-      { kind: 'vision', state: vision, corner: vision === 'hidden' ? 'x' : vision === 'unknown' ? 'question' : 'check' },
+      {
+        kind: 'vision',
+        state: vision,
+        corner: vision === 'hidden' ? 'x' : vision === 'unknown' ? 'question' : 'check',
+        ...(visionDisabledReason ? { disabledReason: visionDisabledReason } : {}),
+      },
       // Files are always deliverable: in all three states the top right is a check mark.
       { kind: 'file', state: fileState(input.file), corner: 'check' },
     ],
@@ -209,7 +228,8 @@ function capabilityTile(row: ModelOptionsPanelRow): ModelOptionsTile {
 /** Three states of image recognition; model library rows and the model options image card share this one mapping. */
 export function visionState(facts: ModelOptionsVisionFacts): ModelOptionsVisionState {
   if (!facts.entryVisible) return 'hidden';
-  return facts.isRelayForm && facts.noPositiveEvidence ? 'unknown' : 'available';
+  // unknown is not supported: official and Relay share one criterion, a projection that is not visible means "unconfirmed".
+  return facts.noPositiveEvidence ? 'unknown' : 'available';
 }
 
 function fileState(facts: ModelOptionsFileFacts): ModelOptionsFileState {

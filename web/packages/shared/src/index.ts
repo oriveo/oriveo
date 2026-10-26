@@ -13,6 +13,8 @@ export type {
   SendShortcut,
   AppTab,
   AIModel,
+  InputCapabilityOverrideEntry,
+  InputCapabilityOverrides,
   Provider,
   ProviderAuthMode,
   ProviderSubscriptionCredential,

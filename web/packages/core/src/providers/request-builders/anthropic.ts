@@ -6,23 +6,24 @@ import { guardAnthropicThinking } from './anthropic-thinking';
 import { credentialHeader, mergeDroppedGenerationParameters, writeGenerationParameters } from './generation-parameters';
 import { moveHostMemoryToolsLast, toAnthropicTool } from './tool-call-wire-adapter';
 import { markAnthropicCacheBreakpoint } from '../relay-adapter';
+import { resolveAnthropicMaxTokens, usesAnthropicExplicitPromptCache } from '../protocol-implementations';
 
 export function buildAnthropicRequest(
   params: RequestParams,
   reasoningParams: Record<string, unknown> | null,
   webSearchProfile: { mergeParams?: Record<string, unknown> } | null,
   maxOutputTokens?: number,
+  /** Model catalog promptCache.policyRef; only anthropic.explicit gets a cache_control breakpoint. */
+  promptCachePolicyRef?: string,
 ): ProviderRequest {
   const payload = buildAnthropicRequestPayload(params.messages);
   // Single block-level breakpoint: [D] is split off as its own last block, the breakpoint goes on the last non-[D] block before it, and there is no top-level cache_control.
+  // Only added when the catalog verdict promptCache.policyRef is anthropic.explicit; a missing policyRef means no breakpoint.
   const messages = payload.messages as Array<Record<string, unknown>>;
-  markAnthropicCacheBreakpoint(messages, params.options?.dynamicText);
-  // fallback only: authoritative max output comes from metadata S1; 8192 is
-  // kept only for stale/missing snapshots so non-thinking calls still run.
-  const defaultMaxTokens =
-    typeof maxOutputTokens === "number" && Number.isFinite(maxOutputTokens) && maxOutputTokens > 0
-      ? maxOutputTokens
-      : 8192;
+  const explicitPromptCache = usesAnthropicExplicitPromptCache(promptCachePolicyRef);
+  if (explicitPromptCache) markAnthropicCacheBreakpoint(messages, params.options?.dynamicText);
+  // Explicit value > the model maxOutputTokens (dispatch synthesizes one input); only if neither exists is the protocol default used.
+  const defaultMaxTokens = resolveAnthropicMaxTokens(maxOutputTokens);
   const body: Record<string, unknown> = {
     model: params.modelID,
     max_tokens: defaultMaxTokens,
@@ -64,5 +65,6 @@ export function buildAnthropicRequest(
     body,
     droppedGenerationParameters: mergeDroppedGenerationParameters(writeDropped, thinkingDropped),
     generationWrite: { written, builderDefaultMaxTokens },
+    ...(promptCachePolicyRef ? { promptCachePolicyRef } : {}),
   };
 }

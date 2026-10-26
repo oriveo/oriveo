@@ -21,6 +21,7 @@ import { getAllMemoryItemRows } from '../infra/storage/memory-item-store';
 import { MemoryItems } from '@oriveo/core/context/memory-items';
 import { sha256hex, encrypt, uint8ToBase64 } from './backup-crypto';
 import { canonicalJSON } from './backup-format';
+import { normalizeConversationInstructions } from '@oriveo/core/context/conversation-instructions';
 import { getPreference } from '../infra/storage/preferences';
 import { loadCachedUserSkills } from '../core/skills/cache';
 import { trackEvent } from '../core/telemetry';
@@ -94,17 +95,39 @@ export async function exportBackupToAutomaticStorage(
   }
 }
 
-/** Message fields kept only on this device are left out of the backup: memoryItemIds (local memory item ids). */
-function withoutLocalMessageFields(conv: Conversation): Conversation {
-  if (!conv.messages.some((msg) => msg.memoryItemIds !== undefined)) return conv;
+/**
+ * Message fields kept only on this device and left out of the backup: memoryItemIds (local memory item ids).
+ * Import drops them as well, so a backup exported elsewhere that carries them is ignored.
+ */
+const BACKUP_LOCAL_ONLY_MESSAGE_FIELDS: readonly string[] = ['memoryItemIds'];
+
+/** Remove the device-local fields from a message; returns the same object when it has none. */
+export function stripBackupLocalOnlyMessageFields<T extends object>(msg: T): T {
+  const record = msg as Record<string, unknown>;
+  if (!BACKUP_LOCAL_ONLY_MESSAGE_FIELDS.some((key) => record[key] !== undefined)) return msg;
+  const stripped: Record<string, unknown> = { ...record };
+  for (const key of BACKUP_LOCAL_ONLY_MESSAGE_FIELDS) delete stripped[key];
+  return stripped as T;
+}
+
+/**
+ * Turn a conversation into its backup shape, doing three things:
+ * 1. Device-local message fields stay out of the backup (see BACKUP_LOCAL_ONLY_MESSAGE_FIELDS).
+ * 2. instructions is always written (an unset value is written as "", through the same normalize):
+ *    on merge import a missing key means "leave the other side's local value alone", so omitting
+ *    it would make it impossible to carry "this side has no instructions" across.
+ * 3. The "thread complete" marker is local to this device and stays out; the conversation totals
+ *    estimatedCost / nonUsdCostTotals are carried, and a conversation with no non-USD part
+ *    explicitly writes {} so the importing side clears it; a missing key only means an old backup.
+ */
+function toBackupConversation(conv: Conversation): Conversation {
+  const instructions = normalizeConversationInstructions(conv.instructions ?? '');
+  const { localThreadComplete: _localOnly, ...rest } = conv;
   return {
-    ...conv,
-    messages: conv.messages.map((msg) => {
-      if (msg.memoryItemIds === undefined) return msg;
-      const stripped = { ...msg };
-      delete stripped.memoryItemIds;
-      return stripped;
-    }),
+    ...rest,
+    nonUsdCostTotals: conv.nonUsdCostTotals ?? {},
+    instructions,
+    messages: conv.messages.map(stripBackupLocalOnlyMessageFields),
   };
 }
 
@@ -171,7 +194,7 @@ async function buildBackupZip(options: ExportOptions): Promise<JSZip> {
   // Build the data object.
   const data: BackupData = {
     providers: sanitizedProviders,
-    conversations: conversations.map(withoutLocalMessageFields),
+    conversations: conversations.map(toBackupConversation),
     ...(sanitizedSkills.length > 0 ? { skills: sanitizedSkills } : {}),
     folders,
     notes,

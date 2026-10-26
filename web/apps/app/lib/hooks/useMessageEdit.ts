@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 
-/** Reopen this message's edit box with the given text (edit-and-resend cancelled at the pre-send confirm, P9·U8). */
+/** Reopen this message's edit box with the given text (edit-and-resend cancelled at the pre-send confirm). */
 export interface MessageEditReopen {
   text: string;
   nonce: number;

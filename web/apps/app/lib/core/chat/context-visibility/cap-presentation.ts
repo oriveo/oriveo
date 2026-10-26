@@ -17,6 +17,7 @@ import { COMPACT_NUMBER_LOCALES, resolveCompactLocale } from '@oriveo/core/conte
 import { formatCompactCount } from '../context-compaction/context-compaction-presentation';
 import { resolveContextDefaultCap } from '../../context-cap-preferences';
 import { resolveCatalogModel } from '../../metadata/metadata-client';
+import { connectionRegionId, selectRegionPricing } from '../../cost/region-pricing';
 import { windowOf } from '../context-pipeline/chat-context';
 
 /** Starting point of the custom slider when nothing else is known. */
@@ -76,7 +77,8 @@ export interface CapPricingSide {
 export interface CapPanelInput extends CapWindowInput {
   used: number;
   /** Per-million prices below ({base}) and above ({long}) the price line. */
-  pricing?: { base?: CapPricingSide | null; long?: CapPricingSide | null } | null;
+  /** currencyCode: ISO 4217 of both sides (missing = USD). */
+  pricing?: { base?: CapPricingSide | null; long?: CapPricingSide | null; currencyCode?: string | null } | null;
 }
 
 export type CapWindowLine = 'unknown' | 'window' | 'windowPriceLine' | 'aboveLine';
@@ -249,20 +251,28 @@ export function capPresentationInputOf(input: {
   };
 }
 
-/** Decoded catalog price ({base} / {long}), only where the price line applies (T known). */
+/**
+ * Decoded catalog price ({base} / {long}), only where the price line applies (T known).
+ * The price is the connection's region price (same selection as the send-time estimate);
+ * Relay connections get no catalog price.
+ */
 export function capPricingOf(
   provider: Provider,
   model: AIModel,
   priceLineTokens: number | null,
 ): CapPanelInput['pricing'] {
   if (priceLineTokens == null) return null;
-  const catalogPricing = resolveCatalogModel(model.id, provider.kind)?.pricing;
+  if (provider.kind === 'relay') return null;
+  const catalog = resolveCatalogModel(model.id, provider.kind);
+  const resolved = catalog ? selectRegionPricing(catalog, connectionRegionId(provider)) : null;
+  const catalogPricing = resolved?.pricing;
   const long = catalogPricing?.longContext;
   if (!catalogPricing || !long) return null;
   const perM = (perToken: number | null | undefined) => (typeof perToken === 'number' ? perToken * 1_000_000 : null);
   return {
     base: { prompt: perM(catalogPricing.promptPerToken), completion: perM(catalogPricing.completionPerToken) },
     long: { prompt: long.promptPerMToken, completion: long.completionPerMToken },
+    currencyCode: resolved?.currencyCode ?? null,
   };
 }
 

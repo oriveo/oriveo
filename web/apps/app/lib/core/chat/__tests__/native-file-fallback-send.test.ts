@@ -27,6 +27,11 @@ import {
 } from '../../attachments/native-file-fallback';
 import { buildOutboundChatHistory } from '../outbound-history';
 import { RELAY_NEGATIVE_CACHE_STORAGE_KEY } from '../relay-negative-cache';
+import { INPUT_NEGATIVE_CACHE_STORAGE_KEY, recordInputNegativeCache } from '../../capability/input-negative-cache';
+import { inputNegativeCacheTarget } from '../../capability/truth/input-truth-adapter';
+import { resolveAttachmentLine } from '../../attachments/attachment-transport-resolver';
+import { buildChatHistory } from '../../../utils/chat-stream-utils';
+import type { RuntimeMetadataResponse } from '@oriveo/core/providers/request-builders/runtime';
 
 const PDF = 'application/pdf';
 const RAW_PDF = 'JVBERi0xLjQKb3JpdmVv';
@@ -105,6 +110,7 @@ beforeEach(() => {
   responders = [];
   mocks.trackEvent.mockClear();
   __resetNativeFileFallbackForTest();
+  localStorage.removeItem(INPUT_NEGATIVE_CACHE_STORAGE_KEY);
   vi.stubGlobal('fetch', vi.fn(async (_url: unknown, init?: RequestInit) => {
     upstreamBodies.push(typeof init?.body === 'string' ? init.body : '');
     const next = responders.shift();
@@ -262,10 +268,20 @@ describe('Relay native file fallback records the local negative cache file tier'
       .filter((entry) => entry.kind === 'file') : [];
   };
 
-  it('400 -> fallback succeeds -> a file entry for the connection x model', async () => {
+  const v2FileEntries = () => {
+    const raw = localStorage.getItem(INPUT_NEGATIVE_CACHE_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as { entries: Array<Record<string, unknown>> }).entries
+      .filter((entry) => entry.capabilityKey === 'file_input') : [];
+  };
+
+  it('400 -> fallback succeeds -> a file entry for the connection x model (v1 and v2 are written together)', async () => {
     responders = [reject(400), anthropicOk()];
     await sendRelay(relayProvider(), userMessage('u1', [textPdf()]));
     expect(fileEntries()).toEqual([expect.objectContaining({ connectionId: 'relay-1', modelId: 'claude-relay' })]);
+    expect(v2FileEntries()).toEqual([expect.objectContaining({
+      connectionId: 'relay-1', modelId: 'claude-relay', wireFamily: 'anthropic.document',
+      signatureId: 'relay.classified_rejected',
+    })]);
   });
 
   it('413 still falls back, but cannot be judged a rejection, so no entry is written', async () => {
@@ -274,6 +290,7 @@ describe('Relay native file fallback records the local negative cache file tier'
     expect(upstreamBodies).toHaveLength(2);
     expect(textOf(events)).toBe('ANSWER');
     expect(fileEntries()).toEqual([]);
+    expect(v2FileEntries()).toEqual([]);
   });
 
   it('another model on the same connection is unaffected: the file block is still sent first', async () => {
@@ -310,5 +327,50 @@ describe('official direct lines: no fallback', () => {
     expect(upstreamBodies).toHaveLength(1);
     expect(errorsOf(events)).toHaveLength(1);
     expect(mocks.trackEvent).not.toHaveBeenCalledWith('native_file_fallback', expect.anything());
+  });
+});
+
+describe('official connection: after a file_input negative cache v2 hit, historical native files are injected as text (delivery contract)', () => {
+  const geminiModel = model({ id: 'gemini-x', name: 'Gemini X' });
+  const geminiProvider = {
+    id: 'official-gemini', kind: 'gemini', status: { kind: 'connected' }, models: [geminiModel],
+    catalogModels: [geminiModel], apiKey: 'k', apiKeyPreview: 'k', authMode: 'apiKey',
+  } as Provider;
+  const metadata = {
+    version: 1,
+    updatedAt: '2026-10-19T00:00:00Z',
+    profiles: { reasoning: {}, webSearch: {}, imageGen: {} },
+    providers: {
+      gemini: {
+        resolveMap: { 'gemini-x': 'gemini-x' },
+        models: { 'gemini-x': { canonicalModelId: 'gemini-x', capabilities: ['text', 'image', 'file'], profiles: {} } },
+      },
+    },
+  } as unknown as RuntimeMetadataResponse;
+
+  async function outbound() {
+    const line = await resolveAttachmentLine({
+      provider: geminiProvider, model: geminiModel, officialMetadata: async () => metadata,
+    });
+    const history = await buildChatHistory([userMessage('u1', [textPdf()])], geminiModel, line);
+    return { line, wire: JSON.stringify(history), history };
+  }
+
+  it('a v2 file_input entry written by a signature rejection hits -> the outbound uses text injection with no native file part', async () => {
+    const before = await outbound();
+    expect(before.line.nativeFilesSuppressed).toBeUndefined();
+    expect(before.wire).toContain('"type":"file"');
+
+    const target = inputNegativeCacheTarget(geminiProvider, geminiModel, undefined, 'file_input');
+    expect(target).not.toBeNull();
+    recordInputNegativeCache(target!.key, { signatureId: 'test.file_rejected', verdictRevision: target!.verdictRevision });
+
+    const after = await outbound();
+    expect(after.line.nativeFilesSuppressed).toBe(true);
+    expect(after.history.some((message) => typeof message.content !== 'string'
+      && message.content.some((part) => part.type === 'file'))).toBe(false);
+    expect(hasTextInjection(after.wire)).toBe(true);
+    expect(after.wire).not.toContain(RAW_PDF);
+    expect(after.wire).toContain('Summarize the file');
   });
 });

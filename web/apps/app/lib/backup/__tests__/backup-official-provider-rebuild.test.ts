@@ -42,6 +42,13 @@ const { executeImport, generateImportPreview } = await import('..');
 // Metadata is injected through the real metadata-client cache path, whose medium is IndexedDB (see
 // blob-cache), so the existing singleton's exported interface does not have to change.
 beforeEach(async () => {
+  // Reset first: the reset clears the flag that makes the seeded cache suppress the network refresh,
+  // so seeding before it left every import waiting on a real (failing) background fetch.
+  __resetMetadataClientForTest();
+  await setActiveUID('guest');
+  resetDBConnection();
+  resetImageDBConnection();
+  await clearAllProviders();
   const fakeMetadata = {
     version: 1,
     contractVersion: 1,
@@ -81,14 +88,6 @@ beforeEach(async () => {
   // Seeding goes through the exported test API rather than a hand-written storage key, so the test
   // follows a change of cache medium instead of silently landing on the "metadata unavailable" branch.
   await __seedMetadataCacheForTest({ data: fakeMetadata, timestamp: Date.now() });
-});
-
-beforeEach(async () => {
-  __resetMetadataClientForTest();
-  await setActiveUID('guest');
-  resetDBConnection();
-  resetImageDBConnection();
-  await clearAllProviders();
 });
 
 afterEach(async () => {

@@ -12,6 +12,8 @@ import {
   type RelayCapabilityEvidenceIdentity,
 } from "../chat/capability-evidence";
 import { isLibraryBuildEnabled, isLibraryFeatureEnabled } from "./feature-flag";
+import { providerFormOf } from "../capability/truth/provider-form";
+import { connectionToolCallVerdict } from "../chat/tool-call-verdict";
 import {
   DEFAULT_SERVER_RESEARCH_PROVIDER_DENYLIST,
   isServerResearchAvailable,
@@ -81,6 +83,8 @@ export function isLibraryAgentSupported(
   // enabled, and a deterministic unsupported-tools response is retried without
   // tools by the shared recovery path. Only an explicit unsupported verdict is
   // a model capability veto.
+  // Non-Relay connections use the same verdict as the send path (including the rejection memory); Relay still goes by the facade evidence that carries the connection identity.
+  if (providerFormOf(provider) !== "relay") return connectionToolCallVerdict(provider, model) !== false;
   return toolCallDecision(provider, model, transport, relayIdentity) !== "unsupported";
 }
 

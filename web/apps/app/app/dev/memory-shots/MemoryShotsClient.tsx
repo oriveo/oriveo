@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getVanillaStore } from '../../../providers/StoreProvider';
 import { safeLocalStorage } from '../../../lib/infra/storage/web-storage';
+import { waitForElement } from '../../../lib/dev/shots-driver';
 import { MemoryPage } from '../../settings/memory/MemoryPage';
 import { MemoryInboxPage } from '../../settings/memory/MemoryInboxPage';
 import { relayShotsFenceInstalled } from '../relay-shots/relay-shots-fence';
@@ -11,37 +12,18 @@ import type { MemoryShotPage } from './memory-shots-pages';
 
 type ShotState = { kind: 'preparing' } | { kind: 'refused' } | { kind: 'ready'; plan: MemoryShotPlan };
 
-const DRIVE_TIMEOUT_MS = 10_000;
 /** The key read by production getOrCreateStableWebDeviceId (an in-memory table under the fence). */
 const WEB_SYNC_DEVICE_ID_KEY = 'oriveo.sync.deviceId';
 
-/** Wait until an element appears (data-testid of the production page); returns null on timeout. */
-function waitForElement<T extends Element>(selector: string, signal: { cancelled: boolean }): Promise<T | null> {
-  const startedAt = Date.now();
-  return new Promise((resolve) => {
-    const tick = () => {
-      if (signal.cancelled) return resolve(null);
-      const element = document.querySelector<T>(selector);
-      if (element) return resolve(element);
-      if (Date.now() - startedAt > DRIVE_TIMEOUT_MS) {
-        console.warn(`[memory-shots] timed out waiting for ${selector}`);
-        return resolve(null);
-      }
-      window.setTimeout(tick, 50);
-    };
-    tick();
-  });
-}
-
 async function drive(step: MemoryShotDrive, signal: { cancelled: boolean }): Promise<void> {
   if (step.kind !== 'rawTooLong') return;
-  (await waitForElement<HTMLButtonElement>('[data-testid="memory-raw-toggle"]', signal))?.click();
-  const textarea = await waitForElement<HTMLTextAreaElement>('[data-testid="memory-raw-textarea"]', signal);
+  (await waitForElement<HTMLButtonElement>('[data-testid="memory-raw-toggle"]', signal, { label: 'memory-shots' }))?.click();
+  const textarea = await waitForElement<HTMLTextAreaElement>('[data-testid="memory-raw-textarea"]', signal, { label: 'memory-shots' });
   if (!textarea) return;
   // Go through the native setter of the React controlled input, then dispatch an input event, so the production onChange receives it as usual.
   Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(textarea, step.text);
   textarea.dispatchEvent(new Event('input', { bubbles: true }));
-  (await waitForElement<HTMLButtonElement>('[data-testid="memory-raw-save"]', signal))?.click();
+  (await waitForElement<HTMLButtonElement>('[data-testid="memory-raw-save"]', signal, { label: 'memory-shots' }))?.click();
 }
 
 /** Fixed clock: Date.now runs from the manifest moment (only inside the sample page, restored on unmount). */

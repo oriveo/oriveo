@@ -71,12 +71,48 @@ describe('ContextContractDirectiveDetector', () => {
     expect([...WHITE_SPACE]).toEqual(contract.whitespace);
   });
 
+  // Linearity is judged by the time ratio when the input size doubles, not by an absolute wall-clock budget:
+  // a fixed budget measures machine speed (slow CI runners fail it), the ratio measures complexity.
+  // Linear gives about 2x (measured 1.8-2.1); quadratic gives 4x in theory and about 3-3.9x measured once
+  // linear fixed costs are mixed in, so the limit is 2.5. Input is truncated at DIRECTIVE_MAX_SCAN_CODE_POINTS,
+  // so 2N must stay below the cap, otherwise truncation would flatten the ratio to 1.
+  const RATIO_LIMIT = 2.5;
+  const ROUNDS = 5;
+  const timeOf = (inputs: string[], loops: number): number => {
+    for (let i = 0; i < loops; i++) for (const t of inputs) detectDirective(t); // warm up the JIT
+    const samples: number[] = [];
+    for (let r = 0; r < ROUNDS; r++) {
+      const started = performance.now();
+      for (let i = 0; i < loops; i++) for (const t of inputs) detectDirective(t);
+      samples.push(performance.now() - started);
+    }
+    return Math.min(...samples); // take the minimum: scheduling jitter can only inflate a sample, never shrink it
+  };
+  const scaleRatio = (build: (n: number) => string[], n: number, loops: number): number => {
+    const small = build(n);
+    const large = build(n * 2);
+    for (const t of large) expect([...t].length).toBeLessThanOrEqual(DIRECTIVE_MAX_SCAN_CODE_POINTS);
+    return timeOf(large, loops) / timeOf(small, loops);
+  };
+
   // Regression: the fence check once rescanned to end of text at every position (O(n^2));
   // compaction runs this on every user message of a long history on the main thread.
   it('long_history_detection_stays_linear', () => {
-    const message = 'This is an ordinary sentence about the weather and the town. '.repeat(80);
+    const build = (n: number): string[] => ['This is an ordinary sentence about the weather and the town. '.repeat(n)];
+    expect(scaleRatio(build, 20, 8)).toBeLessThan(RATIO_LIMIT);
+    // loose absolute cap only guards against exponential blow-up; it is not used to judge linearity
     const started = performance.now();
-    for (let i = 0; i < 100; i++) detectDirective(message);
-    expect(performance.now() - started).toBeLessThan(1500);
+    detectDirective(build(40)[0]!);
+    expect(performance.now() - started).toBeLessThan(200);
+  });
+
+  // Near markers sweep tokens once per term: a 4000-code-point sentence dense with `a` terms and no `b`
+  // must stay cheap (no pairwise or backtracking search).
+  it('near_markers_stay_linear', () => {
+    const build = (n: number): string[] => ['꼭 계속해서 '.repeat(n * 3), 'اكتب لا تستخدم دائما '.repeat(n)];
+    expect(scaleRatio(build, 90, 5)).toBeLessThan(RATIO_LIMIT);
+    const started = performance.now();
+    for (const t of build(180)) detectDirective(t);
+    expect(performance.now() - started).toBeLessThan(200);
   });
 });

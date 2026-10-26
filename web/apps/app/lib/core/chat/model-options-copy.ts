@@ -10,6 +10,7 @@ import type {
 import type { ReasoningRowWithoutWritePath } from './advanced-settings-reasoning';
 import type { RelayWebStatusId } from './relay-web-probe-records';
 import type { ChatTemplateThinkingState } from './chat-template-thinking';
+import { attachmentDisabledMessageKey } from './attachment-policy';
 import type {
   GenerationParameterDisplayValue, GenerationParameterRow,
   GenerationParameterUnsetLabel, GenerationParameterValidationIssue,
@@ -195,6 +196,7 @@ export function modelOptionDisclosureStatusCopy(status: ModelOptionDisclosureSta
   switch (status.kind) {
     case 'cannotDoOnThisConnection': return common('modelOptionsConnectionCannot');
     case 'fixedByConnection': return common('capabilityControlFixedByConnection');
+    case 'showsThinkingFixed': return common('modelOptionsShowsThinkingFixed');
     case 'modelLacksCapability': return { key: CAPABILITY_BODY_KEYS.modelLacksCapability[capability] };
     case 'currentValue': return modelOptionReadOnlyValueCopy(status.value);
   }
@@ -261,6 +263,10 @@ export function modelOptionsTileStatusCopy(tile: ModelOptionsTile): CopyRef | un
 
 /** The small body text inside an explanation tile. */
 export function modelOptionsTileBodyCopy(tile: ModelOptionsTile): CopyRef | undefined {
+  // The unsupported state of the vision tile shows the projection reason, using the same keys as the composer attachment entry (capability.input.disabled.*).
+  if (tile.kind === 'vision') {
+    return tile.disabledReason ? { key: `capability.input.${attachmentDisabledMessageKey(tile.disabledReason, 'image')}` } : undefined;
+  }
   if (tile.kind !== 'capability') return undefined;
   const row = tile.row;
   switch (row.kind) {

@@ -20,6 +20,7 @@ import {
   resetDBConnection,
 } from '../infra/storage/idb';
 import { resetImageDBConnection } from '../infra/storage/image-store';
+import { sweepOrphanImagesOnLaunch } from '../infra/storage/image-orphan-sweeper';
 import { migrateToPartitionedStorage } from '../infra/storage/migration';
 import { detectStorageHealth, reportStorageHealth } from './storage-health';
 import { reportSilentError } from '../sentry/report-silent';
@@ -151,6 +152,7 @@ export async function bootstrapApp(
     store.setState({
       account: null,
       providers: [],
+      providersHydrated: false,
       conversations: [],
       activeConversationId: null,
     });
@@ -164,6 +166,8 @@ export async function bootstrapApp(
 
     store.setState({ hydrationPhase: 'ready' });
     refreshAllSkills(store).catch(() => {});
+    // Background sweep of orphaned images in this partition; it only deletes image records and runs once per partition per session.
+    sweepOrphanImagesOnLaunch(getActiveUIDSync()).catch(() => {});
     if (storageHealth) reportStorageHealth(storageHealth);
     return { initialUser: null, authResolution: 'observed' };
   } catch (err) {

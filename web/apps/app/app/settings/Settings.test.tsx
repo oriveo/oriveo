@@ -86,7 +86,7 @@ const metadataMock = vi.hoisted(() => {
     isRuntimeFeatureEnabled: vi.fn(() => state.enabled),
   };
 });
-vi.mock('../../lib/core/metadata/metadata-client', () => ({
+vi.mock('../../lib/core/metadata/metadata-client', async (importOriginal) => (await import('../../lib/__tests__/mocks/metadata-client')).metadataClientMock(importOriginal, {
   isRuntimeFeatureEnabled: metadataMock.isRuntimeFeatureEnabled,
   onVersionChange: (listener: () => void) => {
     metadataMock.state.listeners.add(listener);

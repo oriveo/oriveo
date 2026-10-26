@@ -7,10 +7,11 @@ import {
   getModelFactsRevision,
 } from '../../metadata/metadata-client';
 import { canonicalFinalTransport } from '../../chat/capability-preference-settings';
-import type {
-  CapabilityTruthAdapter,
-  CapabilityTruthQuery,
-  RelayCapabilityEvidenceIdentity,
+import {
+  THINKING_CAPABILITY_KEY,
+  type CapabilityTruthAdapter,
+  type CapabilityTruthQuery,
+  type RelayCapabilityEvidenceIdentity,
 } from './capability-truth-adapter';
 import {
   currentCapabilityEvidenceModel,
@@ -44,6 +45,12 @@ export interface MetadataCandidateScope {
       * Default keeps the old capability bit + webSearchProfile (a Relay connection's web fact does not come from an official recipe).
    */
   webSearch?: 'recipe_verdict';
+  /**
+   * Who answers for showing thinking. `catalog`: the official catalog entry capabilities contain reasoning, and model-facts reasoning is read only when the catalog lacks the model;
+   * `declared`: capabilities declared on the connection contain reasoning (Relay).
+   * With no source, no candidate is produced (treated as not shown, no guessing).
+   */
+  thinking: 'catalog' | 'declared';
 }
 
 const OFFICIAL_SCOPE: MetadataCandidateScope = {
@@ -56,6 +63,7 @@ const OFFICIAL_SCOPE: MetadataCandidateScope = {
   legacyFields: { scope: 'provider_model_transport' },
   toolCallFields: { scope: 'provider_model_transport' },
   webSearch: 'recipe_verdict',
+  thinking: 'catalog',
 };
 
 /**
@@ -69,6 +77,67 @@ export const officialTruthAdapter: CapabilityTruthAdapter = {
 };
 
 export function metadataTruthCandidates(
+  query: CapabilityTruthQuery,
+  scope: MetadataCandidateScope,
+): CapabilityEvidenceCandidate[] {
+  const candidates = metadataFactCandidates(query, scope);
+  const { key } = query;
+  // Show-thinking is produced only for a named query: unnamed enumerations (expiry scheduling, etc.) do not need it (these candidates carry no expiry),
+  // and reading model-facts as well would spin up a sidecar load for every model outside the catalog and add a timer.
+  if (key !== THINKING_CAPABILITY_KEY) return candidates;
+  return [...candidates, ...thinkingCandidates(query, scope)];
+}
+
+/**
+ * Candidate of show-thinking (`reasoning/thinking`); judged separately from the reasoning_level/* tiers.
+ * When H4 has declared it owns this key the Server candidate answers and nothing is added here.
+ */
+function thinkingCandidates(
+  query: CapabilityTruthQuery,
+  scope: MetadataCandidateScope,
+): CapabilityEvidenceCandidate[] {
+  const { provider, model, effectiveTransport } = query;
+  if (effectiveTransport === 'unknown' || !scope.legacyFields) return [];
+  const evidenceModel = currentCapabilityEvidenceModel(provider, model);
+  if (evidenceModel.capabilityEvidenceOwnedKeys?.includes(THINKING_CAPABILITY_KEY)) return [];
+  const identity = {
+    key: THINKING_CAPABILITY_KEY,
+    providerKind: provider.kind,
+    modelId: evidenceModel.canonicalModelId ?? evidenceModel.id,
+    transport: effectiveTransport,
+    ...scope.legacyFields,
+  };
+  const supportOf = (value: boolean) => (value ? 'supported' as const : 'unsupported' as const);
+  if (scope.thinking === 'declared') {
+    return [{
+      ...identity,
+      support: supportOf(evidenceModel.capabilities.includes('reasoning')),
+      source: 'relay_declaration',
+      grade: 'declared',
+    }];
+  }
+  const catalog = resolvedEvidenceCatalog(provider, model);
+  if (catalog.model) {
+    return [{
+      ...identity,
+      support: supportOf((catalog.model.capabilities ?? []).includes('reasoning')),
+      source: 'legacy_metadata',
+      grade: 'legacy_unverified',
+    }];
+  }
+  // model-facts is only a fallback for models outside the catalog and is not read on a catalog hit.
+  const facts = catalog.providerKind ? modelFactsCanonicalFirst(catalog.providerKind, model) : undefined;
+  if (typeof facts?.reasoning !== 'boolean') return [];
+  return [{
+    ...identity,
+    support: supportOf(facts.reasoning),
+    source: 'model_facts',
+    grade: 'declared',
+    evidenceRevision: getModelFactsRevision(),
+  }];
+}
+
+function metadataFactCandidates(
   query: CapabilityTruthQuery,
   scope: MetadataCandidateScope,
 ): CapabilityEvidenceCandidate[] {
@@ -87,7 +156,10 @@ export function metadataTruthCandidates(
     evidenceModel,
     key === 'tool_call' && !catalog.model
       ? undefined
-      : evidenceModel.capabilityEvidenceCandidates,
+      // A catalog hit trusts catalog evidence only: missing / expired = unknown, with no fallback to the entry top-level toolCall (tool-call-order.v1).
+      : key === 'tool_call'
+        ? evidenceModel.capabilityEvidenceCandidates ?? []
+        : evidenceModel.capabilityEvidenceCandidates,
   );
   const h4OwnedDimension = key === 'tool_call';
   if (evidenceModel.capabilityEvidenceViewMalformed && h4OwnedDimension) return [];
@@ -107,8 +179,7 @@ export function metadataTruthCandidates(
   // an authoritative null/empty H4 namespace) must never be overwritten by a
   // lower-tier models.dev snapshot.
   const facts = !catalog.model && catalog.providerKind && scope.toolCallModelFacts !== false
-    ? getModelFacts(catalog.providerKind, model.id)
-      ?? (model.canonicalModelId ? getModelFacts(catalog.providerKind, model.canonicalModelId) : undefined)
+    ? modelFactsCanonicalFirst(catalog.providerKind, model)
     : undefined;
   if (typeof facts?.toolCall === 'boolean') {
     return [
@@ -154,11 +225,6 @@ function legacyCapabilityCandidates(
   scope: MetadataCandidateScope,
 ): CapabilityEvidenceCandidate[] {
   if (!scope.legacyFields) return [];
-  const supports = (capability: string, profile?: unknown): 'supported' | 'unknown' => (
-    model.capabilities.includes(capability) && (profile === undefined || Boolean(profile))
-      ? 'supported'
-      : 'unknown'
-  );
   const base = {
     source: 'legacy_metadata' as const,
     grade: 'legacy_unverified' as const,
@@ -172,8 +238,9 @@ function legacyCapabilityCandidates(
       ? recipeWebSearchCandidates(model, base)
       // Web has a separate request profile.  Missing/withdrawn profile is an
       // unknown verdict even when an old persisted capabilities array says web.
-      : [{ ...base, key: 'web_search', support: model.capabilities.includes('web') && Boolean(model.webSearchProfile) ? 'supported' as const : 'unknown' as const }]),
-    { ...base, key: 'vision_input', support: supports('image') },
+      : [{ ...base, key: 'web_search', support: model.capabilities.includes('web') && Boolean(model.webSearchProfile) ? 'supported' as const : 'unknown' as const, ...controlRecipeRef(model, 'web') }]),
+    // Vision trusts only the Server ruling capabilityControls.vision_input; the image mention in legacy capabilities no longer counts.
+    { ...base, key: 'vision_input', support: controlStateCapabilitySupport(model.capabilityControls?.vision_input?.state) ?? 'unknown', ...controlRecipeRef(model, 'vision_input') },
     {
       ...base,
       key: 'tool_call',
@@ -199,5 +266,18 @@ function recipeWebSearchCandidates(
 ): CapabilityEvidenceCandidate[] {
   const support = controlStateCapabilitySupport(model.capabilityControls?.web?.state);
   if (!support) return [];
-  return [{ ...identity, key: 'web_search', support, source: 'server_profile', grade: 'declared' }];
+  return [{ ...identity, key: 'web_search', support, source: 'server_profile', grade: 'declared', ...controlRecipeRef(model, 'web') }];
+}
+
+/** Attach the Server control recipe reference to the candidate (web_search <-> control key web); nothing is written when absent. */
+function controlRecipeRef(model: AIModel, controlKey: string): { recipeRef?: string } {
+  const recipeRef = model.capabilityControls?.[controlKey]?.recipeRef;
+  return recipeRef ? { recipeRef } : {};
+}
+
+/** model-facts lookup: the canonical in the match result wins (trimmed), then falls back to the model id. */
+function modelFactsCanonicalFirst(providerKind: string, model: AIModel): ReturnType<typeof getModelFacts> {
+  const canonical = model.canonicalModelId?.trim();
+  return (canonical ? getModelFacts(providerKind, canonical) : undefined)
+    ?? (canonical !== model.id ? getModelFacts(providerKind, model.id) : undefined);
 }

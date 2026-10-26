@@ -8,7 +8,7 @@ import { ProviderIcon } from '../ProviderIcon';
 import { relayIconSource } from '../relay-avatar';
 import { useIsDarkTheme } from '../../lib/hooks/useIsDarkTheme';
 import { PROVIDER_BRAND_COLORS } from '../../lib/constants/provider-brand-colors';
-import { formatCost } from '../../lib/utils/format-utils';
+import { formatCostTotals, hasNonUsdCostTotals, type NonUsdCostTotals } from '../../lib/core/cost/cost-currency';
 import {
   formatProviderBalanceAmount,
   isBalanceCapable,
@@ -22,6 +22,8 @@ import styles from './ProviderListCard.module.css';
 interface ProviderListCardProps {
   provider: Provider;
   monthlyCost: number;
+  /** Non-USD monthly totals, shown separately from monthlyCost. */
+  monthlyNonUsdTotals?: NonUsdCostTotals;
   providerBalance?: ProviderBalance | null;
   onClick: () => void;
 }
@@ -41,6 +43,7 @@ export function resolveProviderListTrailingAmount(
   monthlyCost: number,
   providerBalance: ProviderBalance | null | undefined,
   locale: string,
+  monthlyNonUsdTotals?: NonUsdCostTotals,
 ): ProviderListTrailingAmount | null {
   if (isBalanceCapable(providerKind)) {
     return {
@@ -50,8 +53,9 @@ export function resolveProviderListTrailingAmount(
     };
   }
 
-  const text = formatCost(monthlyCost) || '$0';
-  return { label: 'usageLabel', text, isZero: monthlyCost === 0 };
+  // A month with only non-USD spend is not shown as $0
+  const text = formatCostTotals(monthlyCost, monthlyNonUsdTotals, locale) || '$0';
+  return { label: 'usageLabel', text, isZero: monthlyCost === 0 && !hasNonUsdCostTotals(monthlyNonUsdTotals) };
 }
 
 // useIsDark lives in lib/hooks/useIsDarkTheme.ts (one shared observer)
@@ -73,6 +77,7 @@ function formatRelativeTimeShort(iso: string, t: ReturnType<typeof useTranslatio
 export function ProviderListCard({
   provider,
   monthlyCost,
+  monthlyNonUsdTotals,
   providerBalance,
   onClick,
 }: ProviderListCardProps) {
@@ -93,6 +98,7 @@ export function ProviderListCard({
     monthlyCost,
     providerBalance,
     locale,
+    monthlyNonUsdTotals,
   );
   const statusLabel = effectiveKind === 'connected' ? tc('connected')
     : effectiveKind === 'syncing' ? tc('syncing')

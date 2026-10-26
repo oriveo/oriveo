@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatView } from './ChatView';
 import { showToast } from '../Toast';
 import { capabilityRuntimeIdentity, resolveCapabilityPreferences } from '../../lib/core/chat/capability-preference-settings';
+import { ContextCompactionStore } from '../../lib/core/chat/context-compaction/context-compaction-store';
 
 const routerPush = vi.fn();
 const routerReplace = vi.fn();
@@ -94,6 +95,7 @@ type MockState = {
   streamingMessageIds: Record<string, string>;
   streamingConversationIds: string[];
   lastUsedModelRef: { providerID: string; modelID: string } | null;
+  providersHydrated?: boolean;
   syncState: string;
   setLastUsedModelRef: ReturnType<typeof vi.fn>;
   sidebarOpen: boolean;
@@ -164,6 +166,9 @@ vi.mock('@oriveo/config', () => ({
 
 vi.mock('../../lib/core/providers/provider-selection-snapshot', () => ({
   createProviderSelectionSnapshot: mockCreateProviderSelectionSnapshot,
+  // Retirement verdicts are locked by provider-selection-snapshot's own tests; everything counts as available here.
+  resolveProviderModelRetirement: () => null,
+  resolveRetirementSuccessorModel: () => null,
 }));
 
 vi.mock('../../providers/StoreProvider', () => ({
@@ -243,15 +248,21 @@ vi.mock('./TopBar', () => ({
     modelName,
     providerKind,
     onModelClick,
+    conversationCost,
+    conversationNonUsdCostTotals,
   }: {
     modelName?: string;
     providerKind?: string;
     onModelClick?: () => void;
+    conversationCost?: number;
+    conversationNonUsdCostTotals?: Record<string, number>;
   }) => (
     <div
       data-testid="top-bar"
       data-model-name={modelName ?? ''}
       data-provider-kind={providerKind ?? ''}
+      data-cost={conversationCost ?? ''}
+      data-non-usd-cost={JSON.stringify(conversationNonUsdCostTotals ?? null)}
     >
       <button type="button" onClick={onModelClick}>open model switcher</button>
     </div>
@@ -329,7 +340,11 @@ vi.mock('./InputComposer', () => ({
     onAddLibraryContext,
     quoteContext,
     onRemoveQuote,
+    connectionRemoved,
+    composerNotices,
   }: {
+    composerNotices?: ReactNode;
+    connectionRemoved?: { target: string } | null;
     disabled?: boolean;
     presentation?: 'docked' | 'home';
     value?: string;
@@ -361,6 +376,8 @@ vi.mock('./InputComposer', () => ({
     <div
       data-testid="input-composer"
       data-disabled={disabled ? 'true' : 'false'}
+      data-connection-removed={connectionRemoved ? 'true' : 'false'}
+      data-connection-target={connectionRemoved?.target ?? ''}
       data-presentation={presentation}
       data-value={value ?? ''}
       data-web-control-state={webControl?.state ?? ''}
@@ -379,6 +396,7 @@ vi.mock('./InputComposer', () => ({
       data-placeholder-override={placeholderOverride ?? ''}
       data-quote-selection={quoteContext?.selectedText ?? ''}
     >
+      {composerNotices}
       <button type="button" onClick={() => onChange?.('vector database context')}>type draft</button>
       <button type="button" onClick={() => onChange?.('@Notion summarize this')}>type source mention</button>
       <button
@@ -502,6 +520,13 @@ vi.mock('../../lib/core/chat/send-failure', () => ({
   reportSendBlocked: (...args: unknown[]) => mockReportSendBlocked(...args),
 }));
 
+vi.mock('./CompactionHintBanner', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./CompactionHintBanner')>()),
+  CompactionHintBanner: ({ onNewChat }: { onNewChat?: () => void }) => (
+    <button type="button" onClick={onNewChat}>new chat with summary</button>
+  ),
+}));
+
 vi.mock('../Toast', () => ({
   showToast: vi.fn(),
 }));
@@ -558,7 +583,8 @@ vi.mock('../../lib/core/skills/start-conversation', () => ({
   startConversationWithSkill: (...args: unknown[]) => mockStartConversationWithSkill(...args),
 }));
 
-vi.mock('../../lib/core/metadata/metadata-client', () => ({
+vi.mock('../../lib/core/metadata/metadata-client', async (importOriginal) => (await import('../../lib/__tests__/mocks/metadata-client')).metadataClientMock(importOriginal, {
+  getProviderRetiredModels: () => [],
   // These fixtures carry no metadata ETag, so identity gets no revision and the negative cache fails closed.
   getMetadataRevision: () => undefined,
   // No out-of-catalog facts are simulated here; absence means unknown, and must not invent a tool_call verdict.
@@ -627,6 +653,8 @@ beforeEach(async () => {
           id: 'provider-1',
           kind: 'openai',
           status: { kind: 'issue', message: 'Key expired' },
+          // The new-chat chain drops connections without a key, so the fixture must carry one.
+          apiKey: 'sk-test',
           models: [
             {
               id: 'model-1',
@@ -643,6 +671,8 @@ beforeEach(async () => {
       ],
       account: null,
       activeConversationId: null,
+      // Normal runtime: the connection list has loaded.
+      providersHydrated: true,
       draftConversationInstructions: '',
       streamingTexts: {},
       streamingMessageIds: {},
@@ -935,12 +965,181 @@ beforeEach(async () => {
       undefined,
       'warning',
     );
+    // The request was blocked before sending: chat_send_blocked(library_unavailable) is recorded
+    expect(mockReportSendBlocked).toHaveBeenCalledWith('library_unavailable', expect.any(String));
   });
 
-  // When a send is rejected because the provider is missing, chat_send_blocked carries the conversation's own provider_kind (it survives provider deletion), same as iOS / Android
+  // New chat with summary: if the connection lacks credentials it does not open and does not write last used, and goes to that connection's detail page; with credentials it writes and navigates as usual.
+  it.each([
+    { label: 'missing credentials', apiKey: '', opens: false },
+    { label: 'usable', apiKey: 'sk-test', opens: true },
+  ])('new chat with summary on a connection that is $label', async ({ apiKey, opens }) => {
+    const latestValid = vi.spyOn(ContextCompactionStore, 'latestValid').mockResolvedValue(null);
+    // A real provider kind is required: the key check only applies to kinds the product knows.
+    mockState.providers = [{ ...mockState.providers[0], kind: 'openAI', status: { kind: 'connected' }, apiKey }];
+    const setActiveConversationId = vi.fn();
+    (mockState as MockState & { setActiveConversationId?: unknown }).setActiveConversationId = setActiveConversationId;
+    mockState.activeConversationId = 'conversation-1';
+    mockState.conversations = [
+      {
+        id: 'conversation-1',
+        title: 'Chat',
+        hasCustomTitle: false,
+        providerID: 'provider-1',
+        providerKind: 'openai',
+        modelID: 'model-1',
+        previewText: '',
+        estimatedCost: 0,
+        isDraft: false,
+        messages: [],
+        draftText: '',
+        createdAt: '2026-06-19T00:00:00.000Z',
+        updatedAt: '2026-06-19T00:00:00.000Z',
+      },
+    ];
+
+    await renderChatView({ conversationId: 'conversation-1' });
+    fireEvent.click(screen.getByRole('button', { name: 'new chat with summary' }));
+    await waitFor(() => expect(latestValid).toHaveBeenCalled());
+    await act(async () => { await Promise.resolve(); });
+
+    if (opens) {
+      expect(mockState.setLastUsedModelRef).toHaveBeenCalledWith({ providerID: 'provider-1', modelID: 'model-1' });
+      expect(setActiveConversationId).toHaveBeenCalledWith(null);
+      expect(routerPush).toHaveBeenCalledWith('/chat');
+    } else {
+      expect(setActiveConversationId).not.toHaveBeenCalled();
+      expect(mockState.setLastUsedModelRef).not.toHaveBeenCalled();
+      expect(routerPush).toHaveBeenCalledTimes(1);
+      expect(routerPush).toHaveBeenCalledWith('/providers/provider-1');
+    }
+    latestValid.mockRestore();
+  });
+
+  // When the current model is not sendable (removed), last used is not written; the new chat opens on this connection's new-chat chain and does not jump to another connection that last used lives on.
+  it('new chat with summary from an unsendable model opens on this connection without writing last used', async () => {
+    const latestValid = vi.spyOn(ContextCompactionStore, 'latestValid').mockResolvedValue(null);
+    // The model stored on the conversation is not in this connection: the current model cannot be resolved (not sendable); the new chat takes the preference, then the first enabled model.
+    mockCreateProviderSelectionSnapshot.mockImplementation((provider: any, options: any = {}) => {
+      if (!provider) return null;
+      const models = provider.models ?? [];
+      const defaultModel = models.find((m: any) => m.id === options.preferredModelId) ?? models[0] ?? null;
+      const currentModel = options.requestedModelId
+        ? models.find((m: any) => m.id === options.requestedModelId) ?? null
+        : defaultModel;
+      return { provider, enabledModels: models, currentModel, defaultModel };
+    });
+    const base = { ...mockState.providers[0], status: { kind: 'connected' }, apiKey: 'sk-test' };
+    mockState.providers = [
+      base,
+      { ...base, id: 'provider-2', models: [{ ...base.models[0], id: 'model-2', name: 'Other Model' }] },
+    ];
+    mockState.lastUsedModelRef = { providerID: 'provider-2', modelID: 'model-2' };
+    const setActiveConversationId = vi.fn();
+    (mockState as MockState & { setActiveConversationId?: unknown }).setActiveConversationId = setActiveConversationId;
+    mockState.activeConversationId = 'conversation-1';
+    mockState.conversations = [
+      {
+        id: 'conversation-1',
+        title: 'Chat',
+        hasCustomTitle: false,
+        providerID: 'provider-1',
+        providerKind: 'openai',
+        modelID: 'model-gone',
+        previewText: '',
+        estimatedCost: 0,
+        isDraft: false,
+        messages: [],
+        draftText: '',
+        createdAt: '2026-06-19T00:00:00.000Z',
+        updatedAt: '2026-06-19T00:00:00.000Z',
+      },
+    ];
+
+    const view = await renderChatView({ conversationId: 'conversation-1' });
+    fireEvent.click(screen.getByRole('button', { name: 'new chat with summary' }));
+    await waitFor(() => expect(latestValid).toHaveBeenCalled());
+    await act(async () => { await Promise.resolve(); });
+
+    expect(mockState.setLastUsedModelRef).not.toHaveBeenCalled();
+    expect(setActiveConversationId).toHaveBeenCalledWith(null);
+    expect(routerPush).toHaveBeenCalledWith('/chat');
+
+    mockState.activeConversationId = null;
+    await act(async () => { view.rerender(<ChatView />); });
+    expect(screen.getByTestId('top-bar').getAttribute('data-model-name')).toBe('GPT-4o');
+    latestValid.mockRestore();
+  });
+
+  // Conversation model retired: last used is not written; if this connection's chain still has a sendable model the new chat opens on it,
+  // and if the chain is empty no empty-model new chat is opened and the user is taken to that connection's detail page.
+  it.each([
+    { label: 'still has a sendable model', otherRetired: false, opens: true },
+    { label: 'has no sendable model left', otherRetired: true, opens: false },
+  ])('new chat with summary from a retired model when this connection $label', async ({ otherRetired, opens }) => {
+    const latestValid = vi.spyOn(ContextCompactionStore, 'latestValid').mockResolvedValue(null);
+    // A retired model is not sendable: the snapshot resolves the current model and the new-chat default only among models that are not retired.
+    mockCreateProviderSelectionSnapshot.mockImplementation((provider: any, options: any = {}) => {
+      if (!provider) return null;
+      const sendable = (provider.models ?? []).filter((m: any) => !m.retiredForTest);
+      const defaultModel = sendable.find((m: any) => m.id === options.preferredModelId) ?? sendable[0] ?? null;
+      const currentModel = options.requestedModelId
+        ? sendable.find((m: any) => m.id === options.requestedModelId) ?? null
+        : defaultModel;
+      return { provider, enabledModels: sendable, currentModel, defaultModel };
+    });
+    const base = { ...mockState.providers[0], status: { kind: 'connected' }, apiKey: 'sk-test' };
+    mockState.providers = [{
+      ...base,
+      models: [
+        { ...base.models[0], id: 'model-retired', name: 'Retired Model', retiredForTest: true },
+        { ...base.models[0], id: 'model-1', retiredForTest: otherRetired },
+      ],
+    }];
+    const setActiveConversationId = vi.fn();
+    (mockState as MockState & { setActiveConversationId?: unknown }).setActiveConversationId = setActiveConversationId;
+    mockState.activeConversationId = 'conversation-1';
+    mockState.conversations = [
+      {
+        id: 'conversation-1',
+        title: 'Chat',
+        hasCustomTitle: false,
+        providerID: 'provider-1',
+        providerKind: 'openai',
+        modelID: 'model-retired',
+        previewText: '',
+        estimatedCost: 0,
+        isDraft: false,
+        messages: [],
+        draftText: '',
+        createdAt: '2026-06-19T00:00:00.000Z',
+        updatedAt: '2026-06-19T00:00:00.000Z',
+      },
+    ];
+
+    await renderChatView({ conversationId: 'conversation-1' });
+    fireEvent.click(screen.getByRole('button', { name: 'new chat with summary' }));
+    await waitFor(() => expect(latestValid).toHaveBeenCalled());
+    await act(async () => { await Promise.resolve(); });
+
+    expect(mockState.setLastUsedModelRef).not.toHaveBeenCalled();
+    if (opens) {
+      expect(setActiveConversationId).toHaveBeenCalledWith(null);
+      expect(routerPush).toHaveBeenCalledWith('/chat');
+    } else {
+      expect(setActiveConversationId).not.toHaveBeenCalled();
+      expect(routerPush).toHaveBeenCalledTimes(1);
+      expect(routerPush).toHaveBeenCalledWith('/providers/provider-1');
+    }
+    latestValid.mockRestore();
+  });
+
+  // When a missing provider is rejected, chat_send_blocked carries the conversation's own provider_kind (still there after the provider is deleted), consistent with iOS / Android
   it('reports provider_missing with the conversation provider kind', async () => {
     const send = vi.fn();
     mockState.providers = [];
+    // Connection list not loaded: do not judge "connection removed"; the send entry blocks as provider_missing.
+    mockState.providersHydrated = false;
     mockState.activeConversationId = 'conversation-1';
     mockState.conversations = [
       {
@@ -974,6 +1173,57 @@ beforeEach(async () => {
 
     expect(send).not.toHaveBeenCalled();
     expect(mockReportSendBlocked).toHaveBeenCalledWith('provider_missing', 'anthropic');
+    // List not loaded: prompt to choose a model, and the action opens the model picker.
+    expect(showToast).toHaveBeenCalledWith('selectModel', 5000, expect.any(Function), 'warning', 'modelRemovedChoose');
+    expect(screen.getByTestId('input-composer').getAttribute('data-value')).toBe('vector database context');
+  });
+
+  function boundConversation(providerID: string, providerKind: string, modelID: string) {
+    return {
+      id: 'conversation-1',
+      title: 'Chat',
+      hasCustomTitle: false,
+      providerID,
+      providerKind,
+      modelID,
+      previewText: '',
+      estimatedCost: 0,
+      isDraft: false,
+      messages: [{ id: 'm-1', role: 'user', text: 'hello' }],
+      draftText: '',
+      createdAt: '2026-06-19T00:00:00.000Z',
+      updatedAt: '2026-06-19T00:00:00.000Z',
+    };
+  }
+
+  it('passes the conversation USD total and non-USD totals to the top bar separately', async () => {
+    mockState.activeConversationId = 'conversation-1';
+    mockState.conversations = [{
+      ...boundConversation('provider-1', 'openai', 'model-1'),
+      estimatedCost: 1.2,
+      nonUsdCostTotals: { CNY: 3.5 },
+    }];
+
+    await renderChatView({ conversationId: 'conversation-1' });
+
+    const topBar = screen.getByTestId('top-bar');
+    expect(topBar.getAttribute('data-cost')).toBe('1.2');
+    expect(topBar.getAttribute('data-non-usd-cost')).toBe('{"CNY":3.5}');
+  });
+
+  it('top bar cost pill uses the shared cost format: mixed currencies split, CNY-only never $0', async () => {
+    const { TopBar: RealTopBar } = await vi.importActual<typeof import('./TopBar')>('./TopBar');
+    const mixed = render(<RealTopBar conversationCost={1.2} conversationNonUsdCostTotals={{ CNY: 3.5 }} />);
+    expect(mixed.container.textContent).toContain(mockLocale.startsWith('zh') ? '$1.20 + ¥3.50' : '$1.20 + CN¥3.50');
+    mixed.unmount();
+
+    const cnyOnly = render(<RealTopBar conversationCost={0} conversationNonUsdCostTotals={{ CNY: 0.0039 }} />);
+    expect(cnyOnly.container.textContent).toContain('0.0039');
+    expect(cnyOnly.container.textContent).not.toContain('$0');
+    cnyOnly.unmount();
+
+    const tiny = render(<RealTopBar conversationCost={0.00005} />);
+    expect(tiny.container.textContent).toContain('$0.00005');
   });
 
   // A weak model (no tool calls) never silently falls back to a different panel: there is
@@ -1569,8 +1819,18 @@ beforeEach(async () => {
     expect(mockReportSendBlocked).toHaveBeenCalledWith('library_unavailable', expect.any(String));
   });
 
-  it('falls back to another provider when the conversation provider is missing', async () => {
+  it('shows the connection removed state instead of falling back when the conversation provider is missing', async () => {
+    const send = vi.fn();
+    mockUseStreamChat.mockReturnValue({
+      send,
+      continueAnswering: vi.fn(),
+      retry: vi.fn(),
+      editAndResend: vi.fn(),
+      stop: vi.fn(),
+    });
     mockState.activeConversationId = 'conversation-1';
+    // Only judge "connection removed" once the connection list has loaded.
+    mockState.providersHydrated = true;
     mockState.conversations = [
       {
         id: 'conversation-1',
@@ -1582,13 +1842,15 @@ beforeEach(async () => {
 
     await renderChatView({ conversationId: 'conversation-1' });
 
-    expect(screen.getByTestId('top-bar').getAttribute('data-model-name')).toBe('GPT-4o');
-    expect(screen.getByTestId('input-composer').getAttribute('data-disabled')).toBe('false');
-    expect(mockCreateProviderSelectionSnapshot).toHaveBeenCalledWith(undefined, {
+    expect(screen.getByTestId('input-composer').getAttribute('data-connection-removed')).toBe('true');
+    expect(screen.getByTestId('top-bar').getAttribute('data-model-name')).not.toBe('GPT-4o');
+    expect(mockCreateProviderSelectionSnapshot).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       requestedModelId: 'model-missing',
-      // The relay fallback looks at the last used model: the snapshot input is passed along as well.
-      lastUsedModelRef: null,
-    });
+    }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'type draft' }));
+    fireEvent.click(screen.getByRole('button', { name: 'send draft' }));
+    expect(send).not.toHaveBeenCalled();
   });
 
   it('keeps existing history visible when there are no providers left', async () => {
@@ -1607,7 +1869,9 @@ beforeEach(async () => {
 
     expect(screen.queryByText('Add a provider to start chatting.')).toBeNull();
     expect(screen.getByTestId('message-list')).toBeTruthy();
-    expect(screen.getByTestId('input-composer').getAttribute('data-disabled')).toBe('false');
+    // Connection removed and no connection at all: sending stays disabled while the banner shows (sendAllowed=false), guiding the user to add a connection.
+    expect(screen.getByTestId('input-composer').getAttribute('data-connection-removed')).toBe('true');
+    expect(screen.getByTestId('input-composer').getAttribute('data-connection-target')).toBe('connection_setup');
   });
 
   it('disables the composer while hydrating an existing summary-only conversation', async () => {

@@ -118,6 +118,16 @@ describe('persistence.ts', () => {
       expect(store.getState().conversations).toHaveLength(2);
     });
 
+    it('sets providersHydrated to true after hydrate writes providers (an empty partition counts as loaded too)', async () => {
+      const store = createAppStore();
+      expect(store.getState().providersHydrated).toBe(false);
+
+      await hydrateStore(store);
+
+      expect(store.getState().providers).toEqual([]);
+      expect(store.getState().providersHydrated).toBe(true);
+    });
+
     it('generates the local opaque identity once when hydrating an existing provider, partitioned by uid', async () => {
       await seedPartition('guest', { providers: [makeProvider({ id: 'legacy-relay' })] });
       const guestStore = createAppStore();

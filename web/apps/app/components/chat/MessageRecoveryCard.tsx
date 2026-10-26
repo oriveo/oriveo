@@ -48,6 +48,18 @@ interface MessageRecoveryCardProps {
   onSwitchKey?: () => void;
   primaryActionLabel?: string;
   onPrimaryAction?: () => void;
+  /**
+   * The upstream rejected this kind of media by signature (negative cache recorded): the primary action
+   * resends the same turn without that media, with copy taken per media from
+   * `capability.input.resendWithout.<media>`. onPrimaryAction only resends when the user taps the button, never automatically.
+   */
+  resendWithoutMedia?: "image" | "file" | "video";
+  /**
+   * The primary action is a one-tap recovery from an upstream rejection (resend without media /
+   * without the parameter). With onPrimaryAction the card shows exactly two buttons: the action,
+   * then "Switch model" (always shown when onSwitchModel is given); no edit / switch key / retry.
+   */
+  rejectionRecoveryLayout?: boolean;
 }
 
 // Classification goes through lib/utils/error-classify; a local copy of the keywords would drift from it.
@@ -69,8 +81,14 @@ export function MessageRecoveryCard({
   onSwitchKey,
   primaryActionLabel,
   onPrimaryAction,
+  resendWithoutMedia,
+  rejectionRecoveryLayout = false,
 }: MessageRecoveryCardProps) {
   const t = useTranslations("pages.chat.recovery");
+  const tInput = useTranslations("capability.input");
+  const primaryLabel =
+    primaryActionLabel ??
+    (resendWithoutMedia ? tInput(`resendWithout.${resendWithoutMedia}`) : undefined);
   const tRelay = useTranslations("pages.relayDetail");
   const tErrors = useTranslations("errors");
   const [detailOpen, setDetailOpen] = useState(false);
@@ -83,6 +101,9 @@ export function MessageRecoveryCard({
     [state, onSwitchModel, errorKind, errorTitle, errorDetail],
   );
   const isFailed = state === "failed";
+  // Rejected one-tap layout: exactly [action, switch model]; switch model is always shown (not subject to the rate-limit check) and no other buttons appear.
+  const useRejectionLayout =
+    isFailed && rejectionRecoveryLayout && Boolean(onPrimaryAction && primaryLabel);
 
   // -- Order in which failure copy is decided: only the semantic identifier is persisted and
   // localization happens at render time, matching the iOS and Android clients.
@@ -163,16 +184,37 @@ export function MessageRecoveryCard({
 
       {/* Actions */}
       <div className={styles.actions}>
-        {isFailed ? (
+        {useRejectionLayout ? (
           <>
-            {onPrimaryAction && primaryActionLabel ? (
+            <button
+              type="button"
+              className={styles.primaryBtn}
+              onClick={onPrimaryAction}
+              disabled={disabled}
+            >
+              {primaryLabel}
+            </button>
+            {onSwitchModel && (
+              <button
+                type="button"
+                className={styles.secondaryBtn}
+                onClick={onSwitchModel}
+                disabled={disabled}
+              >
+                {t("switchModelBtn")}
+              </button>
+            )}
+          </>
+        ) : isFailed ? (
+          <>
+            {onPrimaryAction && primaryLabel ? (
               <button
                 type="button"
                 className={styles.primaryBtn}
                 onClick={onPrimaryAction}
                 disabled={disabled}
               >
-                {primaryActionLabel}
+                {primaryLabel}
               </button>
             ) : (
               !onPrimaryAction &&

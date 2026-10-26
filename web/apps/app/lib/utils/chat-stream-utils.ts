@@ -36,6 +36,31 @@ import {
 } from '../core/attachments/attachment-delivery';
 import { applyOutboundAttachmentBudget } from '../core/attachments/outbound-attachment-budget';
 import { RELAY_IMAGE_CHAT_MODEL_REQUIRED_KIND, RELAY_IMAGE_TRANSPORT_UNSUPPORTED_KIND } from '../core/providers/relay-image-route-error';
+import type { InputCapabilityProjection } from '@oriveo/core/providers/capability-evidence-facade';
+
+/**
+ * Placeholder lines attached to a message when the outbound sanitizer (`withoutUnreceivableImages`) drops
+ * images: the sanitizer appends them to the end of the text (so normalization, budgeting and trimming see
+ * them as usual), and `buildChatHistory` then moves those trailing lines after all of the turn's parts.
+ */
+export interface OmittedImagePlaceholders {
+  omittedImagePlaceholders?: string[];
+}
+
+/**
+ * Split the text into "body + placeholder lines" while it still ends with the lines the sanitizer appended.
+ * If the body has been rewritten (for example image generation keeps only the prompt), nothing is moved.
+ */
+function splitOmittedImagePlaceholders(message: ChatMessage): { text: string; placeholders: string[] } {
+  const placeholders = (message as ChatMessage & OmittedImagePlaceholders).omittedImagePlaceholders ?? [];
+  const text = message.text ?? '';
+  if (placeholders.length === 0) return { text, placeholders: [] };
+  // The sanitizer joins body and placeholder lines with a blank line ('\n\n') (attachment-policy.ts).
+  const block = placeholders.join('\n\n');
+  if (text === block) return { text: '', placeholders };
+  if (text.endsWith(`\n\n${block}`)) return { text: text.slice(0, -(block.length + 2)), placeholders };
+  return { text, placeholders: [] };
+}
 
 /**
  * Build the chat history sent to a provider, including content parts.
@@ -45,11 +70,20 @@ import { RELAY_IMAGE_CHAT_MODEL_REQUIRED_KIND, RELAY_IMAGE_TRANSPORT_UNSUPPORTED
  * @param currentModel selected model; decides the truncation threshold and the fallback path
  * @param line the outbound line of this send (`resolveAttachmentLine`); decides native upload vs text
  *   injection and the wrapper format. Without it, files are always injected as xml text.
+ * @param vision the vision projection of this send (`resolveInputCapabilityProjections(...).vision_input`):
+ *   only outbound=native_part produces image parts; when the projection says the image is not sent, the
+ *   placeholder line is written into the text by the outbound sanitizer.
+ *   null = this connection has no projection, so the sanitizer decides whether images stay as before.
+ * @param file the file projection of this send for a hosted connection (`...file_input`): a native file
+ *   block is sent only when outbound=native_part and the line accepts native files; otherwise the native
+ *   block is stripped and the file reaches the model through text injection. Default / null = unrestricted.
  */
 export async function buildChatHistory(
   msgs: ChatMessage[],
-  currentModel?: AIModel | null,
-  line?: AttachmentLine,
+  currentModel: AIModel | null | undefined,
+  line: AttachmentLine | undefined,
+  vision: InputCapabilityProjection | null,
+  file: InputCapabilityProjection | null = null,
 ): Promise<{ role: 'user' | 'assistant' | 'system'; content: string | ContentPart[] }[]> {
   const limits = resolveFileExtractionLimits(currentModel);
   const wrapper: AttachmentWrapperVersion = line
@@ -79,10 +113,11 @@ export async function buildChatHistory(
     // QuoteContext is expanded only at the unified provider boundary. BYOK, relay, managed and
     // library sends all go through buildChatHistory, so the local message.text always keeps the
     // original user input.
+    const { text: ownText, placeholders } = splitOmittedImagePlaceholders(m);
     const effectiveText = m.role === 'user'
-      ? buildEffectiveUserContent(m.text, m.quoteContext)
-      : m.text;
-    if (m.attachments && m.attachments.length > 0) {
+      ? buildEffectiveUserContent(ownText, m.quoteContext)
+      : ownText;
+    if (placeholders.length > 0 || (m.attachments && m.attachments.length > 0)) {
       const parts: ContentPart[] = [];
       const filePayloads: AttachmentPayload[] = [];
 
@@ -90,8 +125,9 @@ export async function buildChatHistory(
         // Hold the text aside; AttachmentInjector.injectAll assembles it further down.
       }
 
-      for (const att of m.attachments) {
+      for (const att of m.attachments ?? []) {
         if (att.kind === 'image') {
+          if (vision && vision.outbound !== 'native_part') continue;
           let b64 = att.localImageID ? await loadImageBase64(att.localImageID) : null;
           if (!b64) b64 = att.base64Data ?? null;
           if (b64) {
@@ -108,7 +144,7 @@ export async function buildChatHistory(
           });
         } else if (att.kind === 'file') {
           // Native upload vs text injection is decided by the same function the pre-send check uses (attachment-delivery.ts).
-          const delivery = resolveFileAttachmentDelivery(att, currentModel, line);
+          const delivery = resolveFileAttachmentDelivery(att, currentModel, line, file);
           if (delivery.route === 'native') {
             parts.push({
               type: 'file',
@@ -141,6 +177,8 @@ export async function buildChatHistory(
 
       // When there are attachments, this message's text already contains the ATTACHMENT_FILE block;
       // the matching system prompt guidance is appended in buildSystemPromptContent in operations.ts.
+      // Images dropped by the sanitizer: their placeholder lines go after all of the turn's parts (text, file blocks).
+      for (const placeholder of placeholders) parts.push({ type: 'text', text: placeholder });
       if (combinedText.trim() || parts.length > 0) {
         if (combinedText.trim()) {
           parts.unshift({ type: 'text', text: combinedText });

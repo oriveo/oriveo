@@ -175,7 +175,7 @@
     "capabilityRiskCost": "Dieses Feld kann die Kosten des Anbieters erhöhen.",
     "customRequestFieldsDocs": "Offizielle Dokumentation öffnen",
     "customRequestFieldsPreview": "Redigierte Anfrage-Deltavorschau",
-    "resendWithoutSetting": "Ohne diese Einstellung erneut senden",
+    "resendWithoutSetting": "Ohne diese Einstellung erneut versuchen",
     "generationBasicSettings": "Grundeinstellungen",
     "saveConnectionDefaults": "Als Verbindungsstandard verwenden",
     "generationDiagnosticsHistory": "Diagnoseverlauf",
@@ -656,7 +656,7 @@
         "measured": "Gemessen · letzte Antwort",
         "estimated": "Geschätzt",
         "aboutPercent": "ca. {percent} %",
-        "segmentConversation": "Konversation",
+        "segmentConversation": "Unterhaltung",
         "segmentLibrary": "Bibliothek",
         "segmentSummary": "Verdichtete Zusammenfassung",
         "segmentInstructions": "Anweisungen & Fähigkeiten",
@@ -726,7 +726,11 @@
         "confirmAlsoPriceLine": "Außerdem liegt sie über der Preisschwelle von {line} bei {model}. Daher wird die gesamte Anfrage zum Langkontext-Preis abgerechnet.",
         "confirmDontAsk": "In diesem Chat nicht mehr fragen",
         "confirmSend": "Trotzdem senden"
-      }
+      },
+      "connectionRemovedBanner": "Die Verbindung dieses Chats wurde gelöscht.",
+      "modelRetiredBanner": "{model} wurde eingestellt.",
+      "modelRetiredSwitchTo": "Zu {model} wechseln",
+      "lastUsedModelRetiredHint": "Dein zuletzt genutztes Modell wurde eingestellt. Jetzt wird {model} verwendet."
     },
     "providerSetup": {
       "title": "Anbieter hinzufügen",
@@ -1694,8 +1698,6 @@
       "errorHydrateTitle": "Kürzliche Gespräche konnten nicht geladen werden",
       "errorHydrateMessage": "Versuche es später erneut oder schreibe es manuell.",
       "errorGenericTitle": "Generierung fehlgeschlagen, bitte manuell schreiben",
-      "errorAggregated": "{count} Anbieter versucht, alle fehlgeschlagen.",
-      "errorAggregatedWithDetail": "{count} Anbieter versucht, alle fehlgeschlagen. Letzter Fehler: {error}",
       "backToSettings": "Zurück zu Einstellungen",
       "used": {
         "chip": "Gedächtnis",
@@ -1708,9 +1710,17 @@
       "groupPreferences": "Vorlieben",
       "groupInstructions": "Dauerhafte Anweisungen",
       "groupProjects": "Woran ich arbeite",
+      "groupConflicts": "Wähle, welche bleibt",
+      "conflictThisDevice": "Version auf diesem Gerät",
+      "conflictOtherDevice": "Version auf einem anderen Gerät",
+      "conflictKeep": "Diese behalten",
       "itemPausedBadge": "Aus",
       "itemPinnedA11y": "Angepinnt",
       "groupEpisodic": "Ereignisse & Entscheidungen",
+      "episodicLocalOnly": "Nur auf diesem Gerät gespeichert. Wird nie synchronisiert.",
+      "conflictNewer": "Neuer",
+      "conflictOlder": "Älter",
+      "conflictKeepBoth": "Beide behalten",
       "showAll": "Alle anzeigen ({count})",
       "kindDecision": "Entscheidung",
       "kindEvent": "Ereignis",
@@ -1746,7 +1756,7 @@
       "inboxTitle": "Vorschläge fürs Gedächtnis",
       "inboxEmpty": "Keine offenen Vorschläge",
       "inboxFootnote": "Vorschläge bleiben nur auf diesem Gerät und werden nach 30 Tagen automatisch gelöscht. Ins Gedächtnis kommen sie erst, wenn du sie speicherst.",
-      "inboxAutoSuggest": "Aus Gesprächen vorschlagen",
+      "inboxAutoSuggest": "Aus Unterhaltungen vorschlagen",
       "inboxAutoSuggestFootnote": "Ist die Option an, werden dauerhafte Vorgaben wie „Antworte ab jetzt immer auf Deutsch“ zu Vorschlägen, die du vor dem Speichern prüfst.",
       "extractionTitleDraft": "Erinnerungen mit KI entwerfen?",
       "extractionTitleOrganize": "Mit KI in Einträge aufteilen?",
@@ -1764,7 +1774,47 @@
     "file": "Dateien",
     "web": "Web",
     "imageGeneration": "Bildgenerierung",
-    "toolCall": "Tools"
+    "toolCall": "Tools",
+    "input": {
+      "hintFirstAttach": {
+        "image": "Wir wissen noch nicht, ob dieses Modell Bilder verarbeiten kann. Falls nicht, sagen wir dir Bescheid",
+        "file": "Wir wissen noch nicht, ob dieses Modell Dateien lesen kann. Falls nicht, sagen wir dir Bescheid",
+        "video": "Wir wissen noch nicht, ob dieses Modell Videos verarbeiten kann. Falls nicht, sagen wir dir Bescheid"
+      },
+      "disabled": {
+        "modelAbsent": {
+          "image": "Dieses Modell unterstützt keine Bildeingabe",
+          "file": "Dieses Modell unterstützt keine Dateieingabe",
+          "video": "Dieses Modell unterstützt keine Videoeingabe"
+        },
+        "wireNotImplemented": {
+          "image": "Über diese Verbindung können noch keine Bilder gesendet werden",
+          "file": "Über diese Verbindung können noch keine Dateien gesendet werden",
+          "video": "Über diese Verbindung können noch keine Videos gesendet werden"
+        },
+        "killSwitch": {
+          "image": "Die Bildeingabe ist für diesen Anbieter vorübergehend deaktiviert",
+          "file": "Die Dateieingabe ist für diesen Anbieter vorübergehend deaktiviert",
+          "video": "Die Videoeingabe ist für diesen Anbieter vorübergehend deaktiviert"
+        },
+        "rejectedRecently": {
+          "image": "Dieses Modell hat gerade ein Bild abgelehnt",
+          "file": "Dieses Modell hat gerade eine Datei abgelehnt",
+          "video": "Dieses Modell hat gerade ein Video abgelehnt"
+        },
+        "userRemoved": {
+          "image": "Du hast die Bildeingabe für dieses Modell deaktiviert",
+          "file": "Du hast die Dateieingabe für dieses Modell deaktiviert",
+          "video": "Du hast die Videoeingabe für dieses Modell deaktiviert"
+        }
+      },
+      "resendWithout": {
+        "image": "Ohne Bilder erneut senden",
+        "file": "Ohne Dateien erneut senden",
+        "video": "Ohne Videos erneut senden"
+      },
+      "bubbleNotSentToModel": "Nicht an dieses Modell gesendet"
+    }
   },
   "modelPricing": {
     "unknown": "Preis unbekannt",

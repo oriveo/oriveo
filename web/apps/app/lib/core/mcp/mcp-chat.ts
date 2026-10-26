@@ -22,7 +22,9 @@ import {
   type McpToolPlan,
   type McpToolStepUpdate,
 } from '@oriveo/core/mcp/index';
+import { providerFormOf } from '../capability/truth/provider-form';
 import { effectiveCapabilityTransport, resolveModelCapabilityEvidence } from '../chat/capability-evidence';
+import { connectionToolCallVerdict } from '../chat/tool-call-verdict';
 import { dispatchesImageGeneration } from '../chat/stream-options';
 import { currentMcpConfirmationGate, currentMcpReauthorizationGate, mcpConversationGrants } from './mcp-confirmation';
 import { loadMcpLocalState, saveMcpStepPayload } from './mcp-idb';
@@ -42,10 +44,13 @@ const TOOL_ADAPTER_TRANSPORTS = new Set(['openai_chat', 'openai_responses', 'ant
  */
 export function connectionSupportsMcpTools(provider: Provider | undefined, model: AIModel | undefined, streamOptions?: StreamOptions): boolean {
   if (!provider || !model) return false;
+  const form = providerFormOf(provider);
   // Image generation models use the image endpoint, not the chat endpoint, and cannot carry client-side tools.
   if (dispatchesImageGeneration(model)) return false;
   const transport = effectiveCapabilityTransport(provider, model, undefined, streamOptions);
   if (!TOOL_ADAPTER_TRANSPORTS.has(transport)) return false;
+  // Non-relay connections use the same verdict as the send path (including remembered rejections).
+  if (form !== 'relay') return connectionToolCallVerdict(provider, model, streamOptions) !== false;
   return resolveModelCapabilityEvidence({ key: 'tool_call', provider, model, effectiveTransport: transport, streamOptions }).support !== 'unsupported';
 }
 

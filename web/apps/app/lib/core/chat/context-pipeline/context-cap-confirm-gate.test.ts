@@ -46,7 +46,7 @@ import {
   type CapConfirmRequest,
   resolveCapConfirmation,
 } from '../context-visibility/cap-confirm-gate';
-import { readCapConfirmState } from '../context-visibility/cap-confirm';
+import { capConfirmTextOf, readCapConfirmState } from '../context-visibility/cap-confirm';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { stopStream } from '../stop-stream';
 import { trackEvent } from '../../telemetry';
@@ -56,10 +56,11 @@ const GROK_ID = 'grok-4.7';
 // Price line 100000: in the over-tier cases P̂ is below the line (only the tier is asked); in the price-line cases P̂ is above it.
 const PRICE_LINE = 100000;
 
-async function seedMetadata() {
+async function seedMetadata(currencyCode?: string) {
   const grokModels = {
     [GROK_ID]: {
       canonicalModelId: GROK_ID,
+      ...(currencyCode ? { currencyCode } : {}),
       contextLength: 2000000,
       pricingUnit: 'per_token',
       pricingStatus: 'priced',
@@ -230,6 +231,33 @@ describe('context cap confirm gate (main send path)', () => {
     expect(mocks.sendStream).toHaveBeenCalledTimes(2);
   });
 
+  it('gate_price_line_cost_in_catalog_currency', async () => {
+    // The catalog price is in CNY: the amount in the confirmation text is shown in its original currency (no conversion, never written as $); a USD catalog price still shows '$'.
+    __resetMetadataClientForTest();
+    await seedMetadata('CNY');
+    const store = storeWith({ contextCap: 'unlimited' });
+    const asked = answerEveryConfirm(store, { kind: 'cancel' });
+    await send(store, longText(110000)).done;
+
+    expect(asked).toHaveLength(1);
+    const { decision } = asked[0];
+    expect(decision.kind).toBe('priceLine');
+    expect(decision.cost?.currencyCode).toBe('CNY');
+    const tCap = (key: string, values?: Record<string, string>) => `${key}|${values?.cost ?? ''}|${values?.base ?? ''}`;
+    const text = capConfirmTextOf(decision, {
+      estimatedInput: asked[0].estimatedInput, B: null, priceLineTokens: PRICE_LINE, modelName: 'Grok 4.7', locale: 'zh-Hans',
+    }, tCap);
+    expect(text?.body.startsWith('confirmPriceLineBodyCost|')).toBe(true);
+    expect(text?.body).toContain('¥');
+    expect(text?.body).not.toContain('$');
+
+    const usd = capConfirmTextOf({ ...decision, cost: { ...decision.cost!, currencyCode: 'USD' } }, {
+      estimatedInput: asked[0].estimatedInput, B: null, priceLineTokens: PRICE_LINE, modelName: 'Grok 4.7', locale: 'zh-Hans',
+    }, tCap);
+    expect(usd?.body).toContain('$');
+    expect(usd?.body).not.toContain('¥');
+  });
+
   it('gate_regenerate_skips_confirm', async () => {
     const big = longText(25000);
     const store = storeWith({ contextCap: 32000 }, [chatMessage('u1', 'user', big), chatMessage('a1', 'assistant', 'old answer')]);
@@ -366,7 +394,7 @@ describe('context cap confirm gate (main send path)', () => {
       expect(asked).toHaveLength(1);
       expect(mocks.sendStream).toHaveBeenCalledTimes(1);
       expect(mocks.syncAdapter!.didDeleteMessages).toHaveBeenCalledTimes(1);
-      expect(mocks.syncAdapter!.didDeleteMessages).toHaveBeenCalledWith(['u1', 'a1', 'u2', 'a2'], conversationId, undefined);
+      expect(mocks.syncAdapter!.didDeleteMessages).toHaveBeenCalledWith(['u1', 'a1', 'u2', 'a2'], conversationId, { estimatedCost: 0 }, undefined);
       expect(invalidate).toHaveBeenCalledTimes(1);
       expect(mocks.cleanupCloudAttachments).toHaveBeenCalledTimes(1);
       const ids = conversationOf(store).messages.map((m) => m.id);

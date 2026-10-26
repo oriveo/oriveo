@@ -73,6 +73,7 @@ import { generationWriteFacts } from './generation-rejection-facts';
 import { additionalBodyHasContent, applyAdditionalBodyInPlace, assertAdditionalBodyAccepted } from './request-builders/additional-body';
 import { readTopLevelErrorFrame } from './upstream-error-text';
 import { classifyInStreamProviderErrorKind, normalizeUpstreamErrorType, providerErrorRawBody, upstreamErrorTypeValue, withProviderErrorRawBody } from './errors';
+import { ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS } from './protocol-implementations';
 import { chatMaxOutputTokens, guardAnthropicThinking, resolveRelayAnthropicThinking } from './request-builders/anthropic-thinking';
 import { compileSafeCustomFragment, rejectSafeCustomFragment, SafeCustomFragmentRejectedError } from './request-builders/safe-custom-fragment';
 import { safeCustomOwners } from './request-builders/generation-parameters';
@@ -1079,8 +1080,8 @@ export function buildRelayAnthropicMessagesBody(
   const chatOutputLimit = chatMaxOutputTokens(options?.maxOutputTokens);
   const body: Record<string, unknown> = {
     model: modelID,
-    // The main chat path uses the wire limit; other paths keep 8192 as a Relay-specific exception / heuristic-allow fallback (the official Anthropic path resolves this from metadata).
-    max_tokens: options?.relayMaxOutputTokens ?? chatOutputLimit ?? 8192,
+    // The main chat path uses the wire limit; other paths keep the 8192 default as a Relay-specific exception / heuristic-allow fallback (the official Anthropic path resolves this from metadata).
+    max_tokens: options?.relayMaxOutputTokens ?? chatOutputLimit ?? ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS,
     stream: shouldRelayStream(options),
     messages: apiMessages,
   };
@@ -1121,7 +1122,7 @@ function sendAnthropicMessagesStream(
   // Cache the full usage object from message_start (including cache_read_input_tokens /
   // cache_creation) so that, once output_tokens from message_delta is merged in, parseUsageAnthropic
   // can rebuild the complete breakdown. Reading only input_tokens dropped every cache field.
-  let messageStartUsage: Record<string, unknown> = {};
+  let messageStartUsage: Record<string, unknown> | undefined;
   const messagesCitations: { citations: Citation[] } = { citations: [] };
   const buildRequest = (): RelayRequest => {
     const upstreamURL = relayGenerationUpstreamURL(baseURL, modelID, transport, options);
@@ -1167,9 +1168,14 @@ function sendAnthropicMessagesStream(
           return null;
         }
         case 'content_block_delta': {
-          const delta = chunk.delta as { type?: string; text?: string } | undefined;
+          const delta = chunk.delta as { type?: string; text?: string; thinking?: string } | undefined;
           if (delta?.type === 'text_delta' && delta.text) {
             return { type: 'delta', content: delta.text };
+          }
+          // Aligned with the official parser (proxy-chunk-parser / anthropic-messages strategy): thinking is already enabled on the request,
+          // and thinking_delta is emitted as reasoning; signature_delta likewise produces no UI event on the official streaming path.
+          if (delta?.type === 'thinking_delta' && typeof delta.thinking === 'string' && delta.thinking) {
+            return { type: 'reasoning', content: delta.thinking };
           }
           return null;
         }
@@ -1179,10 +1185,15 @@ function sendAnthropicMessagesStream(
           // instead of reading only output_tokens.
           const deltaUsage = chunk.usage as Record<string, unknown> | undefined;
           if (deltaUsage && typeof deltaUsage === 'object') {
+            const mergedUsage: Record<string, unknown> = { ...messageStartUsage };
             for (const [k, v] of Object.entries(deltaUsage)) {
-              if (v !== undefined && v !== null) messageStartUsage[k] = v;
+              if (v !== undefined && v !== null) mergedUsage[k] = v;
             }
+            messageStartUsage = mergedUsage;
           }
+          // When both message_start.usage and the delta usage are missing, upstream reported no usage: no usage event is
+          // sent, so downstream records unknown instead of an estimated 0.
+          if (!messageStartUsage) return null;
           const outputTokens = typeof deltaUsage?.output_tokens === 'number'
             ? deltaUsage.output_tokens
             : 0;

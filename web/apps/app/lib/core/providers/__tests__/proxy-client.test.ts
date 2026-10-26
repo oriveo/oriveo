@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RELAY_REDACTED_PLACEHOLDER } from '@oriveo/shared/relay/endpoint-policy';
 import { sendLibraryAgentLeg, sendStreamProxy } from '../proxy-client';
 import type { StreamEvent } from '../types';
@@ -7,6 +7,7 @@ import { shouldReportProviderError } from '../../chat/error-reporting';
 import * as metadataClient from '../../metadata/metadata-client';
 import {
   __resetMetadataClientForTest,
+  __settleMetadataBackgroundWorkForTest,
   initMetadata,
 } from '../../metadata/metadata-client';
 
@@ -30,6 +31,11 @@ async function collectEvents(stream: ReadableStream<StreamEvent>): Promise<Strea
 }
 
 describe('proxy-client', () => {
+  afterEach(async () => {
+    await __settleMetadataBackgroundWorkForTest();
+    __resetMetadataClientForTest();
+  });
+
   beforeEach(() => {
     vi.restoreAllMocks();
     localStorage.clear();

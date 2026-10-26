@@ -15,7 +15,7 @@ import { getSkillById } from '../skills/query';
 import { trackEvent, telemetryProviderKind, telemetryModelID } from '../telemetry';
 import { relaySendTelemetryProperties } from '../telemetry/relay-properties';
 import type { ChatAttemptKind } from '../telemetry/chat-failure';
-import { recalculateConversationCost } from './usage-tracking';
+import { recalculateConversationCostTotals } from './usage-tracking';
 import { upsertMessages } from './message-merge';
 import { sameNormalizedID } from '../../utils/id-utils';
 import { clearDirectiveSuggestion, getPendingDirectiveSuggestion } from './conversation-instructions/directive-suggestion';
@@ -37,6 +37,8 @@ export interface SendStartParams {
   skillId: string | undefined;
   pinnedNoteIds?: string[];
   onNewConversation?: (convId: string) => void;
+  /** Entry point that started this attempt; decides whether this send writes the last-used model. Defaults to send. */
+  attemptKind?: ChatAttemptKind;
 }
 
 export interface SendStartResult {
@@ -101,6 +103,27 @@ export function reportSendStartedTelemetry(input: {
   });
 }
 
+/**
+ * The connection bound to an existing conversation was deleted, yet another connection is being used to send: refuse to send.
+ * A defensive backstop - the selection layer already reports connectionRemoved and the UI disables sending; reaching here means an entry
+ * point missed the check, so nothing goes out through a fallback connection.
+ */
+export class ConversationConnectionRemovedError extends Error {
+  constructor(readonly conversationId: string, readonly providerId: string) {
+    super(`prepareSendStart: conversation connection removed (conversation=${conversationId}, provider=${providerId})`);
+    this.name = 'ConversationConnectionRemovedError';
+  }
+}
+
+/** The conversation's bound connection is not the one sending this turn and is no longer among the connections. */
+function isBoundConnectionRemoved(store: StoreApi<AppStore>, conversation: Conversation, provider: Provider): boolean {
+  const boundProviderId = conversation.providerID?.trim();
+  if (!boundProviderId || sameNormalizedID(boundProviderId, provider.id)) return false;
+  // Judged even when the list has not loaded: the UI no longer falls back, so this path is purely defensive, and blocking is safer than silently switching connection.
+  const providers = store.getState().providers ?? [];
+  return !providers.some((candidate) => sameNormalizedID(candidate.id, boundProviderId));
+}
+
 export function prepareSendStart(p: SendStartParams): SendStartResult {
   const {
     store,
@@ -117,7 +140,13 @@ export function prepareSendStart(p: SendStartParams): SendStartResult {
     skillId,
     pinnedNoteIds,
     onNewConversation,
+    attemptKind = 'send',
   } = p;
+
+  // Before any store write: no last-used write, no conversation change, no stream opened.
+  if (conversation && isBoundConnectionRemoved(store, conversation, provider)) {
+    throw new ConversationConnectionRemovedError(conversation.id, conversation.providerID.trim());
+  }
 
   let convId: string;
   let isFirstMessage = false;
@@ -151,19 +180,35 @@ export function prepareSendStart(p: SendStartParams): SendStartResult {
       currentMessages,
       persistUserMessage ? [userMsg, assistantMsg] : [assistantMsg],
     );
-    // providerKind / relayKind are written back with the provider, so the list icon does
-    // not depend on providers.find() after switching provider; switching away from Relay
+    // Once a conversation is bound to a model, sending never rewrites it (what goes out may be a canonical id):
+    // the only rewrite path is the user's explicit switch (conversation-ops.updateConversationModel). Only a
+    // conversation with no model gets the one used now written in; providerKind / relayKind are written together
+    // with the provider, so the list icon does not depend on providers.find(), and switching away from Relay
     // writes an explicit undefined over the old value.
+    const bindModel = !conversation.modelID?.trim();
+    const latestConversation = store.getState().conversations.find((c) => c.id === convId) ?? conversation;
+    const costTotals = recalculateConversationCostTotals(nextMessages, {
+      conversation: latestConversation,
+      previousMessages: currentMessages,
+    });
     store.getState().updateConversation(convId, {
       isDraft: false,
       messages: nextMessages,
       ...deriveConversationMetadata(conversation, nextMessages),
-      estimatedCost: recalculateConversationCost(nextMessages),
-      modelID: model.id, providerID: provider.id,
-      providerKind: provider.kind,
-      relayKind: provider.kind === 'relay' ? provider.relayKind : undefined,
+      estimatedCost: costTotals.estimatedCost,
+      nonUsdCostTotals: costTotals.nonUsdCostTotals,
+      ...(bindModel ? {
+        modelID: model.id, providerID: provider.id,
+        providerKind: provider.kind,
+        relayKind: provider.kind === 'relay' ? provider.relayKind : undefined,
+      } : {}),
       updatedAt: computeConversationActivityAt(nextMessages, conversation.createdAt),
     });
+    // Every actual send writes last-used: existing conversations too, same as new ones; a bound conversation model is still left alone.
+    // Only a send and a resend after edit count as sending; retry / regenerate / continue (and recovery) do not, so they do not write last-used.
+    if (attemptKind === 'send' || attemptKind === 'edit') {
+      store.getState().setLastUsedModelRef({ providerID: provider.id, modelID: model.id });
+    }
     initialConversationSnapshot = store.getState().conversations.find((c) => c.id === convId);
   }
 
@@ -205,11 +250,16 @@ export function rollbackSendStart(
     void Promise.resolve(deleteLocalMessageContinuation(conversationId, messageId)).catch(() => undefined);
   }
   const messages = conversation.messages.filter((message) => !removed.has(message.id));
+  const costTotals = recalculateConversationCostTotals(messages, {
+    conversation,
+    previousMessages: conversation.messages,
+  });
   store.getState().updateConversation(conversationId, {
     ...(messages.length === 0 ? { isDraft: true } : {}),
     messages,
     ...deriveConversationMetadata(conversation, messages),
-    estimatedCost: recalculateConversationCost(messages),
+    estimatedCost: costTotals.estimatedCost,
+    nonUsdCostTotals: costTotals.nonUsdCostTotals,
     updatedAt: computeConversationActivityAt(messages, conversation.createdAt),
   });
 }

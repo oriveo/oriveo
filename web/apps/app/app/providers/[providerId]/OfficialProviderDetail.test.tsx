@@ -229,7 +229,7 @@ vi.mock('../../../lib/core/store/selectors', () => ({
   selectResolvedCatalog: () => resolvedCatalogMock,
 }));
 
-vi.mock('../../../lib/core/metadata/metadata-client', () => ({
+vi.mock('../../../lib/core/metadata/metadata-client', async (importOriginal) => (await import('../../../lib/__tests__/mocks/metadata-client')).metadataClientMock(importOriginal, {
   getPublicProviderConfig: () => publicProviderConfigMock,
   initMetadata: initMetadataMock,
   refreshMetadata: refreshMetadataMock,
@@ -238,6 +238,12 @@ vi.mock('../../../lib/core/metadata/metadata-client', () => ({
   // Subscription section not served by the backend: every official provider other than Grok / Codex takes this path, and the detail page looks unchanged.
   getGrokSubscriptionAvailability: () => grokSubscriptionAvailabilityMock,
   getOpenAISubscriptionAvailability: () => openAISubscriptionAvailabilityMock,
+  // The hero start-chat availability uses new-conversation model selection at render time: catalog not loaded means no delisting verdict.
+  getProviderDefaultModelId: () => undefined,
+  getProviderCatalogStatus: () => 'pending',
+  getProviderRetiredModels: () => [],
+  listProviderModelIds: () => [],
+  resolveCatalogModel: () => null,
 }));
 
 vi.mock('../../../lib/core/provider-ops', () => ({
@@ -681,6 +687,39 @@ describe('OfficialProviderDetail', () => {
     });
     expect(routerPush).toHaveBeenCalledWith('/chat');
   });
+  it('model row start chat: button is disabled when the connection lacks credentials; clicking neither records last used nor navigates', () => {
+    resolvedCatalogMock = {
+      catalog: [],
+      enabledModels: [
+        {
+          id: 'gpt-4o',
+          name: 'GPT-4o',
+          capabilities: ['text'],
+          reasoningModeAvailable: false,
+          isAvailable: true,
+          isDefault: true,
+          isEnabled: true,
+          isManual: false,
+          priceTier: '',
+          sortRank: 180,
+        },
+      ],
+      recommendedModels: [],
+      defaultModel: null,
+      availableModelCount: 0,
+      hasManualModels: false,
+    };
+    const missingKey = { ...provider, status: { kind: 'needsKey' }, apiKey: '', apiKeyPreview: '' } as unknown as Provider;
+
+    render(<OfficialProviderDetail provider={missingKey} />);
+
+    const chatButton = screen.getByRole('button', { name: 'chatWithModel:GPT-4o' }) as HTMLButtonElement;
+    expect(chatButton.disabled).toBe(true);
+    fireEvent.click(chatButton);
+    expect(mockSetLastUsedModelRef).not.toHaveBeenCalled();
+    expect(routerPush).not.toHaveBeenCalled();
+  });
+
   it('removing an enabled model shows a removed toast whose undo re-enables the original model', () => {
     const rawModel = {
       id: 'gpt-4o',

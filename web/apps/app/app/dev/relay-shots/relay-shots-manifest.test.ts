@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   notFound: vi.fn(() => {
@@ -44,6 +44,12 @@ const fakeStore = () => ({ getState: () => ({ setProviders: vi.fn() }), setState
 
 describe('relay shots shared sample manifest', () => {
   let uninstall: (() => void) | null = null;
+  // The page and the client components it loads on demand take seconds to cold-transpile under full-suite concurrency: load once first (timed separately) so it does not eat the 5s case budget.
+  beforeAll(async () => {
+    await import('./[page]/page');
+    await import('./RelayShotsClient');
+    await import('./relay-shots-pages');
+  }, 60_000);
   afterEach(() => {
     uninstall?.();
     uninstall = null;

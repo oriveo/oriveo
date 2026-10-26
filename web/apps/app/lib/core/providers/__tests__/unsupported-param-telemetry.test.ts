@@ -11,7 +11,7 @@ vi.mock('../../telemetry', () => ({
   trackEvent: mocks.trackEvent,
 }));
 
-vi.mock('../../metadata/metadata-client', () => ({
+vi.mock('../../metadata/metadata-client', async (importOriginal) => (await import('../../../__tests__/mocks/metadata-client')).metadataClientMock(importOriginal, {
   refreshMetadata: mocks.refreshMetadata,
   initMetadata: mocks.initMetadata,
   resolveCatalogModel: mocks.resolveCatalogModel,

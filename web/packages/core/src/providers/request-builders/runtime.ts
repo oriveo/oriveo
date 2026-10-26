@@ -4,6 +4,7 @@ import type { ProviderTransportDefinition } from '../../metadata/types';
 import type { ContentPart } from '../types';
 import type { RelayRuntimeConfig } from '../../ports';
 import { resolveProviderBaseURL } from '../url-utils';
+import { mediaTextFallback, TEXT_ONLY_ROUTE_VIDEO_PLACEHOLDER } from '../attachment-transport';
 // The single source of truth for the Provider key validation contract is ../key-validation.
 import type { ProviderValidationContract } from '../key-validation';
 import type { GenerationParameterProfile, GenerationParameterValue } from './types';
@@ -77,6 +78,8 @@ export interface RuntimeModelMetadata {
   displayName?: string;
   contextLength?: number;
   maxOutputTokens?: number;
+  /** Prompt-cache policy reference (catalog verdict); the Anthropic breakpoint only recognises anthropic.explicit. */
+  promptCache?: { policyRef?: string };
   supportsTemperature?: boolean;
   pricing?: {
     promptPerMToken: number;
@@ -468,7 +471,8 @@ export function withImagePlaceholders(messages: ProxyMessage[], placeholder: str
  */
 export function buildOpenAIChatMessages(
   messages: ProxyMessage[],
-  options?: { nativeFileBlock?: boolean },
+  /** @param options.videoPlaceholder The placeholder line each video becomes when the route does not accept video (`videoPlaceholderText`). */
+  options?: { nativeFileBlock?: boolean; videoPlaceholder?: string },
 ) {
   return messages.map((message) => ({
     role: message.role,
@@ -482,6 +486,7 @@ export function buildOpenAIChatMessages(
           return { type: 'image_url' as const, image_url: { url: part.image_url.url } };
         }
         if (part.type === 'video_url') {
+          if (options?.videoPlaceholder) return { type: 'text' as const, text: options.videoPlaceholder };
           return { type: 'video_url' as const, video_url: { url: part.video_url.url } };
         }
         if (options?.nativeFileBlock) {
@@ -508,8 +513,8 @@ export function buildDashScopeMessages(messages: ProxyMessage[]) {
       ? message.content
       : message.content.map((part) => {
         if (part.type === 'text') return part.text;
-        if (part.type === 'image_url') return `[image: ${part.image_url.url}]`;
-        if (part.type === 'video_url') return `[video: ${part.video_url.url}]`;
+        if (part.type === 'image_url') return mediaTextFallback('image', part.image_url.url, 'qwen_chat');
+        if (part.type === 'video_url') return mediaTextFallback('video', part.video_url.url, 'qwen_chat');
         return `[file: ${part.file.filename}]`;
       }).join('\n'),
   }));
@@ -522,7 +527,13 @@ export function buildOpenAIResponsesInput(messages: ProxyMessage[]) {
   }));
 }
 
-export function buildAnthropicRequestPayload(messages: ProxyMessage[]) {
+/**
+ * @param videoPlaceholder Anthropic Messages has no video block: each video is written as this placeholder line, and the data URL is never written into the text.
+ */
+export function buildAnthropicRequestPayload(
+  messages: ProxyMessage[],
+  videoPlaceholder: string = TEXT_ONLY_ROUTE_VIDEO_PLACEHOLDER,
+) {
   const systemTexts: string[] = [];
 
   const anthropicMessages = messages
@@ -555,11 +566,11 @@ export function buildAnthropicRequestPayload(messages: ProxyMessage[]) {
                 source: { type: 'base64' as const, media_type: data.mimeType, data: data.base64 },
               };
             }
-            return { type: 'text' as const, text: `[image: ${part.image_url.url}]` };
+            return { type: 'text' as const, text: mediaTextFallback('image', part.image_url.url, 'anthropic_messages') };
           }
 
           if (part.type === 'video_url') {
-            return { type: 'text' as const, text: `[video: ${part.video_url.url}]` };
+            return { type: 'text' as const, text: videoPlaceholder };
           }
 
           const data = parseDataURL(part.file.file_data);
@@ -594,7 +605,7 @@ export function buildGeminiContents(messages: ProxyMessage[]) {
             if (data) {
               return { inlineData: { mimeType: data.mimeType, data: data.base64 } };
             }
-            return { text: `[image: ${part.image_url.url}]` };
+            return { text: mediaTextFallback('image', part.image_url.url, 'gemini_generate') };
           }
 
           if (part.type === 'video_url') {
@@ -602,7 +613,7 @@ export function buildGeminiContents(messages: ProxyMessage[]) {
             if (data) {
               return { inlineData: { mimeType: data.mimeType, data: data.base64 } };
             }
-            return { text: `[video: ${part.video_url.url}]` };
+            return { text: mediaTextFallback('video', part.video_url.url, 'gemini_generate') };
           }
 
           const data = parseDataURL(part.file.file_data);

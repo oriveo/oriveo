@@ -265,6 +265,8 @@ export function validateChatStreamRequest(body: unknown): ValidationResult {
   }
 
   const tools = body.tools;
+  // A propose_memory whose definition does not match the current one: validation runs to the end and the tool is dropped from the outbound tools.
+  let staleProposeTool: unknown;
   if (tools !== undefined) {
     // An empty array is accepted and means the same as no tools: the request builders and the
     // tool wire adapters all go by `tools?.length`, so an empty array never appears in the body
@@ -313,8 +315,10 @@ export function validateChatStreamRequest(body: unknown): ValidationResult {
         }
       } else if (fn.name === PROPOSE_MEMORY_TOOL_NAME) {
         // Duplicate names are already rejected by seenToolNames, so there is at most one.
+        // A stale tab that outlived a release may still send the old definition (the web has no
+        // forced refresh on version skew): drop that tool and send as usual instead of failing with 400.
         if (JSON.stringify(tool) !== PROPOSE_MEMORY_TOOL_JSON) {
-          return { ok: false, status: 400, error: 'tools invalid' };
+          staleProposeTool = tool;
         }
       } else if (fn.name === SEARCH_MEMORY_TOOL_NAME) {
         if (JSON.stringify(tool) !== SEARCH_MEMORY_TOOL_JSON) {
@@ -338,6 +342,13 @@ export function validateChatStreamRequest(body: unknown): ValidationResult {
   if (toolChoice !== undefined && (!Array.isArray(tools) || tools.length === 0)) {
     return { ok: false, status: 400, error: 'toolChoice requires tools' };
   }
+  // If dropping the stale propose_memory leaves no tools, this request takes the tool-free path and toolChoice is not sent either.
+  const outboundTools = staleProposeTool !== undefined && Array.isArray(tools)
+    ? tools.filter((tool) => tool !== staleProposeTool)
+    : tools;
+  const outboundToolChoice = Array.isArray(outboundTools) && outboundTools.length === 0 && staleProposeTool !== undefined
+    ? undefined
+    : toolChoice;
   const stream = body.stream;
   if (stream !== undefined && typeof stream !== 'boolean') {
     return { ok: false, status: 400, error: 'stream must be a boolean' };
@@ -434,8 +445,8 @@ export function validateChatStreamRequest(body: unknown): ValidationResult {
       messages: messages as ProxyMessage[],
       stream: stream as boolean | undefined,
       baseURL: typeof baseURL === 'string' ? baseURL : undefined,
-      tools: tools as ValidatedRequest['tools'],
-      toolChoice: toolChoice as ValidatedRequest['toolChoice'],
+      tools: outboundTools as ValidatedRequest['tools'],
+      toolChoice: outboundToolChoice as ValidatedRequest['toolChoice'],
       options: options as ValidatedRequest['options'],
       continuation: continuation as ValidatedRequest['continuation'],
       ...(continuationFingerprint !== undefined

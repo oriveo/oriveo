@@ -20,7 +20,7 @@ const partitionMocks = vi.hoisted(() => ({ activeUID: 'guest' }));
 vi.mock('../../../infra/storage/partition', () => ({
   getActiveUIDSync: () => partitionMocks.activeUID,
 }));
-vi.mock('../../metadata/metadata-client', () => ({
+vi.mock('../../metadata/metadata-client', async (importOriginal) => (await import('../../../__tests__/mocks/metadata-client')).metadataClientMock(importOriginal, {
   getCapabilityRuntime: () => ({ revision: 'runtime-r7' }),
   resolveCatalogModel: () => null,
 }));
@@ -75,15 +75,15 @@ describe('accountScopeInvariants - both envelopes declare the same account bound
 
 describe('legacyBareKeyClaim - a bare key belongs to the first account only when this machine has never had a real one', () => {
   it('the contract text itself says a machine that has already seen a real account deletes rather than inherits on sign-in', () => {
-    expect(capabilityInvariants.legacyBareKeyClaim).toContain(' ');
-    expect(capabilityInvariants.legacyBareKeyClaim).toContain(' ');
+    expect(capabilityInvariants.legacyBareKeyClaim).toContain('no profile has ever used this device before');
+    expect(capabilityInvariants.legacyBareKeyClaim).toContain('deleted rather than inherited');
   });
 
   it('the first real account inherits and consumes the bare key', () => {
-    localStorage.setItem('oriveo.capability-preference-settings.v2', '{"records":[" "]}');
+    localStorage.setItem('oriveo.capability-preference-settings.v2', '{"records":["legacy"]}');
     partitionMocks.activeUID = UID_A;
 
-    expect(readPartitionedStore('capability-preference-settings.v2')).toBe('{"records":[" "]}');
+    expect(readPartitionedStore('capability-preference-settings.v2')).toBe('{"records":["legacy"]}');
     expect(localStorage.getItem('oriveo.capability-preference-settings.v2')).toBeNull();
   });
 
@@ -93,12 +93,12 @@ describe('legacyBareKeyClaim - a bare key belongs to the first account only when
     readPartitionedStore('capability-preference-settings.v2');
 
     // The legacy bare key in the other table is only read now; it belongs to A and must not be handed to a later account.
-    localStorage.setItem('oriveo.generation-parameter-settings.v1', '{"scopes":["A  "]}');
+    localStorage.setItem('oriveo.generation-parameter-settings.v1', '{"scopes":["A params"]}');
     partitionMocks.activeUID = UID_B;
     expect(readPartitionedStore('generation-parameter-settings.v1')).toBeNull();
     expect(localStorage.getItem('oriveo.generation-parameter-settings.v1')).toBeNull();
 
-    localStorage.setItem('oriveo.generation-parameter-settings.v1', '{"scopes":["A  "]}');
+    localStorage.setItem('oriveo.generation-parameter-settings.v1', '{"scopes":["A params"]}');
     partitionMocks.activeUID = 'guest';
     expect(readPartitionedStore('generation-parameter-settings.v1')).toBeNull();
     expect(localStorage.getItem('oriveo.generation-parameter-settings.v1')).toBeNull();

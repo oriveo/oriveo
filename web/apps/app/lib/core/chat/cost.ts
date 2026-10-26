@@ -10,7 +10,7 @@
 
 import type { AIModel, ProviderKind } from '@oriveo/shared';
 import type { StreamUsage } from '../providers/types';
-import { lookupPricing, resolveCatalogModel } from '../metadata/metadata-client';
+import { resolveCatalogModel, type ResolvedModelMetadata } from '../metadata/metadata-client';
 
 export {
   calcCost,
@@ -25,44 +25,67 @@ export {
  *
  * @deprecated Use `calcCost`, which reads a UsageBreakdown and covers the cache, upstream and
  * 5m/1h splits. Older callers estimate from prompt plus completion only and ignore the cache
- * discount fields.
+ * discount fields. Returns the amount only, without a currency; use
+ * {@link estimateCostWithCurrency} when the currency is needed.
  */
 export function estimateCost(
   usage: StreamUsage | undefined,
   model: AIModel | undefined,
   providerKind?: ProviderKind | string,
 ): number | null {
-  if (!usage || !model) return 0;
+  const resolved = model && providerKind ? resolveCatalogModel(model.id, providerKind) : null;
+  return estimateCostWithCurrency(usage, model, providerKind, resolved, true)?.amount ?? null;
+}
+
+/**
+ * Legacy prompt-plus-completion estimate together with the currency the price belongs to: a model's
+ * own price is in USD (currencyCode omitted); a catalog price carries `resolved.currencyCode` (the
+ * caller passes a `resolved` that already picked the regional price for the connection; the currency
+ * is returned as is, with no conversion). Returns null when no price is available.
+ *
+ * When `allowLocalPrice` is false (an official provider on its official endpoint) the model's own
+ * price is not read: it does not go through region selection, so recording it as USD would
+ * misattribute a cn-region or non-USD price. Only `resolved` is used, and without it the result is null.
+ */
+export function estimateCostWithCurrency(
+  usage: StreamUsage | undefined,
+  model: AIModel | undefined,
+  providerKind: ProviderKind | string | undefined,
+  resolved: ResolvedModelMetadata | null | undefined,
+  allowLocalPrice: boolean,
+): { amount: number; currencyCode?: string } | null {
+  if (!usage || !model) return { amount: 0 };
 
   const promptTokens = usage.prompt_tokens ?? 0;
   const completionTokens = usage.completion_tokens ?? 0;
 
-  // Path 1: the model carries its own pricing, filled in by OpenRouter or during model sync.
+  // Path 1: the model carries its own pricing, filled in by OpenRouter or during model sync (USD;
+  // used only when the caller allows it).
   const hasPromptPrice = typeof model.promptPrice === 'number';
   const hasCompletionPrice = typeof model.completionPrice === 'number';
-  if (hasPromptPrice || hasCompletionPrice) {
-    return promptTokens * (hasPromptPrice ? model.promptPrice! : 0)
-         + completionTokens * (hasCompletionPrice ? model.completionPrice! : 0);
+  if (allowLocalPrice && (hasPromptPrice || hasCompletionPrice)) {
+    return {
+      amount: promptTokens * (hasPromptPrice ? model.promptPrice! : 0)
+        + completionTokens * (hasCompletionPrice ? model.completionPrice! : 0),
+    };
   }
 
-  // Path 2: fall back to the backend metadata service.
-  if (providerKind) {
-    const resolved = resolveCatalogModel(model.id, providerKind);
-    if (resolved?.pricingStatus === 'free') {
-      return 0;
+  // Path 2: fall back to the backend metadata; the currency follows the price.
+  if (providerKind && resolved) {
+    const currencyCode = resolved.currencyCode;
+    if (resolved.pricingStatus === 'free') {
+      return { amount: 0, currencyCode };
     }
-    if (
-      resolved?.pricingStatus === 'priced'
-      && resolved.pricingUnit !== 'per_token'
-      && resolved.pricing?.costPerUnit != null
-    ) {
-      return resolved.pricing.costPerUnit;
-    }
-
-    const pricing = lookupPricing(model.id, providerKind);
-    if (pricing) {
-      return promptTokens * pricing.promptPerToken
-           + completionTokens * pricing.completionPerToken;
+    // Per-unit pricing: the unit count is unknown here, so record unknown instead of estimating one
+    // unit; a missing pricingUnit counts as per_token.
+    const pricingUnit = resolved.pricingUnit ?? 'per_token';
+    if (pricingUnit !== 'per_token') return null;
+    const pricing = resolved.pricing;
+    if (pricing?.promptPerToken != null && pricing.completionPerToken != null) {
+      return {
+        amount: promptTokens * pricing.promptPerToken + completionTokens * pricing.completionPerToken,
+        currencyCode,
+      };
     }
   }
 
