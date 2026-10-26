@@ -16,4 +16,9 @@ internal data class PendingDisclosurePayload(
     val text: String,
     val attachments: List<Attachment>?,
     val quoteContext: QuoteContext? = null,
-)
+    val delivery: ai.oriveo.community.core.context.ContextDelivery? = null,
+) {
+    /** Payload of a voice entry gate (no text yet): accepting the disclosure starts the voice conversation. */
+    fun isVoiceEntry(): Boolean =
+        text.isEmpty() && attachments.isNullOrEmpty() && delivery == ai.oriveo.community.core.context.ContextDelivery.VOICE
+}

@@ -1,11 +1,13 @@
 package ai.oriveo.community.feature.chat.composer
 
+import androidx.annotation.StringRes
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -53,10 +55,10 @@ internal fun ComposerAttachmentEntryButton(
     onPickImage: () -> Unit,
     onPickVideo: () -> Unit,
     onPickFile: () -> Unit,
-    showCameraOption: Boolean,
-    showImageOption: Boolean,
-    showVideoOption: Boolean,
-    showFileOption: Boolean,
+    cameraItem: ComposerAttachmentMenuItem,
+    imageItem: ComposerAttachmentMenuItem,
+    videoItem: ComposerAttachmentMenuItem,
+    fileItem: ComposerAttachmentMenuItem,
 ) {
     val colors = OriveoTheme.colors
     val isDark = OriveoTheme.isDark
@@ -129,40 +131,45 @@ internal fun ComposerAttachmentEntryButton(
             }
         }
 
-        if ((listOf(showCameraOption, showImageOption, showVideoOption, showFileOption).count { it }) > 1) {
+        val menuItems = listOf(
+            AttachmentMenuEntry(cameraItem, R.string.take_photo, Icons.Outlined.CameraAlt, onPickCamera),
+            AttachmentMenuEntry(imageItem, R.string.photo_library, Icons.Outlined.Image, onPickImage),
+            AttachmentMenuEntry(videoItem, R.string.video, Icons.Outlined.Videocam, onPickVideo),
+            AttachmentMenuEntry(fileItem, R.string.file, Icons.Outlined.Description, onPickFile),
+        ).filter { it.item.shown }
+        if (menuItems.size > 1) {
             DropdownMenu(
                 expanded = showMenu,
                 onDismissRequest = onDismissMenu,
             ) {
-                if (showCameraOption) {
+                menuItems.forEach { entry ->
+                    // Unavailable items are visibly disabled: the menu style is kept, with an extra reason line under the label.
                     DropdownMenuItem(
-                        text = { Text(stringResource(R.string.take_photo)) },
-                        leadingIcon = { Icon(Icons.Outlined.CameraAlt, contentDescription = null) },
-                        onClick = onPickCamera,
-                    )
-                }
-                if (showImageOption) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.photo_library)) },
-                        leadingIcon = { Icon(Icons.Outlined.Image, contentDescription = null) },
-                        onClick = onPickImage,
-                    )
-                }
-                if (showVideoOption) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.video)) },
-                        leadingIcon = { Icon(Icons.Outlined.Videocam, contentDescription = null) },
-                        onClick = onPickVideo,
-                    )
-                }
-                if (showFileOption) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.file)) },
-                        leadingIcon = { Icon(Icons.Outlined.Description, contentDescription = null) },
-                        onClick = onPickFile,
+                        text = {
+                            Column {
+                                Text(stringResource(entry.labelRes))
+                                entry.item.disabledReasonRes?.let { reasonRes ->
+                                    Text(
+                                        text = stringResource(reasonRes),
+                                        style = OriveoTheme.typography.footnote,
+                                        color = colors.textSecondary,
+                                    )
+                                }
+                            }
+                        },
+                        leadingIcon = { Icon(entry.icon, contentDescription = null) },
+                        onClick = entry.onPick,
+                        enabled = entry.item.enabled,
                     )
                 }
             }
         }
     }
 }
+
+private class AttachmentMenuEntry(
+    val item: ComposerAttachmentMenuItem,
+    @StringRes val labelRes: Int,
+    val icon: ImageVector,
+    val onPick: () -> Unit,
+)

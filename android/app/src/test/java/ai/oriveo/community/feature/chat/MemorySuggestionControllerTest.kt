@@ -203,7 +203,7 @@ class MemorySuggestionControllerTest {
         }
     }
 
-    /** P10 rule 7: the bar hangs under the assistant reply, so its lines start at the reply's leading edge. */
+    /** The bar hangs under the assistant reply, so its lines start at the reply's leading edge. */
     @Test
     fun `suggestion bar hangs under the assistant answer`() {
         assertEquals(androidx.compose.ui.Alignment.Start, MemorySuggestionRowLayout.horizontalAlignment)
@@ -277,10 +277,11 @@ class MemorySuggestionControllerTest {
     @Test
     fun conversation_directive_keeps_instruction_bar() = runTest {
         val harness = Harness(this, useMemory = true)
-        with(harness) { send(text("en_implicit_01_golden")) }
+        // The lexical bar only appears for suggestionLanguages, so use a sentence in a gated language (zh-Hans).
+        with(harness) { send(text("zh_implicit_03_golden")) }
 
         assertEquals(
-            DirectiveSuggestion(conversationId, "message-1", expected("en_implicit_01_golden", "span")),
+            DirectiveSuggestion(conversationId, "message-1", expected("zh_implicit_03_golden", "span")),
             harness.directive.pending.value[conversationId],
         )
         assertNull(harness.memory.current.value)
@@ -496,12 +497,9 @@ class MemorySuggestionControllerTest {
         assertNull(harness.memory.current.value)
         assertTrue(db.memoryCandidateDao().list(account).isEmpty())
 
-        // The "Set as instruction" bar is unchanged.
-        with(harness) { send(text("en_implicit_01_golden")) }
-        assertEquals(
-            DirectiveSuggestion(conversationId, "message-2", expected("en_implicit_01_golden", "span")),
-            harness.directive.pending.value[conversationId],
-        )
+        // Tool mode does not run the lexical "Set as instruction" bar either (only the model's instruct call raises it), even for a gated-language sentence.
+        with(harness) { send(text("zh_implicit_03_golden")) }
+        assertNull(harness.directive.pending.value[conversationId])
         assertTrue(db.memoryCandidateDao().list(account).isEmpty())
     }
 

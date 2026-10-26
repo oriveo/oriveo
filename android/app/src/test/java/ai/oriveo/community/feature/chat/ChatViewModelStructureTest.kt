@@ -65,6 +65,7 @@ class ChatViewModelStructureTest {
             "ChatDraftCoordinator(",
             "ChatConversationActions(",
             "ChatNoteCoordinator(",
+            "ChatMessageWindowCoordinator(",
         ).forEach { expected ->
             assertTrue("Expected ChatViewModel to reference $expected", viewModelSource.contains(expected))
         }

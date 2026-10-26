@@ -72,6 +72,8 @@ class IdleRenderingPerformanceContractTest {
         "feature/chat/ChatScreenContent.kt",
         "feature/home/AuroraTheme.kt",
         "feature/home/homescreen/NewChatBar.kt",
+        // Voice transition: a finite spring / 200 ms fade, never an infinite animation.
+        "feature/chat/voice/VoiceConversationTransition.kt",
         // Onboarding is another "open it and sit there" screen: the motion is kept, but it is now
         // driven by the stage's single time source rather than a registered infinite animation.
         "feature/onboarding/OnboardingOrbitStage.kt",
@@ -88,6 +90,8 @@ class IdleRenderingPerformanceContractTest {
     private val motionGatedSources = listOf(
         "ui/component/OriveoStatusDot.kt",
         "feature/settings/MemoryScreen.kt",
+        // Voice conversation orb: flows only while thinking, never with system animations off.
+        "feature/chat/voice/VoiceConversationBar.kt",
     )
 
     @Test

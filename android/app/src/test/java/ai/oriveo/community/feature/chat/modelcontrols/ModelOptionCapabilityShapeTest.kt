@@ -230,4 +230,29 @@ class ModelOptionCapabilityShapeTest {
             production(anthropic, officialModel, Capability.Web, ConnectionCategory.Other),
         )
     }
+
+    @Test
+    fun `thinking row shows fixed for unsupported and unknown when the model shows thinking`() {
+        listOf(CapabilityControlPresentation.Unsupported, CapabilityControlPresentation.Unknown).forEach { presentation ->
+            assertEquals(
+                presentation.name,
+                ModelOptionCapabilityShape.Disclosure(DisclosureStatus.ShowsThinkingFixed, tappable = false),
+                ModelOptionCapabilityShape.resolve(input(Capability.Reasoning, presentation).copy(showsThinking = true)),
+            )
+        }
+        // Pending is a transient loading state; showsThinking does not change it.
+        assertEquals(
+            ModelOptionCapabilityShape.Notice(NoticeStatus.FollowsModelDefault, NoticeBody.ReasoningNotCatalogued, Escape.SupportedModels),
+            ModelOptionCapabilityShape.resolve(
+                input(Capability.Reasoning, CapabilityControlPresentation.Pending).copy(showsThinking = true),
+            ),
+        )
+        // An external connector only handles web search; the thinking row still reads "does not think".
+        assertEquals(
+            ModelOptionCapabilityShape.Disclosure(DisclosureStatus.ModelDoesNotThink),
+            ModelOptionCapabilityShape.resolve(
+                input(Capability.Reasoning, CapabilityControlPresentation.ExternalConnectorOnly).copy(showsThinking = true),
+            ),
+        )
+    }
 }

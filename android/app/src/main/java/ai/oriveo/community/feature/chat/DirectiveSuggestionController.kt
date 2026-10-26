@@ -30,7 +30,7 @@ data class DirectiveSuggestion(
 )
 
 /**
- * "Set as instruction" suggestion (contract P4·U3 rule 5). Judges only freshly sent user messages; pending
+ * "Set as instruction" suggestion. Judges only freshly sent user messages; pending
  * suggestions live in memory only (one per conversation) and vanish on the next user message, on switching
  * conversations, or on restart. Accept appends and offers a 5 s undo; ignore bumps the local streak.
  */
@@ -43,7 +43,7 @@ class DirectiveSuggestionController(
     private val showToast: (GlobalSnackbarMessage) -> Unit,
     private val ioContext: CoroutineContext = Dispatchers.IO,
     private val detect: (String) -> DirectiveDetection = DirectiveDetector::detect,
-    /** Routing (contract P6·U3 rule 1): only messages classified as a conversation instruction reach this bar. */
+    /** Routing: only messages classified as a conversation instruction reach this bar. */
     private val classify: (String) -> MemoryIntentSuggestion = { MemoryIntent.classify(it).suggestion },
 ) {
     private val _pending = MutableStateFlow<Map<String, DirectiveSuggestion>>(emptyMap())
@@ -52,11 +52,36 @@ class DirectiveSuggestionController(
     /** Latest user message per conversation: a slower evaluation of an older message must not win. */
     private val latestMessage = java.util.concurrent.ConcurrentHashMap<String, String>()
 
-    fun onUserMessageCreated(conversationId: String, messageId: String, text: String) {
+    /**
+     * A fresh user message: clears the pending bar. [lexical] false is propose mode tool (propose-v3): the bar then
+     * only comes from [onInstruct], the lexical route does not run.
+     */
+    fun onUserMessageCreated(conversationId: String, messageId: String, text: String, lexical: Boolean = true) {
         latestMessage[conversationId] = messageId
         _pending.update { it - conversationId }
+        if (lexical) onFallback(conversationId, messageId, text)
+    }
+
+    /**
+     * Lexical route for [messageId] (mode fallback / none, or a tool-mode send degraded to no tools): memory-intent
+     * classify plus the detector, offered only when the matched language is in suggestionLanguages.
+     */
+    fun onFallback(conversationId: String, messageId: String, text: String) {
+        offer(conversationId, messageId) { lexicalSentence(text) }
+    }
+
+    /** propose-v3 instruct outcome of the turn started by [messageId]: same ignore / substring / length gates. */
+    fun onInstruct(conversationId: String, messageId: String, sentence: String) {
+        offer(conversationId, messageId) { sentence.trimWhiteSpace().takeIf { it.isNotEmpty() } }
+    }
+
+    private fun offer(conversationId: String, messageId: String, sentenceOf: () -> String?) {
+        if (latestMessage[conversationId] != messageId) return
         scope.launch {
-            val suggestion = withContext(ioContext) { evaluate(conversationId, messageId, text) } ?: return@launch
+            val suggestion = withContext(ioContext) {
+                val sentence = sentenceOf() ?: return@withContext null
+                evaluate(conversationId, messageId, sentence)
+            } ?: return@launch
             if (latestMessage[conversationId] != messageId) return@launch
             _pending.update { it + (conversationId to suggestion) }
         }
@@ -95,7 +120,7 @@ class DirectiveSuggestionController(
     }
 
     /**
-     * P9·U8: the send of [messageId] was rolled back at the confirmation gate; its suggestion goes away (not an
+     * the send of [messageId] was rolled back at the confirmation gate; its suggestion goes away (not an
      * ignore) and a late evaluation of it no longer shows. A suggestion under any other message stays.
      */
     fun withdraw(conversationId: String, messageId: String) {
@@ -114,16 +139,17 @@ class DirectiveSuggestionController(
         return taken
     }
 
-    private suspend fun evaluate(conversationId: String, messageId: String, text: String): DirectiveSuggestion? {
-        if (store.ignoreCount(conversationId) >= MAX_IGNORE_STREAK) return null
+    private fun lexicalSentence(text: String): String? {
         if (classify(text) != MemoryIntentSuggestion.CONVERSATION_INSTRUCTION) return null
         val detection = detect(text)
-        if (!detection.isDirective) return null
-        val sentence = originalSentence(detection.span, text) ?: return null
+        if (!detection.isDirective || detection.lang !in DirectiveDetector.SUGGESTION_LANGUAGES) return null
+        return originalSentence(detection.span, text)
+    }
+
+    private suspend fun evaluate(conversationId: String, messageId: String, sentence: String): DirectiveSuggestion? {
+        if (store.ignoreCount(conversationId) >= MAX_IGNORE_STREAK) return null
         val current = instructionsOf(conversationId) ?: return null
-        if (current.contains(sentence)) return null
-        val next = appended(current, sentence)
-        if (next.codePointCount(0, next.length) > ConversationInstructions.MAX_CODE_POINTS) return null
+        if (!shows(sentence, current, ignoreCount = 0)) return null
         return DirectiveSuggestion(conversationId, messageId, sentence)
     }
 
@@ -135,6 +161,13 @@ class DirectiveSuggestionController(
         fun originalSentence(span: String?, text: String): String? =
             span?.trimWhiteSpace()?.takeIf { it.isNotEmpty() }
                 ?: text.trimWhiteSpace().takeIf { it.isNotEmpty() }
+
+        /** §10.1 bar gate: ignore streak < 3, not already in the instructions, appended text within the limit. */
+        fun shows(sentence: String, instructions: String, ignoreCount: Int): Boolean {
+            if (ignoreCount >= MAX_IGNORE_STREAK || instructions.contains(sentence)) return false
+            val next = appended(instructions, sentence)
+            return next.codePointCount(0, next.length) <= ConversationInstructions.MAX_CODE_POINTS
+        }
 
         fun appended(current: String, sentence: String): String =
             if (current.isEmpty()) sentence else current + "\n" + sentence

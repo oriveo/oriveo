@@ -1,25 +1,18 @@
 package ai.oriveo.community.feature.chat
 
-import ai.oriveo.community.R
 import ai.oriveo.community.core.app.GlobalSnackbarMessage
-import ai.oriveo.community.core.app.GlobalToastAction
-import ai.oriveo.community.core.app.GlobalToastStyle
-import ai.oriveo.community.core.app.UiText
 import ai.oriveo.community.core.context.MemoryCandidate
-import ai.oriveo.community.core.context.MemoryCandidateEdit
 import ai.oriveo.community.core.context.MemoryIntent
 import ai.oriveo.community.core.context.MemoryIntentSuggestion
-import ai.oriveo.community.core.context.MemoryItem
 import ai.oriveo.community.core.memory.MemoryCandidateRepository
-import ai.oriveo.community.core.memory.MemoryCandidateResult
 import ai.oriveo.community.core.memory.MemoryItemRepository
 import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.ChatMessageState
 import ai.oriveo.community.core.model.ChatRole
-import ai.oriveo.community.feature.settings.MemoryItemEditorState
+import ai.oriveo.community.feature.settings.MemoryCandidateActions
 import ai.oriveo.community.feature.settings.MemoryItemGroup
+import ai.oriveo.community.feature.settings.MemorySuggestionEditor
 import kotlin.coroutines.CoroutineContext
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -41,7 +34,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** A "save to memory?" bar anchored under the assistant reply of one fresh send (contract P10 rule 7). */
+/** A "save to memory?" bar anchored under the assistant reply of one fresh send. */
 data class MemorySuggestion(
     val conversationId: String,
     /** Assistant message of the turn; the bar shows only once that reply is no longer streaming. */
@@ -63,23 +56,14 @@ data class PendingMemorySuggestion(
 )
 
 /**
- * Chat-side editor for a bar's candidate (contract P6·U3 rule 5), held here rather than in the settings
- * MemoryViewModel: the item editor in its new state, prefilled with the candidate.
- */
-data class MemorySuggestionEditor(
-    val conversationId: String,
-    val candidateId: String,
-    /** Group preselected from the candidate's proposedKind; the kind is only sent when the user changes it. */
-    val initialGroup: MemoryItemGroup,
-    val state: MemoryItemEditorState,
-)
-
-/**
- * "Save to memory?" bar (contract P6·U3 rules 1, 2, 4-7). A fresh user send whose classification routes to memory
+ * "Save to memory?" bar. A fresh user send whose classification routes to memory
  * shows the bar once its candidate is generated, or, with memory off for the chat, only the memory-off hint.
  * Bars live in memory only (one per conversation) and vanish on the next user message, on switching conversations,
  * or on restart; vanishing is not an ignore and leaves the candidate pending. Save accepts the candidate and offers
  * a 5 s undo that deletes the new item; edit accepts the edited text; ignore rejects the candidate.
+ * The candidate edit / save / accept / reject is [MemoryCandidateActions], shared with the inbox; this class only
+ * owns which bar a candidate is taken from. The chat-side editor is held here rather than in the settings
+ * MemoryViewModel.
  */
 @Suppress("LongParameterList", "TooManyFunctions")
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -97,11 +81,11 @@ class MemorySuggestionController(
     private val ioContext: CoroutineContext = Dispatchers.IO,
     private val classify: (String) -> MemoryIntentSuggestion = { MemoryIntent.classify(it).suggestion },
     /** Candidate store behind the bar's actions; null (tests of routing only) disables them. */
-    private val candidates: MemoryCandidateRepository? = null,
+    candidates: MemoryCandidateRepository? = null,
     /** Item store used to undo a save. */
-    private val items: MemoryItemRepository? = null,
-    private val accountId: () -> String = { "" },
-    private val showToast: (GlobalSnackbarMessage) -> Unit = {},
+    items: MemoryItemRepository? = null,
+    accountId: () -> String = { "" },
+    showToast: (GlobalSnackbarMessage) -> Unit = {},
     /**
      * Persisted messages of a conversation; only observed while that conversation has a pending bar, to find the
      * turn's assistant reply and whether it is still streaming.
@@ -117,15 +101,23 @@ class MemorySuggestionController(
      */
     private val latestSend = java.util.concurrent.ConcurrentHashMap<String, String>()
 
-    /** User message whose turn already turned a propose_memory create into the bar, per conversation (P10 rule 4). */
+    /** User message whose turn already turned a propose_memory create into the bar, per conversation. */
     private val proposedTurn = java.util.concurrent.ConcurrentHashMap<String, String>()
 
-    private val _editor = MutableStateFlow<MemorySuggestionEditor?>(null)
-    val editor: StateFlow<MemorySuggestionEditor?> = _editor.asStateFlow()
+    private val actions = MemoryCandidateActions(
+        candidates = candidates,
+        items = items,
+        accountId = accountId,
+        actionScope = actionScope,
+        ioContext = ioContext,
+        showToast = showToast,
+    )
+
+    val editor: StateFlow<MemorySuggestionEditor?> = actions.editor
 
     /**
      * Bar of the active conversation under its turn's assistant reply ([MemorySuggestion.messageId]); null until
-     * that reply exists and has finished streaming (P10 rule 7), on both the tool and the fallback path.
+     * that reply exists and has finished streaming, on both the tool and the fallback path.
      */
     val current: StateFlow<MemorySuggestion?> =
         _pending.combine(activeConversationId) { pending, conversationId -> conversationId?.let(pending::get) }
@@ -165,7 +157,7 @@ class MemorySuggestionController(
     }
 
     /**
-     * P10 rule 4: a propose_memory call of the turn started by user message [messageId] created [candidate]. Only
+     * a propose_memory call of the turn started by user message [messageId] created [candidate]. Only
      * the turn's first create becomes the bar; later ones stay pending candidates without a bar.
      */
     fun onProposedCandidate(conversationId: String, messageId: String, candidate: MemoryCandidate) {
@@ -176,61 +168,44 @@ class MemorySuggestionController(
     /** Rule 4: accept as is; the bar goes away, then "saved" with undo or "couldn't save". */
     fun save(conversationId: String) {
         val candidate = take(conversationId) ?: return
-        accept(candidate.id, edit = null)
+        actions.accept(candidate.id, edit = null)
     }
 
     /** Rule 6: reject; the bar goes away whether or not the write succeeds. */
     fun ignore(conversationId: String) {
         val candidate = take(conversationId) ?: return
-        val repository = candidates ?: return
-        val account = accountId()
-        actionScope.launch { attempt { withContext(ioContext) { repository.reject(account, candidate.id) } } }
+        actions.reject(candidate.id)
     }
 
     /** Rule 5: opens the item editor in its new state with the candidate text; the group follows proposedKind. */
     fun edit(conversationId: String) {
         val candidate = _pending.value[conversationId]?.candidate ?: return
-        val group = MemoryItemGroup.of(candidate.proposedKind) ?: MemoryItemGroup.About
-        _editor.value = MemorySuggestionEditor(
-            conversationId = conversationId,
-            candidateId = candidate.id,
-            initialGroup = group,
-            state = MemoryItemEditorState(
-                itemId = null,
-                group = group,
-                text = candidate.content,
-                originalKind = candidate.proposedKind,
-            ),
-        )
+        actions.openEditor(candidate, conversationId)
     }
 
-    fun updateEditorText(text: String) {
-        _editor.update { it?.copy(state = it.state.copy(text = text)) }
-    }
+    fun updateEditorText(text: String) = actions.updateEditorText(text)
 
-    fun updateEditorGroup(group: MemoryItemGroup) {
-        _editor.update { it?.copy(state = it.state.copy(group = group)) }
-    }
+    fun updateEditorGroup(group: MemoryItemGroup) = actions.updateEditorGroup(group)
 
     /** Cancel keeps the bar. */
-    fun dismissEditor() {
-        _editor.value = null
-    }
+    fun dismissEditor() = actions.dismissEditor()
 
     /** Accepts with the edited text; the kind only when the group changed; the scope never changes. */
     fun saveEditor() {
-        val editing = _editor.value ?: return
-        if (!editing.state.counter.canSave) return
-        _editor.value = null
-        _pending.update { map ->
-            if (map[editing.conversationId]?.candidate?.id == editing.candidateId) map - editing.conversationId else map
+        actions.saveEditor { editing ->
+            _pending.update { map ->
+                val conversationId = editing.conversationId
+                if (conversationId != null && map[conversationId]?.candidate?.id == editing.candidateId) {
+                    map - conversationId
+                } else {
+                    map
+                }
+            }
         }
-        val kind = editing.state.kind.takeIf { editing.state.group != editing.initialGroup }
-        accept(editing.candidateId, MemoryCandidateEdit(content = editing.state.text, kind = kind))
     }
 
     /**
-     * P9·U8: the turn of [messageId] (its assistant reply, or the user message the rollback reports) was rolled
+     * the turn of [messageId] (its assistant reply, or the user message the rollback reports) was rolled
      * back; its bar goes away (not an ignore, the candidate stays pending) and a late candidate for it no longer
      * shows. A bar under any other message stays.
      */
@@ -250,34 +225,6 @@ class MemorySuggestionController(
         _pending.update { map -> map.filterKeys { it == conversationId } }
     }
 
-    private fun accept(candidateId: String, edit: MemoryCandidateEdit?) {
-        val repository = candidates ?: return
-        val account = accountId()
-        actionScope.launch {
-            val result = attempt { withContext(ioContext) { repository.accept(account, candidateId, edit) } }
-            val item = (result as? MemoryCandidateResult.Ok<MemoryItem>)?.value
-            if (item == null) {
-                showToast(
-                    GlobalSnackbarMessage(
-                        message = UiText.Resource(R.string.memory_suggestion_failed),
-                        style = GlobalToastStyle.Error,
-                    ),
-                )
-                return@launch
-            }
-            showToast(
-                GlobalSnackbarMessage(
-                    message = UiText.Resource(R.string.memory_suggestion_saved),
-                    style = GlobalToastStyle.Success,
-                    action = GlobalToastAction(UiText.Resource(R.string.undo)) {
-                        actionScope.launch { attempt { withContext(ioContext) { items?.delete(account, item.id) } } }
-                    },
-                    durationMs = UNDO_WINDOW_MS,
-                ),
-            )
-        }
-    }
-
     /** Removes the conversation's bar; returns its candidate (null for the memory-off hint). */
     private fun take(conversationId: String): MemoryCandidate? {
         var taken: PendingMemorySuggestion? = null
@@ -285,22 +232,12 @@ class MemorySuggestionController(
             taken = map[conversationId]
             map - conversationId
         }
-        if (_editor.value?.conversationId == conversationId) _editor.value = null
+        actions.dismissEditorIf { it.conversationId == conversationId }
         return taken?.candidate
     }
 
-    /** A failed write only loses the action; it never crashes the chat scope. */
-    @Suppress("TooGenericExceptionCaught")
-    private suspend fun <T> attempt(block: suspend () -> T): T? = try {
-        block()
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Exception) {
-        null
-    }
-
     private suspend fun show(suggestion: PendingMemorySuggestion) {
-        val latest = attempt { withContext(ioContext) { latestUserMessageId(suggestion.conversationId) } }
+        val latest = actions.attempt { withContext(ioContext) { latestUserMessageId(suggestion.conversationId) } }
         if (!suggestion.userMessageId.equals(latest, ignoreCase = true)) return
         if (latestSend[suggestion.conversationId] != suggestion.userMessageId) return
         _pending.update { it + (suggestion.conversationId to suggestion) }
@@ -316,6 +253,6 @@ class MemorySuggestionController(
     }
 
     companion object {
-        const val UNDO_WINDOW_MS = 5000L
+        const val UNDO_WINDOW_MS = MemoryCandidateActions.UNDO_WINDOW_MS
     }
 }

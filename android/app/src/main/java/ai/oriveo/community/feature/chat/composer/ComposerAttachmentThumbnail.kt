@@ -18,6 +18,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material3.Icon
@@ -32,12 +34,15 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.oriveo.community.R
 import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.core.model.AttachmentKind
+import ai.oriveo.community.feature.chat.RestoredImageState
 import ai.oriveo.community.ui.component.rememberAttachmentThumbnailBitmap
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.opacity
@@ -46,6 +51,8 @@ import ai.oriveo.community.ui.theme.opacity
 internal fun ComposerAttachmentThumbnail(
     attachment: Attachment,
     onRemove: () -> Unit,
+    /** Image restored from an edit that is still downloading or failed to download: overlays the download placeholder or the failure marker respectively. */
+    restoredState: RestoredImageState? = null,
 ) {
     val colors = OriveoTheme.colors
     val imageFrameShape = RoundedCornerShape(18.dp)
@@ -121,6 +128,26 @@ internal fun ComposerAttachmentThumbnail(
                             ),
                         ),
                 )
+
+                when (restoredState) {
+                    RestoredImageState.Downloading -> {
+                        val loadingLabel = stringResource(R.string.loading_full_image)
+                        CircularProgressIndicator(
+                            modifier = Modifier
+                                .size(20.dp)
+                                .semantics { contentDescription = loadingLabel },
+                            color = colors.textSecondary,
+                            strokeWidth = 2.dp,
+                        )
+                    }
+                    RestoredImageState.Failed -> Icon(
+                        imageVector = Icons.Filled.Warning,
+                        contentDescription = stringResource(R.string.composer_restored_image_unavailable),
+                        modifier = Modifier.size(20.dp),
+                        tint = colors.error,
+                    )
+                    null -> Unit
+                }
             }
         } else {
 

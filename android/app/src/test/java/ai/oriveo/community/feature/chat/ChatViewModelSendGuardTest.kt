@@ -55,6 +55,8 @@ class ChatViewModelSendGuardTest {
         id = "provider-1",
         kind = ProviderKind.OpenAI,
         status = ProviderConnectionState.Connected,
+        // The new-conversation chain drops connections without credentials, so the fixture needs a key.
+        apiKey = "sk-test",
         models = listOf(
             AIModel(
                 id = "gpt-4o-mini",
@@ -254,7 +256,9 @@ class ChatViewModelSendGuardTest {
         assertEquals(newModel.id, requestModelSlot.captured)
         assertEquals(newModel.id, requestConversationSlot.captured.modelID)
         assertSame(switchableProvider, requestProviderSlot.captured)
-        coVerify {
+        // The conversation model is written only when switching; sending does not rewrite it.
+        coVerify(exactly = 1) { conversationRepository.updateProviderAndModel(any(), any(), any(), any(), any()) }
+        coVerify(exactly = 1) {
             conversationRepository.updateProviderAndModel(
                 id = "conversation-1",
                 providerId = "provider-1",

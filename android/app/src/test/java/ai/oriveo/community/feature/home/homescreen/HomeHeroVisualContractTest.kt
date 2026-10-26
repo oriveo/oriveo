@@ -1,8 +1,29 @@
 package ai.oriveo.community.feature.home.homescreen
 
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.unit.dp
+import ai.oriveo.community.core.model.AIModel
+import ai.oriveo.community.core.model.ModelCapability
+import ai.oriveo.community.core.model.Provider
+import ai.oriveo.community.core.model.ProviderConnectionState
+import ai.oriveo.community.core.model.ProviderKind
+import ai.oriveo.community.core.voice.DictationCommands
+import ai.oriveo.community.core.voice.DictationEngineInfo
+import ai.oriveo.community.core.voice.DictationState
+import ai.oriveo.community.core.voice.DictationSubmit
+import ai.oriveo.community.feature.chat.composer.DictationHostActions
+import ai.oriveo.community.feature.chat.composer.DictationHostCoordinator
+import ai.oriveo.community.feature.chat.composer.DictationToastSpec
+import ai.oriveo.community.feature.home.HomeViewModel
 import ai.oriveo.community.feature.home.AuroraGreeting
 import ai.oriveo.community.feature.home.AuroraHeroCardAppearance
 import ai.oriveo.community.feature.home.AuroraTheme
@@ -11,22 +32,85 @@ import ai.oriveo.community.feature.home.auroraHeroRimBrush
 import ai.oriveo.community.feature.home.homeHeroPillModelName
 import ai.oriveo.community.feature.notes.homeNotesAccessibilityText
 import ai.oriveo.community.feature.notes.homeNotesPreviewLine
+import ai.oriveo.community.ui.theme.OriveoTheme
 import java.io.File
 import java.util.Calendar
 import java.util.TimeZone
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.Robolectric
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 /**
  * Contracts for the home hero, greeting and Notes entry.
  * Pure functions are asserted on their values; only structural rules ("must not regress to the old style")
  * read the source.
  */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 class HomeHeroVisualContractTest {
+
+    @get:Rule
+    val composeRule = createEmptyComposeRule()
+
+    @Test
+    fun hero_input_visible_empty_and_draft() {
+        // Device regression: with a dictation handle the home screen wraps the normal input in a Crossfade (Box)
+        // inside DictationInputSwitcher, so the input area stacked on the bottom row and got covered; in both
+        // states the field must be visible, have a height and sit entirely above the bottom row.
+        val draft = mutableStateOf("")
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
+        val model = AIModel(id = "gpt-4o-mini", name = "GPT-4o mini", isDefault = true, capabilities = listOf(ModelCapability.Text))
+        val active = HomeViewModel.ActiveModel(
+            provider = Provider(id = "provider-1", kind = ProviderKind.OpenAI, status = ProviderConnectionState.Connected, models = listOf(model)),
+            model = model,
+        )
+        val dictation = DictationHostCoordinator("draft:home", IdleDictationCommands(), NoopDictationActions())
+        activity.setContent {
+            OriveoTheme(darkTheme = true) {
+                NewChatBar(
+                    activeModel = active,
+                    hasProvider = true,
+                    isDark = true,
+                    heroText = draft.value,
+                    onHeroTextChange = {},
+                    isSendingFromHero = false,
+                    isSearchActive = false,
+                    onSend = {},
+                    onModelSelect = {},
+                    onAddProvider = {},
+                    onStartVoiceConversation = {},
+                    dictation = dictation,
+                )
+            }
+        }
+        for (text in listOf("", "Plan a weekend in Kyoto")) {
+            composeRule.runOnIdle { draft.value = text }
+            composeRule.waitForIdle()
+
+            val input = composeRule.onNode(hasSetTextAction())
+            input.assertExists().assertIsDisplayed()
+            val inputBounds = input.getUnclippedBoundsInRoot()
+            val inputHeight = inputBounds.bottom - inputBounds.top
+            assertTrue("draft='$text' input height $inputHeight must be > 0", inputHeight.value > 0f)
+            val send = composeRule.onNodeWithContentDescription(activity.getString(ai.oriveo.community.R.string.send))
+                .getUnclippedBoundsInRoot()
+            assertTrue(
+                "draft='$text' input bottom ${inputBounds.bottom} must sit above the bottom row (send top ${send.top})",
+                inputBounds.bottom <= send.top,
+            )
+        }
+    }
 
     @Test
     fun `hero idle is flat and only focus lights the aurora ring`() {
@@ -148,9 +232,11 @@ class HomeHeroVisualContractTest {
                 barSource.contains("Color.White.copy(alpha = 0.28f)") ||
                 barSource.contains(".shadow("),
         )
+        // The up arrow is always the primary key and reads "Send"; the voice key is a separate secondary button to its left.
         assertTrue(
-            "The send button announces Send, not New Chat.",
-            barSource.contains("contentDescription = stringResource(R.string.send)"),
+            "The send button always announces Send; the separate voice key announces the voice conversation.",
+            barSource.contains("contentDescription = stringResource(R.string.send)") &&
+                barSource.contains("contentDescription = stringResource(R.string.voice_conversation_start_a11y)"),
         )
         assertTrue(
             "The model pill stays a picker with connection avatar, cleaned model name and provider subtitle.",
@@ -228,5 +314,33 @@ class HomeHeroVisualContractTest {
         val titleCount = themeSource.substringAfter("internal fun AuroraTitleCount(").substringBefore("// -- Section Rule")
         assertTrue(titleCount.contains("verticalAlignment = Alignment.CenterVertically"))
         assertFalse(titleCount.contains("offset("))
+    }
+
+    private class IdleDictationCommands : DictationCommands {
+        override val state = MutableStateFlow<DictationState>(DictationState.Idle)
+        override val engineInfo = MutableStateFlow<DictationEngineInfo?>(null)
+        override val pendingDurationSec = MutableStateFlow<Double?>(null)
+        override val levelMeter = MutableStateFlow<List<Float>>(emptyList())
+        override val boundOwner = MutableStateFlow<Any?>(null)
+        override fun start(slotKey: String) = Unit
+        override fun finish(submit: DictationSubmit) = Unit
+        override fun discard() = Unit
+        override fun transcribeSaved(submit: DictationSubmit) = Unit
+        override fun discardAndRestart() = Unit
+        override fun dismissDenied() = Unit
+        override fun undoDiscard(slotKey: String): Boolean = false
+        override fun bind(slotKey: String, owner: Any) = Unit
+        override fun detach(slotKey: String, owner: Any) = Unit
+    }
+
+    private class NoopDictationActions : DictationHostActions {
+        override fun insert(text: String) = Unit
+        override fun canSend(): Boolean = true
+        override fun send() = Unit
+        override fun showToast(spec: DictationToastSpec, onUndo: (() -> Unit)?) = Unit
+        override fun openAppSettings() = Unit
+        override fun openProviderDetail(providerId: String) = Unit
+        override fun openProviderSetup() = Unit
+        override fun openVoiceSettings() = Unit
     }
 }

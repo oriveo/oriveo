@@ -3,8 +3,6 @@ package ai.oriveo.community.core.context
 import ai.oriveo.community.core.tools.ToolLoopToolDefinition
 import ai.oriveo.community.core.tools.ToolLoopToolFunction
 import java.time.Instant
-import java.time.OffsetDateTime
-import java.time.format.DateTimeParseException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -160,7 +158,7 @@ object MemorySearch {
         return index.docs.count { doc ->
             val item = doc.item
             val expires = item.expiresAt
-            val unexpired = expires == null || (parseTime(expires)?.isAfter(now) ?: true)
+            val unexpired = expires == null || (MemoryRecall.parseTime(expires)?.isAfter(now) ?: true)
             val scopeKey = item.scope.id?.lowercase()
             val visible = when (item.scope.type) {
                 MemoryScopeType.GLOBAL -> true
@@ -193,12 +191,6 @@ object MemorySearch {
     private fun entry(text: String, date: String?): String {
         val attr = date?.let { " date=\"${ContextSanitizer.escapeXml(it).replace("\"", "&quot;")}\"" }.orEmpty()
         return "<entry$attr>${ContextSanitizer.escapeXml(text)}</entry>"
-    }
-
-    private fun parseTime(rfc3339: String): Instant? = try {
-        OffsetDateTime.parse(rfc3339).toInstant()
-    } catch (_: DateTimeParseException) {
-        null
     }
 
     private fun skip(reason: MemorySearchSkipReason) = MemorySearchOutcome(MemorySearchAction.SKIP, reason, emptyList())

@@ -164,8 +164,8 @@ internal fun ModelControlsEntrySheet(
     reasoningIntent: String?,
     customOwners: Set<String>,
     generationOverrideCount: Int,
-    /** Whether the composer's photo-library entry is visible right now (same value as the composer; the vision card derives its three states from it). */
-    imageEntryVisible: Boolean,
+    /** The composer's attachment menu model (the same value as the composer, produced from the input capability projection): the vision / file cards derive their tri-state and reason from it. */
+    attachmentEntry: ComposerAttachmentEntryModel,
     /** The outbound history contains video: the file card's route prediction matches the send / preflight path. */
     outboundHistoryHasVideo: Boolean = false,
     onSelectionChange: (CapabilityWebPreference, String?, Boolean) -> Unit,
@@ -210,7 +210,7 @@ internal fun ModelControlsEntrySheet(
                 reasoningIntent = reasoningIntent,
                 customOwners = customOwners,
                 generationOverrideCount = generationOverrideCount,
-                imageEntryVisible = imageEntryVisible,
+                attachmentEntry = attachmentEntry,
                 outboundHistoryHasVideo = outboundHistoryHasVideo,
                 onSelectionChange = onSelectionChange,
                 onPersist = onPersist,
@@ -305,9 +305,7 @@ private fun ModelControlsPanel(
     reasoningIntent: String?,
     customOwners: Set<String>,
     generationOverrideCount: Int,
-    /** Whether the composer's photo-library entry is visible right now (same value as the composer; the vision card derives its three states from it). */
-    imageEntryVisible: Boolean,
-    /** The outbound history contains video: the file card's route prediction matches the send / preflight path. */
+    attachmentEntry: ComposerAttachmentEntryModel,
     outboundHistoryHasVideo: Boolean,
     onSelectionChange: (CapabilityWebPreference, String?, Boolean) -> Unit,
     onPersist: (CapabilityPreferenceValues) -> Unit,
@@ -559,6 +557,7 @@ private fun ModelControlsPanel(
             chatTemplateThinking = templateThinking == ChatTemplateThinking.State.On,
             localEngineThinking = ModelOptionsPanelInput.localEngineThinking(provider, model),
             rejectedIntents = reasoningVerdict.rejectedIntents,
+            showsThinking = ModelOptionsPanelInput.showsThinking(provider, model),
         ),
     )
 
@@ -638,13 +637,16 @@ private fun ModelControlsPanel(
         webSearchEnabled = ModelOptionsTiles.webIsOn(webShape),
         reasoningMode = ai.oriveo.community.core.model.ReasoningMode.fromIntent(reasoningIntent),
         historyHasVideo = outboundHistoryHasVideo,
+        nativeFileUnavailable = attachmentEntry.file.nativeDisabledReasonKey != null,
     )
     val boardTiles = ModelOptionsTiles.board(
         web = webShape,
         reasoning = reasoningShape,
-        vision = ModelOptionsTiles.vision(imageEntryVisible, ModelOptionsPanelInput.visionUnknown(provider, model)),
+        vision = ModelOptionsTiles.vision(attachmentEntry.image),
         file = fileDelivery,
         reasoningToggleBlockedNoteRes = reasoningActions.toggleBlockedNoteRes,
+        visionReasonRes = attachmentEntry.image.disabledReasonRes,
+        fileReasonRes = attachmentEntry.file.nativeDisabledReasonRes,
     )
     val turnSummary = ModelOptionsTiles.summary(webShape, reasoningShape)
 

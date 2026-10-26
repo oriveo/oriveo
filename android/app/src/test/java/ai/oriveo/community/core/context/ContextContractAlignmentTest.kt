@@ -52,10 +52,14 @@ class ContextContractAlignmentTest {
         // Window 1024, estimate far above sendCompactAt: only chat / continue / toolLoopLeg give a compaction suggestion
         val history = listOf(msg("u1", ChatRole.User, big), msg("a1", ChatRole.Assistant, big))
         val compute = setOf(RequestPurpose.CHAT, RequestPurpose.CONTINUE, RequestPurpose.TOOL_LOOP_LEG)
-        RequestPurpose.entries.forEach { p ->
+        RequestPurpose.entries.filter { it != RequestPurpose.REALTIME_SESSION }.forEach { p ->
             val plan = ContextAssembler.assemble(input(p, history = history, current = "Go", purposeSystem = "Review."))
             val expected = if (p in compute) ContextCompactionAdvice.REQUIRED else ContextCompactionAdvice.NONE
             assertEquals("align_12 ${p.wire}", expected, plan.compaction)
+        }
+        // realtimeSession goes only through assembleRealtimeSession; passing it to assemble() is a programming error
+        org.junit.Assert.assertThrows(IllegalStateException::class.java) {
+            ContextAssembler.assemble(input(RequestPurpose.REALTIME_SESSION, history = history, current = "Go"))
         }
     }
 

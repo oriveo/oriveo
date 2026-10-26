@@ -8,7 +8,7 @@ import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.ChatRole
 
 /**
- * Separator row shown after [anchorMessageId] (contract P3·U4 rule 1).
+ * Separator row shown after [anchorMessageId].
  * Summary rows carry [before] / [after] token estimates; both kinds carry [kept].
  */
 data class ContextCompactionSeparator(
@@ -23,7 +23,7 @@ data class ContextCompactionSeparator(
     val anchorMessageId: String,
 )
 
-/** Cost line state of the detail sheet (contract P3·U4 rule 2). */
+/** Cost line state of the detail sheet. */
 sealed interface ContextCompactionCost {
     /** Fallback rows never call a model. */
     data object NoExtraCost : ContextCompactionCost
@@ -34,7 +34,7 @@ sealed interface ContextCompactionCost {
     data class Amount(val value: Double) : ContextCompactionCost
 }
 
-/** Read-only detail sheet model (contract P3·U4 rule 2). */
+/** Read-only detail sheet model. */
 data class ContextCompactionDetail(
     /** Shown only when non-blank. */
     val summary: String?,

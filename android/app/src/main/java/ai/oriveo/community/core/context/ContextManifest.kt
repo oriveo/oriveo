@@ -15,6 +15,7 @@ enum class RequestPurpose(val wire: String) {
     @SerialName("crosscheck") CROSSCHECK("crosscheck"),
     @SerialName("compaction") COMPACTION("compaction"),
     @SerialName("memoryExtraction") MEMORY_EXTRACTION("memoryExtraction"),
+    @SerialName("realtimeSession") REALTIME_SESSION("realtimeSession"),
 }
 
 /** Closed set of system-prompt segment kinds. */

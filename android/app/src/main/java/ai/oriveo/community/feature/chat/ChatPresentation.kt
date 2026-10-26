@@ -147,7 +147,7 @@ internal fun isScrolledUp(
  * cell, which hands ownership of the cell height back to the content itself: the app only
  * guarantees a floor.
  *
- *     reserve = max(viewportHeightPx - userHeightPx, minAssistantVisiblePx)
+ *     reserve = max(viewportHeightPx - afterContentPaddingPx - userHeightPx, minAssistantVisiblePx)
  *
  * - Normal case: `userH + reserve = viewportH`, so the user message sits at the top of the viewport
  *   and the answer fills in below it. While the answer is shorter than the reserve the cell height
@@ -162,7 +162,22 @@ internal fun computeReservePx(
     viewportHeightPx: Int,
     userHeightPx: Int,
     minAssistantVisiblePx: Int,
-): Int = (viewportHeightPx - userHeightPx).coerceAtLeast(minAssistantVisiblePx)
+    afterContentPaddingPx: Int,
+): Int = (pinVisibleHeightPx(viewportHeightPx, afterContentPaddingPx) - userHeightPx)
+    .coerceAtLeast(minAssistantVisiblePx)
+
+/**
+ * Effective viewport height for the pin geometry: viewportHeight (viewportEnd - viewportStart)
+ * includes both the top and bottom contentPadding. Pinning pushes the user message to
+ * viewportStartOffset (covering the top padding), while the maximum scroll is
+ * content height + before + after - viewportHeight. Making the two equal requires
+ * `userH + reserve = viewportHeight - afterContentPadding`: only the bottom padding is subtracted
+ * (the top padding is already cancelled by the extra `before` px the pin scrolls). Without it the
+ * reserve would be one bottom padding too large, and scrolling to the bottom after a short reply
+ * would push the user message out of the top of the viewport.
+ */
+private fun pinVisibleHeightPx(viewportHeightPx: Int, afterContentPaddingPx: Int): Int =
+    (viewportHeightPx - afterContentPaddingPx).coerceAtLeast(0)
 
 /**
  * The static reserve belongs to the current pinned turn only. Once a newer message appears after
@@ -201,7 +216,9 @@ internal fun computeLongUserPinScrollOffsetPx(
     viewportHeightPx: Int,
     userHeightPx: Int,
     minAssistantVisiblePx: Int,
-): Int = (userHeightPx + minAssistantVisiblePx - viewportHeightPx).coerceAtLeast(0)
+    afterContentPaddingPx: Int,
+): Int = (userHeightPx + minAssistantVisiblePx - pinVisibleHeightPx(viewportHeightPx, afterContentPaddingPx))
+    .coerceAtLeast(0)
 
 /**
  * Correction that aligns the bottom of the last message with the true bottom of the list, which is

@@ -68,24 +68,35 @@ internal class ChatSendCoordinator(
         )
     }
 
-    /** The pinned note as the assembler sees it: a blank title falls back to the localized "Untitled". */
+    /** The pinned note as the assembler sees it: an empty title falls back to the localized "Untitled". */
     private fun contextPinnedNote(note: Note): ContextPinnedNote =
         ContextPinnedNote(title = note.title.trim().ifBlank { untitledNoteFallback }, text = note.body)
 
     /**
-     * Manual compaction uses the same context request as a chat send of this conversation (memory switch, skill, pinned notes);
-     * handed to ChatRepository.compactConversationNow.
+     * The context request of a manual compaction, on the same basis as this conversation's chat send (memory switch, skill,
+     * pinned notes); handed to ChatRepository.compactConversationNow.
      */
     suspend fun manualCompactionContext(
         conversation: Conversation,
         memoryItems: List<ai.oriveo.community.core.context.MemoryItem>,
     ): ai.oriveo.community.core.context.ChatContextRequest {
+        val latestUserText = conversation.messages.lastOrNull { it.role == ai.oriveo.community.core.model.ChatRole.User }?.text.orEmpty()
         return chatContextRequest(conversation, memoryItems, resolveSkillInputs(conversation), attachments = null)
     }
 
     /**
-     * Request options of a manual compaction, same as the panel window (ContextCapViewModel.sendRequestOptions):
-     * the chat send's max output with dormant values filtered.
+     * The context request for the realtime session opening and the re-plan at turn boundaries: memory switch, skill and
+     * pinned notes are the same as [manualCompactionContext].
+     */
+    suspend fun realtimeSessionContext(
+        conversation: Conversation,
+        memoryItems: List<ai.oriveo.community.core.context.MemoryItem>,
+    ): ai.oriveo.community.core.context.ChatContextRequest =
+        chatContextRequest(conversation, memoryItems, resolveSkillInputs(conversation), attachments = null)
+
+    /**
+     * request options of a manual compaction, same as the panel window (ContextCapViewModel.sendRequestOptions):
+     * the chat send's max output with dormant values filtered, and its default funding preference (none).
      */
     fun manualCompactionRequestOptions(conversation: Conversation): ChatRequestOptions {
         val provider = providersProvider().firstOrNull { it.id == conversation.providerID } ?: return ChatRequestOptions()
@@ -99,17 +110,18 @@ internal class ChatSendCoordinator(
         attachments: List<Attachment>?,
         /** User message this turn answers; null = no L3 recall (manual compaction). */
         recallQuery: String? = null,
+        delivery: ai.oriveo.community.core.context.ContextDelivery? = null,
     ): ai.oriveo.community.core.context.ChatContextRequest {
         val now = java.time.Instant.now()
-        // Pinned notes: what the conversation already stores, plus anything staged while composing a first
-        // message that has not been written yet; deduplicate, keep the most recent 3, and resolve to active notes
-        // (deleted or missing ones are dropped automatically).
+        // Pinned notes: the conversation's pinnedNoteIds plus the ones pending while composing (a first message
+        // whose conversation is not stored yet), de-duplicated and cut to the latest 3, then resolved to active notes
+        // (deleted or missing ones are dropped).
         val pinnedNoteIds = (conversation.pinnedNoteIds + pendingPinnedNoteIds())
             .map(::normalizeUuid)
             .distinct()
             .takeLast(ChatNoteCoordinator.MAX_PINNED_NOTES)
-        // The lookup has no ORDER BY, so reorder to match pinnedNoteIds after resolving. That keeps the injection order deterministic
-        // and makes the notes dropped under a tight budget match Web (Web injects in pinnedNoteIds order).
+        // getActiveByIds has no ORDER BY, so reorder by the original pinnedNoteIds order after resolving: the injection
+        // order stays deterministic, and the notes dropped under a tight budget are the same as on the web.
         val resolvedPinned = if (pinnedNoteIds.isEmpty()) emptyList() else pinnedNotesResolver(pinnedNoteIds)
         val pinnedById = resolvedPinned.associateBy { normalizeUuid(it.id) }
         val pinnedNotes = pinnedNoteIds.mapNotNull { pinnedById[it] }
@@ -144,6 +156,7 @@ internal class ChatSendCoordinator(
             attachmentGuide = AttachmentInjector.SYSTEM_PROMPT_GUIDANCE.takeIf {
                 attachments?.any { it.kind == ai.oriveo.community.core.model.AttachmentKind.File } == true
             },
+            delivery = delivery,
         )
     }
 
@@ -164,6 +177,8 @@ internal class ChatSendCoordinator(
         onUserMessageCreated: ((messageId: String, text: String) -> Unit)? = null,
         /** Non-null only for a fresh send in tool mode; the request then carries propose_memory. */
         memoryPropose: ai.oriveo.community.core.memory.MemoryProposeSendHook? = null,
+        /** VOICE for a voice-conversation send; the request carries it to every leg of this turn. */
+        delivery: ai.oriveo.community.core.context.ContextDelivery? = null,
     ) {
         // Capture the capability partition exactly once, up front. The identity producer may read
         // the epoch later on another thread, and re-reading it there would let a request built for
@@ -205,7 +220,7 @@ internal class ChatSendCoordinator(
             } else {
                 text
             }
-            val chatContext = chatContextRequest(conversation, memoryItems, skillInputs, attachments, recallQuery)
+            val chatContext = chatContextRequest(conversation, memoryItems, skillInputs, attachments, recallQuery, delivery)
             // One identity per send: the request carrier and the search_memory tool predicate read the same value.
             val evidenceIdentity = capabilityEvidenceIdentity(provider, modelId, evidencePartitionId)
             val memorySearch = memorySearchTurn(
@@ -283,6 +298,20 @@ internal class ChatSendCoordinator(
                     rejectedCustomSettings = resendSettingOwner?.takeIf { resendSettingSource == "custom" }
                         ?.let { owner -> mapOf(owner to resendSettingPointers) }.orEmpty(),
                     dormantCapabilityOwners = dormantOwners,
+                    // "Resend without this parameter": omit it explicitly this time, regardless of whether the negative cache still matches.
+                    omitParametersOnce = setOfNotNull(omitParameterOnceName(appendToAssistant?.customRetryWithoutFieldsCode)),
+                )
+            }.let { options ->
+                // propose_memory is the last tool, tool_choice auto.
+                if (memoryPropose == null) options else options.copy(
+                    clientTools = options.clientTools + ai.oriveo.community.core.context.MemoryPropose.tool,
+                    clientToolChoice = ai.oriveo.community.core.tools.ToolLoopToolChoice.Auto,
+                )
+            }.let { options ->
+                // search_memory goes after propose_memory, tool_choice stays auto.
+                if (memorySearch == null) options else options.copy(
+                    clientTools = options.clientTools + ai.oriveo.community.core.context.MemorySearch.tool,
+                    clientToolChoice = ai.oriveo.community.core.tools.ToolLoopToolChoice.Auto,
                 )
             }.let { options ->
                 // propose_memory is the last tool, tool_choice auto.
@@ -645,6 +674,14 @@ internal class ChatSendCoordinator(
 }
 
 internal const val OMIT_LOCAL_FIELDS_ONCE_PREFIX = "omit_local_fields_once:"
+
+internal const val OMIT_PARAMETER_ONCE_PREFIX = "omit_parameter_once:"
+
+/** The parameter name inside a "resend without this parameter" marker; only names on the parameter-gate list are accepted, anything else is treated as no marker. */
+internal fun omitParameterOnceName(marker: String?): String? =
+    marker?.takeIf { it.startsWith(OMIT_PARAMETER_ONCE_PREFIX) }
+        ?.removePrefix(OMIT_PARAMETER_ONCE_PREFIX)
+        ?.takeIf { it in ai.oriveo.community.core.capability.InputRejectionFlow.GATED_PARAMETERS }
 
 /** Only these three owners are recognized in a local recovery marker; any other value counts as no marker. */
 internal fun omitLocalFieldsOnceOwner(marker: String): String? =

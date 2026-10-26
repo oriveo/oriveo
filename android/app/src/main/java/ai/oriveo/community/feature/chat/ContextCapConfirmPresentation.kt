@@ -36,7 +36,7 @@ enum class ContextConfirmKind(val wire: String) {
 /** Input-only USD estimate at the long-context and the base prompt price, rounded to 6 decimals. */
 data class ContextConfirmCost(val long: Double, val base: Double)
 
-/** One user-initiated send after pre-send compaction (contract P9·U8 rule 1). */
+/** One user-initiated send after pre-send compaction. */
 data class ContextConfirmInput(
     val attempt: ContextConfirmAttempt,
     /** Runtime model id of this request. */
@@ -117,7 +117,7 @@ data class ContextConfirmText(
     val cancel: String,
 )
 
-/** Pre-send confirmation: decision, dialog text and the local state change on confirm (contract P9·U8 rules 1–3). */
+/** Pre-send confirmation: decision, dialog text and the local state change on confirm. */
 object ContextCapConfirmPresentation {
     private const val PER_MILLION = 1_000_000.0
     private const val COST_SCALE = 1_000_000.0

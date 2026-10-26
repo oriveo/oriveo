@@ -2,6 +2,7 @@ package ai.oriveo.community.feature.chat
 
 import androidx.annotation.StringRes
 import ai.oriveo.community.R
+import ai.oriveo.community.core.app.AppPreferencesRepository
 import ai.oriveo.community.core.app.GlobalSnackbarMessage
 import ai.oriveo.community.core.app.GlobalToastStyle
 import ai.oriveo.community.core.app.UiText
@@ -20,15 +21,20 @@ import ai.oriveo.community.core.data.repository.ContextCompactionResult
 import ai.oriveo.community.core.data.repository.ContextCompactionStore
 import ai.oriveo.community.core.data.repository.ContextCheckpointRecord
 import ai.oriveo.community.core.data.remote.MetadataClient
+import ai.oriveo.community.core.model.AIModel
+import ai.oriveo.community.core.model.ActiveModelSelection
 import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.ChatRequestOptions
 import ai.oriveo.community.core.model.ChatRole
 import ai.oriveo.community.core.model.Conversation
+import ai.oriveo.community.core.model.LastUsedModelRef
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.QuoteContentKind
 import ai.oriveo.community.core.model.QuoteContext
 import ai.oriveo.community.core.model.QuotePromptBuilder
+import ai.oriveo.community.core.model.isMissingCredentialForNewChat
+import ai.oriveo.community.core.model.resolveActiveModel
 import ai.oriveo.community.core.util.graphemeCount
 import ai.oriveo.community.core.util.takeGraphemes
 import ai.oriveo.community.core.data.repository.ChatRepository
@@ -60,7 +66,7 @@ import kotlinx.coroutines.launch
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
- * Transcript separator of the latestValid row (contract P3·U4 rule 1). It is drawn on top of the item of
+ * Transcript separator of the latestValid row. It is drawn on top of the item of
  * [drawAboveMessageId] (the first message after coversTo); when coversTo is the last message it is drawn at the
  * bottom of the coversTo item instead. No extra LazyColumn item, so list indices and keys stay unchanged.
  */
@@ -70,7 +76,7 @@ data class TranscriptCompactionSeparator(
     val drawAboveMessageId: String?,
 )
 
-/** Result toasts of the compaction actions (contract P3·U4 rules 3 and 5); a summary result shows none. */
+/** Result toasts of the compaction actions; a summary result shows none. */
 enum class ContextCompactionToast(@param:StringRes val messageRes: Int, private val style: GlobalToastStyle) {
     CLEARED(R.string.context_compaction_toast_cleared, GlobalToastStyle.Success),
     FALLBACK(R.string.context_compaction_toast_fallback, GlobalToastStyle.Warning),
@@ -82,7 +88,7 @@ enum class ContextCompactionToast(@param:StringRes val messageRes: Int, private 
 }
 
 /**
- * Contract P3·U4 rule 6: after a local save leaves exactly 3 rows, hint once per conversation per process.
+ * after a local save leaves exactly 3 rows, hint once per conversation per process.
  * One instance per process (DI single), fed by ContextCompactionCoordinator's onSaved.
  */
 class ThirdCompactionHint {
@@ -114,12 +120,12 @@ class ChatCompactionDeps(
     val accountId: () -> String,
     /** Rule 9: AI summary in progress / cancel; null in tests that do not wire it. */
     val contextCompaction: ContextCompactionCoordinator? = null,
-    /** P4·U4 composer usage ring; null in tests that do not wire it. */
+    /** composer usage ring; null in tests that do not wire it. */
     val ledger: ai.oriveo.community.core.data.dao.ContextLedgerDao? = null,
-    /** P9·U8 pre-send confirmation gate (same instance ChatRepository suspends on); null in tests that do not wire it. */
+    /** Pre-send confirmation gate (same instance ChatRepository suspends on); null in tests that do not wire it. */
     val contextCapConfirm: ContextCapConfirmCoordinator? = null,
     /**
-     * P8 M06: limit B of the conversation's current cap and window, as the send computes it
+     * limit B of the conversation's current cap and window, as the send computes it
      * (ContextCapViewModel.currentB); a null result = connection unresolved (keeps the manifest's B), a null B
      * inside = window unknown. null (unit tests) keeps the manifest's B.
      */
@@ -129,7 +135,7 @@ class ChatCompactionDeps(
 )
 
 /**
- * Chat-page compaction actions (contract P3·U4 rules 3–5): clear, recompact, manual compact.
+ * Chat-page compaction actions: clear, recompact, manual compact.
  * Remote deletes go out only when sync is bound to the account the rows were deleted under.
  */
 class ChatCompactionUiCoordinator(
@@ -156,17 +162,17 @@ class ChatCompactionUiCoordinator(
     /** Rule 10: background pre-compaction (ChatRepository.precompactIfNeeded); failures stay silent. */
     private val precompact: suspend (String, ChatContextRequest, ChatRequestOptions) -> ContextCompactionResult =
         { _, _, _ -> ContextCompactionResult(CompactOutcome.NOOP, null, emptyList()) },
-    /** P4·U4 rule 4: breaker mode of a conversation (ContextCompactionCoordinator.breaker). */
+    /** breaker mode of a conversation (ContextCompactionCoordinator.breaker). */
     private val breakerMode: (String) -> ContextCompactionMode = { ContextCompactionMode.LLM },
-    /** P4·U4 rule 4: user retry clears the breaker (ContextCompactionCoordinator.retry). */
+    /** user retry clears the breaker (ContextCompactionCoordinator.retry). */
     private val retryBreaker: (String) -> Unit = {},
-    /** P9·U8: catalog display name of a model id under the conversation's provider; null when unknown. */
+    /** catalog display name of a model id under the conversation's provider; null when unknown. */
     private val modelName: (Conversation, String) -> String? = { _, _ -> null },
-    /** P9·U8: sends waiting at the confirmation gate (ContextCapConfirmCoordinator.pending). */
+    /** sends waiting at the confirmation gate (ContextCapConfirmCoordinator.pending). */
     private val pendingConfirmations: StateFlow<List<PendingContextCapConfirmation>> = MutableStateFlow(emptyList()),
-    /** P9·U8: answers one waiting confirmation (ContextCapConfirmCoordinator.resolve). */
+    /** answers one waiting confirmation (ContextCapConfirmCoordinator.resolve). */
     private val resolveConfirm: (String, ContextCapConfirmChoice) -> Unit = { _, _ -> },
-    /** P9·U8: cancels every waiting confirmation of a conversation (ContextCapConfirmCoordinator.cancelConversation). */
+    /** cancels every waiting confirmation of a conversation (ContextCapConfirmCoordinator.cancelConversation). */
     private val cancelConfirm: (String) -> Unit = {},
 ) {
     private val precompacting = ConcurrentHashMap.newKeySet<String>()
@@ -198,11 +204,11 @@ class ChatCompactionUiCoordinator(
         if (previous.isEmpty() && text.isNotEmpty()) launchPrecompact()
     }
 
-    /** P4·U4 rule 4: breaker mode of the shown conversation; LLM without one. */
+    /** breaker mode of the shown conversation; LLM without one. */
     fun breakerModeHere(): ContextCompactionMode =
         currentConversationId?.let(breakerMode) ?: ContextCompactionMode.LLM
 
-    /** P4·U4 rule 4: [Retry] of the context panel clears the shown conversation's breaker. */
+    /** [Retry] of the context panel clears the shown conversation's breaker. */
     fun retryBreakerHere() {
         currentConversationId?.let(retryBreaker)
     }
@@ -210,11 +216,11 @@ class ChatCompactionUiCoordinator(
     /** Rule 9: cancel button of the in-progress row; pre-send falls back and still sends, manual saves nothing. */
     fun cancelAiCompaction(conversationId: String) {
         cancelAi(conversationId)
-        // P9·U8: stopping the send also cancels its waiting confirmation (the gate rolls it back).
+        // stopping the send also cancels its waiting confirmation (the gate rolls it back).
         cancelConfirm(conversationId)
     }
 
-    /** P9·U8: the shown conversation's send waiting for the confirmation dialog; always null without a host. */
+    /** the shown conversation's send waiting for the confirmation dialog; always null without a host. */
     val pendingConfirm: StateFlow<PendingContextCapConfirmation?> by lazy {
         val host = host ?: return@lazy MutableStateFlow(null)
         combine(host.conversation.map { it.conversation?.id }, pendingConfirmations) { id, pending ->
@@ -222,15 +228,15 @@ class ChatCompactionUiCoordinator(
         }.stateIn(host.scope, SharingStarted.Eagerly, null)
     }
 
-    /** P9·U8 [Send anyway]; [dontAsk] is the checkbox (only shown for the price line). */
+    /** [Send anyway]; [dontAsk] is the checkbox (only shown for the price line). */
     fun confirmContextCap(confirmationId: String, dontAsk: Boolean) =
         resolveConfirm(confirmationId, ContextCapConfirmChoice.Send(dontAsk))
 
-    /** P9·U8 [Cancel], tap outside or back: the gate rolls the send back. */
+    /** [Cancel], tap outside or back: the gate rolls the send back. */
     fun cancelContextCap(confirmationId: String) = resolveConfirm(confirmationId, ContextCapConfirmChoice.Cancel)
 
     /**
-     * P9·U8 gate rule 2: the stop button while the shown conversation waits for the dialog cancels it (rolled
+     * the stop button while the shown conversation waits for the dialog cancels it (rolled
      * back, no stop recorded). False when nothing waits, so the caller stops the generation as usual.
      */
     fun stopWaitingConfirmHere(): Boolean {
@@ -241,7 +247,7 @@ class ChatCompactionUiCoordinator(
     }
 
     /**
-     * P8 M12: the stop button of a send. Cancels its waiting confirmation; the AI summary is cancelled only when
+     * the stop button of a send. Cancels its waiting confirmation; the AI summary is cancelled only when
      * the conversation is not compacting inside a send. A send compaction ends with the send itself
      * (stopStream cancels the send coroutine), so cancelling its summary first would let it fall back and save a
      * fallback row before the stop lands.
@@ -254,7 +260,7 @@ class ChatCompactionUiCoordinator(
     class Host(
         val scope: CoroutineScope,
         val conversation: StateFlow<ConversationRenderState>,
-        val startNewChatWith: suspend (QuoteContext?) -> Unit,
+        val startNewChatWith: suspend (QuoteContext?) -> String?,
     )
 
     private val currentConversationId: String? get() = host?.conversation?.value?.conversation?.id
@@ -285,6 +291,11 @@ class ChatCompactionUiCoordinator(
     /** Result toasts of the launch* actions; the UI maps them to GlobalSnackbarManager messages. */
     val toasts: SharedFlow<ContextCompactionToast> = _toasts.asSharedFlow()
 
+    private val _providerDetailRequests = MutableSharedFlow<String>(extraBufferCapacity = 1)
+
+    /** A new chat could not open because the connection is missing its credential: carries the connection id so the UI opens that connection's detail page. */
+    val providerDetailRequests: SharedFlow<String> = _providerDetailRequests.asSharedFlow()
+
     private val _actionRunning = MutableStateFlow(false)
 
     /** True while a launch* action runs; the detail sheet disables "condense again" meanwhile. */
@@ -305,7 +316,7 @@ class ChatCompactionUiCoordinator(
         val conversationId = currentConversationId
         thirdHint.dismiss()
         return host.scope.launch {
-            host.startNewChatWith(conversationId?.let { quoteForNewChat(it, label) })
+            host.startNewChatWith(conversationId?.let { quoteForNewChat(it, label) })?.let(_providerDetailRequests::tryEmit)
         }
     }
 
@@ -440,7 +451,7 @@ class ChatCompactionUiCoordinator(
             memoryItems: StateFlow<List<MemoryItem>>,
             scope: CoroutineScope,
             conversation: StateFlow<ConversationRenderState>,
-            startNewChat: () -> Unit,
+            startNewChat: () -> String?,
             /** Same provider list the chat send resolves against; feeds the separator's model display name. */
             providers: () -> List<Provider> = { emptyList() },
         ): ChatCompactionUiCoordinator? =
@@ -453,7 +464,7 @@ class ChatCompactionUiCoordinator(
             memoryItems: StateFlow<List<MemoryItem>>,
             scope: CoroutineScope,
             conversation: StateFlow<ConversationRenderState>,
-            startNewChat: () -> Unit,
+            startNewChat: () -> String?,
             providers: () -> List<Provider>,
         ) = ChatCompactionUiCoordinator(
             store = deps.store,
@@ -483,7 +494,7 @@ class ChatCompactionUiCoordinator(
         )
 
         /**
-         * P9·U8: [modelId]'s name in the conversation provider's model list, then the catalog display name;
+         * [modelId]'s name in the conversation provider's model list, then the catalog display name;
          * null when neither has one (the separator then shows the id).
          */
         internal fun catalogModelName(
@@ -506,11 +517,45 @@ class ChatCompactionUiCoordinator(
             scope: CoroutineScope,
             conversation: StateFlow<ConversationRenderState>,
             quoteCoordinator: ChatQuoteCoordinator,
-            startNewChat: () -> Unit,
+            startNewChat: () -> String?,
         ) = Host(scope, conversation) { quote ->
-            startNewChat()
-            quoteCoordinator.restore(quote)
+            startNewChat().also { blocked -> if (blocked == null) quoteCoordinator.restore(quote) }
         }
+
+        /**
+         * Keeps the current model for a new chat. A connection missing its credential returns its id (the caller opens that
+         * connection's detail page, nothing is written); a usable model is written as last used and opens the new chat; otherwise
+         * the new-chat chain is resolved from this connection, and an empty chain also returns the connection id.
+         */
+        internal fun keepModelForNewChat(
+            provider: Provider?,
+            model: AIModel?,
+            sendable: Boolean,
+            lastUsed: LastUsedModelRef?,
+            writeLastUsed: (Provider, AIModel) -> Unit,
+            open: (ActiveModelSelection?) -> Unit,
+        ): String? {
+            if (provider?.isMissingCredentialForNewChat() == true) return provider.id
+            if (provider == null) {
+                open(null)
+                return null
+            }
+            if (model != null && sendable) {
+                writeLastUsed(provider, model)
+                open(null)
+                return null
+            }
+            val chain = resolveActiveModel(listOf(provider), lastUsed?.takeIf { it.providerID == provider.id })
+                ?: return provider.id
+            open(chain)
+            return null
+        }
+
+        internal fun lastUsedWriter(preferences: AppPreferencesRepository, scope: CoroutineScope): (Provider, AIModel) -> Unit =
+            { provider, model ->
+                preferences.primeLastUsedModel(provider.id, model.id)
+                scope.launch { preferences.setLastUsedModel(provider.id, model, provider.kind) }
+            }
 
         /**
          * Rule 7: selectedText is the row's summary when non-blank, else the kept user messages in time order,

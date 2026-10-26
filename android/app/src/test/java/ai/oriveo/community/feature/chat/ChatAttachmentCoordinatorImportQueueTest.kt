@@ -92,7 +92,6 @@ class ChatAttachmentCoordinatorImportQueueTest {
     ) = ChatAttachmentCoordinator(
         attachmentProcessor = processor,
         globalSnackbarManager = GlobalSnackbarManager(),
-        activeProviderKind = { null },
         activeModel = { null },
         pendingAttachments = { pending.toList() },
         addAttachment = { attachment, _ -> pending += attachment },

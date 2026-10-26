@@ -78,6 +78,32 @@ class ChatScrollControllerTest {
         assertTrue(c.streamingMode)
     }
 
+    /**
+     * After pinning to the top a short reply (actual assistant height < reserve, so the cell height = reserve),
+     * scrollToBottom aligns the last item's bottom to the true bottom by [bottomAlignDelta]: the user bubble
+     * must stay inside the viewport (not be pushed above the top inset).
+     */
+    @Test
+    fun pin_to_top_short_reply_scroll_to_bottom_keeps_user_visible() {
+        val viewportStart = -60
+        val viewportEnd = 1940
+        val after = 300
+        val userH = 300
+        val reserve = computeReservePx(
+            viewportHeightPx = viewportEnd - viewportStart,
+            userHeightPx = userH,
+            minAssistantVisiblePx = 120,
+            afterContentPaddingPx = after,
+        )
+        // Pin landing point: the user top sits at viewportStartOffset and the short reply fills the reserve.
+        val pinnedUserTop = viewportStart
+        val assistantBottom = pinnedUserTop + userH + reserve
+        val delta = bottomAlignDelta(assistantBottom, viewportEnd, after)
+        val userTopAfterScroll = pinnedUserTop - delta
+        assertTrue("user top $userTopAfterScroll above viewport $viewportStart", userTopAfterScroll >= viewportStart)
+        assertTrue(userTopAfterScroll + userH <= viewportEnd - after)
+    }
+
     @Test
     fun `pinnedAssistantFloorPx is monotonic non-decreasing`() {
         val c = ChatScrollController()

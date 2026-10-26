@@ -52,7 +52,7 @@ import ai.oriveo.community.ui.theme.OriveoColors
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.util.formatRelativeTime
 
-/** Visibility of the panel buttons (contract P4·U4 rule 4). */
+/** Visibility of the panel buttons. */
 data class ContextUsagePanelButtons(
     val compactEnabled: Boolean,
     val showClear: Boolean,
@@ -80,7 +80,7 @@ enum class ContextUsageOmittedKind(@param:PluralsRes val pluralRes: Int) {
 
 data class ContextUsageOmittedLine(val kind: ContextUsageOmittedKind, val count: Int)
 
-/** Percent text of the panel center and the settings usage row (contract P4·U4 rules 4 and 5). */
+/** Percent text of the panel center and the settings usage row. */
 sealed interface ContextUsageValueText {
     data class Percent(val value: Int) : ContextUsageValueText
     data class AboutPercent(val value: Int) : ContextUsageValueText
@@ -200,8 +200,8 @@ class ContextUsagePanelActions(
 )
 
 /**
- * Context panel (contract P4·U4 rule 4), opened from the composer ring and the settings usage row.
- * [cap] adds the "limit for this chat" row and the window row (contract P9·U7 rule 3); null (drafts) hides them.
+ * Context panel, opened from the composer ring and the settings usage row.
+ * [cap] adds the "limit for this chat" row and the window row; null (drafts) hides them.
  * Tapping the cap row switches the sheet to the cap picker ([capActions] writes the choice); back returns here.
  */
 @OptIn(ExperimentalMaterial3Api::class)

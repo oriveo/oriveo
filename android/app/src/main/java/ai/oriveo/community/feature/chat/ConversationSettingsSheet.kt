@@ -36,7 +36,7 @@ import ai.oriveo.community.core.model.Conversation
 import ai.oriveo.community.ui.component.OriveoModalBottomSheet
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-/** Pure rules behind the chat settings sheet (contract P4·U3 rules 2–4). */
+/** Pure rules behind the chat settings sheet. */
 object ConversationSettings {
     /**
      * Value to write when the sheet closes: normalized, or null when it equals [opened] — the snapshot taken
@@ -77,7 +77,7 @@ object ConversationSettings {
 }
 
 /**
- * Chat settings sheet (contract P4·U3 rule 2): instructions editor, carry-over shortcut, memory toggle
+ * Chat settings sheet: instructions editor, carry-over shortcut, memory toggle
  * and an optional usage row. Closing (swipe, scrim or Done) hands the snapshot taken on opening and the
  * edited text to [onClose].
  */
@@ -91,7 +91,7 @@ fun ConversationSettingsSheet(
     onToggleUseMemory: () -> Unit,
     onOpenUsage: (() -> Unit)?,
     onClose: (opened: String, edited: String) -> Unit,
-    /** P4·U4 rule 5: value of the usage row ("N%", about N%, or unavailable). */
+    /** value of the usage row ("N%", about N%, or unavailable). */
     usageValue: String? = null,
 ) {
     val colors = OriveoTheme.colors
@@ -177,7 +177,7 @@ fun ConversationSettingsSheet(
             if (onOpenUsage != null) {
                 SettingsRow(
                     label = stringResource(R.string.conversation_settings_usage),
-                    // P4·U4 rule 5: close this sheet (saving instructions) first, then open the panel.
+                    // close this sheet (saving instructions) first, then open the panel.
                     onClick = {
                         close()
                         onOpenUsage()

@@ -121,6 +121,7 @@ import ai.oriveo.community.core.model.displayedForUi
 import ai.oriveo.community.core.model.CapabilityWebPreference
 import ai.oriveo.community.core.model.LocalCapabilityCustomFragmentStore
 import ai.oriveo.community.feature.chat.ChatModelCapabilityResolver
+import ai.oriveo.community.feature.chat.RestoredImageState
 import ai.oriveo.community.core.provider.CapabilityControlPresentation
 import ai.oriveo.community.core.provider.CapabilityControlPresentationResolver
 import ai.oriveo.community.core.provider.CapabilityWebPreferenceLiveness
@@ -140,6 +141,7 @@ import ai.oriveo.community.core.util.ExternalActivityLaunchOutcome
 import ai.oriveo.community.core.util.launchExternalActivitySafely
 import ai.oriveo.community.ui.theme.opacity
 import ai.oriveo.community.ui.theme.OriveoBorderWidth
+import ai.oriveo.community.ui.component.ComposerSelectionProbe
 import ai.oriveo.community.ui.component.rememberComposerLengthLimitedField
 import ai.oriveo.community.ui.theme.OriveoTheme
 import dev.chrisbanes.haze.ExperimentalHazeApi
@@ -175,6 +177,8 @@ internal fun EnhancedComposer(
     hasComposerText: Boolean,
     onInputChange: (String) -> Unit,
     pendingAttachments: List<Attachment>,
+    /** Images restored from an edit that are still downloading or failed to download (by attachment id). */
+    restoredImageStates: Map<String, RestoredImageState> = emptyMap(),
     pendingQuoteContext: QuoteContext?,
     onRemoveQuote: () -> Unit,
     onAttachmentRemove: (String) -> Unit,
@@ -186,9 +190,8 @@ internal fun EnhancedComposer(
     conversationSkillId: String?,
     /** Exact transport that the selected official model will use; null intentionally fails closed. */
     modelControlsFinalTransport: String?,
-    supportsImageAttachment: Boolean,
-    supportsVideoAttachment: Boolean,
-    supportsFileAttachment: Boolean,
+    /** Attachment menu model: media items that cannot be used are visibly disabled with a reason. */
+    attachmentEntry: ComposerAttachmentEntryModel,
     onSelectReasoningMode: (ReasoningMode) -> Unit,
     /** The next send's outbound history contains video (ChatViewModel.outboundHistoryHasVideo); the file card of the model panel uses it to predict the route. */
     outboundHistoryHasVideo: Boolean = false,
@@ -223,6 +226,9 @@ internal fun EnhancedComposer(
     isReadOnly: Boolean,
     /** Blocks sending only; the input stays editable (the relay conversation's model was removed). */
     isSendBlocked: Boolean = false,
+    /** The selected model answers in text, so an empty draft offers the waveform key instead of a grey up arrow. */
+    voiceConversationAvailable: Boolean = false,
+    onStartVoiceConversation: () -> Unit = {},
 
     transparentChrome: Boolean,
     hazeState: HazeState,
@@ -237,6 +243,12 @@ internal fun EnhancedComposer(
     /** Usage summary of the shown conversation; the ring shows only for percent display. */
     contextUsage: ai.oriveo.community.feature.chat.ContextUsageSummary? = null,
     onOpenContextUsage: () -> Unit = {},
+    /** Dictation handle from rememberDictationHost; null hides the mic and keeps the normal input row. */
+    dictation: DictationHostCoordinator? = null,
+    /** Selection probe of the composer field, so dictated text lands at the caret. */
+    selectionProbe: ComposerSelectionProbe? = null,
+    /** Availability of the recording bar's send action; null falls back to the send button's own gate. */
+    canSendDictation: (() -> Boolean)? = null,
 ) {
     val colors = OriveoTheme.colors
     val isDarkTheme = OriveoTheme.isDark
@@ -593,7 +605,7 @@ internal fun EnhancedComposer(
             reasoningIntent = selectedControlReasoning,
             customOwners = developerCustomOwners,
             generationOverrideCount = modelBehaviorOverrideCount,
-            imageEntryVisible = supportsImageAttachment,
+            attachmentEntry = attachmentEntry,
             outboundHistoryHasVideo = outboundHistoryHasVideo,
             // The panel also publishes whether the web preference reaches the wire; the composer
             // recomputes that itself where it matters (the outbound decision below), so the
@@ -626,7 +638,11 @@ internal fun EnhancedComposer(
             },
         )
     }
-    val supportsAttachmentEntry = supportsImageAttachment || supportsVideoAttachment || supportsFileAttachment
+    // The button icon / count follow the items shown in the menu (disabled items count too); whether an item is tappable is read from each item's enabled.
+    val showsImageEntry = attachmentEntry.image.shown
+    val showsVideoEntry = attachmentEntry.video.shown
+    val showsFileEntry = attachmentEntry.file.shown
+    val supportsAttachmentEntry = attachmentEntry.showsEntry
     val showsModeControls = true
     val imageAttachmentCount = remember(pendingAttachments) {
         pendingAttachments.count { it.kind == AttachmentKind.Image }
@@ -639,21 +655,21 @@ internal fun EnhancedComposer(
     }
     val pendingAttachmentCount = pendingAttachments.size
     val attachmentButtonCount = when {
-        supportsImageAttachment && !supportsFileAttachment -> imageAttachmentCount
-        supportsVideoAttachment && !supportsImageAttachment && !supportsFileAttachment -> videoAttachmentCount
-        supportsFileAttachment && !supportsImageAttachment -> fileAttachmentCount
+        showsImageEntry && !showsFileEntry -> imageAttachmentCount
+        showsVideoEntry && !showsImageEntry && !showsFileEntry -> videoAttachmentCount
+        showsFileEntry && !showsImageEntry -> fileAttachmentCount
         else -> pendingAttachmentCount
     }
     val supportedAttachmentKinds = listOf(
-        supportsImageAttachment,
-        supportsVideoAttachment,
-        supportsFileAttachment,
+        showsImageEntry,
+        showsVideoEntry,
+        showsFileEntry,
     ).count { it }
     val attachmentButtonIcon = when {
         supportedAttachmentKinds != 1 -> Icons.Filled.Add
-        supportsImageAttachment -> Icons.Outlined.Image
-        supportsVideoAttachment -> Icons.Outlined.Videocam
-        supportsFileAttachment -> Icons.Outlined.Description
+        showsImageEntry -> Icons.Outlined.Image
+        showsVideoEntry -> Icons.Outlined.Videocam
+        showsFileEntry -> Icons.Outlined.Description
         else -> Icons.Filled.Add
     }
     val hasComposerContent = hasComposerText || pendingAttachments.isNotEmpty()
@@ -955,6 +971,7 @@ internal fun EnhancedComposer(
                         items(pendingAttachments, key = { it.id }) { attachment ->
                             ComposerAttachmentThumbnail(
                                 attachment = attachment,
+                                restoredState = restoredImageStates[attachment.id],
                                 onRemove = { onAttachmentRemove(attachment.id) },
                             )
                         }
@@ -1032,6 +1049,12 @@ internal fun EnhancedComposer(
                         }
                     }
 
+                    DictationInputSwitcher(
+                        handle = dictation,
+                        // Same gate as the send button, treating the transcript as composer content.
+                        canSend = canSendDictation ?: { !isReadOnly && !isSendBlocked && !isGenerating },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1047,12 +1070,10 @@ internal fun EnhancedComposer(
                         if (supportsAttachmentEntry) {
 
                             val attachmentEntryDisabled = !controlsEnabled || attachmentUploadBlocked
-
-                            val showCameraOption = supportsImageAttachment && deviceHasCamera
-                            val totalAttachmentOptions = (if (showCameraOption) 1 else 0) +
-                                (if (supportsImageAttachment) 1 else 0) +
-                                (if (supportsVideoAttachment) 1 else 0) +
-                                (if (supportsFileAttachment) 1 else 0)
+                            // Vision-model case: the image entry is split into "camera" + "photo library", consistent with iOS / ChatGPT / Claude.
+                            // The camera shows only when the device has one (avoids showing it on ChromeOS / foldable / tablet devices without a camera).
+                            val cameraItem = attachmentEntry.camera(deviceHasCamera)
+                            val totalAttachmentOptions = (listOf(cameraItem) + attachmentEntry.items).count { it.shown }
                             ComposerAttachmentEntryButton(
                                 icon = attachmentButtonIcon,
                                 accent = attachmentAccent,
@@ -1065,7 +1086,7 @@ internal fun EnhancedComposer(
                                     if (attachmentEntryDisabled) return@ComposerAttachmentEntryButton
                                     when {
                                         totalAttachmentOptions > 1 -> showAttachmentPicker = true
-                                        supportsImageAttachment -> {
+                                        attachmentEntry.image.enabled -> {
                                             launchExternalActivity {
                                                 imagePicker.launch(
                                                     androidx.activity.result.PickVisualMediaRequest(
@@ -1074,10 +1095,10 @@ internal fun EnhancedComposer(
                                                 )
                                             }
                                         }
-                                        supportsVideoAttachment -> launchExternalActivity {
+                                        attachmentEntry.video.enabled -> launchExternalActivity {
                                             filePicker.launch(AttachmentImportPolicy.videoPickerMimeTypes)
                                         }
-                                        supportsFileAttachment -> launchExternalActivity {
+                                        attachmentEntry.file.enabled -> launchExternalActivity {
                                             filePicker.launch(AttachmentImportPolicy.pickerMimeTypes)
                                         }
                                     }
@@ -1108,10 +1129,10 @@ internal fun EnhancedComposer(
                                         filePicker.launch(AttachmentImportPolicy.pickerMimeTypes)
                                     }
                                 },
-                                showCameraOption = showCameraOption,
-                                showImageOption = supportsImageAttachment,
-                                showVideoOption = supportsVideoAttachment,
-                                showFileOption = supportsFileAttachment,
+                                cameraItem = cameraItem,
+                                imageItem = attachmentEntry.image,
+                                videoItem = attachmentEntry.video,
+                                fileItem = attachmentEntry.file,
                             )
                         }
 
@@ -1129,8 +1150,17 @@ internal fun EnhancedComposer(
                                 composerFocused = focused
                                 if (focused) onComposerFocused()
                             },
+                            selectionProbe = selectionProbe,
                             modifier = Modifier.weight(1f),
                         )
+
+                        if (dictation != null) {
+                            DictationMicButton(
+                                onClick = dictation::onMicTap,
+                                enabled = controlsEnabled,
+                            )
+                        }
+                    }
                     }
 
                     if (composerFocused) {
@@ -1142,12 +1172,22 @@ internal fun EnhancedComposer(
                     }
                 }
 
+                val voiceEntryAvailable = voiceConversationAvailable && !isReadOnly && !isSendBlocked
+                // Recording / transcribing replaces the input row with the dictation bar; the main key steps aside.
+                DictationMainKeySlot(handle = dictation) {
                 ComposerActionCluster(
                     isGenerating = isGenerating,
                     isPrimed = hasComposerContent && !isGenerating && !isSendBlocked,
-                    enabled = isGenerating || (!isReadOnly && !isSendBlocked && hasComposerContent),
-
+                    enabled = isGenerating ||
+                        (!isReadOnly && !isSendBlocked && (hasComposerContent || voiceEntryAvailable)),
+                    // Raised 7dp so the 40dp circle is vertically centered with the input (matches iOS .padding(.bottom, 7))
                     modifier = Modifier.padding(bottom = 7.dp),
+                    voiceAvailable = voiceEntryAvailable,
+                    onStartVoice = {
+                        keyboardController?.hide()
+                        composerFocused = false
+                        onStartVoiceConversation()
+                    },
                 ) {
                     @Suppress("DEPRECATION")
                     val vibrator = composerContext.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
@@ -1161,6 +1201,7 @@ internal fun EnhancedComposer(
                         vibrator?.vibrate(android.os.VibrationEffect.createOneShot(20, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
                         onSendClick()
                     }
+                }
                 }
             }
         }
@@ -1185,6 +1226,7 @@ private fun ComposerTextField(
     @StringRes placeholderRes: Int,
     focusRequester: FocusRequester,
     onFocusChanged: (Boolean) -> Unit,
+    selectionProbe: ComposerSelectionProbe? = null,
     modifier: Modifier = Modifier,
 ) {
     val colors = OriveoTheme.colors
@@ -1192,7 +1234,7 @@ private fun ComposerTextField(
     // The length limit has to read and write the selection (after a paste in the middle is cut the
     // caret lands at the end of the kept part), hence the TextFieldValue overload. The selection
     // state stays in this composable; the owner still receives a plain String.
-    val field = rememberComposerLengthLimitedField(text = text, onTextChange = onValueChange)
+    val field = rememberComposerLengthLimitedField(text = text, onTextChange = onValueChange, selectionProbe = selectionProbe)
     BasicTextField(
         value = field.value,
         onValueChange = field.onValueChange,

@@ -2,6 +2,7 @@ package ai.oriveo.community.feature.chat.modelcontrols
 
 import androidx.annotation.StringRes
 import ai.oriveo.community.R
+import ai.oriveo.community.core.capability.truth.CapabilityTruthRegistry
 import ai.oriveo.community.core.capability.truth.ProviderForm
 import ai.oriveo.community.core.data.repository.relayImageSupportUnknown
 import ai.oriveo.community.core.model.AIModel
@@ -17,6 +18,7 @@ import ai.oriveo.community.core.provider.CapabilityControlPresentation
 import ai.oriveo.community.core.provider.LocalEngineChannels
 import ai.oriveo.community.core.provider.RelayEndpointResolver
 import ai.oriveo.community.core.provider.relay.RelayNegativeCache
+import ai.oriveo.community.feature.chat.composer.ComposerAttachmentMenuItem
 import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionCapabilityShape.ConnectionCategory
 import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionCapabilityShape.CustomProtocol
 import kotlinx.serialization.json.Json
@@ -218,6 +220,10 @@ internal object ModelOptionsPanelInput {
         else -> ConnectionCategory.Other
     }
 
+    /** "Shows thinking": reads only the facade fact reasoning.thinking (each form's adapter produces it from that form's source); false when there is no model. */
+    fun showsThinking(provider: Provider, model: AIModel?): Boolean =
+        model != null && CapabilityTruthRegistry.thinking(provider, model)
+
     /** The same criterion as `ModelControlsIdentityGap`: neither the model nor the connection has chosen a protocol (or it is still "automatic"). */
     fun protocolUndecided(provider: Provider, model: AIModel? = null): Boolean =
         provider.kind == ProviderKind.Relay &&
@@ -309,8 +315,12 @@ internal object ModelOptionsPanelInput {
     )
 
     /** Vision card "unknown": a Relay form and the model has no positive vision evidence at all (the same predicate as the record check). */
-    fun visionUnknown(provider: Provider, model: AIModel): Boolean =
-        ProviderForm.of(provider) == ProviderForm.Relay && relayImageSupportUnknown(provider, model)
+    fun visionUnknown(
+        provider: Provider,
+        model: AIModel,
+        relayIdentity: ai.oriveo.community.core.provider.CapabilityEvidenceFacade.QueryIdentity? = null,
+    ): Boolean =
+        ProviderForm.of(provider) == ProviderForm.Relay && relayImageSupportUnknown(provider, model, relayIdentity)
 
     /**
      * File card: computed with the same route resolution as before sending (web takes the panel's current switch, the tool loop uses false),
@@ -324,7 +334,10 @@ internal object ModelOptionsPanelInput {
         negativeCache: RelayNegativeCache = RelayNegativeCache.shared,
         // The outbound history (session history plus this turn's placeholder) has video: Gemini does not take Interactions, same as send / preflight.
         historyHasVideo: Boolean = false,
+        // file_input projection unavailable (with a reason): native files cannot be sent and only inline text remains; unknown / available is judged by route.
+        nativeFileUnavailable: Boolean = false,
     ): ModelOptionsTiles.FileDelivery {
+        if (nativeFileUnavailable) return ModelOptionsTiles.FileDelivery.Text
         val route = AttachmentTransportResolver.resolve(provider, model, webSearchEnabled, reasoningMode, historyHasVideo)
         // A file override set to On beats the file negative cache, the same as the send side's fallback memory.
         val fileRejected = model.relayCapabilityOverrides?.file != true &&
@@ -418,6 +431,7 @@ internal object ModelOptionsRender {
     /** [ModelOptionCapabilityShape.DisclosureStatus.ReadOnlyValue] shows the tier itself and does not go through here. */
     @StringRes fun disclosureRes(status: ModelOptionCapabilityShape.DisclosureStatus): Int = when (status) {
         ModelOptionCapabilityShape.DisclosureStatus.ModelDoesNotThink -> R.string.model_options_no_thinking_mode
+        ModelOptionCapabilityShape.DisclosureStatus.ShowsThinkingFixed -> R.string.model_options_shows_thinking_fixed
         ModelOptionCapabilityShape.DisclosureStatus.ModelCannotSearch -> R.string.model_options_cannot_search
         ModelOptionCapabilityShape.DisclosureStatus.ConnectionCannotSearch -> R.string.model_options_connection_cannot
         ModelOptionCapabilityShape.DisclosureStatus.FixedLevel,
@@ -531,6 +545,17 @@ internal object ModelOptionsTiles {
         web == ModelOptionCapabilityShape.ProtocolUndecided && reasoning == ModelOptionCapabilityShape.ProtocolUndecided
 
     /**
+     * The vision card shows three values from the composer's image item (produced by the vision_input projection):
+     * not tappable -> unavailable (reason in [ComposerAttachmentMenuItem.disabledReasonRes]);
+     * tappable but projection unknown (first-attachment hint) -> unknown, never "available"; otherwise -> available.
+     */
+    fun vision(image: ComposerAttachmentMenuItem): Vision = when {
+        !image.enabled -> Vision.Hidden
+        image.firstAttachHint -> Vision.Unknown
+        else -> Vision.Available
+    }
+
+    /**
      * The capability cards: the web / thinking order keeps the existing chat-template exception - when thinking is the chat-template switch (blocked included) thinking comes first,
      * otherwise web comes first; after that vision, then file, fixed. Empty when only the callout shows.
      */
@@ -540,6 +565,9 @@ internal object ModelOptionsTiles {
         vision: Vision,
         file: FileDelivery,
         @StringRes reasoningToggleBlockedNoteRes: Int? = null,
+        /** The reason line inside the card when vision / file is unavailable (`capability_input_disabled_<reason>_<media>`); null = write nothing. */
+        @StringRes visionReasonRes: Int? = null,
+        @StringRes fileReasonRes: Int? = null,
     ): List<Tile> {
         if (showsCalloutOnly(web, reasoning)) return emptyList()
         val webTile = capabilityTile(ModelOptionCapabilityShape.Capability.Web, web)
@@ -547,10 +575,20 @@ internal object ModelOptionsTiles {
         val templateFirst = (reasoning as? ModelOptionCapabilityShape.Toggle)?.kind ==
             ModelOptionCapabilityShape.ToggleKind.ChatTemplateThinking
         return (if (templateFirst) listOf(reasoningTile, webTile) else listOf(webTile, reasoningTile)) +
-            listOf(Tile(Kind.Vision, vision.corner, vision.statusRes), fileTile(file))
+            listOf(
+                visionTile(vision, visionReasonRes),
+                fileTile(file, fileReasonRes.takeIf { file == FileDelivery.Text }),
+            )
     }
 
-    fun fileTile(file: FileDelivery): Tile = Tile(Kind.File, Corner.Check, file.statusRes)
+    /** Vision card: when unavailable with a disabled reason, the status line is that reason (`capability_input_disabled_<reason>_image`); with no reason (the old subscription wording) the enum status sentence is kept. */
+    fun visionTile(vision: Vision, @StringRes reasonRes: Int? = null): Tile {
+        val reason = reasonRes.takeIf { vision == Vision.Hidden }
+        return Tile(Kind.Vision, vision.corner, reason ?: vision.statusRes)
+    }
+
+    fun fileTile(file: FileDelivery, @StringRes reasonRes: Int? = null): Tile =
+        Tile(Kind.File, Corner.Check, file.statusRes, bodyRes = reasonRes)
 
     /** Web / thinking card: shape -> top-right control and status line (the copy slots reuse [ModelOptionsRender]). */
     fun capabilityTile(
@@ -585,7 +623,7 @@ internal object ModelOptionsTiles {
                 tappable = shape.escape != null,
             )
             is ModelOptionCapabilityShape.Disclosure -> {
-                val tappable = ModelOptionsRender.disclosureTappable(shape.status)
+                val tappable = shape.tappable && ModelOptionsRender.disclosureTappable(shape.status)
                 Tile(kind, if (tappable) Corner.Chevron else Corner.None, disclosureStatusRes(capability, shape), tappable = tappable)
             }
             ModelOptionCapabilityShape.ProtocolUndecided -> Tile(

@@ -93,7 +93,7 @@ data class ContextUsageSegments(
 
 data class ContextUsageOmitted(val notes: Int, val knowledge: Int, val memory: Int)
 
-/** Composer ring / context panel model (contract P4·U4 rule 1, `usage.v1.json`). */
+/** Composer ring / context panel model. */
 data class ContextUsageSummary(
     val display: ContextUsageDisplay,
     val reason: ContextUsageReason? = null,
@@ -249,7 +249,7 @@ object ContextUsagePresentation {
 }
 
 /**
- * Reads the conversation's ledger manifests and its latest valid checkpoint (contract P4·U4 rules 1 and 3).
+ * Reads the conversation's ledger manifests and its latest valid checkpoint.
  * The checkpoint is validated against the same full-history projection the transcript separator uses.
  */
 class ContextUsageSource(

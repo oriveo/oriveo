@@ -40,7 +40,7 @@ data class MemoryUsedRow(val itemId: String, val firstLine: String?) {
     val canFix: Boolean get() = firstLine != null
 }
 
-/** Pure rules of the "memory used" chip, its sheet and the chat memory indicator (P5·U5 contract rules 1-3). */
+/** Pure rules of the "memory used" chip, its sheet and the chat memory indicator. */
 object MemoryUsed {
     const val FIRST_LINE_MAX_GRAPHEMES: Int = 60
 

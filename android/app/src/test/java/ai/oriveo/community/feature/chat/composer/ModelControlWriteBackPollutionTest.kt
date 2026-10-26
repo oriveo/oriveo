@@ -149,35 +149,6 @@ class ModelControlWriteBackPollutionTest {
         )
     }
 
-    /**
-     * Structural guard: the library mutual-exclusion write-back must not
-     * `copy` the entire resolved packet back wholesale.
-     *
-     * The behavior matrix lives in `CapabilityPreferenceReadLadderTest`
-     * (write only web / merge when a record exists); this test only catches
-     * someone reverting to a whole-packet write -- a mistake a pure behavior
-     * assertion can't catch, because what breaks is another layer's
-     * inheritance relationship.
-     */
-    @Test
-    fun `the library mutex never persists the whole resolved packet`() {
-        val viewModel = java.io.File(
-            "src/main/java/ai/oriveo/community/feature/chat/ChatViewModel.kt",
-        ).readText()
-        val block = viewModel
-            .substringAfter("private fun disableWebSearchPreference()")
-            .substringBefore("\n    /** ")
-        assertFalse(
-            "must not copy the whole resolved packet back to the conversation layer",
-            block.contains("val next = current.copy(web = CapabilityWebPreference.Off)"),
-        )
-        assertTrue("must read this layer's own record first", block.contains("capabilityPreferenceStore.scopeValues("))
-        assertTrue(
-            "with no record, only the web field should be written",
-            block.contains("CapabilityPreferenceValues(web = CapabilityWebPreference.Off, reasoningIntent = null)"),
-        )
-    }
-
     /** "Set as this model's default" uses the same value, and must equally never bake a dormant value into the connection-times-model layer. */
     @Test
     fun `promoting to the model default carries the stored preference, not the dormant projection`() {

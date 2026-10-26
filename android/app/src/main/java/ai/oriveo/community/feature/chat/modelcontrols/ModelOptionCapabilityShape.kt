@@ -47,7 +47,11 @@ sealed interface ModelOptionCapabilityShape {
     data class Notice(val status: NoticeStatus, val body: NoticeBody, val escape: Escape?) : ModelOptionCapabilityShape
 
     /** A one-line status whose whole row is tappable (switch models / see the reason). [value] is set only when the current tier is shown read-only. */
-    data class Disclosure(val status: DisclosureStatus, val value: String? = null) : ModelOptionCapabilityShape
+    data class Disclosure(
+        val status: DisclosureStatus,
+        val value: String? = null,
+        val tappable: Boolean = true,
+    ) : ModelOptionCapabilityShape
 
     /** The custom connection's protocol is still "automatic": the whole card collapses to one ask, choose a protocol first. */
     data object ProtocolUndecided : ModelOptionCapabilityShape
@@ -98,6 +102,7 @@ sealed interface ModelOptionCapabilityShape {
         ConnectionCannotSearch,
         FixedLevel,
         ReadOnlyValue,
+        ShowsThinkingFixed,
     }
 
     data class Footnote(val tierCaption: String)
@@ -125,6 +130,8 @@ sealed interface ModelOptionCapabilityShape {
         val chatTemplateThinking: Boolean? = null,
         /** Thinking-row facts of a local-engine connection; null means this is not a local-engine connection and the relay rules apply. */
         val localEngineThinking: LocalEngineThinking? = null,
+        /** The model shows its thinking when answering (the facade fact reasoning.thinking); used for the fixed read-only thinking row. */
+        val showsThinking: Boolean = false,
         /** Relay web row facts; null means this is not a relay and the remaining rules apply. */
         val relayWeb: RelayWeb? = null,
     )
@@ -193,17 +200,29 @@ sealed interface ModelOptionCapabilityShape {
                 this == CapabilityControlPresentation.AlwaysOn
 
         private fun reasoning(input: Input): ModelOptionCapabilityShape = when (input.presentation) {
-            CapabilityControlPresentation.Unsupported, CapabilityControlPresentation.ExternalConnectorOnly ->
-                Disclosure(DisclosureStatus.ModelDoesNotThink)
+            // The three states of the thinking row follow one rule for every form: it thinks but has no selectable tier -> a fixed read-only thinking row.
+            CapabilityControlPresentation.Unsupported ->
+                if (input.showsThinking) thinksWithoutChoice() else Disclosure(DisclosureStatus.ModelDoesNotThink)
+            CapabilityControlPresentation.ExternalConnectorOnly -> Disclosure(DisclosureStatus.ModelDoesNotThink)
             CapabilityControlPresentation.CustomOnly ->
                 Notice(NoticeStatus.NeedsOwnConfiguration, NoticeBody.ReasoningNoGenericSwitch, Escape.AdditionalBody)
-            CapabilityControlPresentation.Pending, CapabilityControlPresentation.Unknown ->
+            // Pending is a transient loading state and stays "follow model default"; Unknown shows the fixed read-only row when the facade fact says it thinks.
+            CapabilityControlPresentation.Unknown -> if (input.showsThinking) {
+                thinksWithoutChoice()
+            } else {
+                Notice(NoticeStatus.FollowsModelDefault, NoticeBody.ReasoningNotCatalogued, Escape.SupportedModels)
+            }
+            CapabilityControlPresentation.Pending ->
                 Notice(NoticeStatus.FollowsModelDefault, NoticeBody.ReasoningNotCatalogued, Escape.SupportedModels)
             CapabilityControlPresentation.AutomaticAvailable, CapabilityControlPresentation.ForceUnsupported ->
                 reasoningTiers(input)
             // Produced only by the web verdict; for reasoning, show the current tier read-only.
             CapabilityControlPresentation.AlwaysOn -> reasoningTiers(input.copy(isWritable = false))
         }
+
+        /** It shows thinking but has no tier or switch to choose: a fixed, non-tappable cell. */
+        private fun thinksWithoutChoice(): ModelOptionCapabilityShape =
+            Disclosure(DisclosureStatus.ShowsThinkingFixed, tappable = false)
 
         private fun reasoningTiers(input: Input): ModelOptionCapabilityShape {
             val declared = input.availableIntents.toSet()

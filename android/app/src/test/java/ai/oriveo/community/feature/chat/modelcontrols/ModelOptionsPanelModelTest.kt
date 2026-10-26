@@ -1,6 +1,10 @@
 package ai.oriveo.community.feature.chat.modelcontrols
 
 import ai.oriveo.community.R
+import ai.oriveo.community.feature.chat.composer.ComposerAttachmentEntryModel
+import ai.oriveo.community.core.provider.CapabilityEvidenceFacade
+import ai.oriveo.community.core.provider.AttachmentInputGate
+import ai.oriveo.community.core.capability.truth.InputCapabilityProjections
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.LocalCapabilityCustomFragmentStore
 import ai.oriveo.community.core.model.LocalCapabilityCustomFragmentStore.AdditionalBody
@@ -17,6 +21,7 @@ import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionCapabilityShape
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -24,6 +29,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ModelOptionsPanelModelTest {
+    @After
+    fun clearGlobalMetadata() = MetadataTestFixtures.clear()
+
     private fun root(raw: String): JsonObject = Json.parseToJsonElement(raw).jsonObject
 
     // -- chat-template thinking switch of a custom connection --
@@ -222,5 +230,77 @@ class ModelOptionsPanelModelTest {
         )
         assertTrue(ModelOptionsRender.disclosureOffersSupportedModels(ModelOptionCapabilityShape.DisclosureStatus.ModelDoesNotThink))
         assertFalse(ModelOptionsRender.disclosureOffersSupportedModels(ModelOptionCapabilityShape.DisclosureStatus.ConnectionCannotSearch))
+    }
+
+    private fun input(state: String?, reasonCode: String? = null, wireFamily: String = "openai_chat.image_url") =
+        CapabilityEvidenceFacade.projectInputCapability(
+            key = CapabilityEvidenceFacade.VISION_INPUT,
+            verdict = state?.let { CapabilityEvidenceFacade.InputCapabilityVerdict(it, reasonCode, wireFamily) },
+            endImplements = true,
+            override = null,
+            negativeCacheHit = false,
+            connection = CapabilityEvidenceFacade.InputCapabilityConnection.OFFICIAL,
+        )
+
+    private fun entry(vision: String?, file: String?, visionReason: String? = null, fileReason: String? = null): ComposerAttachmentEntryModel {
+        val projections = InputCapabilityProjections(
+            vision = input(vision, visionReason),
+            file = input(file, fileReason, "openai_chat.file"),
+            video = input("unknown"),
+        )
+        return ComposerAttachmentEntryModel.from(
+            projections,
+            AttachmentInputGate(
+                image = projections.vision.editable,
+                nativeFile = projections.file.editable,
+                textFileInline = true,
+                video = projections.video.editable,
+            ),
+        )
+    }
+
+    @Test
+    fun `vision tile follows the projection three values and writes the reason when unavailable`() {
+        assertEquals(ModelOptionsTiles.Vision.Available, ModelOptionsTiles.vision(entry("auto_available", "unknown").image))
+        // unknown: the entry is open, but the card does not say "available".
+        assertEquals(ModelOptionsTiles.Vision.Unknown, ModelOptionsTiles.vision(entry(null, "unknown").image))
+        val absent = entry("unavailable", "unknown", visionReason = "model_capability_absent")
+        assertEquals(ModelOptionsTiles.Vision.Hidden, ModelOptionsTiles.vision(absent.image))
+        val tiles = ModelOptionsTiles.board(
+            web = ModelOptionCapabilityShape.Toggle(isOn = false, kind = ModelOptionCapabilityShape.ToggleKind.Capability),
+            reasoning = ModelOptionCapabilityShape.Toggle(isOn = false, kind = ModelOptionCapabilityShape.ToggleKind.Capability),
+            vision = ModelOptionsTiles.vision(absent.image),
+            file = ModelOptionsTiles.FileDelivery.NativeWhenSupported,
+            visionReasonRes = absent.image.disabledReasonRes,
+            fileReasonRes = absent.file.nativeDisabledReasonRes,
+        )
+        val visionTile = tiles.single { it.kind == ModelOptionsTiles.Kind.Vision }
+        // The status row is the disabled reason itself, no longer "photo picker hidden".
+        assertEquals(R.string.capability_input_disabled_model_absent_image, visionTile.statusRes)
+        assertNull(visionTile.bodyRes)
+        // Available / unknown carry no reason; the status row keeps its own line.
+        assertEquals(R.string.model_options_vision_unknown, ModelOptionsTiles.visionTile(ModelOptionsTiles.Vision.Unknown, R.string.capability_input_disabled_model_absent_image).statusRes)
+        assertNull(tiles.single { it.kind == ModelOptionsTiles.Kind.File }.bodyRes)
+    }
+
+    @Test
+    fun `file tile drops to text with the reason when the native file projection is unavailable`() {
+        val unavailable = entry("auto_available", "unavailable", fileReason = "transport_not_supported")
+        // Inline text stays tappable, but the native-file reason must be spelled out.
+        assertTrue(unavailable.file.enabled)
+        assertEquals("capability_input_disabled_wire_not_implemented_file", unavailable.file.nativeDisabledReasonKey)
+        val provider = Provider(id = "deepseek", kind = ProviderKind.DeepSeek)
+        val model = AIModel(id = "deepseek-flash", name = "deepseek-flash")
+        val delivery = ModelOptionsPanelInput.fileDelivery(
+            provider = provider,
+            model = model,
+            webSearchEnabled = false,
+            reasoningMode = ai.oriveo.community.core.model.ReasoningMode.Automatic,
+            nativeFileUnavailable = unavailable.file.nativeDisabledReasonKey != null,
+        )
+        assertEquals(ModelOptionsTiles.FileDelivery.Text, delivery)
+        val tile = ModelOptionsTiles.fileTile(delivery, unavailable.file.nativeDisabledReasonRes)
+        assertEquals(R.string.capability_input_disabled_wire_not_implemented_file, tile.bodyRes)
+        assertNull(entry("auto_available", "unknown").file.nativeDisabledReasonKey)
     }
 }

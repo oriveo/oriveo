@@ -27,6 +27,8 @@ import ai.oriveo.community.core.model.ChatRequestOptions
 import ai.oriveo.community.core.model.ChatRole
 import ai.oriveo.community.core.model.Conversation
 import ai.oriveo.community.core.model.Provider
+import ai.oriveo.community.core.model.ProviderAuthMode
+import ai.oriveo.community.core.model.ProviderConnectionState
 import ai.oriveo.community.core.model.QuoteContext
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.provider.AnthropicService
@@ -34,6 +36,7 @@ import ai.oriveo.community.core.provider.transport.TransportRegistry
 import ai.oriveo.community.core.util.graphemeCount
 import ai.oriveo.community.R
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
@@ -390,7 +393,7 @@ class ContextCompactionUiTest {
             val gate = CompletableDeferred<Unit>()
             val compacted = mutableListOf<String>()
             val started = CompletableDeferred<QuoteContext?>()
-            val coordinator = hosted(store, messages, backgroundScope, startNewChatWith = { started.complete(it) }) {
+            val coordinator = hosted(store, messages, backgroundScope, startNewChatWith = { started.complete(it); null }) {
                 compacted += CONVERSATION_ID
                 gate.await()
                 CompactOutcome.NOOP
@@ -438,6 +441,7 @@ class ContextCompactionUiTest {
             val host = ChatCompactionUiCoordinator.newChatHost(backgroundScope, conversation, quotes) {
                 newChats++
                 quotes.clear()
+                null
             }
             val hint = ThirdCompactionHint().apply { onSaved(CONVERSATION_ID, 3) }
             val coordinator = hosted(store, messages, backgroundScope, host = host, hint = hint)
@@ -453,6 +457,106 @@ class ContextCompactionUiTest {
             assertEquals(ChatRole.Assistant, pending.sourceRole)
             assertEquals("s", pending.selectedText)
         }
+    }
+
+    @Test
+    fun new_chat_blocked_by_missing_credential_opens_provider_detail() = runTest {
+        withStore { store ->
+            val messages = history(6)
+            store.save(ACCOUNT, validRecord(messages, coversTo = "m3"))
+            val quotes = ChatQuoteCoordinator()
+            val conversation = MutableStateFlow(ConversationRenderState(conversation(messages)))
+            val host = ChatCompactionUiCoordinator.newChatHost(backgroundScope, conversation, quotes) { "p-no-key" }
+            val coordinator = hosted(store, messages, backgroundScope, host = host)
+            val label = RuntimeEnvironment.getApplication().getString(R.string.context_compaction_quote_label)
+            val detail = async(start = CoroutineStart.UNDISPATCHED) { coordinator.providerDetailRequests.first() }
+
+            coordinator.startNewChatWithSummary(label)?.join()
+
+            assertNull(quotes.pending)
+            assertEquals("p-no-key", detail.await())
+        }
+    }
+
+    @Test
+    fun keep_model_for_new_chat_skips_missing_credential_connection() {
+        val model = AIModel(id = "m", name = "M")
+        val connected = Provider(id = "p", kind = ProviderKind.OpenAI, apiKey = "sk-test", status = ProviderConnectionState.Connected, models = listOf(model))
+        val noKey = connected.copy(status = ProviderConnectionState.Issue.missingCredential(ProviderAuthMode.ApiKey))
+        val written = mutableListOf<String>()
+
+        val opened = mutableListOf<String?>()
+        fun keep(provider: Provider, sendable: Boolean = true) = ChatCompactionUiCoordinator.keepModelForNewChat(
+            provider, model, sendable, lastUsed = null,
+            writeLastUsed = { p, m -> written += "${p.id}/${m.id}" },
+        ) { opened += it?.model?.id }
+
+        assertEquals("p", keep(noKey))
+        assertEquals(emptyList<String>(), written)
+        assertEquals(emptyList<String?>(), opened)
+        assertNull(keep(connected))
+        assertEquals(listOf("p/m"), written)
+        assertEquals(listOf<String?>(null), opened)
+    }
+
+    @Test
+    fun keep_model_for_new_chat_unsendable_model_opens_on_connection_chain_without_writing() {
+        val retired = AIModel(id = "old", name = "Old")
+        val next = AIModel(id = "next", name = "Next")
+        val connection = Provider(id = "p", kind = ProviderKind.Relay, apiKey = "sk-test", status = ProviderConnectionState.Connected, models = listOf(retired, next))
+        val written = mutableListOf<String>()
+        val opened = mutableListOf<String?>()
+
+        val blocked = ChatCompactionUiCoordinator.keepModelForNewChat(
+            connection, retired, sendable = false,
+            lastUsed = ai.oriveo.community.core.model.LastUsedModelRef("p", "next"),
+            writeLastUsed = { p, m -> written += "${p.id}/${m.id}" },
+        ) { opened += it?.let { s -> "${s.provider.id}/${s.model.id}" } }
+
+        assertNull(blocked)
+        assertEquals(emptyList<String>(), written)
+        assertEquals(listOf<String?>("p/next"), opened)
+    }
+
+    @Test
+    fun keep_model_for_new_chat_unsendable_with_empty_chain_returns_connection_without_opening() {
+        val retired = AIModel(id = "old", name = "Old")
+        val connection = Provider(id = "p", kind = ProviderKind.Relay, apiKey = "sk-test", status = ProviderConnectionState.Connected, models = emptyList())
+        val written = mutableListOf<String>()
+        val opened = mutableListOf<String?>()
+
+        val detail = ChatCompactionUiCoordinator.keepModelForNewChat(
+            connection, retired, sendable = false,
+            lastUsed = ai.oriveo.community.core.model.LastUsedModelRef("p", "old"),
+            writeLastUsed = { p, m -> written += "${p.id}/${m.id}" },
+        ) { opened += it?.model?.id }
+
+        assertEquals("p", detail)
+        assertEquals(emptyList<String>(), written)
+        assertEquals(emptyList<String?>(), opened)
+    }
+
+    @Test
+    fun keep_model_for_new_chat_null_model_takes_connection_chain_not_keep_current() {
+        val next = AIModel(id = "next", name = "Next")
+        val relay = Provider(id = "p", kind = ProviderKind.Relay, apiKey = "sk-test", status = ProviderConnectionState.Connected, models = listOf(next))
+        val other = Provider(id = "q", kind = ProviderKind.OpenAI, apiKey = "sk-test", status = ProviderConnectionState.Connected, models = listOf(AIModel(id = "o", name = "O")))
+        val conversation = Conversation(id = "c", title = "Removed", providerID = "p", providerKind = ProviderKind.Relay, modelID = "gone")
+        val state = resolveChatConversationState(conversation, listOf(other, relay), activeProviderId = "p", activeModelId = "gone")
+        assertEquals("p", state.provider?.id)
+        assertNull(state.model)
+        val written = mutableListOf<String>()
+        val opened = mutableListOf<String?>()
+        fun keep(provider: Provider?) = ChatCompactionUiCoordinator.keepModelForNewChat(
+            provider, state.model, !state.isSendBlocked, lastUsed = null,
+            writeLastUsed = { p, m -> written += "${p.id}/${m.id}" },
+        ) { opened += it?.let { s -> "${s.provider.id}/${s.model.id}" } }
+
+        assertNull(keep(state.provider))
+        assertEquals(listOf<String?>("p/next"), opened)
+        assertEquals("p", keep(relay.copy(models = emptyList())))
+        assertEquals(listOf<String?>("p/next"), opened)
+        assertEquals(emptyList<String>(), written)
     }
 
     @Test
@@ -681,7 +785,7 @@ class ContextCompactionUiTest {
                 host = ChatCompactionUiCoordinator.Host(
                     this@runTest,
                     MutableStateFlow(ConversationRenderState(conversation(messages))),
-                ) {},
+                ) { null },
             )
             val job = ui.launchPrecompact()
             runCurrent()
@@ -1039,7 +1143,7 @@ class ContextCompactionUiTest {
         store: ContextCompactionStore,
         messages: List<ChatMessage>,
         scope: kotlinx.coroutines.CoroutineScope,
-        startNewChatWith: suspend (QuoteContext?) -> Unit = {},
+        startNewChatWith: suspend (QuoteContext?) -> String? = { null },
         host: ChatCompactionUiCoordinator.Host = ChatCompactionUiCoordinator.Host(
             scope,
             MutableStateFlow(ConversationRenderState(conversation(messages))),

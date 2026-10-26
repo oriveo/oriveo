@@ -14,7 +14,9 @@ import ai.oriveo.community.core.context.MemoryItem
 import ai.oriveo.community.core.context.MemoryItemScope
 import ai.oriveo.community.core.context.MemoryKind
 import ai.oriveo.community.core.context.MemoryPropose
+import ai.oriveo.community.core.context.MemoryProposeAction
 import ai.oriveo.community.core.context.MemoryProposeContext
+import ai.oriveo.community.core.context.MemoryProposeDecision
 import ai.oriveo.community.core.context.MemoryLayer
 import ai.oriveo.community.core.context.MemoryScopeType
 import ai.oriveo.community.core.context.MemorySensitivity
@@ -116,7 +118,7 @@ class MemoryCandidateRepository(
     }
 
     /**
-     * One propose_memory call (memory-propose.v2 rule 4): same storage and same sweep as generate;
+     * One propose_memory call (memory-propose.v3 rule 4): same storage and same sweep as generate;
      * a candidate is written and returned only when the outcome is create, otherwise null; bad arguments do not throw either (the caller always answers the tool call with the fixed TOOL_RESULT).
      */
     @Suppress("LongParameterList")
@@ -129,7 +131,27 @@ class MemoryCandidateRepository(
         conversationId: String,
         folderId: String?,
         nowMs: Long = now(),
-    ): MemoryCandidate? = withContext(io) {
+    ): MemoryCandidate? = proposeDecision(
+        accountId, argumentsJson, priorInTurn, 0, userText, messageId, conversationId, folderId, nowMs,
+    ).candidate
+
+    /**
+     * Same as [propose] but returns the full outcome: on create the candidate is already stored; instruct carries a
+     * sentence for the instruction suggestion bar and does not write the candidate table.
+     * [priorInstructInTurn] is the number of earlier calls in this turn whose outcome was instruct.
+     */
+    @Suppress("LongParameterList")
+    suspend fun proposeDecision(
+        accountId: String,
+        argumentsJson: String,
+        priorInTurn: Int,
+        priorInstructInTurn: Int,
+        userText: String,
+        messageId: String,
+        conversationId: String,
+        folderId: String?,
+        nowMs: Long = now(),
+    ): MemoryProposeDecision = withContext(io) {
         writeMutex.withLock {
             val activeContents = activeContents(accountId)
             val records = sweepLocked(accountId, activeContents, nowMs)
@@ -145,9 +167,10 @@ class MemoryCandidateRepository(
                     userText = userText,
                 ),
                 priorInTurn,
+                priorInstructInTurn,
             )
-            val candidate = decision.candidate?.takeIf { decision.action == MemoryCandidateAction.CREATE }
-            candidate?.also { dao.upsert(it.toEntity(accountId)) }
+            if (decision.action == MemoryProposeAction.CREATE) decision.candidate?.also { dao.upsert(it.toEntity(accountId)) }
+            decision
         }
     }
 

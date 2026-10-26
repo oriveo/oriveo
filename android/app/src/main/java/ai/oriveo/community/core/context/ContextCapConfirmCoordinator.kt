@@ -18,7 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 
-/** One send at the gate point (contract P9·U8 gate rule 1): plan estimate after compaction plus this request's window. */
+/** One send at the gate point: plan estimate after compaction plus this request's window. */
 data class ContextCapConfirmRequest(
     val conversationId: String,
     /** Assistant placeholder of this send; identifies the pending confirmation. */
@@ -57,7 +57,7 @@ sealed interface ContextCapConfirmChoice {
 
 /**
  * Pre-send confirmation gate: decides, suspends the send until the user answers, and records a confirm
- * in the local state. No timeout (contract P9·U8 gate rule 2): cancelling the waiting coroutine = cancel.
+ * in the local state. No timeout: cancelling the waiting coroutine = cancel.
  */
 class ContextCapConfirmCoordinator(
     private val store: ContextPriceLineConfirmStore,

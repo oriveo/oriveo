@@ -234,13 +234,28 @@ class ModelOptionsBoardStructureTest {
     fun `BOARD-OPTIONS-09 vision is unknown only for a visible relay model without positive evidence`() {
         val provider = relay(RelayTransport.OpenAIChatCompletions)
         val bare = AIModel(id = "m1", name = "m1")
-        assertTrue(ModelOptionsPanelInput.visionUnknown(provider, bare))
-        assertFalse(ModelOptionsPanelInput.visionUnknown(provider, bare.copy(relayCapabilityOverrides = RelayCapabilityOverrides(image = true))))
-        assertFalse(ModelOptionsPanelInput.visionUnknown(provider, bare.copy(capabilities = listOf(ModelCapability.Text, ModelCapability.Image))))
+        fun unknown(p: Provider, m: AIModel) = ModelOptionsPanelInput.visionUnknown(
+            p,
+            m,
+            ai.oriveo.community.core.capability.truth.relayInputIdentity(
+                p,
+                m,
+                ai.oriveo.community.core.model.CapabilityEvidenceIdentity(
+                    partitionId = "partition",
+                    connectionInstanceId = p.id,
+                    connectionGeneration = "generation",
+                    credentialEpoch = "epoch",
+                    providerKind = p.kind.rawValue,
+                    authMode = p.authMode.rawValue,
+                ),
+            ),
+        )
+        assertTrue(unknown(provider, bare))
+        assertFalse(unknown(provider, bare.copy(relayCapabilityOverrides = RelayCapabilityOverrides(image = true))))
+        assertFalse(unknown(provider, bare.copy(capabilities = listOf(ModelCapability.Text, ModelCapability.Image))))
         val engine = provider.copy(relayRequested = provider.relayRequested!!.copy(engineProfile = "llama.cpp"))
-        assertFalse(ModelOptionsPanelInput.visionUnknown(engine, bare.copy(engineDeclaration = EngineDeclaration(image = true))))
-        assertFalse(ModelOptionsPanelInput.visionUnknown(Provider(id = "o", kind = ProviderKind.OpenAI), bare))
-
+        assertFalse(unknown(engine, bare.copy(engineDeclaration = EngineDeclaration(image = true))))
+        assertFalse(unknown(Provider(id = "o", kind = ProviderKind.OpenAI), bare))
         assertEquals(Vision.Hidden, ModelOptionsTiles.vision(entryVisible = false, relayWithoutPositiveEvidence = true))
         assertEquals(Vision.Unknown, ModelOptionsTiles.vision(entryVisible = true, relayWithoutPositiveEvidence = true))
         assertEquals(Vision.Available, ModelOptionsTiles.vision(entryVisible = true, relayWithoutPositiveEvidence = false))
@@ -335,7 +350,7 @@ class ModelOptionsBoardStructureTest {
         assertTrue(sheet.contains("ModelOptionsTiles.board("))
         assertTrue(sheet.contains("ModelOptionsTiles.summary(webShape, reasoningShape)"))
         assertTrue(sheet.contains("ModelOptionsTiles.parameterRows("))
-        assertTrue("gallery visibility uses the same value as the input box", sheet.contains("imageEntryVisible"))
+        assertTrue("vision / file cards share the input box's attachment menu model", sheet.contains("ModelOptionsTiles.vision(attachmentEntry.image)"))
         assertTrue("file card takes the panel's web-search switch, tool loop is false", sheet.contains("ModelOptionsPanelInput.fileDelivery("))
         assertTrue(panel.contains("R.drawable.ph_globe_duotone") && panel.contains("R.drawable.ph_brain_duotone"))
         assertTrue(panel.contains("R.drawable.ph_eye_duotone") && panel.contains("R.drawable.ph_paperclip_duotone"))

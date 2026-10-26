@@ -10,7 +10,7 @@ import ai.oriveo.community.core.tools.ToolScope
 import kotlinx.coroutines.CancellationException
 
 /**
- * P10 rules 3-4: propose_memory as the last registry entry of the MCP / Library tool loops.
+ * propose_memory as the last registry entry of the MCP tool loop.
  * Executing hands the arguments to [hook] (candidate + suggestion bar) and always answers [MemoryPropose.TOOL_RESULT];
  * it reports no step and never fails, so it cannot count toward the consecutive-failure guard.
  */

@@ -9,6 +9,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import ai.oriveo.community.ui.component.costPartsText
 import ai.oriveo.community.ui.theme.OriveoBorderWidth
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -234,6 +235,38 @@ private fun sortToolCallJson(element: JsonElement): JsonElement = when (element)
     else -> element
 }
 
+/**
+ * Local connection identity used to annotate user bubbles in a Relay conversation (the conversation's connection
+ * plus this message's model, the same `ProviderRepository.capabilityEvidenceIdentity` as on the send side).
+ * While the identity is being fetched asynchronously it is [RelayBubbleIdentity.Loading]; for non-Relay
+ * conversations or messages without attachments there is no identity to fetch, so it is Resolved(null)
+ * (non-Relay never reads it).
+ */
+@Composable
+private fun rememberRelayBubbleIdentity(
+    message: ChatMessage,
+    provider: Provider?,
+): RelayBubbleIdentity {
+    val modelId = message.modelID?.trim().orEmpty()
+    if (provider?.kind != ProviderKind.Relay || modelId.isEmpty() || message.attachments.isNullOrEmpty()) {
+        return RelayBubbleIdentity.Resolved(null)
+    }
+    val providerRepository = koinInject<ai.oriveo.community.core.data.repository.ProviderRepository>()
+    val partition = providerRepository.currentCapabilityPartitionId()
+    return androidx.compose.runtime.produceState<RelayBubbleIdentity>(
+        initialValue = RelayBubbleIdentity.Loading,
+        provider,
+        modelId,
+        partition,
+    ) {
+        value = RelayBubbleIdentity.Resolved(providerRepository.capabilityEvidenceIdentity(provider, modelId, partition))
+    }.value
+}
+
+/**
+ * Message bubble, matching iOS MessageBubble.
+ * Handles the four states delivered / generating / interrupted / failed.
+ */
 @Composable
 fun MessageBubble(
     message: ChatMessage,
@@ -293,7 +326,7 @@ fun MessageBubble(
             onReplaceSelection = onReplaceSelection,
             onSelectionToolbarVisibleChange = onSelectionToolbarVisibleChange,
             onSelectionGestureActiveChange = onSelectionGestureActiveChange,
-            modifier = modifier,
+            modifier = modifier.testTag("chat_message_user"),
             attachmentStore = attachmentStore,
         )
     } else {
@@ -319,7 +352,7 @@ fun MessageBubble(
             onCrosscheck = onCrosscheck,
             replyNotice = replyNotice,
             onContinueReply = onContinueReply,
-            modifier = modifier,
+            modifier = modifier.testTag("chat_message_assistant"),
             attachmentStore = attachmentStore,
         )
     }
@@ -411,6 +444,13 @@ private fun UserBubble(
                 val imageCount = message.attachments?.count { it.kind == AttachmentKind.Image } ?: 0
                 val fileCount = message.attachments?.count { it.kind != AttachmentKind.Image } ?: 0
                 val isImmersiveHero = imageCount == 1 && fileCount == 0
+                // Read-only projection: attachments this model will not receive (replaced by a placeholder outbound) are marked "Not sent to this model"; the local message is unchanged.
+                val markProvider = message.providerID?.let { LocalRelayAvatarProviders.current[it] }
+                val notSentMarks = rememberUserAttachmentNotSentMarks(
+                    message = message,
+                    provider = markProvider,
+                    relayLocalIdentity = rememberRelayBubbleIdentity(message, markProvider),
+                )
                 val hasText = displayText.isNotBlank()
                 val isGeneratingNoText = message.state == ChatMessageState.Generating && displayText.isBlank()
 
@@ -439,6 +479,7 @@ private fun UserBubble(
                             isUserMessage = true,
                             immersiveHero = true,
                             hasText = hasText,
+                            notSentMarks = notSentMarks,
                             attachmentStore = attachmentStore,
                         )
                         if (hasText) {
@@ -488,7 +529,7 @@ private fun UserBubble(
                             MessageAttachmentList(
                                 attachments = message.attachments,
                                 isUserMessage = true,
-
+                                notSentMarks = notSentMarks,
                                 attachmentStore = attachmentStore,
                             )
                         }
@@ -711,19 +752,23 @@ private fun AssistantMessage(
     } else {
         message.reasoningText ?: ""
     }
-
+    // The streaming cell flushes streamingText about every 180ms and recomposes AssistantMessage; allocating a
+    // List + String on every frame is needless overhead. Remember by the real metadata dependencies.
+    // USD and non-USD parts are shown together; a non-USD part with an unknown amount shows the existing "not available" text
+    val costParts = remember(message.estimatedCost, message.nonUsdCost) { message.costParts }
+    val notAvailableCostCodes = remember(message.nonUsdCost) { message.notAvailableCostCodes }
+    val costText = costPartsText(costParts, notAvailableCostCodes)
     val metadataText = remember(
         resolvedProviderName,
         resolvedModelName,
         message.state,
-        message.estimatedCost,
-        message.estimatedCostText,
+        costText,
     ) {
         buildList {
             add(resolvedProviderName)
             add(resolvedModelName)
-            if (message.state == ChatMessageState.Delivered && message.estimatedCost > 0) {
-                add(message.estimatedCostText)
+            if (message.state == ChatMessageState.Delivered && costText.isNotEmpty()) {
+                add(costText)
             }
         }.joinToString(" · ")
     }
@@ -1562,6 +1607,8 @@ private fun MessageAttachmentList(
     isUserMessage: Boolean,
     immersiveHero: Boolean = false,
     hasText: Boolean = false,
+    /** Attachments in the user bubble replaced by a placeholder outbound (attachment id to text resource), see [userAttachmentNotSentMarks]. */
+    notSentMarks: Map<String, Int> = emptyMap(),
     attachmentStore: AttachmentStore = koinInject(),
 ) {
     val imageAttachments = attachments.filter { it.kind == AttachmentKind.Image }
@@ -1580,6 +1627,7 @@ private fun MessageAttachmentList(
                         index = 0,
                         immersiveHero = immersiveHero,
                         hasText = hasText,
+                        notSentMark = notSentMarks[imageAttachments.first().id],
                         attachmentStore = attachmentStore,
                     )
                     2 -> Row(
@@ -1590,7 +1638,7 @@ private fun MessageAttachmentList(
                                 attachment = attachment,
                                 gallery = imageAttachments,
                                 index = idx,
-
+                                notSentMark = notSentMarks[attachment.id],
                                 attachmentStore = attachmentStore,
                             )
                         }
@@ -1603,7 +1651,7 @@ private fun MessageAttachmentList(
                                 attachment = attachment,
                                 gallery = imageAttachments,
                                 index = idx,
-
+                                notSentMark = notSentMarks[attachment.id],
                                 attachmentStore = attachmentStore,
                             )
                         }
@@ -1615,17 +1663,17 @@ private fun MessageAttachmentList(
                             verticalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                UserImageGridCell(attachment = firstFour[0], gallery = imageAttachments, index = 0, attachmentStore = attachmentStore)
-                                UserImageGridCell(attachment = firstFour[1], gallery = imageAttachments, index = 1, attachmentStore = attachmentStore)
+                                UserImageGridCell(attachment = firstFour[0], gallery = imageAttachments, index = 0, notSentMark = notSentMarks[firstFour[0].id], attachmentStore = attachmentStore)
+                                UserImageGridCell(attachment = firstFour[1], gallery = imageAttachments, index = 1, notSentMark = notSentMarks[firstFour[1].id], attachmentStore = attachmentStore)
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                UserImageGridCell(attachment = firstFour[2], gallery = imageAttachments, index = 2, attachmentStore = attachmentStore)
+                                UserImageGridCell(attachment = firstFour[2], gallery = imageAttachments, index = 2, notSentMark = notSentMarks[firstFour[2].id], attachmentStore = attachmentStore)
                                 UserImageGridCell(
                                     attachment = firstFour[3],
                                     gallery = imageAttachments,
                                     index = 3,
                                     overflowCount = remaining,
-
+                                    notSentMark = notSentMarks[firstFour[3].id],
                                     attachmentStore = attachmentStore,
                                 )
                             }
@@ -1642,8 +1690,21 @@ private fun MessageAttachmentList(
 
         fileAttachments.forEach { attachment ->
             if (isUserMessage) {
-
-                UserFileChip(attachment = attachment, attachmentStore = attachmentStore)
+                // Matches iOS UserFileAttachment: translucent white capsule
+                val mark = notSentMarks[attachment.id]
+                if (mark == null) {
+                    UserFileChip(attachment = attachment, attachmentStore = attachmentStore)
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        UserFileChip(attachment = attachment, attachmentStore = attachmentStore)
+                        Text(
+                            text = stringResource(mark),
+                            style = OriveoTheme.typography.caption,
+                            color = Color.White.copy(alpha = 0.72f),
+                            modifier = Modifier.padding(horizontal = 10.dp),
+                        )
+                    }
+                }
             } else {
                 MessageAttachmentChip(
                     fileName = attachment.fileName,

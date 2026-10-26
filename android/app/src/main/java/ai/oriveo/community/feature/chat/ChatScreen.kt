@@ -12,6 +12,7 @@ fun ChatScreen(
     /** Non-null editItemId: "this is wrong" edits that memory item directly. */
     onNavigateToMemory: (editItemId: String?) -> Unit = {},
     onNavigateToProviderSetup: () -> Unit = {},
+    onNavigateToVoiceSettings: () -> Unit = {},
     onNavigateToProviderDetail: (providerId: String) -> Unit = {},
     /** "Test capability" for a rejected web template: opens this model's advanced page in this connection. */
     onNavigateToRelayModelAdvanced: (providerId: String, modelId: String) -> Unit = { _, _ -> },
@@ -31,6 +32,7 @@ fun ChatScreen(
         onBack = onBack,
         onNavigateToMemory = onNavigateToMemory,
         onNavigateToProviderSetup = onNavigateToProviderSetup,
+        onNavigateToVoiceSettings = onNavigateToVoiceSettings,
         onNavigateToProviderDetail = onNavigateToProviderDetail,
         onNavigateToConnectionWebSearch = onNavigateToConnectionWebSearch,
         onNavigateToRelayModelAdvanced = onNavigateToRelayModelAdvanced,

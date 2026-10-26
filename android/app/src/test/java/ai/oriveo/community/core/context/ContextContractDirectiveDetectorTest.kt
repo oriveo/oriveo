@@ -29,6 +29,7 @@ class ContextContractDirectiveDetectorTest {
                 span = e.stringOrNull("span"),
                 kind = DirectiveKind.entries.first { it.raw == e.stringOrNull("kind") },
                 scope = DirectiveScope.entries.first { it.raw == e.stringOrNull("scope") },
+                lang = e.stringOrNull("lang"),
             )
         }
 
@@ -40,6 +41,11 @@ class ContextContractDirectiveDetectorTest {
             if (actual == expected) null else "${c.id()}: expected $expected, got $actual"
         }
         assertTrue(failures.joinToString("\n"), failures.isEmpty())
+    }
+
+    @Test
+    fun suggestion_languages_match_fixture() {
+        assertEquals(fixture.strings("suggestionLanguages").toSet(), DirectiveDetector.SUGGESTION_LANGUAGES)
     }
 
     @Test
@@ -72,8 +78,13 @@ class ContextContractDirectiveDetectorTest {
                 "imageStyleWords" to lang.imageStyleWords,
                 "globalMarkers" to lang.globalMarkers,
             )
-            assertEquals("${lang.code} keys", l.keys - "mode", embedded.keys)
+            assertEquals("${lang.code} keys", l.keys - "mode" - "nearMarkers", embedded.keys)
             embedded.forEach { (key, terms) -> assertEquals("${lang.code} $key", l.strings(key), terms) }
+            val near = l["nearMarkers"]?.jsonArray.orEmpty().map { n ->
+                val o = n.jsonObject
+                DirectiveLexicon.NearMarker(o.strings("a"), o.strings("b"), o.int("within"))
+            }
+            assertEquals("${lang.code} nearMarkers", near, lang.nearMarkers)
         }
     }
 

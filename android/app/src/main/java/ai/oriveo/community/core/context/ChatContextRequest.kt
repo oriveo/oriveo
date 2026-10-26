@@ -14,6 +14,11 @@ data class ChatContextRequest(
      * and reused by every leg, retry projection and overflow re-projection of that turn.
      */
     val recall: List<ContextRecallEntry> = emptyList(),
+    /**
+     * Reply-style envelope of this turn: VOICE for a voice-conversation send, carried by every leg and
+     * continue of the turn; null keeps the plan byte-identical to a typed send.
+     */
+    val delivery: ContextDelivery? = null,
 ) {
     companion object {
         /**

@@ -1,5 +1,12 @@
 package ai.oriveo.community.feature.chat.composer
 
+import android.content.Context
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.performClick
+import androidx.lifecycle.SavedStateHandle
 import ai.oriveo.community.core.app.AppPreferencesRepository
 import ai.oriveo.community.core.app.GlobalSnackbarManager
 import ai.oriveo.community.core.data.repository.ChatRepository
@@ -17,13 +24,6 @@ import ai.oriveo.community.feature.chat.ChatViewModel
 import ai.oriveo.community.feature.chat.MessageWindowFakeStore
 import ai.oriveo.community.feature.chat.stubMessageWindowLoaderDefaults
 import ai.oriveo.community.ui.theme.OriveoTheme
-import android.content.Context
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.compose.ui.test.junit4.createEmptyComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
-import androidx.compose.ui.test.performClick
-import androidx.lifecycle.SavedStateHandle
 import dev.chrisbanes.haze.HazeState
 import io.mockk.coEvery
 import io.mockk.every
@@ -35,6 +35,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
+import org.junit.Assert.assertEquals
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
@@ -43,12 +45,12 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.koin.compose.KoinApplication
-import org.koin.dsl.module
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import org.koin.compose.KoinApplication
+import org.koin.dsl.module
 
 /**
  * Rendering behavior of the composer's send / stop button: a real [ChatViewModel], a real
@@ -87,7 +89,7 @@ class ChatComposerHostStopButtonTest {
     /** The conversation's active streaming message id; flipping it is what ChatRepository does. */
     private val streamingMessageId = MutableStateFlow<String?>(null)
 
-    private val provider = Provider(
+    private var provider = Provider(
         id = "provider-1",
         kind = ProviderKind.OpenAI,
         status = ProviderConnectionState.Connected,
@@ -101,7 +103,7 @@ class ChatComposerHostStopButtonTest {
         ),
     )
 
-    private val conversation = Conversation(
+    private var conversation = Conversation(
         id = CONVERSATION_ID,
         title = "Stop button test",
         providerID = "provider-1",
@@ -109,8 +111,6 @@ class ChatComposerHostStopButtonTest {
         modelID = "gpt-4o-mini",
         messages = emptyList(),
     )
-
-    private lateinit var activity: ComponentActivity
 
     @Before
     fun setUp() {
@@ -148,9 +148,10 @@ class ChatComposerHostStopButtonTest {
     @Test
     fun `stop button appears when the stream starts after the host already recomposed`() {
         val viewModel = launchHost()
-        val send = activity.getString(ai.oriveo.community.R.string.send)
-        val stop = activity.getString(ai.oriveo.community.R.string.stop)
-        composeRule.onNodeWithContentDescription(send).assertExists()
+        val voice = context().getString(ai.oriveo.community.R.string.voice_conversation_start_a11y)
+        val stop = context().getString(ai.oriveo.community.R.string.stop)
+        // An empty draft shows ≋ where the grey ↑ used to be.
+        composeRule.onNodeWithContentDescription(voice).assertExists()
         composeRule.onNodeWithContentDescription(stop).assertDoesNotExist()
 
         // Frame one: sending clears the input (restore token bumps) and the host recomposes while the
@@ -165,14 +166,14 @@ class ChatComposerHostStopButtonTest {
         composeRule.waitForIdle()
 
         composeRule.onNodeWithContentDescription(stop).assertExists()
-        composeRule.onNodeWithContentDescription(send).assertDoesNotExist()
+        composeRule.onNodeWithContentDescription(voice).assertDoesNotExist()
     }
 
     @Test
-    fun `send button comes back when the stream ends`() {
+    fun `voice entry comes back when the stream ends on an empty draft`() {
         val viewModel = launchHost()
-        val send = activity.getString(ai.oriveo.community.R.string.send)
-        val stop = activity.getString(ai.oriveo.community.R.string.stop)
+        val send = context().getString(ai.oriveo.community.R.string.voice_conversation_start_a11y)
+        val stop = context().getString(ai.oriveo.community.R.string.stop)
 
         composeRule.runOnIdle { viewModel.restoreInputText("") }
         composeRule.waitForIdle()
@@ -190,7 +191,7 @@ class ChatComposerHostStopButtonTest {
     @Test
     fun `tapping stop stops the current conversation stream`() {
         val viewModel = launchHost()
-        val stop = activity.getString(ai.oriveo.community.R.string.stop)
+        val stop = context().getString(ai.oriveo.community.R.string.stop)
 
         composeRule.runOnIdle { viewModel.restoreInputText("") }
         composeRule.waitForIdle()
@@ -202,6 +203,49 @@ class ChatComposerHostStopButtonTest {
 
         verify(exactly = 1) { chatStreamingManager.stopStream(CONVERSATION_ID) }
     }
+
+    @Test
+    fun `typing turns voice into send and voice tap emits the placeholder request`() {
+        val viewModel = launchHost()
+        val voice = context().getString(ai.oriveo.community.R.string.voice_conversation_start_a11y)
+        val send = context().getString(ai.oriveo.community.R.string.send)
+        val requests = mutableListOf<Unit>()
+        val job = applicationScope.launch { viewModel.voice.requests.collect { requests += it } }
+        try {
+            composeRule.onNodeWithContentDescription(voice).performClick()
+            composeRule.waitForIdle()
+            assertEquals(1, requests.size)
+
+            composeRule.runOnIdle { viewModel.restoreInputText("hello") }
+            composeRule.waitForIdle()
+            composeRule.onNodeWithContentDescription(send).assertExists()
+            composeRule.onNodeWithContentDescription(voice).assertDoesNotExist()
+        } finally {
+            job.cancel()
+        }
+    }
+
+    @Test
+    fun `image only model keeps the grey send on an empty draft`() {
+        provider = provider.copy(
+            models = listOf(
+                AIModel(id = "gpt-image-1", name = "Image", isDefault = true, capabilities = listOf(ModelCapability.ImageGen)),
+            ),
+        )
+        conversation = conversation.copy(modelID = "gpt-image-1")
+        every { conversationRepository.observeMetadata(CONVERSATION_ID) } returns flowOf(conversation)
+        coEvery { conversationRepository.getWithMessages(CONVERSATION_ID) } returns conversation
+        coEvery { conversationRepository.getWithLatestMessageWindow(CONVERSATION_ID, any()) } returns conversation
+        every { providerRepository.observeAll() } returns flowOf(listOf(provider))
+        coEvery { providerRepository.getById("provider-1") } returns provider
+        launchHost()
+        composeRule.onNodeWithContentDescription(context().getString(ai.oriveo.community.R.string.send)).assertExists()
+        composeRule.onNodeWithContentDescription(
+            context().getString(ai.oriveo.community.R.string.voice_conversation_start_a11y),
+        ).assertDoesNotExist()
+    }
+
+    private fun context(): Context = activity
 
     private fun launchHost(): ChatViewModel {
         val viewModel = ChatViewModel(
@@ -242,6 +286,8 @@ class ChatComposerHostStopButtonTest {
         composeRule.waitForIdle()
         return viewModel
     }
+
+    private lateinit var activity: ComponentActivity
 
     private companion object {
         const val CONVERSATION_ID = "conversation-1"

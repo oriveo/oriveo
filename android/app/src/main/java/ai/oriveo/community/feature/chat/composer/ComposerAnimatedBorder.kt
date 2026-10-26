@@ -65,7 +65,8 @@ private fun baseColorAt(x: Float): Color {
     return lerp(AI_BORDER_COLORS[i], AI_BORDER_COLORS[i + 1], frac)
 }
 
-private val AI_BORDER_COLORS = listOf(
+/** Restrained rainbow: blue -> purple -> magenta -> warm -> mint -> back to blue (same start and end color for a seamless loop). */
+internal val AI_BORDER_COLORS = listOf(
     Color(0xFF6E8BFF),
     Color(0xFF9B6BFF),
     Color(0xFFE06BC4),

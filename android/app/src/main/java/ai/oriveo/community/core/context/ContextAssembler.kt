@@ -51,13 +51,15 @@ class ContextPlan private constructor(
         private val MEMORY_PURPOSES = setOf(
             RequestPurpose.CHAT, RequestPurpose.CONTINUE, RequestPurpose.TOOL_LOOP_LEG, RequestPurpose.COMPACTION,
         )
-        private val STANDING_KINDS = setOf("instruction", "constraint")
+        internal val STANDING_KINDS = setOf("instruction", "constraint")
 
         internal fun assemble(input: ContextAssembleInput): ContextPlan {
             val window = ContextBudget.window(input.window)
             return when (input.purpose) {
                 RequestPurpose.IMAGE_GENERATION -> imagePlan(input, window)
                 RequestPurpose.CROSSCHECK, RequestPurpose.MEMORY_EXTRACTION -> purposeSystemPlan(input, window)
+                RequestPurpose.REALTIME_SESSION ->
+                    error("realtimeSession is planned by assembleRealtimeSession, not assemble()")
                 RequestPurpose.CHAT, RequestPurpose.CONTINUE, RequestPurpose.TOOL_LOOP_LEG, RequestPurpose.COMPACTION ->
                     conversationPlan(input, window)
             }
@@ -120,7 +122,7 @@ class ContextPlan private constructor(
 
         // ---- chat / continue / toolLoopLeg / compaction ----
 
-        private class SystemParts(
+        internal class SystemParts(
             val skill: String?,
             val instructions: String?,
             /** (entry, item id) in render order. */
@@ -275,6 +277,10 @@ class ContextPlan private constructor(
                         dynamicParts += "<${ContextAssembler.TAG_REMINDER}>\n<note>${ContextAssembler.ENVELOPE_NOTES.getValue(ContextAssembler.TAG_REMINDER)}</note>\n$body\n</${ContextAssembler.TAG_REMINDER}>"
                     }
                 }
+                // Voice reply-style envelope: constant text, not escaped, placed last in [D].
+                if (input.dynamic?.delivery == ContextDelivery.VOICE) {
+                    dynamicParts += "<${ContextAssembler.TAG_DELIVERY}>\n${ContextAssembler.DELIVERY_VOICE}\n</${ContextAssembler.TAG_DELIVERY}>"
+                }
             }
             val dynamicText = dynamicParts.joinToString("\n\n")
 
@@ -322,7 +328,7 @@ class ContextPlan private constructor(
             return envelope(ContextAssembler.TAG_RECALL, kept)
         }
 
-        private fun eligible(item: ContextMemoryItem, conversationId: String): Boolean {
+        internal fun eligible(item: ContextMemoryItem, conversationId: String): Boolean {
             val semantic = item.layer == null || item.layer == "semantic"
             val active = item.status == null || item.status == "active"
             val scope = item.scope
@@ -331,13 +337,13 @@ class ContextPlan private constructor(
             return semantic && active && inScope
         }
 
-        private fun pinnedFirst(items: List<ContextMemoryItem>): List<ContextMemoryItem> =
+        internal fun pinnedFirst(items: List<ContextMemoryItem>): List<ContextMemoryItem> =
             items.filter { it.pinned } + items.filterNot { it.pinned }
 
-        private fun entry(text: String, attribute: Pair<String, String>? = null): String =
+        internal fun entry(text: String, attribute: Pair<String, String>? = null): String =
             entry(text, listOfNotNull(attribute))
 
-        private fun entry(text: String, attributes: List<Pair<String, String>>): String {
+        internal fun entry(text: String, attributes: List<Pair<String, String>>): String {
             val attr = attributes.joinToString("") { (name, value) -> " $name=\"${ContextSanitizer.escapeXml(value).replace("\"", "&quot;")}\"" }
             return "<entry$attr>${ContextSanitizer.escapeXml(text.trimWhiteSpace())}</entry>"
         }
@@ -356,13 +362,13 @@ class ContextPlan private constructor(
             }
         }
 
-        private fun envelope(tag: String, entries: List<String>): String? {
+        internal fun envelope(tag: String, entries: List<String>): String? {
             if (entries.isEmpty()) return null
             return "<$tag>\n<note>${ContextAssembler.ENVELOPE_NOTES.getValue(tag)}</note>\n${entries.joinToString("\n")}\n</$tag>"
         }
 
         /** checkpoint + blank line + text in the same block of the first user message (checkpoint alone when the text is empty). */
-        private fun prefixCheckpoint(messages: List<ContextMessage>, checkpoint: String?): List<ContextMessage> {
+        internal fun prefixCheckpoint(messages: List<ContextMessage>, checkpoint: String?): List<ContextMessage> {
             if (checkpoint.isNullOrEmpty()) return messages
             val index = messages.indexOfFirst { it.role == ChatRole.User }
             if (index < 0) return messages
@@ -383,7 +389,7 @@ class ContextPlan private constructor(
         private fun estimateSystem(text: String?, rhoHi: Double): Int =
             if (text == null) 0 else ContextBudget.estimateMessage(text, rhoHi)
 
-        private fun estimateMessages(messages: List<ContextMessage>, rhoHi: Double): Int =
+        internal fun estimateMessages(messages: List<ContextMessage>, rhoHi: Double): Int =
             messages.sumOf { ContextBudget.estimateMessage(it.text, rhoHi) }
 
         private fun compactionAdvice(window: ContextWindowBudget, estimated: Int): ContextCompactionAdvice {
@@ -408,6 +414,10 @@ object ContextAssembler {
     const val LIBRARY_EMPTY_ENTRY: String =
         "No relevant document was found in the connected Library sources. Say so plainly instead of inventing facts."
 
+    /** Voice reply-style envelope body; identical on every client. */
+    const val DELIVERY_VOICE: String =
+        "The user is talking with you by voice and will hear your reply read aloud. Answer the way you would speak: short, natural sentences, usually under 80 words unless the user asks for detail. Do not use Markdown, tables, code blocks, lists, or emoji; say symbols and units in words. If the answer really needs code or a long list, give the gist in speech and say the full version is in the chat."
+    internal const val TAG_DELIVERY = "oriveo-delivery"
     internal const val TAG_STANDING = "oriveo-standing-instructions"
     internal const val TAG_MEMORY = "oriveo-memory"
     internal const val TAG_NOTES = "oriveo-notes"

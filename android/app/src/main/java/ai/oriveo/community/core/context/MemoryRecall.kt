@@ -323,7 +323,7 @@ object MemoryRecall {
         listOfNotNull(item.occurredAt, item.source.observedAt, (item.createdAt as? MemoryServerTime.At)?.rfc3339)
             .firstNotNullOfOrNull(::parseTime)
 
-    private fun parseTime(rfc3339: String): Instant? = try {
+    internal fun parseTime(rfc3339: String): Instant? = try {
         OffsetDateTime.parse(rfc3339).toInstant()
     } catch (_: DateTimeParseException) {
         null

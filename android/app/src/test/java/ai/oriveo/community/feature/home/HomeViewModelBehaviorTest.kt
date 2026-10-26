@@ -91,6 +91,8 @@ class HomeViewModelBehaviorTest {
         val provider = Provider(
             id = "provider-1",
             kind = ProviderKind.OpenAI,
+            // The new chat chain drops connections without a key: fixtures must carry credentials.
+            apiKey = "sk-test",
             status = ProviderConnectionState.Connected,
             models = listOf(model("gpt-4o-mini", isDefault = true)),
             catalogModels = listOf(model("gpt-4o-mini", isDefault = true), model("gpt-4.1")),
@@ -139,6 +141,8 @@ class HomeViewModelBehaviorTest {
         val provider = Provider(
             id = "provider-1",
             kind = ProviderKind.OpenAI,
+            // The new chat chain drops connections without a key: fixtures must carry credentials.
+            apiKey = "sk-test",
             status = ProviderConnectionState.Connected,
             models = emptyList(),
             catalogModels = listOf(model("gpt-4.1")),
@@ -197,6 +201,8 @@ class HomeViewModelBehaviorTest {
         val provider = Provider(
             id = "provider-1",
             kind = ProviderKind.OpenAI,
+            // The new chat chain drops connections without a key: fixtures must carry credentials.
+            apiKey = "sk-test",
             status = ProviderConnectionState.Connected,
             models = listOf(model("gpt-5.4", isDefault = true)),
             catalogModels = emptyList(),
@@ -253,6 +259,8 @@ class HomeViewModelBehaviorTest {
         val provider = Provider(
             id = "provider-1",
             kind = ProviderKind.OpenAI,
+            // The new chat chain drops connections without a key: fixtures must carry credentials.
+            apiKey = "sk-test",
             status = ProviderConnectionState.Connected,
             models = listOf(
                 AIModel(
@@ -434,10 +442,12 @@ class HomeViewModelBehaviorTest {
     }
 
     @Test
-    fun `startConversationWithSkill persists chosen model creates draft and records usage`() = runTest {
+    fun `startConversationWithSkill creates draft with chosen model and records usage without touching last used`() = runTest {
         val provider = Provider(
             id = "provider-1",
             kind = ProviderKind.OpenAI,
+            // The new chat chain drops connections without a key: fixtures must carry credentials.
+            apiKey = "sk-test",
             status = ProviderConnectionState.Connected,
             models = listOf(model("gpt-4o", isDefault = true)),
         )
@@ -477,12 +487,9 @@ class HomeViewModelBehaviorTest {
         )
         advanceUntilIdle()
 
-        coVerify {
-            appPreferencesRepository.setLastUsedModel(
-                "provider-1",
-                match<AIModel> { it.id == "gpt-4o" },
-                any(),
-            )
+        // Starting a chat from a skill does not rewrite the last used model: only an actual send or a manual pick does.
+        coVerify(exactly = 0) {
+            appPreferencesRepository.setLastUsedModel(any<String>(), any<AIModel>(), any())
         }
         coVerify {
             conversationRepository.createDraft(
@@ -534,6 +541,8 @@ class HomeViewModelBehaviorTest {
         val activeProvider = Provider(
             id = "provider-1",
             kind = ProviderKind.OpenAI,
+            // The new chat chain drops connections without a key: fixtures must carry credentials.
+            apiKey = "sk-test",
             status = ProviderConnectionState.Connected,
             lastCheckedAt = null,
             models = listOf(model("gpt-4o", isDefault = true)),
@@ -646,6 +655,8 @@ class HomeViewModelBehaviorTest {
         val testProvider = Provider(
             id = "provider-1",
             kind = ProviderKind.OpenAI,
+            // The new chat chain drops connections without a key: fixtures must carry credentials.
+            apiKey = "sk-test",
             status = ProviderConnectionState.Connected,
             models = listOf(testModel),
         )
@@ -661,6 +672,8 @@ class HomeViewModelBehaviorTest {
         val issueProvider = Provider(
             id = "provider-1",
             kind = ProviderKind.OpenAI,
+            // The new chat chain drops connections without a key: fixtures must carry credentials.
+            apiKey = "sk-test",
             status = ProviderConnectionState.Issue("Key expired"),
             models = listOf(model("gpt-4o", isDefault = true)),
         )

@@ -84,7 +84,7 @@ internal fun resolveTokenUsageRows(snapshot: MessageTokenUsageSnapshot): Message
     )
 
 /**
- * P8 M12: compact total under the "Token usage" menu item (same notation as the transcript separator, rounds
+ * Compact total under the "Token usage" menu item (same notation as the transcript separator, rounds
  * down). Null when the total is unknown: the subtitle is not shown, no placeholder (same as iOS).
  */
 internal fun tokenUsageMenuSubtitle(snapshot: MessageTokenUsageSnapshot, locale: String): String? =

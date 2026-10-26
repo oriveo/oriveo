@@ -31,7 +31,7 @@ enum class ContextCapHintKind(val wire: String) {
 /** Custom start compared with the price line; [gap] is set only for [ContextCapHintKind.UNDER]. */
 data class ContextCapCustomHint(val kind: ContextCapHintKind, val gap: Int?)
 
-/** Per-conversation cap picker state (contract P9·U7 rule 1). */
+/** Per-conversation cap picker state. */
 data class ContextCapPicker(
     val selected: ContextCapSelection,
     val effective: ContextCapOptionBudget,
@@ -45,7 +45,7 @@ data class ContextCapPicker(
     val customHint: ContextCapCustomHint,
 )
 
-/** Result of committing a typed custom number (contract P9·U7 rule 2). */
+/** Result of committing a typed custom number. */
 data class ContextCapCommit(val value: Int, val adjusted: Boolean, val restored: Boolean)
 
 /** Per-million-token prices; long = the long-context tier above the price line. */
@@ -69,7 +69,7 @@ data class ContextCapMultiplier(val inputTenths: Int?, val outputTenths: Int?) {
     val isBoth: Boolean get() = inputTenths != null && inputTenths == outputTenths
 }
 
-/** Context panel cap row and window row (contract P9·U7 rule 3). */
+/** Context panel cap row and window row. */
 data class ContextCapPanel(
     /** null = unknown window with auto / unlimited: show the option name instead. */
     val capValue: Int?,
@@ -86,7 +86,7 @@ enum class ContextCapSettingsSelection(val wire: String) {
     CUSTOM("custom"),
 }
 
-/** Settings › Context default cap group (contract P9·U7 rule 4). */
+/** Settings › Context default cap group. */
 data class ContextCapSettings(val selected: ContextCapSettingsSelection, val customPrefill: Int)
 
 /** Localized templates of the panel window row and multiplier sentences (%n$s placeholders). */

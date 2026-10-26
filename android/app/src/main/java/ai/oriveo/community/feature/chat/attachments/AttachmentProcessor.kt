@@ -18,7 +18,7 @@ import ai.oriveo.community.core.data.attachment.StoredImage
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.core.model.AttachmentKind
-import ai.oriveo.community.core.model.ProviderKind
+import ai.oriveo.community.core.provider.AttachmentInputGate
 import ai.oriveo.community.core.provider.MessageBuilder
 import ai.oriveo.community.core.util.generateUuidString
 import ai.oriveo.community.core.util.InputSizeLimitExceededException
@@ -139,7 +139,7 @@ class AttachmentProcessor(
     suspend fun processFile(
         context: Context,
         uri: Uri,
-        activeProviderKind: ProviderKind?,
+        inputGate: AttachmentInputGate,
         activeModel: AIModel?,
         currentFileCount: Int,
     ): AttachmentImportOutcome {
@@ -174,7 +174,7 @@ class AttachmentProcessor(
             )
             val isVideo = mimeType.lowercase().startsWith("video/")
 
-            if (isVideo && !MessageBuilder.canAttachVideo(activeProviderKind, mimeType)) {
+            if (isVideo && !MessageBuilder.canAttachVideo(inputGate, mimeType)) {
                 return AttachmentImportOutcome.AttachmentConflict
             }
 
@@ -303,7 +303,7 @@ class AttachmentProcessor(
                 val base64 = withContext(Dispatchers.Default) {
                     Base64.encodeToString(bytes, Base64.NO_WRAP)
                 }
-                if (!MessageBuilder.canAttachFile(activeProviderKind, mimeType, base64)) {
+                if (!MessageBuilder.canAttachFile(inputGate, mimeType, base64)) {
                     return AttachmentImportOutcome.AttachmentConflict
                 }
 

@@ -222,10 +222,18 @@ internal class ChatScrollController {
             .coerceAtLeast(0)
         val userHeightPx = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == pinId }?.size ?: 0
 
-        reservePx = computeReservePx(viewportH, userHeightPx, minAssistantVisiblePx)
+        // Subtract the bottom content padding like the reserve and push-up amounts do, so the maximum
+        // scroll equals the pin landing point (see computeReservePx).
+        val afterPadding = listState.layoutInfo.afterContentPadding
+        reservePx = computeReservePx(viewportH, userHeightPx, minAssistantVisiblePx, afterPadding)
         pinnedTurnUserId = pinId
         pinnedAssistantFloorPx = 0
-        val pinScrollOffset = computeLongUserPinScrollOffsetPx(viewportH, userHeightPx, minAssistantVisiblePx)
+        val pinScrollOffset = computeLongUserPinScrollOffsetPx(
+            viewportH,
+            userHeightPx,
+            minAssistantVisiblePx,
+            afterPadding,
+        )
 
         val viewportTop = listState.layoutInfo.viewportStartOffset
 

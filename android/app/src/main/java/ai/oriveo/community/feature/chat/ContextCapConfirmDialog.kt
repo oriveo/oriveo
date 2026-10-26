@@ -24,7 +24,7 @@ import ai.oriveo.community.R
 import ai.oriveo.community.core.context.PendingContextCapConfirmation
 
 /**
- * Pre-send confirmation dialog (contract P9·U8 rule 2): title, body, the "don't ask again" checkbox only when the
+ * Pre-send confirmation dialog: title, body, the "don't ask again" checkbox only when the
  * decision shows it (starts unchecked), then [Cancel] [Send anyway]. Tapping outside or back = cancel; there is no
  * default / Enter action on send.
  */
@@ -99,7 +99,7 @@ private fun contextConfirmStrings() = ContextConfirmStrings(
     cancel = stringResource(R.string.cancel),
 )
 
-/** Same multiplier sentence templates as the cap panel (U7). */
+/** Same multiplier sentence templates as the cap panel. */
 @Composable
 private fun contextCapPanelStrings() = ContextCapPanelStrings(
     windowLine = stringResource(R.string.context_cap_window_line),

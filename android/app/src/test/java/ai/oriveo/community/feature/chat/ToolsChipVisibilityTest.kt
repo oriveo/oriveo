@@ -123,12 +123,16 @@ class ToolsChipVisibilityTest {
     }
 
     @Test
-    fun `hidden when the feature is switched off or not wired`() = runBlocking {
+    fun `hidden when the feature is switched off`() = runBlocking {
         addServer()
         config = config.copy(enabled = false)
         val off = coordinator()
         loaded(off, hasServers = true)
         assertFalse("hidden even with servers when mcpRuntimeConfig.enabled=false", off.isToolsChipVisible)
+    }
+
+    @Test
+    fun `hidden when the MCP runner is not wired`() {
         assertFalse(coordinator(runner = null).isToolsChipVisible)
     }
 

@@ -267,12 +267,51 @@ class SkillViewModelTest {
     }
 
     @Test
+    fun `startConversationWithSkill fallback skips a connection whose enabled models are all retired`() = runTest {
+        MetadataTestFixtures.applyRaw("""{"version":1,"contractVersion":1,"providers":{"openAI":{"defaultModelId":"gpt-legacy","retiredModels":[{"id":"gpt-legacy","displayName":"GPT Legacy","retiredAt":"2026-07-24T00:00:00Z","routedTo":"gpt-next"}],"resolveMap":{"gpt-next":"gpt-next"},"models":{"gpt-next":{"canonicalModelId":"gpt-next","displayName":"GPT Next"}}}}}""")
+        providersFlow.value = listOf(
+            Provider(
+                id = "provider-1",
+                kind = ProviderKind.OpenAI,
+                status = ProviderConnectionState.Connected,
+                apiKey = "sk-test",
+                models = listOf(sampleModel("gpt-legacy")),
+            ),
+            Provider(
+                id = "provider-2",
+                kind = ProviderKind.OpenAI,
+                status = ProviderConnectionState.Connected,
+                apiKey = "sk-test",
+                models = listOf(sampleModel("gpt-next")),
+            ),
+        )
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.startConversationWithSkill(skill = sampleSkill("skill-1"), onCreated = {})
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) {
+            conversationRepository.createDraft(
+                providerID = "provider-2",
+                providerKind = ProviderKind.OpenAI,
+                modelID = "gpt-next",
+                title = any(),
+                folderID = any(),
+                skillId = "skill-1",
+                useMemory = any(),
+            )
+        }
+    }
+
+    @Test
     fun `startConversationWithSkill uses suggested model and records usage`() = runTest {
         providersFlow.value = listOf(
             Provider(
                 id = "provider-1",
                 kind = ProviderKind.OpenAI,
                 status = ProviderConnectionState.Connected,
+                apiKey = "sk-test",
                 models = listOf(
                     sampleModel(
                         id = "gpt-5.4-2026-03-05",
@@ -296,13 +335,8 @@ class SkillViewModelTest {
         )
         advanceUntilIdle()
 
-        coVerify(exactly = 1) {
-            appPreferencesRepository.setLastUsedModel(
-                "provider-1",
-                match<AIModel> { it.id == "gpt-5.4-2026-03-05" && it.canonicalModelId == "gpt-5.4" },
-                any(),
-            )
-        }
+        // Starting from a skill does not rewrite the last-used model.
+        coVerify(exactly = 0) { appPreferencesRepository.setLastUsedModel(any<String>(), any<AIModel>(), any()) }
         coVerify(exactly = 1) {
             conversationRepository.createDraft(
                 providerID = "provider-1",

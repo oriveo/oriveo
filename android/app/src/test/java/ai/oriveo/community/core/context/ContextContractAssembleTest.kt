@@ -32,6 +32,7 @@ class ContextContractAssembleTest {
         assertEquals(c.int("reminderFullTextMaxTokens"), ContextAssembler.REMINDER_FULL_TEXT_MAX_TOKENS)
         assertEquals(c.int("reminderMinUserMessages"), ContextAssembler.REMINDER_MIN_USER_MESSAGES)
         assertEquals(c.stringOrNull("libraryEmptyEntry"), ContextAssembler.LIBRARY_EMPTY_ENTRY)
+        assertEquals(c.stringOrNull("deliveryVoice"), ContextAssembler.DELIVERY_VOICE)
         val notes = c["notes"]!!.jsonObject
         assertEquals(notes.keys, ContextAssembler.ENVELOPE_NOTES.keys)
         notes.forEach { (tag, note) -> assertEquals(tag, note.jsonPrimitive.content, ContextAssembler.ENVELOPE_NOTES[tag]) }
@@ -40,7 +41,7 @@ class ContextContractAssembleTest {
     @Test
     fun `assemble cases`() {
         val cases = ContextContractFixture.cases(fixture, "cases")
-        assertEquals(41, cases.size)
+        assertEquals(47, cases.size)
         cases.forEach { case -> check(case.id(), assemble(case["input"]!!.jsonObject), case["expected"]!!.jsonObject) }
     }
 
@@ -103,6 +104,7 @@ class ContextContractAssembleTest {
                             )
                         },
                         attachmentGuide = d.stringOrNull("attachmentGuide"),
+                        delivery = d.stringOrNull("delivery")?.let { if (it == "voice") ContextDelivery.VOICE else error("unknown delivery $it") },
                     )
                 },
                 toolSafety = input.stringOrNull("toolSafety"),

@@ -9,6 +9,9 @@ import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ReasoningMode
 import ai.oriveo.community.core.model.RelayRequestedConfig
 import ai.oriveo.community.core.model.RelayTransport
+import ai.oriveo.community.core.provider.MessageBuilder
+import ai.oriveo.community.testing.BundledAttachmentSupportFixture
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -16,6 +19,10 @@ import org.junit.Test
 import java.io.File
 
 class ChatModelCapabilityResolverTest {
+
+    // Official provider attachment support comes only from metadata; clear the injected MetadataClient.instance table after each case.
+    @After
+    fun clearInjectedMetadata() = BundledAttachmentSupportFixture.clear()
 
     private val resolver = ChatModelCapabilityResolver(
         metadata = MetadataClient(),
@@ -55,7 +62,7 @@ class ChatModelCapabilityResolverTest {
             capabilities = listOf(ModelCapability.Text),
         )
 
-        assertTrue(resolver.supportsFile(provider, model))
+        assertTrue(resolver.attachmentInputGate(provider, model).file)
     }
 
     @Test
@@ -154,6 +161,10 @@ class ChatModelCapabilityResolverTest {
             """.trimIndent(),
             "etag-feature-chain",
         )
+        // Provider attachment support reads MetadataClient.instance through ProviderKind: install the bundled
+        // snapshot's openAI attachmentSupport so this case only measures whether evidence can promote a missing
+        // exact control through the legacy profile.
+        BundledAttachmentSupportFixture.install("openAI")
         val resolver = ChatModelCapabilityResolver(metadata = client)
         val provider = Provider(id = "openai", kind = ProviderKind.OpenAI)
         val model = AIModel(
@@ -307,6 +318,156 @@ class ChatModelCapabilityResolverTest {
         // Without an identity it still fails closed.
         assertFalse(resolver.supportsImage(provider, vision, null))
     }
+
+    @Test
+    fun `official image entry reads the bundled vision_input projection`() {
+        val resolver = ChatModelCapabilityResolver(metadata = BundledAttachmentSupportFixture.bundledMetadataClient())
+        val provider = Provider(id = "deepseek", kind = ProviderKind.DeepSeek)
+
+        // Bundled snapshot: deepseek-flash vision_input=auto_available, deepseek-v4-pro unavailable/model_capability_absent.
+        assertTrue(resolver.supportsImage(provider, AIModel(id = "deepseek-flash", name = "Flash")))
+        assertFalse(resolver.supportsImage(provider, AIModel(id = "deepseek-v4-pro", name = "V4 Pro")))
+        // video_input / file_input are likewise unavailable; persisted capability flags do not let them through.
+        val stale = AIModel(id = "deepseek-flash", name = "Flash", capabilities = listOf(ModelCapability.Video, ModelCapability.File))
+        assertFalse(resolver.attachmentInputGate(provider, stale).video)
+        assertFalse(resolver.attachmentInputGate(provider, stale).nativeFile)
+    }
+
+    @Test
+    fun `relay unknown inputs stay attachable with the connection identity`() {
+        val resolver = ChatModelCapabilityResolver(
+            metadata = MetadataClient(),
+            runtimeConfigProvider = relayEnvelopes(),
+        )
+        val chat = relayProvider(RelayTransport.OpenAIChatCompletions).copy(
+            relayRequested = RelayRequestedConfig(
+                transport = RelayTransport.OpenAIChatCompletions,
+                resolvedAPIBaseURL = "https://relay.example.com/v1",
+            ),
+        )
+        val responses = chat.copy(
+            relayRequested = RelayRequestedConfig(
+                transport = RelayTransport.OpenAIResponses,
+                resolvedAPIBaseURL = "https://relay.example.com/v1",
+            ),
+        )
+        val model = AIModel(id = "plain", name = "plain", capabilities = listOf(ModelCapability.Text))
+
+        val chatGate = resolver.attachmentInputGate(chat, model, relayLocalIdentity(chat))
+        assertTrue("unknown vision is still attachable", chatGate.image)
+        assertTrue("the envelope has no video slot, so unknown stays attachable", chatGate.video)
+        assertFalse("envelope nativeFile=false hard-blocks file_input", chatGate.nativeFile)
+        assertTrue("text inline is not gated by file_input", chatGate.file)
+        assertTrue(resolver.attachmentInputGate(responses, model, relayLocalIdentity(responses)).nativeFile)
+        // Without a connection identity the three keys fail closed; text inline still follows the envelope.
+        val noIdentity = resolver.attachmentInputGate(chat, model)
+        assertFalse(noIdentity.image)
+        assertFalse(noIdentity.video)
+        assertTrue(noIdentity.file)
+    }
+
+    @Test
+    fun `relay connection identity lets native pdf through and video follows the transport resolver`() {
+        val resolver = ChatModelCapabilityResolver(
+            metadata = MetadataClient(),
+            runtimeConfigProvider = relayEnvelopes(),
+        )
+        val responses = relayProvider(RelayTransport.OpenAIResponses).copy(
+            relayRequested = RelayRequestedConfig(
+                transport = RelayTransport.OpenAIResponses,
+                resolvedAPIBaseURL = "https://relay.example.com/v1",
+            ),
+        )
+        val chat = responses.copy(
+            relayRequested = RelayRequestedConfig(
+                transport = RelayTransport.OpenAIChatCompletions,
+                resolvedAPIBaseURL = "https://relay.example.com/v1",
+            ),
+        )
+        val model = AIModel(id = "plain", name = "plain", capabilities = listOf(ModelCapability.Text))
+        val pdf = java.util.Base64.getEncoder().encodeToString("%PDF-1.7 binary".toByteArray())
+
+        val gate = resolver.attachmentInputGate(responses, model, relayLocalIdentity(responses))
+        assertTrue("envelope nativeFile=true with an identity: native PDF is attachable", MessageBuilder.canAttachFile(gate, "application/pdf", pdf))
+        assertTrue(resolver.attachmentInputGate(responses, model, relayLocalIdentity(responses)).file)
+        assertFalse("the Responses route has no video protocol family", resolver.attachmentInputGate(responses, model, relayLocalIdentity(responses)).video)
+        assertTrue("the Chat route has the video_url protocol family", resolver.attachmentInputGate(chat, model, relayLocalIdentity(chat)).video)
+        // No identity: native files fail closed, so a PDF is not accepted as native.
+        assertFalse(MessageBuilder.canAttachFile(resolver.attachmentInputGate(responses, model), "application/pdf", pdf))
+    }
+
+    @Test
+    fun `Codex subscription without file input still takes text files inline`() {
+        BundledAttachmentSupportFixture.install("openAI")
+        val model = AIModel(
+            id = "gpt-5.6-sol",
+            name = "gpt-5.6-sol",
+            capabilities = listOf(ModelCapability.Text, ModelCapability.Image),
+            upstreamInputModalities = listOf("text", "image"),
+        )
+        val subscription = Provider(
+            id = "11111111-1111-4111-8111-111111111111",
+            kind = ProviderKind.OpenAI,
+            authMode = ai.oriveo.community.core.model.ProviderAuthMode.Subscription,
+            models = listOf(model),
+        )
+        val text = java.util.Base64.getEncoder().encodeToString("hello".toByteArray())
+        val pdf = java.util.Base64.getEncoder().encodeToString("%PDF-1.7 binary".toByteArray())
+
+        val gate = resolver.attachmentInputGate(subscription, model)
+        assertFalse("upstream input_modalities has no file: native file closed", gate.nativeFile)
+        assertFalse(MessageBuilder.canAttachFile(gate, "application/pdf", pdf))
+        assertTrue("text inline is not gated by file_input", gate.textFileInline)
+        assertTrue(MessageBuilder.canAttachFile(gate, "text/plain", text))
+    }
+
+    @Test
+    fun `relay auto protocol without an envelope still takes text files`() {
+        val resolver = ChatModelCapabilityResolver(
+            metadata = MetadataClient(),
+            runtimeConfigProvider = { relayEnvelopes()().copy(transportEnvelopes = emptyMap()) },
+        )
+        val auto = relayProvider(RelayTransport.Auto).copy(
+            relayRequested = RelayRequestedConfig(
+                transport = RelayTransport.Auto,
+                resolvedAPIBaseURL = "https://relay.example.com/v1",
+            ),
+        )
+        val model = AIModel(id = "plain", name = "plain", capabilities = listOf(ModelCapability.Text))
+        val text = java.util.Base64.getEncoder().encodeToString("hello".toByteArray())
+
+        val gate = resolver.attachmentInputGate(auto, model, relayLocalIdentity(auto))
+        assertTrue(gate.textFileInline)
+        assertTrue(MessageBuilder.canAttachFile(gate, "text/plain", text))
+        assertTrue(resolver.attachmentInputGate(auto, model).file)
+    }
+
+    private fun relayEnvelopes(): () -> MetadataClient.RelayRuntimeConfig = {
+        MetadataClient.RelayRuntimeConfig(
+            version = "test",
+            officialProviderWhitelist = emptyList(),
+            transportEnvelopes = mapOf(
+                "openai_responses" to MetadataClient.RelayTransportEnvelope(
+                    image = true, nativeFile = true, textFileInline = true, webSearch = true, reasoning = true,
+                ),
+                "openai_chat_completions" to MetadataClient.RelayTransportEnvelope(
+                    image = true, nativeFile = false, textFileInline = true, webSearch = false, reasoning = true,
+                ),
+            ),
+            transportRules = emptyMap(),
+            verificationPolicy = MetadataClient.RelayVerificationPolicy(),
+            featureGatingPolicy = MetadataClient.RelayFeatureGatingPolicy(),
+        )
+    }
+
+    private fun relayLocalIdentity(provider: Provider) = ai.oriveo.community.core.model.CapabilityEvidenceIdentity(
+        partitionId = "partition",
+        connectionInstanceId = provider.id,
+        connectionGeneration = "generation",
+        credentialEpoch = "epoch",
+        providerKind = provider.kind.rawValue,
+        authMode = provider.authMode.rawValue,
+    )
 
     private fun relayProvider(transport: RelayTransport): Provider = Provider(
         id = "relay",

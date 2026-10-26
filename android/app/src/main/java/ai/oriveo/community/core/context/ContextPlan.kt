@@ -108,7 +108,12 @@ data class ContextDynamicInput(
     val recall: List<ContextRecallEntry> = emptyList(),
     val library: List<ContextLibraryEntry>? = null,
     val attachmentGuide: String? = null,
+    /** null renders exactly as before; VOICE appends <oriveo-delivery> last in [D]. */
+    val delivery: ContextDelivery? = null,
 )
+
+/** Reply-style envelope at the end of [D]; only voice for now. */
+enum class ContextDelivery { VOICE }
 
 data class ContextAssembleInput(
     val purpose: RequestPurpose,

@@ -89,7 +89,6 @@ class ChatAttachmentCoordinatorErrorMessageTest {
         val coordinator = ChatAttachmentCoordinator(
             attachmentProcessor = processor,
             globalSnackbarManager = snackbars,
-            activeProviderKind = { null },
             activeModel = { model },
             pendingAttachments = { emptyList() },
             addAttachment = { _, _ -> },

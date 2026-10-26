@@ -1,6 +1,13 @@
 package ai.oriveo.community.feature.chat
 
+import ai.oriveo.community.core.context.ContextDelivery
 import ai.oriveo.community.core.context.MemoryItem
+import ai.oriveo.community.core.memory.MemoryProposeSendHook
+import ai.oriveo.community.core.model.Attachment
+import ai.oriveo.community.core.model.ChatMessage
+import ai.oriveo.community.core.model.Conversation
+import ai.oriveo.community.core.model.Provider
+import ai.oriveo.community.core.model.QuoteContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
@@ -35,9 +42,38 @@ internal class ChatMemoryState(
  */
 internal fun ChatSendCoordinator.memoryInjectingSendLauncher(
     memoryItems: () -> List<MemoryItem>,
-) = ChatSendLauncher { conversation, provider, modelId, text, existingMessages, attachments,
-    persistUserMessage, appendToAssistant, userMessageAlreadyInHistory, quoteContext, attemptKind ->
-    launchSend(
+): ChatSendLauncher = object : ChatSendLauncher {
+    override fun launch(
+        conversation: Conversation,
+        provider: Provider,
+        modelId: String,
+        text: String,
+        existingMessages: List<ChatMessage>,
+        attachments: List<Attachment>?,
+        persistUserMessage: Boolean,
+        appendToAssistant: ChatMessage?,
+        userMessageAlreadyInHistory: Boolean,
+        quoteContext: QuoteContext?,
+        attemptKind: ContextConfirmAttempt,
+    ) = launch(
+        conversation, provider, modelId, text, existingMessages, attachments, persistUserMessage, appendToAssistant,
+        userMessageAlreadyInHistory, quoteContext, attemptKind, delivery = null,
+    )
+
+    override fun launch(
+        conversation: Conversation,
+        provider: Provider,
+        modelId: String,
+        text: String,
+        existingMessages: List<ChatMessage>,
+        attachments: List<Attachment>?,
+        persistUserMessage: Boolean,
+        appendToAssistant: ChatMessage?,
+        userMessageAlreadyInHistory: Boolean,
+        quoteContext: QuoteContext?,
+        attemptKind: ContextConfirmAttempt,
+        delivery: ContextDelivery?,
+    ) = launchSend(
         conversation = conversation,
         provider = provider,
         modelId = modelId,
@@ -50,15 +86,43 @@ internal fun ChatSendCoordinator.memoryInjectingSendLauncher(
         appendToAssistant = appendToAssistant,
         userMessageAlreadyInHistory = userMessageAlreadyInHistory,
         attemptKind = attemptKind,
+        delivery = delivery,
     )
 }
 
 /** The send path of the fresh-send entry: also injects the memory items and calls back after the user message is persisted. */
 internal fun ChatSendCoordinator.memoryInjectingUserSendLauncher(
     memoryItems: () -> List<MemoryItem>,
-) = ChatUserSendLauncher { conversation, provider, modelId, text, existingMessages,
-    attachments, quoteContext, attemptKind, onUserMessageCreated, memoryPropose ->
-    launchSend(
+): ChatUserSendLauncher = object : ChatUserSendLauncher {
+    override fun launch(
+        conversation: Conversation,
+        provider: Provider,
+        modelId: String,
+        text: String,
+        existingMessages: List<ChatMessage>,
+        attachments: List<Attachment>?,
+        quoteContext: QuoteContext?,
+        attemptKind: ContextConfirmAttempt,
+        onUserMessageCreated: (messageId: String, text: String) -> Unit,
+        memoryPropose: MemoryProposeSendHook?,
+    ) = launch(
+        conversation, provider, modelId, text, existingMessages, attachments, quoteContext, attemptKind,
+        onUserMessageCreated, memoryPropose, delivery = null,
+    )
+
+    override fun launch(
+        conversation: Conversation,
+        provider: Provider,
+        modelId: String,
+        text: String,
+        existingMessages: List<ChatMessage>,
+        attachments: List<Attachment>?,
+        quoteContext: QuoteContext?,
+        attemptKind: ContextConfirmAttempt,
+        onUserMessageCreated: (messageId: String, text: String) -> Unit,
+        memoryPropose: MemoryProposeSendHook?,
+        delivery: ContextDelivery?,
+    ) = launchSend(
         conversation = conversation,
         provider = provider,
         modelId = modelId,
@@ -70,5 +134,6 @@ internal fun ChatSendCoordinator.memoryInjectingUserSendLauncher(
         attemptKind = attemptKind,
         onUserMessageCreated = onUserMessageCreated,
         memoryPropose = memoryPropose,
+        delivery = delivery,
     )
 }

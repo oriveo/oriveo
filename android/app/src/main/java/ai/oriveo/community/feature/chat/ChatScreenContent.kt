@@ -90,6 +90,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
+import ai.oriveo.community.ui.component.costPartsText
 import ai.oriveo.community.ui.component.OriveoModalBottomSheet
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
@@ -237,6 +238,7 @@ internal fun ChatScreenContent(
     /** Non-null editItemId: "this is wrong" edits that memory item directly. */
     onNavigateToMemory: (editItemId: String?) -> Unit = {},
     onNavigateToProviderSetup: () -> Unit = {},
+    onNavigateToVoiceSettings: () -> Unit = {},
 
     onNavigateToProviderDetail: (providerId: String) -> Unit = {},
     onNavigateToConnectionWebSearch: (providerId: String) -> Unit = {},
@@ -624,8 +626,7 @@ internal fun ChatScreenContent(
                 providerName = activeProvider?.displayName.orEmpty(),
                 modelName = activeModelName.ifEmpty { stringResource(R.string.select_model) },
                 isSendingMessage = viewModel.isGenerating,
-                cost = conversation?.estimatedCost ?: 0.0,
-                costText = conversation?.estimatedCostText.orEmpty(),
+                costText = costPartsText(conversation?.costParts.orEmpty()),
                 showMenu = showMoreMenu,
                 onBack = onBack,
                 onToggleModelSwitcher = { viewModel.showModelSwitcher = true },
@@ -803,6 +804,7 @@ internal fun ChatScreenContent(
             trueTransparentBlurEnabled = trueTransparentBlurEnabled,
             onOverlayHeightChange = { composerOverlayHeightPx = it },
             onNavigateToProviderSetup = onNavigateToProviderSetup,
+            onNavigateToVoiceSettings = onNavigateToVoiceSettings,
             onNavigateToProviderDetail = onNavigateToProviderDetail,
             onNavigateToConnectionWebSearch = onNavigateToConnectionWebSearch,
             onNavigateToRelayModelAdvanced = onNavigateToRelayModelAdvanced,
@@ -963,7 +965,7 @@ internal fun ChatScreenContent(
     }
 
     // Detail sheet of the separator; actions close it, results come back as toasts.
-    ContextCompactionToastEffect(viewModel.compaction)
+    ContextCompactionToastEffect(viewModel.compaction, onNavigateToProviderDetail)
     val compactionDetail = compactionSeparator?.detail
     val compactionActions = viewModel.compaction
     if (showCompactionDetail && compactionDetail != null && compactionActions != null) {

@@ -1,9 +1,11 @@
 package ai.oriveo.community.feature.chat.composer
 
+import ai.oriveo.community.feature.chat.realtimeVoiceTarget
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -32,9 +34,22 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.feature.chat.components.ConversationIssueBanner
+import ai.oriveo.community.feature.chat.components.modelRetiredBannerContent
 import ai.oriveo.community.feature.chat.ChatViewModel
 import ai.oriveo.community.feature.chat.components.ExpensiveModelHintBanner
 import dev.chrisbanes.haze.HazeState
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import ai.oriveo.community.core.app.GlobalSnackbarMessage
+import ai.oriveo.community.core.app.GlobalToastStyle
+import ai.oriveo.community.core.app.UiText
+import ai.oriveo.community.core.util.COMPOSER_MAX_INPUT_LENGTH
+import ai.oriveo.community.core.util.ExternalActivityLaunchOutcome
+import ai.oriveo.community.core.util.launchExternalActivitySafely
+import ai.oriveo.community.core.voice.RecordingStore
+import ai.oriveo.community.ui.component.ComposerSelectionProbe
+import ai.oriveo.community.ui.component.rememberGlobalSnackbarManager
 
 /**
  * Host for the composer overlay, and the **sole owner of the composer text**.
@@ -84,6 +99,8 @@ internal fun ChatComposerHost(
     modifier: Modifier = Modifier,
     /** Ring tap; opens the context panel. */
     onOpenContextUsage: () -> Unit = {},
+    /** Waveform key on an empty draft; defaults to the view model's voice request hook. */
+    onStartVoiceConversation: () -> Unit = viewModel.voice::request,
 ) {
     val context = LocalContext.current
     val restore = viewModel.composerTextRestore
@@ -166,6 +183,83 @@ internal fun ChatComposerHost(
     val isGenerating = streamingMessageId != null || sendCompactingHere || confirmWaitingHere != null
     val isReadOnly = viewModel.conversationState.isReadOnly || sendingBlockedByLoadState
 
+    // Dictation host: the slot is the conversation, or the home draft slot before one exists.
+    // Only the handle is built here; controller state is collected inside the dictation components.
+    val dictationSlotKey = conversationId ?: RecordingStore.HOME_DRAFT_KEY
+    val chatSnackbar = rememberGlobalSnackbarManager()
+    val selectionProbe = remember(chatSnackbar) {
+        ComposerSelectionProbe(
+            onLimitExceeded = {
+                chatSnackbar?.show(
+                    GlobalSnackbarMessage(
+                        message = UiText.Resource(
+                            R.string.chat_input_length_limit_reached,
+                            listOf(COMPOSER_MAX_INPUT_LENGTH),
+                        ),
+                    ),
+                )
+            },
+        )
+    }
+    val dictationActions = object : DictationHostActions {
+        override fun insert(text: String) {
+            // Lands at the caret (or replaces the selection); read through the provider so the body never subscribes.
+            val newText = selectionProbe.insert(text, inputTextProvider())
+            composerText.value = newText
+            viewModel.onInputTextChanged(newText)
+        }
+
+        // Same gate as the send button.
+        override fun canSend(): Boolean = !isReadOnly && viewModel.canSendMessages && !isGenerating
+
+        override fun send() = viewModel.sendMessage()
+
+        override fun showToast(spec: DictationToastSpec, onUndo: (() -> Unit)?) {
+            chatSnackbar?.show(
+                GlobalSnackbarMessage(
+                    message = UiText.Resource(spec.message),
+                    style = spec.style,
+                    action = spec.snackbarAction(onUndo),
+                    durationMs = spec.durationMillis,
+                ),
+            )
+        }
+
+        override fun openAppSettings() {
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                .setData(Uri.fromParts("package", context.packageName, null))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            val outcome = launchExternalActivitySafely { context.startActivity(intent) }
+            if (outcome != ExternalActivityLaunchOutcome.LAUNCHED) {
+                chatSnackbar?.show(
+                    GlobalSnackbarMessage(
+                        UiText.Resource(R.string.external_app_unavailable),
+                        style = GlobalToastStyle.Error,
+                    ),
+                )
+            }
+        }
+
+        override fun openProviderDetail(providerId: String) = onNavigateToProviderDetail(providerId)
+
+        override fun openProviderSetup() = onNavigateToProviderSetup()
+
+        override fun openVoiceSettings() = onNavigateToVoiceSettings()
+    }
+    val dictation = rememberDictationHost(
+        slotKey = dictationSlotKey,
+        actions = dictationActions,
+    )
+    // Voice conversation of this chat page: its bar replaces the composer and chip row while it runs;
+    // the close button writes a half-spoken transcript back at the caret, like dictation.
+    val voice = ai.oriveo.community.feature.chat.voice.rememberVoiceConversationHost(
+        page = ai.oriveo.community.feature.chat.voice.VoiceConversationPage.Chat,
+        requests = viewModel.voice.requests,
+        target = viewModel.realtimeVoiceTarget(conversationId),
+        gate = viewModel.voice::entryAllowed,
+        onDraftTranscript = dictationActions::insert,
+    )
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -190,16 +284,43 @@ internal fun ChatComposerHost(
             )
         }
 
-        // The relay conversation's model was removed: the banner sits right above the composer and its
-        // button opens the model picker.
+        // The conversation's model was removed (relay) or retired: the banner sits right above the composer.
+        // When the model is retired and its successor is enabled, the button switches straight to the successor;
+        // otherwise it opens the model picker.
+        // A deleted conversation connection is handled here too; with no usable connection at all, the button
+        // opens add-connection.
         viewModel.conversationState.issue?.takeIf { it.rendersAboveComposer }?.let { issue ->
+            val modelDisplayLookup by viewModel.modelDisplayLookup.collectAsStateWithLifecycle()
+            val retiredContent = modelRetiredBannerContent(issue, viewModel.conversationState.provider, modelDisplayLookup)
             ConversationIssueBanner(
                 issue = issue,
                 providerName = activeProvider?.displayName,
-                onPrimaryAction = { viewModel.showModelSwitcher = true },
+                retiredContent = retiredContent,
+                onPrimaryAction = {
+                    retiredContent?.switchTarget?.let { target ->
+                        viewModel.selectModel(target.providerId, target.modelId)
+                    } ?: run {
+                        if (issue.canRepairFromModelPicker) viewModel.showModelSwitcher = true else onNavigateToProviderSetup()
+                    }
+                },
             )
         }
 
+        // Dictation status card sits right above the composer; takes no space without a card.
+        DictationPromptSlot(
+            handle = dictation,
+            modifier = Modifier
+                .padding(horizontal = OriveoTheme.spacing.lg)
+                .padding(bottom = OriveoTheme.spacing.xs),
+        )
+
+        ai.oriveo.community.feature.chat.voice.VoiceConversationSwitcher(
+            handle = voice,
+            barModifier = Modifier
+                .padding(horizontal = OriveoTheme.spacing.lg)
+                .navigationBarsPadding()
+                .padding(top = OriveoTheme.spacing.xs, bottom = OriveoTheme.spacing.sm),
+        ) {
         EnhancedComposer(
             inputTextProvider = inputTextProvider,
             hasComposerText = hasComposerText,
@@ -209,6 +330,7 @@ internal fun ChatComposerHost(
             },
             onComposerFocused = { viewModel.compaction?.launchPrecompact() },
             pendingAttachments = viewModel.pendingAttachments,
+            restoredImageStates = viewModel.restoredImageStates,
             pendingQuoteContext = viewModel.pendingQuoteContext,
             onRemoveQuote = viewModel::removePendingQuote,
             onAttachmentRemove = viewModel::removeAttachment,
@@ -218,9 +340,7 @@ internal fun ChatComposerHost(
             isExistingConversation = conversationId != null,
             conversationSkillId = conversationSkillId,
             modelControlsFinalTransport = viewModel.modelControlsFinalTransport(),
-            supportsImageAttachment = viewModel.supportsImage(imageCapabilityIdentity),
-            supportsVideoAttachment = viewModel.supportsVideo(),
-            supportsFileAttachment = viewModel.supportsFile(),
+            attachmentEntry = viewModel.attachmentEntryModel(imageCapabilityIdentity),
             outboundHistoryHasVideo = outboundHistoryHasVideo,
             onSelectReasoningMode = viewModel::selectReasoningMode,
             onSelectModel = viewModel::selectModel,
@@ -252,6 +372,9 @@ internal fun ChatComposerHost(
             isReadOnly = isReadOnly,
             // When the conversation's model was removed the composer stays editable and only sending is blocked.
             isSendBlocked = !viewModel.canSendMessages,
+            // Not remembered: the metadata catalog (imageGen route) can land after the first frame.
+            voiceConversationAvailable = ComposerVoiceEntry.voiceAvailable(viewModel.conversationState.model, activeProvider?.kind),
+            onStartVoiceConversation = onStartVoiceConversation,
             transparentChrome = transparentChrome,
             hazeState = hazeState,
             trueTransparentBlurEnabled = trueTransparentBlurEnabled,
@@ -264,7 +387,10 @@ internal fun ChatComposerHost(
             // Drafts have no conversation id and show no ring.
             contextUsage = contextUsage.takeIf { conversationId != null },
             onOpenContextUsage = onOpenContextUsage,
+            dictation = dictation,
+            selectionProbe = selectionProbe,
         )
+        }
     }
 }
 

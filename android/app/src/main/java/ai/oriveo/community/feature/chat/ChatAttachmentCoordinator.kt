@@ -10,28 +10,43 @@ import ai.oriveo.community.core.app.UiText
 import ai.oriveo.community.core.attachments.AttachmentImportLimiter
 import ai.oriveo.community.core.attachments.ExtractionErrorCode
 import ai.oriveo.community.core.attachments.FileExtractionLimits
+import ai.oriveo.community.core.data.attachment.AttachmentStore
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.core.model.AttachmentKind
+import ai.oriveo.community.core.model.CapabilityEvidenceIdentity
 import ai.oriveo.community.core.model.Provider
-import ai.oriveo.community.core.model.ProviderKind
+import ai.oriveo.community.core.provider.AttachmentInputGate
 import ai.oriveo.community.core.provider.AttachmentSendPreflight
 import ai.oriveo.community.feature.chat.attachments.AttachmentImportOutcome
 import ai.oriveo.community.feature.chat.attachments.AttachmentImportPolicy
 import ai.oriveo.community.feature.chat.attachments.AttachmentProcessor
+import ai.oriveo.community.core.util.generateUuidString
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+
+/** State of a restored image attachment whose full-size file is not on this device yet; an attachment absent from the state map is ready. */
+internal enum class RestoredImageState { Downloading, Failed }
 
 internal class ChatAttachmentCoordinator(
     private val attachmentProcessor: AttachmentProcessor,
     private val globalSnackbarManager: GlobalSnackbarManager,
     /** The current connection; the text-budget gate at add time needs it to resolve the route. When it is unavailable the gate is skipped and left to the send-time check. */
     private val activeProvider: () -> Provider? = { null },
-    private val activeProviderKind: () -> ProviderKind?,
     private val activeModel: () -> AIModel?,
     private val pendingAttachments: () -> List<Attachment>,
     private val addAttachment: (Attachment, String) -> Unit,
     private val presentAttachmentSizeLimitDialog: () -> Unit,
+    /** Attachment capability verdict at import time (video / native file / inline text), the same projection as the entry points; the argument is the connection identity from [capabilityIdentity]. */
+    private val attachmentInputGate: (CapabilityEvidenceIdentity?) -> AttachmentInputGate = { AttachmentInputGate.NONE },
+    /** Resolves the current connection identity at import time (Relay only); when unavailable the three Relay keys fail closed. */
+    private val capabilityIdentity: suspend () -> CapabilityEvidenceIdentity? = { null },
+    /** Used to save restored attachments' local files again; null skips the copy (only tests that never touch disk construct it this way). */
+    private val attachmentStore: () -> AttachmentStore? = { null },
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
     /**
      * Hard cap on how many attachments one message may carry.
@@ -61,23 +76,21 @@ internal class ChatAttachmentCoordinator(
      * Editing a message that has attachments: the original attachments return to the composer together with the text,
      * so changing one word does not lose the files. Returns the ones to put back.
      *
-     * They pass through the same gates as newly added ones: kinds the current model does not accept are not put back,
-     * and anything beyond the count limit is dropped with a single notice. The original message is deleted by the
-     * edit, so the restored copies get fresh ids and are stored as new attachments when sent; the local references to
-     * the original image or raw bytes are unaffected by the deletion and are kept as they are.
+     * They pass through the same gate as newly added ones: the connection identity is resolved first and
+     * the same [AttachmentInputGate] is derived from it (a Relay without an identity fails closed), kinds the
+     * current model does not accept are not put back, and anything beyond the count limit is dropped with a single notice.
+     * The original message is deleted by the edit, so the restored copies get fresh ids. Deleting the original message
+     * also removes the files it owned exclusively, so local files are saved again under new keys and the draft never
+     * shares a key with it.
      */
-    fun restoredForEdit(
-        original: List<Attachment>,
-        supportsImage: () -> Boolean,
-        supportsFile: () -> Boolean,
-        supportsVideo: () -> Boolean,
-    ): List<Attachment> {
+    suspend fun restoredForEdit(original: List<Attachment>): List<Attachment> {
         if (original.isEmpty()) return emptyList()
+        val gate = attachmentInputGate(capabilityIdentity())
         val supported = original.filter { attachment ->
             when (attachment.kind) {
-                AttachmentKind.Image -> supportsImage()
-                AttachmentKind.Video -> supportsVideo()
-                AttachmentKind.File -> supportsFile()
+                AttachmentKind.Image -> gate.image
+                AttachmentKind.Video -> gate.video
+                AttachmentKind.File -> gate.file
             }
         }
         val maxAttachments = FileExtractionLimits.resolve(activeModel()).maxFiles
@@ -87,9 +100,30 @@ internal class ChatAttachmentCoordinator(
             maxAttachments = maxAttachments,
         )
         if (limited.rejectedCount > 0) showCountLimitReached(maxAttachments)
-        return limited.accepted.map {
-            it.copy(id = ai.oriveo.community.core.util.generateUuidString())
+        val renamed = limited.accepted.map { it.copy(id = generateUuidString()) }
+        val store = attachmentStore() ?: return renamed
+        return withContext(ioDispatcher) {
+            limited.accepted.zip(renamed).mapNotNull { (original, restored) -> copyLocalFiles(store, original, restored) }
         }
+    }
+
+    /**
+     * Saves the local files of [original] under new keys and returns [restored] pointing at them. An image whose
+     * full-size file cannot be read is not put back (returns null).
+     */
+    private fun copyLocalFiles(store: AttachmentStore, original: Attachment, restored: Attachment): Attachment? {
+        var result = restored
+        if (original.kind == AttachmentKind.Image) {
+            val sourceKey = original.localImageId ?: original.id
+            val data = sourceKey.takeIf(AttachmentStore::isSafeImageId)?.let(store::loadImageBytes) ?: return null
+            val imageId = generateUuidString()
+            store.saveImageRaw(imageId, data)
+            store.loadThumbnailBytes(sourceKey)?.let { store.saveThumbnailRaw(imageId, it) }
+            result = result.copy(localImageId = imageId)
+        }
+        val blobBytes = original.rawContentRef?.takeIf(AttachmentStore::isSafeImageId)?.let(store::loadBlobBytes)
+        if (blobBytes != null) result = result.copy(rawContentRef = store.saveBlob(blobBytes))
+        return result
     }
 
     private fun showCountLimitReached(maxAttachments: Int) {
@@ -151,7 +185,7 @@ internal class ChatAttachmentCoordinator(
         when (val outcome = attachmentProcessor.processFile(
             context = context,
             uri = uri,
-            activeProviderKind = activeProviderKind(),
+            inputGate = attachmentInputGate(capabilityIdentity()),
             activeModel = activeModel(),
             currentFileCount = currentFileCount,
         )) {
@@ -171,6 +205,12 @@ internal class ChatAttachmentCoordinator(
             AttachmentImportOutcome.UnsupportedFile ->
                 globalSnackbarManager.show(
                     GlobalSnackbarMessage(message = UiText.Resource(R.string.import_failed)),
+                )
+            is AttachmentImportOutcome.LegacyFormat ->
+                globalSnackbarManager.show(
+                    GlobalSnackbarMessage(
+                        message = UiText.Resource(R.string.file_extraction_error_legacy_format, listOf(outcome.fileName)),
+                    ),
                 )
             is AttachmentImportOutcome.LegacyFormat ->
                 globalSnackbarManager.show(

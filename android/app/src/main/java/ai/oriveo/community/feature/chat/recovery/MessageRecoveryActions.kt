@@ -5,7 +5,9 @@ import ai.oriveo.community.core.model.ChatMessageState
 import ai.oriveo.community.core.model.ChatRole
 import ai.oriveo.community.core.data.repository.ChatRepository
 import ai.oriveo.community.core.data.repository.LOCAL_FIELDS_RETRY_OFFER_PREFIX
+import ai.oriveo.community.core.capability.InputRejectionFlow
 import ai.oriveo.community.core.provider.AdditionalRequestBody
+import ai.oriveo.community.core.provider.CapabilityEvidenceFacade
 
 internal enum class MessageRecoveryActionKind {
     Retry,
@@ -18,6 +20,30 @@ internal enum class MessageRecoveryActionKind {
     RetryWithoutLocalCustomFields,
     RetryWithoutAdditionalBody,
     RetryWithoutLocatedSetting,
+    /** The official upstream rejected the image by a narrow signature: resend the same user message without the image; outbound already swaps in a placeholder via the negative cache. */
+    ResendWithoutImage,
+    /** Same, but the rejected item is a native file. */
+    ResendWithoutFile,
+    /** Same, but the rejected item is a video. */
+    ResendWithoutVideo,
+    /** The official upstream rejected a generation parameter by a narrow signature: resend once; outbound already leaves that parameter out via the negative cache. */
+    ResendWithoutParameter,
+}
+
+/**
+ * The rejection marker stored on the failed message itself -> a one-tap action; null when it is not a rejection marker (including other old codes).
+ * It only looks at the result recorded on this message, not at the projection or the negative-cache state afterwards.
+ */
+internal fun inputRejectionRecoveryAction(code: String?): MessageRecoveryActionKind? {
+    InputRejectionFlow.rejectedInputKey(code)?.let { key ->
+        return when (key) {
+            CapabilityEvidenceFacade.VISION_INPUT -> MessageRecoveryActionKind.ResendWithoutImage
+            CapabilityEvidenceFacade.FILE_INPUT -> MessageRecoveryActionKind.ResendWithoutFile
+            CapabilityEvidenceFacade.VIDEO_INPUT -> MessageRecoveryActionKind.ResendWithoutVideo
+            else -> null
+        }
+    }
+    return InputRejectionFlow.rejectedParameter(code)?.let { MessageRecoveryActionKind.ResendWithoutParameter }
 }
 
 internal data class MessageRecoveryCardActionLayout(
@@ -44,6 +70,8 @@ internal fun resolveMessageRecoveryCardActionLayout(
         relayAttachmentUnsupported = relayAttachmentUnsupported,
     )
     if (!offersSwitchKey || state != ChatMessageState.Failed) return layout
+    // The one-tap action card for a rejected input has exactly two buttons (action + switch model); no "switch key" is added.
+    if (layout.primary in INPUT_REJECTION_ACTIONS) return layout
     // "Switch key" replaces the "Edit message" slot, Retry stays the primary button and Switch Model stays; when there is no edit slot it fills the first empty slot.
     return when {
         layout.secondary == MessageRecoveryActionKind.EditMessage -> layout.copy(secondary = MessageRecoveryActionKind.SwitchKey)
@@ -53,6 +81,13 @@ internal fun resolveMessageRecoveryCardActionLayout(
         else -> layout
     }
 }
+
+private val INPUT_REJECTION_ACTIONS = setOf(
+    MessageRecoveryActionKind.ResendWithoutImage,
+    MessageRecoveryActionKind.ResendWithoutFile,
+    MessageRecoveryActionKind.ResendWithoutVideo,
+    MessageRecoveryActionKind.ResendWithoutParameter,
+)
 
 private fun baseMessageRecoveryCardActionLayout(
     state: ChatMessageState,
@@ -68,6 +103,15 @@ private fun baseMessageRecoveryCardActionLayout(
             primary = MessageRecoveryActionKind.SwitchModel,
             secondary = MessageRecoveryActionKind.EditMessage,
             tertiary = MessageRecoveryActionKind.Retry,
+        )
+    }
+    val rejectionAction = inputRejectionRecoveryAction(customRetryWithoutFieldsCode)
+    if (state == ChatMessageState.Failed && rejectionAction != null) {
+        // No automatic retry; exactly two buttons (iOS is the reference): "resend without ..." for the rejected key first, then "switch model", always shown; no edit-message button.
+        return MessageRecoveryCardActionLayout(
+            primary = rejectionAction,
+            secondary = MessageRecoveryActionKind.SwitchModel,
+            tertiary = null,
         )
     }
     if (attachmentTextOverLimit) {
@@ -165,6 +209,10 @@ internal fun MessageRecoveryActionKind.titleRes(): Int {
         MessageRecoveryActionKind.RetryWithoutLocalCustomFields -> R.string.retry_without_custom_fields
         MessageRecoveryActionKind.RetryWithoutAdditionalBody -> R.string.additional_body_retry_without
         MessageRecoveryActionKind.RetryWithoutLocatedSetting -> R.string.retry_without_this_setting
+        MessageRecoveryActionKind.ResendWithoutImage -> R.string.capability_input_resend_without_image
+        MessageRecoveryActionKind.ResendWithoutFile -> R.string.capability_input_resend_without_file
+        MessageRecoveryActionKind.ResendWithoutVideo -> R.string.capability_input_resend_without_video
+        MessageRecoveryActionKind.ResendWithoutParameter -> R.string.retry_without_this_setting
     }
 }
 
@@ -179,7 +227,12 @@ internal fun performRecoveryAction(
     onSwitchKey: () -> Unit = {},
 ) {
     when (action) {
-        MessageRecoveryActionKind.Retry -> onRetry()
+        // The negative cache has already hit, so a plain resend's outbound drops the rejected image / file / video (swapped for a placeholder).
+        MessageRecoveryActionKind.Retry,
+        MessageRecoveryActionKind.ResendWithoutImage,
+        MessageRecoveryActionKind.ResendWithoutFile,
+        MessageRecoveryActionKind.ResendWithoutVideo,
+        -> onRetry()
         MessageRecoveryActionKind.EditMessage -> onEdit()
         MessageRecoveryActionKind.Regenerate -> onRegenerate()
         MessageRecoveryActionKind.SwitchModel -> onSwitchModel()
@@ -190,6 +243,8 @@ internal fun performRecoveryAction(
         MessageRecoveryActionKind.RetryWithoutLocalCustomFields,
         MessageRecoveryActionKind.RetryWithoutAdditionalBody,
         MessageRecoveryActionKind.RetryWithoutLocatedSetting,
+        // Parameter rejected: omit it explicitly this time (even if the negative cache expires or is cleared), via a resend that carries the one-shot omit marker.
+        MessageRecoveryActionKind.ResendWithoutParameter,
         -> onRetryWithoutLocalCustomFields()
     }
 }

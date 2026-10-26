@@ -80,7 +80,7 @@ class MemorySearchTurn(
             conversationId: String,
             folderId: String?,
             now: Instant,
-            /** D-296: json_schema goes out on this send ([ProposeMemoryRuntime.structuredOutputActive]); falls back. */
+            /** json_schema goes out on this send ([ProposeMemoryRuntime.structuredOutputActive]); falls back. */
             structuredOutput: Boolean = false,
         ): MemorySearchTurn? {
             val supportsTools = model != null &&

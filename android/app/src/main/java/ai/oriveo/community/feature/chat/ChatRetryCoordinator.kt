@@ -32,6 +32,25 @@ internal fun interface ChatSendLauncher {
         /** Where this attempt came from. */
         attemptKind: ai.oriveo.community.feature.chat.ContextConfirmAttempt,
     )
+
+    /** Voice-conversation send; fakes that ignore delivery keep the plain overload. */
+    fun launch(
+        conversation: Conversation,
+        provider: Provider,
+        modelId: String,
+        text: String,
+        existingMessages: List<ChatMessage>,
+        attachments: List<Attachment>?,
+        persistUserMessage: Boolean,
+        appendToAssistant: ChatMessage?,
+        userMessageAlreadyInHistory: Boolean,
+        quoteContext: QuoteContext?,
+        attemptKind: ai.oriveo.community.feature.chat.ContextConfirmAttempt,
+        delivery: ai.oriveo.community.core.context.ContextDelivery?,
+    ) = launch(
+        conversation, provider, modelId, text, existingMessages, attachments, persistUserMessage, appendToAssistant,
+        userMessageAlreadyInHistory, quoteContext, attemptKind,
+    )
 }
 
 /** A local way out does not depend on the rejection cache: the whole section is omitted, not a field the upstream named. */
@@ -40,6 +59,14 @@ internal fun localFieldsResendMarker(failureCode: String?): String? =
         ?.removePrefix(ai.oriveo.community.core.data.repository.LOCAL_FIELDS_RETRY_OFFER_PREFIX)
         ?.let { "$OMIT_LOCAL_FIELDS_ONCE_PREFIX$it" }
         ?.takeIf { omitLocalFieldsOnceOwner(it) != null }
+
+/**
+ * A rejected parameter (`input_parameter_rejected:<name>`) -> the marker for a resend that omits that parameter once.
+ * It does not depend on the negative cache: after the cache expires or is cleared, this tap still explicitly leaves the parameter out.
+ */
+internal fun parameterResendMarker(failureCode: String?): String? =
+    ai.oriveo.community.core.capability.InputRejectionFlow.rejectedParameter(failureCode)
+        ?.let { "$OMIT_PARAMETER_ONCE_PREFIX$it" }
 
 /** Converts a saved failure descriptor into a one-send latch only on the exact cached runtime. */
 internal fun validatedModelControlResendMarker(
@@ -83,12 +110,22 @@ internal class ChatRetryCoordinator(
     private val requestPin: () -> Unit,
     private val launchSend: ChatSendLauncher,
     private val onProviderResolutionError: (Throwable) -> Unit = {},
+    /** The connection cannot be found: the same visible notice as the send coordinator, never a silent return. */
+    private val onProviderSelectionError: () -> Unit = {},
     private val modelControlRuntimeIdentity: (Provider, ai.oriveo.community.core.model.AIModel) -> ModelControlRuntimeIdentity? =
         { provider, model -> ModelControlRuntimeIdentityResolver.resolve(provider, model) },
+    /** Stops read-aloud when that message is being read (production: ReadAloudController.stopIfSpeaking(id, NAVIGATED)); read-aloud is not wired by default. */
+    private val stopReadAloudIfSpeaking: (String) -> Unit = {},
 ) {
     /** The relay session model has been removed: retry / continue / regenerate never send a request or touch messages. */
-    private fun selectionRemoved(): Boolean =
-        ai.oriveo.community.core.provider.RelayModelFallback.isSelectionRemoved(providers(), activeProviderId(), activeModelId())
+    private fun selectionRemoved(): Boolean {
+        val providerList = providers()
+        val providerId = activeProviderId()
+        val modelId = activeModelId()
+        val provider = providerId?.let { id -> providerList.firstOrNull { it.id == id } }
+        val retired = ProviderSelectionSnapshot.modelRetirement(provider, modelId)?.sendBlocked == true
+        return retired || ai.oriveo.community.core.provider.RelayModelFallback.isSelectionRemoved(providerList, providerId, modelId)
+    }
 
     /**
      * Retry means "run it again", not "carry on": the previous round's body and every value
@@ -203,6 +240,7 @@ internal class ChatRetryCoordinator(
             val provider = resolveChatProvider(
                 providerRepository = providerRepository,
                 providerId = activeProviderId(),
+                onMissing = onProviderSelectionError,
                 onFailure = onProviderResolutionError,
             ) ?: return@launch
             val modelId = activeModelId() ?: return@launch
@@ -304,11 +342,15 @@ internal class ChatRetryCoordinator(
         val conv = currentConversation() ?: return
         val assistantMsg = conv.messages.find {
             it.id == messageId && it.role == ChatRole.Assistant &&
-                it.state == ChatMessageState.Failed && it.customRetryWithoutFieldsAvailable &&
-                it.customRetryWithoutFieldsCode?.let { code ->
-                    code.startsWith("capability_setting_pre_token_400:") ||
-                        code.startsWith(ai.oriveo.community.core.data.repository.LOCAL_FIELDS_RETRY_OFFER_PREFIX)
-                } == true
+                it.state == ChatMessageState.Failed && (
+                    // A rejected-parameter marker stored on the message carries its own way out, so no separate available flag is needed.
+                    parameterResendMarker(it.customRetryWithoutFieldsCode) != null ||
+                        it.customRetryWithoutFieldsAvailable &&
+                        it.customRetryWithoutFieldsCode?.let { code ->
+                            code.startsWith("capability_setting_pre_token_400:") ||
+                                code.startsWith(ai.oriveo.community.core.data.repository.LOCAL_FIELDS_RETRY_OFFER_PREFIX)
+                        } == true
+                    )
         } ?: return
         val lastUser = conv.messages.take(conv.messages.indexOf(assistantMsg))
             .lastOrNull { it.role == ChatRole.User } ?: return
@@ -316,12 +358,14 @@ internal class ChatRetryCoordinator(
             val provider = resolveChatProvider(
                 providerRepository = providerRepository,
                 providerId = activeProviderId(),
+                onMissing = onProviderSelectionError,
                 onFailure = onProviderResolutionError,
             ) ?: return@launch
             val modelId = activeModelId() ?: return@launch
             val runtimeModelId = ProviderSelectionSnapshot.runtimeModelId(provider, modelId) ?: modelId
             val selectedModel = ProviderSelectionSnapshot.selectedModel(provider, runtimeModelId) ?: return@launch
             val resendMarker = localFieldsResendMarker(assistantMsg.customRetryWithoutFieldsCode)
+                ?: parameterResendMarker(assistantMsg.customRetryWithoutFieldsCode)
                 ?: validatedModelControlResendMarker(
                     assistantMsg.customRetryWithoutFieldsCode,
                     modelControlRuntimeIdentity(provider, selectedModel),
@@ -350,18 +394,33 @@ internal class ChatRetryCoordinator(
         }
     }
 
-    fun editMessageInline(messageId: String): String? {
+    /**
+     * [restoreAttachments]: saves the original message's attachments under new keys and puts them back in the composer (edit and
+     * resend). It must finish before the original message row is deleted: deleting the row purges the files the message owned
+     * exclusively, and an unfinished copy would lose the images (copy first, truncate after).
+     */
+    fun editMessageInline(
+        messageId: String,
+        restoreAttachments: suspend () -> Unit = {},
+    ): String? {
         val conv = currentConversation() ?: return null
         val editableMessage = editableUserMessageFor(conv, messageId) ?: return null
         val text = editableMessage.text
+        val editIndex = conv.messages.indexOf(editableMessage)
+        val truncatedSegment = if (editIndex >= 0) conv.messages.drop(editIndex) else emptyList()
+        // Stop read-aloud for messages that are about to be deleted.
+        truncatedSegment.forEach { stopReadAloudIfSpeaking(it.id) }
 
         viewModelScope.launch {
-            // Editing mid-stream does not start a new stream, so nothing else stops the old one.
-            // Stop and join first to cut token spend short, and to let the NonCancellable finalize
-            // finish writing before the rows are deleted; otherwise finalize puts the deleted
-            // answer back.
-            chatStreamingManager.stopStreamAndJoin(conv.id)
-            conversationRepository.deleteMessagesStartingAt(conv.id, editableMessage.id)
+            runEditTruncation(
+                restoreAttachments = restoreAttachments,
+                // Editing mid-stream does not start a new stream, so nothing else stops the old one.
+                // Stop and join first to cut token spend short, and to let the NonCancellable finalize
+                // finish writing before the rows are deleted; otherwise finalize puts the deleted
+                // answer back.
+                stopStream = { chatStreamingManager.stopStreamAndJoin(conv.id) },
+                deleteMessages = { conversationRepository.deleteMessagesStartingAt(conv.id, editableMessage.id) },
+            )
         }
         return text
     }
@@ -378,5 +437,34 @@ internal class ChatRetryCoordinator(
         val assistantIndex = conv.messages.indexOfFirst { it.id == messageId }
         if (assistantIndex < 0) return null
         return conv.messages.take(assistantIndex).lastOrNull { it.role == ChatRole.User }
+    }
+}
+
+/**
+ * Serial order of an edit truncation: save the attachments (put back in the composer) -> stop and join the stream -> delete the
+ * original message rows (deleting triggers the purge) -> [afterTruncation]. A failed save still truncates: the draft loses
+ * the attachments, but the old message must not stay in the conversation.
+ * [deleteMessages] returns whether the truncation took effect and runs to completion inside NonCancellable (the page may be
+ * destroyed, yet the outcome is still needed); a stop or delete that throws counts as not committed and is passed on to [afterTruncation].
+ */
+internal suspend fun runEditTruncation(
+    restoreAttachments: suspend () -> Unit,
+    stopStream: suspend () -> Unit,
+    deleteMessages: suspend () -> Boolean,
+    afterTruncation: (committed: Boolean) -> Unit = {},
+) {
+    try {
+        restoreAttachments()
+    } catch (error: kotlinx.coroutines.CancellationException) {
+        throw error
+    } catch (error: Exception) {
+        android.util.Log.w("ChatRetryCoordinator", "edit restore attachments failed: ${error.javaClass.simpleName}")
+    }
+    var committed = false
+    try {
+        stopStream()
+        committed = kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { deleteMessages() }
+    } finally {
+        afterTruncation(committed)
     }
 }

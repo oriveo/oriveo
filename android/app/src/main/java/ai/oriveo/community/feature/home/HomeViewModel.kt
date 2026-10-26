@@ -26,19 +26,18 @@ import ai.oriveo.community.core.model.Folder
 import ai.oriveo.community.core.model.LastUsedModelRef
 import ai.oriveo.community.core.model.GenerationParameterSettingsStore
 import ai.oriveo.community.core.model.LocalCapabilityCustomFragmentStore
-import ai.oriveo.community.core.model.ModelCapability
 import ai.oriveo.community.core.model.Provider
-import ai.oriveo.community.core.model.ProviderConnectionState
+import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ProviderIssueInfo
 import ai.oriveo.community.core.model.resolveActiveModel
+import ai.oriveo.community.core.model.resolveSkillModel
 import ai.oriveo.community.core.model.selectHomeSkills
 import ai.oriveo.community.core.provider.ModelDisplayLookup
 import ai.oriveo.community.core.provider.ModelSelectionUtils
-import ai.oriveo.community.core.provider.RelayModelFallback
 import ai.oriveo.community.core.provider.modelDisplayLookups
-import ai.oriveo.community.core.provider.CapabilityEvidenceProductionAdapter
 import ai.oriveo.community.core.provider.CapabilityEvidenceObservationBridge
 import ai.oriveo.community.core.provider.ProviderSelectionSnapshot
+import ai.oriveo.community.core.provider.showNewChatHintIfNeeded
 import ai.oriveo.community.core.streaming.ChatStreamingManager
 import ai.oriveo.community.core.util.TextShareLauncher
 import ai.oriveo.community.feature.modelpicker.enableCatalogModelWithFeedback
@@ -46,6 +45,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -89,6 +89,10 @@ class HomeViewModel(
     private val generationParameterSettingsStore: GenerationParameterSettingsStore? = null,
     private val capabilityPreferenceStore: ai.oriveo.community.core.model.CapabilityPreferenceStore? = null,
     private val localCustomFragmentStore: LocalCapabilityCustomFragmentStore? = null,
+    /** Record of the one-time notice that the new-chat preferred model was retired; null (tests etc.) shows no notice. */
+    private val modelRetiredHintStore: ai.oriveo.community.core.provider.ModelRetiredHintStore? = null,
+    /** Provider first-use disclosure for the home waveform key; null means no disclosure gate (tests). */
+    voiceDisclosure: ai.oriveo.community.feature.chat.voice.VoiceEntryDisclosure? = null,
 ) : ViewModel() {
 
     val streamingConversationIds: StateFlow<Set<String>> = chatStreamingManager.streamingConversationIds
@@ -335,6 +339,9 @@ class HomeViewModel(
     var isSendingFromHero: Boolean by mutableStateOf(false)
         private set
 
+    /** In-flight job of the empty-draft send: only blocks re-entry (rapid taps create / reuse one draft and navigate once), without entering the sending state, so the waveform key does not flicker. */
+    private var emptyDraftJob: Job? = null
+
     init {
         viewModelScope.launch {
             folders.collect { loadedFolders ->
@@ -369,6 +376,8 @@ class HomeViewModel(
         CapabilityEvidenceObservationBridge.revision,
     ) { provs, ref, _ ->
         val resolved = resolveActiveModel(provs, ref)
+        // The dedup ledger is read and written on an IO thread (consumeOffMain); launch a separate coroutine so it does not hold up the activeModel emission.
+        modelRetiredHintStore?.let { store -> viewModelScope.launch { store.showNewChatHintIfNeeded(resolved, globalSnackbarManager) } }
         val active = resolved?.let { ActiveModel(it.provider, it.model) }
         ActiveModelState(activeModel = active, providerIssue = null)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ActiveModelState(null, null))
@@ -717,32 +726,121 @@ class HomeViewModel(
         }
     }
 
+    /**
+     * Makes sure activeModel is ready.
+     *
+     * Order:
+     * 1. Ready: return the current ActiveModel (the new-chat resolver picks across connections; its fallback result never rewrites last used)
+     * 2. Empty chain with connections: return null; only send entries ([openPickerWhenEmpty]) open the model picker
+     * 3. No connection: call onMissingProvider so the page decides whether to show onboarding, and return null
+     *
+     * Note: this returns the selected ActiveModel rather than a Boolean, because [activeModelState] is derived
+     * from a StateFlow combine and takes effect asynchronously after setLastUsedModel writes, so reading
+     * `activeModelState.value` on the next line may still return the old value. Callers should use the value
+     * returned here directly.
+     */
     suspend fun ensureActiveModelWithFreeFallback(
+        /** Send entries open the model picker on an empty chain; voice planning / creation only read the model. */
+        openPickerWhenEmpty: Boolean = true,
         onMissingProvider: () -> Unit,
     ): ActiveModel? {
 
         appPreferencesRepository.lastUsedModelRefSnapshot?.let { ref ->
             resolveActiveModel(providers.value, ref)?.let { return ActiveModel(it.provider, it.model) }
         }
-
+        // 1. Ready; when nobody subscribes to activeModelState (the folder page's own instance), run the same new-chat resolver directly without rewriting last used
         activeModelState.value.activeModel?.let { return it }
+        resolveActiveModel(providers.value)?.let { return it }
 
-        val current = providers.value
-        val firstUsable = current.firstOrNull {
-            it.status !is ProviderConnectionState.Issue && it.models.isNotEmpty()
-        }
-        if (firstUsable != null) {
-            val defaultModel = ProviderSelectionSnapshot.defaultModel(firstUsable)
-            if (defaultModel != null) {
-                appPreferencesRepository.setLastUsedModel(firstUsable.id, defaultModel, firstUsable.kind)
-                return ActiveModel(provider = firstUsable, model = defaultModel)
-            }
+        // 2. The new-chat chain is empty but connections exist: only send entries open the model picker;
+        //    voice planning / creation only read the model and do not pop it up
+        if (providers.value.isNotEmpty()) {
+            if (openPickerWhenEmpty) showModelPicker = true
+            return null
         }
 
+        // 3. No connection: hand over to the page to show onboarding
         onMissingProvider()
         return null
     }
 
+    private val voiceConversationRequestsFlow = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
+    /** Waveform key on the hero card; the voice conversation controller subscribes and uses the pill's model. */
+    val voiceConversationRequests: kotlinx.coroutines.flow.SharedFlow<Unit> = voiceConversationRequestsFlow
+
+    /** Waveform entry: only emits. No conversation is created here; the first transcript creates it. */
+    fun requestVoiceConversation() {
+        voiceConversationRequestsFlow.tryEmit(Unit)
+    }
+
+    /**
+     * Home waveform gate: the same gate as [sendFromHero], a usable pill model. Creates nothing.
+     */
+    suspend fun voiceEntryAllowed(onMissingProvider: () -> Unit): Boolean {
+        val active = ensureActiveModelWithFreeFallback(onMissingProvider = onMissingProvider) ?: return false
+        return voiceDisclosureGate?.allows(active.provider.kind) ?: true
+    }
+
+    /** Disclosure sheet of the home waveform key; accepting re-enters the voice conversation, declining creates nothing. */
+    val voiceDisclosureGate = voiceDisclosure?.let {
+        ai.oriveo.community.feature.chat.voice.VoiceDisclosureGate(
+            disclosure = it,
+            reenter = ::requestVoiceConversation,
+            onAcceptFailed = {
+                globalSnackbarManager.show(
+                    GlobalSnackbarMessage(
+                        message = UiText.Resource(R.string.provider_disclosure_ack_failed),
+                        style = GlobalToastStyle.Error,
+                    ),
+                )
+            },
+        )
+    }
+
+    fun confirmVoiceDisclosure() {
+        viewModelScope.launch { voiceDisclosureGate?.confirm() }
+    }
+
+    fun cancelVoiceDisclosure() {
+        voiceDisclosureGate?.cancel()
+    }
+
+    /**
+     * First transcript of a home voice conversation: the conversation is created with the pill's model on
+     * [sendFromHero]'s path, without touching the hero text or draft (the turn is sent by the chat page with
+     * delivery VOICE). Null means no usable model.
+     */
+    suspend fun createVoiceConversation(): String? {
+        val active = ensureActiveModelWithFreeFallback(onMissingProvider = {}, openPickerWhenEmpty = false) ?: return null
+        return conversationRepository.create(
+            providerID = active.provider.id,
+            providerKind = active.provider.kind,
+            modelID = ModelSelectionUtils.preferredStoredModelIdentifier(active.model, active.provider.kind),
+        ).id
+    }
+
+    /**
+     * The conversation [createVoiceConversation] would create (home pill model), not stored: what a home realtime
+     * plan is built from.
+     */
+    suspend fun plannedVoiceConversation(): Conversation? {
+        val active = ensureActiveModelWithFreeFallback(onMissingProvider = {}, openPickerWhenEmpty = false) ?: return null
+        return Conversation(
+            id = "",
+            title = "",
+            providerID = active.provider.id,
+            providerKind = active.provider.kind,
+            modelID = ModelSelectionUtils.preferredStoredModelIdentifier(active.model, active.provider.kind),
+        )
+    }
+
+    /**
+     * Hero composer send-on-input, matching iOS HomeView.sendFromHero.
+     *
+     * - Empty text: open an empty conversation (the original NewChatBar path)
+     * - Non-empty text: ensureActiveModel, create the conversation, write the text into the draft, navigate and auto-send
+     */
     fun sendFromHero(
         onConversationCreated: (String) -> Unit,
         onConversationCreatedAutoSend: (String) -> Unit,
@@ -751,21 +849,27 @@ class HomeViewModel(
         if (isSendingFromHero) return
         val trimmed = heroText.trim()
 
+        if (trimmed.isEmpty()) {
+            // Empty text: reuse the single blank draft (written with the currently selected model) and enter Chat.
+            // No sending state (same as the iOS empty-draft branch), so the waveform key does not flicker; the in-flight
+            // job blocks repeated taps and findOrCreateDraft keeps re-entry from adding blank conversation rows
+            if (emptyDraftJob?.isActive == true) return
+            emptyDraftJob = viewModelScope.launch {
+                val active = ensureActiveModelWithFreeFallback(onMissingProvider = onMissingProvider) ?: return@launch
+                val conversation = conversationRepository.findOrCreateDraft(
+                    providerID = active.provider.id,
+                    providerKind = active.provider.kind,
+                    modelID = ModelSelectionUtils.preferredStoredModelIdentifier(active.model, active.provider.kind),
+                )
+                onConversationCreated(conversation.id)
+            }
+            return
+        }
+
         viewModelScope.launch {
             isSendingFromHero = true
             try {
-                val active = ensureActiveModelWithFreeFallback(onMissingProvider) ?: return@launch
-
-                if (trimmed.isEmpty()) {
-
-                    val conversation = conversationRepository.createDraft(
-                        providerID = active.provider.id,
-                        providerKind = active.provider.kind,
-                        modelID = ModelSelectionUtils.preferredStoredModelIdentifier(active.model, active.provider.kind),
-                    )
-                    onConversationCreated(conversation.id)
-                    return@launch
-                }
+                val active = ensureActiveModelWithFreeFallback(onMissingProvider = onMissingProvider) ?: return@launch
 
                 val conversation = conversationRepository.create(
                     providerID = active.provider.id,
@@ -787,63 +891,11 @@ class HomeViewModel(
         }
     }
 
-    private fun resolveModelForSkill(skill: Skill): ActiveModel? {
-        val providerList = providers.value
-            .filter { it.status !is ProviderConnectionState.Issue && it.models.isNotEmpty() }
+    // -- Skill conversation creation --
 
-        if (providerList.isEmpty()) return null
-
-        if (skill.suggestedModelId != null && skill.suggestedProviderId != null) {
-            val suggestedProvider = providerList.firstOrNull {
-                it.id == skill.suggestedProviderId || it.kind.rawValue == skill.suggestedProviderId
-            }
-            val suggestedModel = suggestedProvider?.models?.let { models ->
-                ModelSelectionUtils.matchingModel(models, skill.suggestedModelId, suggestedProvider.kind)
-            }
-            if (suggestedProvider != null && suggestedModel != null) {
-                return ActiveModel(suggestedProvider, suggestedModel)
-            }
-        }
-
-        if (skill.modelCapabilityHint != "any") {
-            val activeProviderId = activeModelState.value.activeModel?.provider?.id
-            val sortedProviders = providerList.sortedByDescending { it.id == activeProviderId }
-            for (provider in sortedProviders) {
-                val model = provider.models.firstOrNull {
-                    matchesCapabilityHint(provider, it, skill.modelCapabilityHint)
-                }
-                if (model != null) {
-                    return ActiveModel(provider, model)
-                }
-            }
-        }
-
-        val active = activeModelState.value.activeModel
-        if (active != null && providerList.any { it.id == active.provider.id }) {
-            return active
-        }
-
-        val fallbackProvider = providerList.firstOrNull() ?: return null
-        // A relay falls back only among its enabled models, never to a catalog model that is not enabled.
-        val fallbackModel = if (RelayModelFallback.appliesTo(fallbackProvider)) {
-            RelayModelFallback.fallbackModel(fallbackProvider, lastUsedModelRef.value)
-        } else {
-            fallbackProvider.defaultModel ?: fallbackProvider.models.firstOrNull()
-        } ?: return null
-        return ActiveModel(fallbackProvider, fallbackModel)
-    }
-
-    private fun matchesCapabilityHint(provider: Provider, model: AIModel, hint: String): Boolean = when (hint) {
-        "reasoning" -> CapabilityEvidenceProductionAdapter.supportedReasoningModes(provider, model).isNotEmpty()
-        "vision" -> ModelCapability.Image in
-            CapabilityEvidenceProductionAdapter.governedMetadataCapabilities(provider, model)
-        "fast" -> model.priceTier == "$" ||
-            model.name.contains("mini", ignoreCase = true) ||
-            model.name.contains("haiku", ignoreCase = true) ||
-            model.name.contains("flash", ignoreCase = true)
-        "large-context" -> (model.contextLength ?: 0) >= 128_000
-        else -> false
-    }
+    private fun resolveModelForSkill(skill: Skill): ActiveModel? =
+        resolveSkillModel(skill, providers.value, lastUsedModelRef.value)
+            ?.let { ActiveModel(it.provider, it.model) }
 
     fun startConversationWithSkill(
         skill: Skill,
@@ -862,7 +914,7 @@ class HomeViewModel(
         }
 
         viewModelScope.launch {
-            appPreferencesRepository.setLastUsedModel(active.provider.id, active.model, active.provider.kind)
+            // Starting a chat from a skill does not rewrite last used: it changes only when the user actually sends with a model or picks one by hand.
             val conversation = conversationRepository.createDraft(
                 providerID = active.provider.id,
                 providerKind = active.provider.kind,

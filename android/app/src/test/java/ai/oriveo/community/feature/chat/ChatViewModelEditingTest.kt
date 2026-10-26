@@ -22,6 +22,7 @@ import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderConnectionState
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ReasoningMode
+import ai.oriveo.community.testing.BundledAttachmentSupportFixture
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.coVerifyOrder
@@ -125,7 +126,7 @@ class ChatViewModelEditingTest {
         every { chatStreamingManager.streamingMessageId(any()) } returns MutableStateFlow(null)
         ai.oriveo.community.testing.installChatStreamingManagerForwardingStub(chatStreamingManager, chatRepository)
 
-        coEvery { conversationRepository.deleteMessagesStartingAt(any(), any()) } returns Unit
+        coEvery { conversationRepository.deleteMessagesStartingAt(any(), any()) } returns true
         coEvery { conversationRepository.deleteMessagesAfter(any(), any()) } returns Unit
         coEvery { conversationRepository.updateDraft(any(), any()) } returns Unit
         coEvery { appPreferencesRepository.setLastUsedModel(any<String>(), any<String>()) } returns Unit
@@ -160,6 +161,8 @@ class ChatViewModelEditingTest {
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+        // Official provider attachment capability only comes from metadata: clear the MetadataClient.instance table after cases that injected it.
+        BundledAttachmentSupportFixture.clear()
     }
 
     @Test
@@ -176,6 +179,7 @@ class ChatViewModelEditingTest {
             attachmentProcessor = mockk(relaxed = true),
             globalSnackbarManager = globalSnackbarManager,
             applicationScope = applicationScope,
+            ioDispatcher = dispatcher,
         )
         advanceUntilIdle()
 
@@ -188,7 +192,14 @@ class ChatViewModelEditingTest {
         coVerify { conversationRepository.deleteMessagesStartingAt("conversation-1", "user-1") }
     }
 
-    private fun editingViewModel() = ChatViewModel(
+    /** Editing puts attachments back into the composer only from the local original image: give the image fixture a readable local original. */
+    private fun storeWithLocalImage(key: String): AttachmentStore = mockk<AttachmentStore>(relaxed = true) {
+        every { loadImageBytes(key) } returns byteArrayOf(1, 2, 3)
+        every { loadThumbnailBytes(any()) } returns null
+        every { loadBlobBytes(any()) } returns null
+    }
+
+    private fun editingViewModel(store: AttachmentStore? = null) = ChatViewModel(
         savedStateHandle = SavedStateHandle(mapOf("conversationId" to "conversation-1")),
         context = mockk<Context>(relaxed = true),
         appPreferencesRepository = appPreferencesRepository,
@@ -200,6 +211,8 @@ class ChatViewModelEditingTest {
         attachmentProcessor = mockk(relaxed = true),
         globalSnackbarManager = globalSnackbarManager,
         applicationScope = applicationScope,
+        ioDispatcher = dispatcher,
+        attachmentStore = store,
     )
 
     private fun editingConversationWith(attachments: List<Attachment>) {
@@ -213,6 +226,7 @@ class ChatViewModelEditingTest {
     /** Changing one word must not lose the files: the original message's attachments return to the composer with the text. */
     @Test
     fun `editing puts the original attachments back into the composer`() = runTest {
+        BundledAttachmentSupportFixture.install("openAI")
         editingConversationWith(listOf(attachment))
         val viewModel = editingViewModel()
         advanceUntilIdle()
@@ -254,17 +268,53 @@ class ChatViewModelEditingTest {
 
     @Test
     fun `restored attachments go through the model capability filter and the count limit`() = runTest {
-        // The current model does not accept images (no Image capability); there are 4 files against a limit of 3.
-        val image = Attachment(id = "img", kind = AttachmentKind.Image, fileName = "p.png", mimeType = "image/png", base64Data = "aW1n")
+        BundledAttachmentSupportFixture.install("openAI")
+        // With the fixture, gpt-4o-mini's image verdict key is missing = unknown, so the entry stays open and the image is restored as usual; 5 attachments (image + files) against a limit of 3.
+        val image = Attachment(id = "img", kind = AttachmentKind.Image, fileName = "p.png", mimeType = "image/png", localImageId = "img-local")
         val files = (1..4).map { attachment.copy(id = "f$it", fileName = "f$it.txt") }
         editingConversationWith(listOf(image) + files)
-        val viewModel = editingViewModel()
+        val viewModel = editingViewModel(storeWithLocalImage("img-local"))
         advanceUntilIdle()
 
         viewModel.editMessageInline("user-1")
         advanceUntilIdle()
 
-        assertEquals(listOf("f1.txt", "f2.txt", "f3.txt"), viewModel.pendingAttachments.map { it.fileName })
+        assertEquals(listOf("p.png", "f1.txt", "f2.txt"), viewModel.pendingAttachments.map { it.fileName })
+    }
+
+    /** Relay connection: edit restore goes through the same gate as import, judged after resolving the connection identity, so the image of an image message returns to the composer. */
+    @Test
+    fun `editing an image message on a relay connection restores the image into the composer`() = runTest {
+        val relay = Provider(
+            id = "provider-1",
+            kind = ProviderKind.Relay,
+            status = ProviderConnectionState.Connected,
+            relayRequested = ai.oriveo.community.core.model.RelayRequestedConfig(
+                transport = ai.oriveo.community.core.model.RelayTransport.OpenAIChatCompletions,
+                resolvedAPIBaseURL = "https://relay.example.com/v1",
+            ),
+            models = listOf(AIModel(id = "gpt-4o-mini", name = "GPT-4o mini")),
+        )
+        every { providerRepository.observeAll() } returns flowOf(listOf(relay))
+        coEvery { providerRepository.getById("provider-1") } returns relay
+        coEvery { providerRepository.capabilityEvidenceIdentity(any(), any()) } returns
+            ai.oriveo.community.core.model.CapabilityEvidenceIdentity(
+                partitionId = "test-partition",
+                connectionInstanceId = relay.id,
+                connectionGeneration = "generation",
+                credentialEpoch = "epoch",
+                providerKind = relay.kind.rawValue,
+                authMode = relay.authMode.rawValue,
+            )
+        val image = Attachment(id = "img", kind = AttachmentKind.Image, fileName = "p.png", mimeType = "image/png", localImageId = "img-local")
+        editingConversationWith(listOf(image))
+        val viewModel = editingViewModel(storeWithLocalImage("img-local"))
+        advanceUntilIdle()
+
+        viewModel.editMessageInline("user-1")
+        advanceUntilIdle()
+
+        assertEquals(listOf("p.png"), viewModel.pendingAttachments.map { it.fileName })
     }
 
     @Test
@@ -281,6 +331,7 @@ class ChatViewModelEditingTest {
             attachmentProcessor = mockk(relaxed = true),
             globalSnackbarManager = globalSnackbarManager,
             applicationScope = applicationScope,
+            ioDispatcher = dispatcher,
         )
         advanceUntilIdle()
 
@@ -341,6 +392,7 @@ class ChatViewModelEditingTest {
             attachmentProcessor = mockk(relaxed = true),
             globalSnackbarManager = globalSnackbarManager,
             applicationScope = applicationScope,
+            ioDispatcher = dispatcher,
         )
         advanceUntilIdle()
 
@@ -387,6 +439,7 @@ class ChatViewModelEditingTest {
             attachmentProcessor = mockk(relaxed = true),
             globalSnackbarManager = globalSnackbarManager,
             applicationScope = applicationScope,
+            ioDispatcher = dispatcher,
         )
         advanceUntilIdle()
 
@@ -434,6 +487,7 @@ class ChatViewModelEditingTest {
             attachmentProcessor = mockk(relaxed = true),
             globalSnackbarManager = globalSnackbarManager,
             applicationScope = applicationScope,
+            ioDispatcher = dispatcher,
         )
         advanceUntilIdle()
 
@@ -443,6 +497,36 @@ class ChatViewModelEditingTest {
         coVerifyOrder {
             chatStreamingManager.stopStreamAndJoin("conversation-1")
             conversationRepository.deleteMessagesStartingAt("conversation-1", "user-1")
+        }
+    }
+
+    @Test
+    fun `editMessageInline stops read aloud of truncated messages`() = runTest {
+        val readAloud = mockk<ai.oriveo.community.core.voice.ReadAloudController>(relaxed = true)
+        val viewModel = ChatViewModel(
+            savedStateHandle = SavedStateHandle(mapOf("conversationId" to "conversation-1")),
+            context = mockk<Context>(relaxed = true),
+            appPreferencesRepository = appPreferencesRepository,
+            providerRepository = providerRepository,
+            conversationRepository = conversationRepository,
+            noteRepository = mockk(relaxed = true),
+            chatStreamingManager = chatStreamingManager,
+            skillRepository = skillRepository,
+            attachmentProcessor = mockk(relaxed = true),
+            globalSnackbarManager = globalSnackbarManager,
+            applicationScope = applicationScope,
+            ioDispatcher = dispatcher,
+            readAloudController = readAloud,
+        )
+        advanceUntilIdle()
+
+        viewModel.editMessageInline("user-1")
+        advanceUntilIdle()
+
+        // Old behavior: truncation deleted the answer being read aloud without stopping it, so read-aloud kept speaking a deleted message.
+        verify {
+            readAloud.stopIfSpeaking("user-1", ai.oriveo.community.core.voice.ReadAloudEndReason.NAVIGATED)
+            readAloud.stopIfSpeaking("assistant-1", ai.oriveo.community.core.voice.ReadAloudEndReason.NAVIGATED)
         }
     }
 
@@ -460,6 +544,7 @@ class ChatViewModelEditingTest {
             attachmentProcessor = mockk(relaxed = true),
             globalSnackbarManager = globalSnackbarManager,
             applicationScope = applicationScope,
+            ioDispatcher = dispatcher,
         )
         advanceUntilIdle()
 
@@ -507,6 +592,7 @@ class ChatViewModelEditingTest {
             attachmentProcessor = mockk(relaxed = true),
             globalSnackbarManager = globalSnackbarManager,
             applicationScope = applicationScope,
+            ioDispatcher = dispatcher,
         )
         advanceUntilIdle()
 
@@ -539,6 +625,7 @@ class ChatViewModelEditingTest {
             attachmentProcessor = mockk(relaxed = true),
             globalSnackbarManager = globalSnackbarManager,
             applicationScope = applicationScope,
+            ioDispatcher = dispatcher,
         )
         advanceUntilIdle()
 
@@ -590,6 +677,7 @@ class ChatViewModelEditingTest {
             attachmentProcessor = mockk(relaxed = true),
             globalSnackbarManager = globalSnackbarManager,
             applicationScope = applicationScope,
+            ioDispatcher = dispatcher,
         )
         advanceUntilIdle()
         viewModel.inputText = "draft before leaving"

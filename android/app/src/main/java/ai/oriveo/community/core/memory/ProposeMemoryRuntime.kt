@@ -18,7 +18,7 @@ import ai.oriveo.community.core.provider.transport.TransportKind
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Process-wide state of propose_memory (memory-propose.v2 rules 1, 6): the in-process degraded set
+ * Process-wide state of propose_memory (memory-propose.v3 rules 1, 6): the in-process degraded set
  * ("connection id\nmodel id") and the per-send mode decision. The degraded set lives only in memory and
  * resets with the process.
  */
@@ -65,7 +65,7 @@ object ProposeMemoryRuntime {
             ToolCallTransportResolver.declaredTransport(provider, model) == TransportKind.GeminiGenerate.wireValue
 
     /**
-     * D-296: this send goes out with json_schema — the value the send path resolves from [store] under the profile
+     * This send goes out with json_schema — the value the send path resolves from [store] under the profile
      * that declares its wire, dormant values filtered with the same activeParameterIds as the final dispatch.
      * Structured output conflicts with tools (generation parameter conflictsWith), so both memory tools fall back.
      */

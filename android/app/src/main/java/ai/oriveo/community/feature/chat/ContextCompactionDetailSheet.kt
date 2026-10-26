@@ -16,6 +16,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
@@ -30,7 +32,7 @@ import java.text.NumberFormat
 import java.util.Currency
 import java.util.Locale
 
-/** Detail sheet buttons (contract P3·U4 rule 2); each one dispatches its action, then closes the sheet. */
+/** Detail sheet buttons; each one dispatches its action, then closes the sheet. */
 class ContextCompactionDetailActions(
     val onRecompact: () -> Unit,
     val onClear: () -> Unit,
@@ -56,9 +58,13 @@ fun ChatCompactionUiCoordinator.detailActions(quoteLabel: String, close: () -> U
     },
 )
 
-/** Shows the compaction result toasts (contract P3·U4 rules 3 and 5) through GlobalSnackbarManager. */
+/** Shows the compaction result toasts through GlobalSnackbarManager. */
 @Composable
-fun ContextCompactionToastEffect(coordinator: ChatCompactionUiCoordinator?) {
+fun ContextCompactionToastEffect(coordinator: ChatCompactionUiCoordinator?, openProviderDetail: (String) -> Unit) {
+    val currentOpenProviderDetail by rememberUpdatedState(openProviderDetail)
+    LaunchedEffect(coordinator) {
+        coordinator?.providerDetailRequests?.collect { currentOpenProviderDetail(it) }
+    }
     val snackbar = rememberGlobalSnackbarManager()
     LaunchedEffect(coordinator, snackbar) {
         val manager = snackbar ?: return@LaunchedEffect
@@ -66,7 +72,7 @@ fun ContextCompactionToastEffect(coordinator: ChatCompactionUiCoordinator?) {
     }
 }
 
-/** Read-only detail of the latestValid compaction row (contract P3·U4 rule 2). */
+/** Read-only detail of the latestValid compaction row. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ContextCompactionDetailSheet(

@@ -13,6 +13,8 @@ data class DirectiveDetection(
     val span: String? = null,
     val kind: DirectiveKind? = null,
     val scope: DirectiveScope? = null,
+    /** Lexicon language the sentence matched (first one in suggestionLanguages, else the first); null when none. */
+    val lang: String? = null,
 ) {
     companion object {
         val NONE = DirectiveDetection(isDirective = false)
@@ -28,13 +30,18 @@ object DirectiveDetector {
     fun detect(text: String): DirectiveDetection {
         for (sentence in sentences(text)) {
             if (sentence.isQuestion) continue
-            val hit = LANGUAGES.any { l ->
-                (l.markers.any { l.matches(it, sentence) } || l.globalMarkers.any { l.matches(it, sentence) }) &&
+            val qualifying = LANGUAGES.filter { l ->
+                (
+                    l.markers.any { l.matches(it, sentence) } ||
+                        l.globalMarkers.any { l.matches(it, sentence) } ||
+                        l.nearMatches(sentence)
+                    ) &&
                     l.verbs.any { l.matches(it, sentence) } &&
                     l.vetoes.none { l.matches(it, sentence) } &&
                     l.passesStarts(sentence)
             }
-            if (hit) {
+            if (qualifying.isNotEmpty()) {
+                val lang = qualifying.firstOrNull { it.code in SUGGESTION_LANGUAGES } ?: qualifying.first()
                 return DirectiveDetection(
                     isDirective = true,
                     span = sentence.span,
@@ -44,6 +51,7 @@ object DirectiveDetector {
                     } else {
                         DirectiveScope.CONVERSATION
                     },
+                    lang = lang.code,
                 )
             }
         }
@@ -169,7 +177,11 @@ object DirectiveDetector {
         val leading: String = " $word"
     }
 
+    /** Languages whose lexical match may offer the fallback "set as instruction" bar (propose-v3). */
+    val SUGGESTION_LANGUAGES: Set<String> by lazy { DirectiveLexicon.suggestionLanguages.toSet() }
+
     internal class Lang(source: DirectiveLexicon.Language) {
+        val code = source.code
         val mode = source.mode
         private fun terms(list: List<String>) = list.map(::Term)
         val markers = terms(source.markers)
@@ -183,6 +195,60 @@ object DirectiveDetector {
         val styleWords = terms(source.styleWords)
         val imageStyleWords = terms(source.imageStyleWords)
         val globalMarkers = terms(source.globalMarkers)
+        val nearMarkers = source.nearMarkers.map { n -> Near(n.a.map { tokensOf(Term(it)) }, n.b.map { tokensOf(Term(it)) }, n.within) }
+
+        /** One near-collocation marker, terms already split into tokens of this language's mode. */
+        class Near(val a: List<List<String>>, val b: List<List<String>>, val within: Int)
+
+        /** Tokens: code points of norm() in SUBSTRING mode, words of wordform() otherwise. */
+        private fun tokensOf(term: Term): List<String> =
+            if (mode == DirectiveLexicon.Mode.SUBSTRING) codePointStrings(term.norm) else term.word.split(' ').filter { it.isNotEmpty() }
+
+        private fun sentenceTokens(s: Sentence): List<String> =
+            if (mode == DirectiveLexicon.Mode.SUBSTRING) codePointStrings(s.norm) else s.wordform.split(' ').filter { it.isNotEmpty() }
+
+        /** Marks token indexes where an occurrence of one of [terms] starts ([atEnd] false) or ends (exclusive, [atEnd] true). */
+        private fun marks(tokens: List<String>, terms: List<List<String>>, atEnd: Boolean): BooleanArray {
+            val out = BooleanArray(tokens.size + 1)
+            for (t in terms) {
+                if (t.isEmpty()) continue
+                var i = 0
+                while (i + t.size <= tokens.size) {
+                    var ok = true
+                    for (k in t.indices) {
+                        val token = tokens[i + k]
+                        val hit = if (mode == DirectiveLexicon.Mode.PREFIX && k == t.size - 1) token.startsWith(t[k]) else token == t[k]
+                        if (!hit) {
+                            ok = false
+                            break
+                        }
+                    }
+                    if (ok) out[if (atEnd) i + t.size else i] = true
+                    i++
+                }
+            }
+            return out
+        }
+
+        /** Some `a` occurrence ends at e and some `b` occurrence starts at s with e <= s <= e + within; one linear sweep. */
+        fun nearMatches(s: Sentence): Boolean {
+            if (nearMarkers.isEmpty()) return false
+            val tokens = sentenceTokens(s)
+            return nearMarkers.any { n ->
+                val ends = marks(tokens, n.a, atEnd = true)
+                val starts = marks(tokens, n.b, atEnd = false)
+                var lastEnd = -1
+                var found = false
+                for (i in 0..tokens.size) {
+                    if (ends[i]) lastEnd = i
+                    if (starts[i] && lastEnd >= 0 && i - lastEnd <= n.within) {
+                        found = true
+                        break
+                    }
+                }
+                found
+            }
+        }
 
         fun matches(term: Term, s: Sentence): Boolean = when (mode) {
             DirectiveLexicon.Mode.SUBSTRING -> s.norm.contains(term.norm)
@@ -208,6 +274,17 @@ object DirectiveDetector {
                 if (mode == DirectiveLexicon.Mode.WORD) head.startsWith(it.padded) else head.startsWith(it.leading)
             }
         }
+    }
+
+    private fun codePointStrings(s: String): List<String> {
+        val out = ArrayList<String>(s.length)
+        var i = 0
+        while (i < s.length) {
+            val cp = s.codePointAt(i)
+            out.add(String(Character.toChars(cp)))
+            i += Character.charCount(cp)
+        }
+        return out
     }
 
     internal val LANGUAGES: List<Lang> by lazy { DirectiveLexicon.languages.map(::Lang) }

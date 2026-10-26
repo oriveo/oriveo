@@ -8,6 +8,7 @@ import ai.oriveo.community.core.app.UiText
 import ai.oriveo.community.core.data.repository.ConversationRepository
 import ai.oriveo.community.core.data.repository.ProviderRepository
 import ai.oriveo.community.core.memory.MemoryCandidateRepository
+import ai.oriveo.community.core.context.MemoryProposeAction
 import ai.oriveo.community.core.context.MemoryProposeMode
 import ai.oriveo.community.core.context.MemoryProposePurpose
 import ai.oriveo.community.core.memory.MemoryProposeSendHook
@@ -49,6 +50,8 @@ internal class ChatSendCommandCoordinator(
     private val onModelSelectionError: () -> Unit,
     private val onDisclosureRequired: (ProviderDisclosurePrompt, PendingDisclosurePayload) -> Unit,
     private val onDisclosureConfirmationFailed: (Throwable) -> Unit = {},
+    /** The provider disclosure shown for a voice entry was accepted; the host re-enters the voice conversation. */
+    private val onVoiceEntryDisclosureAccepted: () -> Unit = {},
     private val onConversationActivated: (String) -> Unit,
     private val generationParameterSettingsStore: GenerationParameterSettingsStore? = null,
     private val capabilityPreferenceStore: CapabilityPreferenceStore? = null,
@@ -114,7 +117,10 @@ internal class ChatSendCommandCoordinator(
         providerId: String?,
         modelId: String?,
         quoteContext: QuoteContext? = null,
+        /** VOICE for a voice-conversation send; it then leaves the composer (text, attachments, draft) alone. */
+        delivery: ai.oriveo.community.core.context.ContextDelivery? = null,
     ) {
+        // No connection or no model selected both mean "no usable model": the request is blocked before it is sent.
         if (providerId == null) {
             onProviderSelectionError()
             onSendSettled()
@@ -134,8 +140,8 @@ internal class ChatSendCommandCoordinator(
                     onMissing = onProviderSelectionError,
                     onFailure = onProviderResolutionError,
                 ) ?: return@launch
-                // The relay session's model has been removed: no request is sent, and the notice bar guides the user to pick again.
-                if (RelayModelFallback.removedConnectionName(provider, modelId) != null) return@launch
+                // The relay session's model has been removed or the official model is retired: no request is sent, and the notice bar guides the user to pick again.
+                if (preSendGuardBlocked(provider, modelId)) return@launch
 
                 if (requiresDisclosure(provider.kind)) {
                     onDisclosureRequired(
@@ -150,12 +156,13 @@ internal class ChatSendCommandCoordinator(
                             text = text,
                             attachments = attachments,
                             quoteContext = quoteContext,
+                            delivery = delivery,
                         ),
                     )
                     return@launch
                 }
 
-                sendMessageInternal(provider, modelId, text, attachments, quoteContext)
+                sendMessageInternal(provider, modelId, text, attachments, quoteContext, delivery = delivery)
             } finally {
                 // Catch-all reset: a missing provider or model, a disclosure gate, a thrown
                 // exception and coroutine cancellation all land here. On the success path
@@ -183,8 +190,11 @@ internal class ChatSendCommandCoordinator(
         // Unknown web state counts as on: Moonshot's built-in loop then owns the tool list, and Gemini
         // generateContent cannot carry function tools beside its search tool.
         // Relay: web is what actually goes out (chat switch and no user override off), same as ChatRepository.
-        val webSearch = model != null &&
+        val sendOptions = model?.let {
             resolveAttachmentSendOptions(provider, modelId)
+        }
+        val webSearch = model != null &&
+            sendOptions
                 ?.webSearchEnabled
                 ?.let { on ->
                     if (provider.kind == ProviderKind.Relay) {
@@ -193,7 +203,14 @@ internal class ChatSendCommandCoordinator(
                         on
                     }
                 } ?: true
-        val supportsTools = model != null && run {
+        // MiniMax web through the Anthropic Messages route carries no client tools, so propose_memory
+        // cannot ride this send. Unknown reasoning mode counts as any mode that would take that route.
+        val miniMaxAnthropicWeb = model != null && provider.kind == ProviderKind.MiniMax && webSearch &&
+            (sendOptions?.reasoningMode?.let { listOf(it) } ?: ai.oriveo.community.core.model.ReasoningMode.entries)
+                .any { mode ->
+                    ai.oriveo.community.core.provider.MiniMaxService.routesWebThroughAnthropic(model.id, true, mode)
+                }
+        val supportsTools = model != null && !miniMaxAnthropicWeb && run {
             ProposeMemoryRuntime.connectionSupportsTools(
                 provider = provider,
                 model = model,
@@ -228,6 +245,8 @@ internal class ChatSendCommandCoordinator(
         @Volatile private var messageId: String? = null
         @Volatile private var userText: String = ""
         private val calls = java.util.concurrent.atomic.AtomicInteger(0)
+        private val instructs = java.util.concurrent.atomic.AtomicInteger(0)
+        private val fallbackRan = java.util.concurrent.atomic.AtomicBoolean(false)
 
         fun bind(messageId: String, text: String) {
             userText = text
@@ -238,11 +257,12 @@ internal class ChatSendCommandCoordinator(
             val id = messageId ?: return
             val prior = calls.getAndIncrement()
             val repository = memoryCandidates ?: return
-            val candidate = try {
-                repository.propose(
+            val decision = try {
+                repository.proposeDecision(
                     accountId = accountId,
                     argumentsJson = argumentsJson,
                     priorInTurn = prior,
+                    priorInstructInTurn = instructs.get(),
                     userText = userText,
                     messageId = id,
                     conversationId = conv.id,
@@ -254,12 +274,30 @@ internal class ChatSendCommandCoordinator(
                 android.util.Log.w("ChatSendCommand", "propose_memory candidate failed: ${e.message}")
                 null
             } ?: return
+            if (decision.action == MemoryProposeAction.INSTRUCT) {
+                // The sentence goes to the conversation-instruction bar, never to memory candidates.
+                instructs.incrementAndGet()
+                decision.sentence?.let { directiveSuggestions?.onInstruct(conv.id, id, it) }
+                return
+            }
+            val candidate = decision.candidate?.takeIf { decision.action == MemoryProposeAction.CREATE } ?: return
             memorySuggestions?.onProposedCandidate(conv.id, id, candidate)
         }
 
         override suspend fun onToolsRejected() {
             ProposeMemoryRuntime.markDegraded(connectionId, modelId)
+            runFallback()
+        }
+
+        override suspend fun onToolsNotAttached() {
+            runFallback()
+        }
+
+        /** The fallback route: lexical bar (language-gated) plus memory-intent v1, at most once per message. */
+        private fun runFallback() {
             val id = messageId ?: return
+            if (!fallbackRan.compareAndSet(false, true)) return
+            directiveSuggestions?.onFallback(conv.id, id, userText)
             generateMemoryCandidate(accountId, conv, id, userText, MemoryProposeMode.FALLBACK)
         }
     }
@@ -317,7 +355,9 @@ internal class ChatSendCommandCoordinator(
                     return@launch
                 }.getOrThrow()
                 clearPrompt()
-                if (payload != null) {
+                if (payload?.isVoiceEntry() == true) {
+                    onVoiceEntryDisclosureAccepted()
+                } else if (payload != null) {
                     val provider = resolveChatProvider(
                         providerRepository = providerRepository,
                         providerId = payload.providerId,
@@ -330,6 +370,7 @@ internal class ChatSendCommandCoordinator(
                         text = payload.text,
                         attachments = payload.attachments,
                         quoteContext = payload.quoteContext,
+                        delivery = payload.delivery,
                     )
                 }
             } finally {
@@ -339,8 +380,156 @@ internal class ChatSendCommandCoordinator(
         }
     }
 
+    /**
+     * The gate of a voice-conversation entry: the same checks as a send (connection, model, disclosure) before the voice session opens.
+     * When the disclosure is still pending it is raised with a voice payload and the entry is re-entered once accepted.
+     */
+    suspend fun voiceEntryAllowed(providerId: String?, modelId: String?): Boolean {
+        if (providerId == null) {
+            onProviderSelectionError()
+            return false
+        }
+        if (modelId == null) {
+            onModelSelectionError()
+            return false
+        }
+        val provider = resolveChatProvider(
+            providerRepository = providerRepository,
+            providerId = providerId,
+            onMissing = onProviderSelectionError,
+            onFailure = onProviderResolutionError,
+        ) ?: return false
+        if (preSendGuardBlocked(provider, modelId)) return false
+        if (requiresDisclosure(provider.kind)) {
+            onDisclosureRequired(
+                ProviderDisclosurePrompt(
+                    kind = provider.kind,
+                    displayName = provider.kind.displayName,
+                    privacyPolicyUrl = provider.kind.privacyPolicyUrl,
+                ),
+                PendingDisclosurePayload(
+                    providerId = providerId,
+                    modelId = modelId,
+                    text = "",
+                    attachments = null,
+                    delivery = ai.oriveo.community.core.context.ContextDelivery.VOICE,
+                ),
+            )
+            return false
+        }
+        return true
+    }
+
+    /** The session's connection was deleted while a different one is selected: nothing is sent and the missing-connection banner stays. */
+    private suspend fun conversationProviderDeleted(sendProviderId: String): Boolean {
+        val conversation = currentConversationId()?.let { currentConversation() } ?: return false
+        val storedProviderId = conversation.providerID
+        if (storedProviderId.isBlank() || storedProviderId == sendProviderId) return false
+        return runCatching { providerRepository.getById(storedProviderId) }.getOrNull() == null
+    }
+
+    /** Pre-send guards shared by every entry: a retired official model and a removed relay session model block the send. */
+    private fun preSendGuardBlocked(provider: Provider, modelId: String): Boolean {
+        if (ProviderSelectionSnapshot.modelRetirement(provider, modelId)?.sendBlocked == true) return true
+        return RelayModelFallback.removedConnectionName(provider, modelId) != null
+    }
+
     private suspend fun requiresDisclosure(kind: ProviderKind): Boolean =
         !appPreferencesRepository.hasAcceptedProviderDisclosure(kind)
+
+    /**
+     * The conversation a first send would create, not stored: what a realtime plan on a draft page is built from
+     * (same provider, stored model id and pending instructions as [createFirstConversation]).
+     */
+    suspend fun plannedFirstConversation(providerId: String?, modelId: String?): Conversation? {
+        val (provider, selectedModel) = resolveFirstConversationModel(providerId, modelId) ?: return null
+        return Conversation(
+            id = "",
+            title = "",
+            providerID = provider.id,
+            providerKind = provider.kind,
+            modelID = ModelSelectionUtils.preferredStoredModelIdentifier(selectedModel, provider.kind),
+            // Same normalization as before ConversationRepository.create stores it; otherwise the realtime opening plan and the re-plan after the first turn is stored fingerprint differently and reopen needlessly
+            instructions = ai.oriveo.community.core.context.ConversationInstructions.normalize(pendingDraftInstructions()),
+        )
+    }
+
+    /**
+     * Creates the draft's conversation through the first-send path of [sendMessage] (pending instructions, draft
+     * migrations, [onConversationActivated]) without sending; returns the existing id when there already is one.
+     */
+    suspend fun createFirstConversation(providerId: String?, modelId: String?): String? {
+        currentConversationId()?.let { return it }
+        val (provider, selectedModel) = resolveFirstConversationModel(providerId, modelId) ?: return null
+        val conv = createFirstConversationRow(provider, selectedModel)
+        adoptFirstConversationDrafts(conv, provider, selectedModel)
+        onConversationActivated(conv.id)
+        return conv.id
+    }
+
+    private suspend fun resolveFirstConversationModel(
+        providerId: String?,
+        modelId: String?,
+    ): Pair<Provider, ai.oriveo.community.core.model.AIModel>? {
+        if (providerId == null || modelId == null) return null
+        val provider = runCatching { providerRepository.getById(providerId) }.getOrNull() ?: return null
+        val selectedModel = ProviderSelectionSnapshot.currentModel(provider, modelId) ?: return null
+        return provider to selectedModel
+    }
+
+    private suspend fun createFirstConversationRow(
+        provider: Provider,
+        selectedModel: ai.oriveo.community.core.model.AIModel,
+    ): Conversation = conversationRepository.create(
+        providerID = provider.id,
+        providerKind = provider.kind,
+        modelID = ModelSelectionUtils.preferredStoredModelIdentifier(selectedModel, provider.kind),
+        instructions = pendingDraftInstructions(),
+    )
+
+    /** Moves the draft-time MCP / parameter / capability records onto the new conversation (first send). */
+    private suspend fun adoptFirstConversationDrafts(
+        conv: Conversation,
+        provider: Provider,
+        selectedModel: ai.oriveo.community.core.model.AIModel,
+    ) {
+        val runtimeModelId = selectedModel.id
+        adoptMcpDraft(conv.id)
+        val modelControlIdentity = ModelControlRuntimeIdentityResolver.resolve(provider, selectedModel)
+        generationParameterSettingsStore?.migrateSession(
+            providerID = provider.id,
+            modelID = runtimeModelId,
+            fromConversationID = generationParameterDraftSessionId(),
+            toConversationID = conv.id,
+            profileFingerprint = GenerationParameterProfileFingerprint.make(provider, selectedModel),
+        )
+        // The draft record of the relay web switch moves to the real conversation with the first send.
+        ai.oriveo.community.core.provider.RelayWebPreferenceIdentity.resolve(provider, selectedModel)?.let { webIdentity ->
+            capabilityPreferenceStore?.migrateDraftConversation(
+                providerID = provider.id,
+                modelID = webIdentity.canonicalModelId,
+                draftSessionID = generationParameterDraftSessionId(),
+                conversationID = conv.id,
+                transportIdentity = webIdentity.storageIdentity,
+            )
+        }
+        modelControlIdentity?.let { identity ->
+            capabilityPreferenceStore?.migrateDraftConversation(
+                providerID = provider.id,
+                modelID = identity.canonicalModelId,
+                draftSessionID = generationParameterDraftSessionId(),
+                conversationID = conv.id,
+                transportIdentity = identity.storageIdentity,
+            )
+            localCustomFragmentStore?.migrateConversation(
+                providerID = provider.id,
+                modelID = identity.canonicalModelId,
+                fromConversationID = generationParameterDraftSessionId(),
+                toConversationID = conv.id,
+                transportIdentity = identity.storageIdentity,
+            )
+        }
+    }
 
     private suspend fun sendMessageInternal(
         provider: Provider,
@@ -348,7 +537,10 @@ internal class ChatSendCommandCoordinator(
         text: String,
         attachments: List<Attachment>?,
         quoteContext: QuoteContext?,
+        delivery: ai.oriveo.community.core.context.ContextDelivery? = null,
     ) {
+        if (preSendGuardBlocked(provider, modelId)) return
+        if (conversationProviderDeleted(provider.id)) return
         val providerId = provider.id
         val selectedModel = ProviderSelectionSnapshot.currentModel(provider, modelId)
             ?: run {
@@ -395,54 +587,13 @@ internal class ChatSendCommandCoordinator(
             currentConversation()
         } else {
             null
-        } ?: conversationRepository.create(
-            providerID = providerId,
-            providerKind = provider.kind,
-            modelID = storedModelId,
-            instructions = pendingDraftInstructions(),
-        )
-
-        if (isNewConversation) {
-            adoptMcpDraft(conv.id)
-            val modelControlIdentity = ModelControlRuntimeIdentityResolver.resolve(provider, selectedModel)
-            generationParameterSettingsStore?.migrateSession(
-                providerID = provider.id,
-                modelID = runtimeModelId,
-                fromConversationID = generationParameterDraftSessionId(),
-                toConversationID = conv.id,
-                profileFingerprint = GenerationParameterProfileFingerprint.make(provider, selectedModel),
-            )
-            // The draft record of the relay web switch moves to the real conversation with the first send.
-            ai.oriveo.community.core.provider.RelayWebPreferenceIdentity.resolve(provider, selectedModel)?.let { webIdentity ->
-                capabilityPreferenceStore?.migrateDraftConversation(
-                    providerID = provider.id,
-                    modelID = webIdentity.canonicalModelId,
-                    draftSessionID = generationParameterDraftSessionId(),
-                    conversationID = conv.id,
-                    transportIdentity = webIdentity.storageIdentity,
-                )
-            }
-            modelControlIdentity?.let { identity ->
-                capabilityPreferenceStore?.migrateDraftConversation(
-                    providerID = provider.id,
-                    modelID = identity.canonicalModelId,
-                    draftSessionID = generationParameterDraftSessionId(),
-                    conversationID = conv.id,
-                    transportIdentity = identity.storageIdentity,
-                )
-                localCustomFragmentStore?.migrateConversation(
-                    providerID = provider.id,
-                    modelID = identity.canonicalModelId,
-                    fromConversationID = generationParameterDraftSessionId(),
-                    toConversationID = conv.id,
-                    transportIdentity = identity.storageIdentity,
-                )
-            }
-        }
+        } ?: createFirstConversationRow(provider, selectedModel)
+        if (isNewConversation) adoptFirstConversationDrafts(conv, provider, selectedModel)
 
         onConversationActivated(conv.id)
         appPreferencesRepository.setLastUsedModel(providerId, selectedModel, provider.kind)
-        if (conv.providerID != providerId || conv.modelID != storedModelId) {
+        // An existing conversation's connection / model is written only by the user's own switch (ChatModelSelectionCoordinator.selectModel); a send only fills an empty modelID.
+        if (conv.modelID.isBlank() && (conv.providerID != providerId || conv.modelID != storedModelId)) {
             conversationRepository.updateProviderAndModel(
                 id = conv.id,
                 providerId = providerId,
@@ -451,15 +602,14 @@ internal class ChatSendCommandCoordinator(
                 relayKind = provider.relayKind,
             )
         }
-        if (RelayModelFallback.removedConnectionName(provider, modelId) != null) return
-
         val requestConversation = conv.copy(
             providerID = providerId,
             providerKind = provider.kind,
             modelID = storedModelId,
         )
 
-        onComposerConsumed(conv.id)
+        // A voice turn never came from the composer: whatever the user typed meanwhile stays put.
+        if (delivery == null) onComposerConsumed(conv.id)
         requestPin()
 
         val fullHistory = fetchFullConversationHistory(conv.id)
@@ -491,10 +641,13 @@ internal class ChatSendCommandCoordinator(
                 attemptKind = kind,
                 onUserMessageCreated = { messageId, messageText ->
                     proposeTurn?.bind(messageId, messageText)
-                    suggestions?.onUserMessageCreated(conv.id, messageId, messageText)
+                    suggestions?.onUserMessageCreated(
+                        conv.id, messageId, messageText, lexical = proposeMode != MemoryProposeMode.TOOL,
+                    )
                     generateMemoryCandidate(memoryAccount, conv, messageId, messageText, proposeMode)
                 },
                 memoryPropose = proposeTurn,
+                delivery = delivery,
             )
             onQuoteConsumed(quoteContext)
             return
@@ -511,6 +664,7 @@ internal class ChatSendCommandCoordinator(
             appendToAssistant = null,
             userMessageAlreadyInHistory = false,
             attemptKind = kind,
+            delivery = delivery,
         )
         // The quote is only consumed once the request has actually been handed off. Any earlier
         // setup failure leaves it pending so the user does not lose the selection.
@@ -535,6 +689,24 @@ internal fun interface ChatUserSendLauncher {
         onUserMessageCreated: (messageId: String, text: String) -> Unit,
         /** Non-null when this fresh send runs in tool mode (the request carries propose_memory). */
         memoryPropose: MemoryProposeSendHook?,
+    )
+
+    /** Voice-conversation send; fakes that ignore delivery keep the plain overload. */
+    fun launch(
+        conversation: Conversation,
+        provider: Provider,
+        modelId: String,
+        text: String,
+        existingMessages: List<ChatMessage>,
+        attachments: List<Attachment>?,
+        quoteContext: QuoteContext?,
+        attemptKind: ai.oriveo.community.feature.chat.ContextConfirmAttempt,
+        onUserMessageCreated: (messageId: String, text: String) -> Unit,
+        memoryPropose: MemoryProposeSendHook?,
+        delivery: ai.oriveo.community.core.context.ContextDelivery?,
+    ) = launch(
+        conversation, provider, modelId, text, existingMessages, attachments, quoteContext, attemptKind,
+        onUserMessageCreated, memoryPropose,
     )
 }
 

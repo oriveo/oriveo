@@ -106,7 +106,6 @@ class ChatAttachmentCoordinatorTruncationNoticeTest {
         val coordinator = ChatAttachmentCoordinator(
             attachmentProcessor = processor,
             globalSnackbarManager = snackbars,
-            activeProviderKind = { null },
             activeModel = { null },
             pendingAttachments = { pending },
             addAttachment = { attachment, _ -> pending += attachment },
@@ -132,7 +131,6 @@ class ChatAttachmentCoordinatorTruncationNoticeTest {
         val coordinator = ChatAttachmentCoordinator(
             attachmentProcessor = processor,
             globalSnackbarManager = snackbars,
-            activeProviderKind = { null },
             activeModel = { null },
             pendingAttachments = { pending },
             addAttachment = { attachment, _ -> if (composerAccepts) pending += attachment },

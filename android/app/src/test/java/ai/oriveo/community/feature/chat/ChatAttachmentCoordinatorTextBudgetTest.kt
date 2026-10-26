@@ -114,7 +114,6 @@ class ChatAttachmentCoordinatorTextBudgetTest {
                 attachmentStore = mockk<AttachmentStore>(relaxed = true),
             ),
             globalSnackbarManager = snackbars,
-            activeProviderKind = { provider?.kind },
             activeModel = { model },
             pendingAttachments = { pending },
             addAttachment = { attachment, _ -> pending += attachment },

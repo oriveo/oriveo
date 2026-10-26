@@ -1,5 +1,9 @@
 package ai.oriveo.community.feature.home.homescreen
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -26,7 +30,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CropSquare
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.runtime.Composable
+import ai.oriveo.community.feature.chat.voice.voiceEntryAnchor
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -62,11 +68,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.oriveo.community.R
 import ai.oriveo.community.core.model.ConnectionAvatar
+import ai.oriveo.community.feature.chat.composer.DictationHostCoordinator
+import ai.oriveo.community.feature.chat.composer.DictationInputSwitcher
 import ai.oriveo.community.feature.home.AuroraGreeting
 import ai.oriveo.community.feature.home.AuroraTheme
 import ai.oriveo.community.feature.home.HomeViewModel
 import ai.oriveo.community.feature.home.auroraGlassCard
 import ai.oriveo.community.feature.home.homeHeroPillModelName
+import ai.oriveo.community.ui.component.ComposerSelectionProbe
 import ai.oriveo.community.ui.component.isReduceMotionEnabled
 import ai.oriveo.community.ui.component.rememberComposerLengthLimitedField
 import kotlinx.coroutines.delay
@@ -79,14 +88,12 @@ internal val HOME_HERO_SEND_SIZE = 44.dp
 /**
  * Aurora composer card (matches iOS auroraComposerCard).
  *
- * - Purely flat while idle (face + 1dp stroke + two glows); the aurora ring lights up only on focus (see
- *   [auroraGlassCard]). No divider in the middle.
- * - Input: 18sp Medium, up to 5 lines; unfocused and empty shows a decorative placeholder with a blinking cursor;
- *   minimum height 48.
- * - Controls row: the model pill on the left (tonal, no stroke; logo + model name + provider name), a 44dp solid
- *   purple send button on the right; no attachment button.
- * - The design is a 1dp stroke plus padding 18/18/14 (border-box), so content sits 1dp further from the outer
- *   edge: 19 / 19 / 15.
+ * - Purely flat while idle (face + 1dp stroke + two glows); the aurora ring lights up only on focus (see [auroraGlassCard]). No divider in the middle.
+ * - Input: 18sp Medium, up to 5 lines; unfocused and empty shows a decorative placeholder with a blinking cursor; minimum height 48.
+ * - Controls row: the model pill on the left (tonal, no stroke; logo + model name + provider name), a 44dp solid purple send button on the right; with an empty draft the waveform secondary button sits right next to it on the left (same as iOS); no attachment button, no microphone.
+ * - The design is a 1dp stroke plus padding 18/18/14 (border-box), so content sits 1dp further from the outer edge: 19 / 19 / 15.
+ * - Dictation: while recording / transcribing, [DictationInputSwitcher] swaps the input area together with the controls row for a recording bar (with its own up arrow);
+ *   this component does not collect controller state.
  */
 @Composable
 internal fun NewChatBar(
@@ -100,7 +107,29 @@ internal fun NewChatBar(
     onSend: () -> Unit,
     onModelSelect: () -> Unit,
     onAddProvider: () -> Unit,
+    /**
+     * Dictation handle from rememberDictationHost. The home hero has no mic any more, but the handle stays:
+     * the draft:home slot is shared with the chat composer before a conversation exists and its saved recordings
+     * live for 7 days, so the recording bar / prompt card must still surface them here. null keeps the normal input.
+     */
+    dictation: DictationHostCoordinator? = null,
+    /** Selection probe of the hero field, so dictated text lands at the caret. */
+    selectionProbe: ComposerSelectionProbe? = null,
+    /** Availability of the recording bar's send action; null falls back to the send button's own gate. */
+    canSendDictation: (() -> Boolean)? = null,
+    /** Waveform key on an empty hero draft: voice conversation with the pill's model; null keeps the up arrow on an empty draft. */
+    onStartVoiceConversation: (() -> Unit)? = null,
+    /** Running voice conversation of the home page: its bar replaces the input and the pill row. */
+    voice: ai.oriveo.community.feature.chat.voice.VoiceConversationHandle? = null,
 ) {
+    // Same as iOS: the waveform key is offered even when no model is usable yet (voiceEntryAllowed gates it on entry); models that can only generate images do not get it
+    val actions = ai.oriveo.community.feature.chat.composer.ComposerVoiceEntry.home(
+        isSending = isSendingFromHero,
+        hasContent = heroText.isNotBlank(),
+        voiceAvailable = activeModel == null ||
+            ai.oriveo.community.feature.chat.composer.ComposerVoiceEntry.voiceAvailable(activeModel.model, activeModel.provider.kind),
+    )
+    val showsVoice = onStartVoiceConversation != null && actions.showsVoice
     val focusRequester = remember { FocusRequester() }
     var isFocused by remember { mutableStateOf(false) }
 
@@ -112,33 +141,69 @@ internal fun NewChatBar(
             .padding(start = 19.dp, end = 19.dp, top = 19.dp, bottom = 15.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        HeroComposerInput(
-            text = heroText,
-            onTextChange = onHeroTextChange,
-            isFocused = isFocused,
-            onFocusChange = { isFocused = it },
-            focusRequester = focusRequester,
-            isSearchActive = isSearchActive,
-        )
+        val heroInput: @Composable () -> Unit = {
+            // While recording, the input area and the model pill / send key row are replaced together by the recording bar.
+            // With a handle, DictationInputSwitcher wraps normal in a Crossfade (Box): both blocks must bring their own Column, otherwise they stack and the bottom bar covers the input
+            DictationInputSwitcher(
+                handle = dictation,
+                canSend = canSendDictation ?: { !isSendingFromHero },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    HeroComposerInput(
+                        text = heroText,
+                        onTextChange = onHeroTextChange,
+                        isFocused = isFocused,
+                        onFocusChange = { isFocused = it },
+                        focusRequester = focusRequester,
+                        isSearchActive = isSearchActive,
+                        selectionProbe = selectionProbe,
+                    )
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            // The pill shrinks to content, 230 at most; fill=false lets it take only the width it needs so the send button always hugs the right
-            Box(modifier = Modifier.weight(1f, fill = false).padding(end = 10.dp)) {
-                ModelSelectorPill(
-                    activeModel = activeModel,
-                    hasProvider = hasProvider,
-                    onModelSelect = onModelSelect,
-                    onAddProvider = onAddProvider,
-                )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        // The pill shrinks to content, 230 at most; fill=false lets it take only the width it needs so the send button always hugs the right
+                        Box(modifier = Modifier.weight(1f, fill = false).padding(end = 10.dp)) {
+                            ModelSelectorPill(
+                                activeModel = activeModel,
+                                hasProvider = hasProvider,
+                                onModelSelect = onModelSelect,
+                                onAddProvider = onAddProvider,
+                            )
+                        }
+                        // The waveform secondary button sits right next to the up arrow on its left (same as iOS home); home no longer has a dictation microphone
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            // Show / hide fades in and out over 180ms, same as iOS opacity 0.18s
+                            AnimatedVisibility(
+                                visible = showsVoice && onStartVoiceConversation != null,
+                                enter = fadeIn(tween(HERO_VOICE_FADE_MS)),
+                                exit = fadeOut(tween(HERO_VOICE_FADE_MS)),
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    HeroVoiceButton(onClick = { onStartVoiceConversation?.invoke() })
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                }
+                            }
+                            // The up arrow always goes through onSend: with no provider, sendFromHero reports it so the page can start adding one (same as iOS)
+                            AuroraSendButton(
+                                enabled = actions.sendEnabled,
+                                onClick = onSend,
+                            )
+                        }
+                    }
+                }
             }
-            AuroraSendButton(
-                enabled = !isSendingFromHero,
-                onClick = { if (hasProvider) onSend() else onAddProvider() },
-            )
+        }
+        if (voice == null) {
+            heroInput()
+        } else {
+            // Voice conversation: the bar replaces the input and the pill row together.
+            ai.oriveo.community.feature.chat.voice.VoiceConversationSwitcher(handle = voice, modifier = Modifier.fillMaxWidth()) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { heroInput() }
+            }
         }
     }
 }
@@ -258,6 +323,7 @@ private fun HeroComposerInput(
     onFocusChange: (Boolean) -> Unit,
     focusRequester: FocusRequester,
     isSearchActive: Boolean,
+    selectionProbe: ComposerSelectionProbe? = null,
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -291,13 +357,14 @@ private fun HeroComposerInput(
             ),
         contentAlignment = Alignment.CenterStart,
     ) {
-        // Same length limit as the chat composer (rules in ComposerLengthLimiter).
-        val field = rememberComposerLengthLimitedField(text = text, onTextChange = onTextChange)
+        // Same length limit as the chat composer (rules in ComposerLengthLimiter)
+        val field = rememberComposerLengthLimitedField(text = text, onTextChange = onTextChange, selectionProbe = selectionProbe)
         BasicTextField(
             value = field.value,
             onValueChange = field.onValueChange,
             modifier = Modifier
                 .fillMaxWidth()
+                .testTag("home_composer_input")
                 .focusRequester(focusRequester)
                 .onFocusChanged { onFocusChange(it.isFocused) }
                 // The placeholder is drawn by the decoration layer below, so the field itself needs an explicit name for TalkBack
@@ -365,7 +432,40 @@ private fun BlinkingCursor(color: Color, reduceMotion: Boolean) {
     )
 }
 
-/** Send button: a 44dp solid purple circle with a white up arrow; no gradient, shadow or sheen. */
+private const val HERO_VOICE_FADE_MS = 180
+
+/** Waveform secondary button style (matches iOS home): GraphicEq 21dp, accent tint, no fill or stroke, 44dp touch area. */
+private object HeroVoiceButtonStyle {
+    val glyph: ImageVector get() = Icons.Rounded.GraphicEq
+    val glyphSize = 21.dp
+    val touchSize = 44.dp
+
+    @Composable
+    fun tint(): Color = AuroraTheme.accent()
+}
+
+/** Waveform secondary button: sits left of the up arrow on an empty home draft and starts a voice conversation; the voice transition starts and ends here. */
+@Composable
+private fun HeroVoiceButton(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .voiceEntryAnchor()
+            .size(HeroVoiceButtonStyle.touchSize)
+            .clip(CircleShape)
+            .testTag("home_voice_conversation_button")
+            .clickable(role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = HeroVoiceButtonStyle.glyph,
+            contentDescription = stringResource(R.string.voice_conversation_start_a11y),
+            modifier = Modifier.size(HeroVoiceButtonStyle.glyphSize),
+            tint = HeroVoiceButtonStyle.tint(),
+        )
+    }
+}
+
+/** Send button: a 44dp solid purple circle with a white up arrow; no gradient, shadow or sheen; always an up arrow on home. */
 @Composable
 private fun AuroraSendButton(
     enabled: Boolean = true,
@@ -376,6 +476,7 @@ private fun AuroraSendButton(
             .size(HOME_HERO_SEND_SIZE)
             .clip(CircleShape)
             .background(AuroraTheme.Colors.sendFill)
+            .testTag("home_send_button")
             .clickable(
                 enabled = enabled,
                 role = Role.Button,

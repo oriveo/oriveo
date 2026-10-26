@@ -15,6 +15,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
@@ -168,6 +169,13 @@ internal fun StreamActivityLine(
     val colors = OriveoTheme.colors
     val context = LocalContext.current
     val reduceMotion = remember(context) { isReduceMotionEnabled(context) }
+    val voiceConversationFlow = remember {
+        org.koin.mp.KoinPlatform.getKoinOrNull()
+            ?.getOrNull<ai.oriveo.community.core.voice.conversation.VoiceConversationController>()
+            ?.active
+            ?: kotlinx.coroutines.flow.MutableStateFlow(false)
+    }
+    val voiceConversationActive by voiceConversationFlow.collectAsStateWithLifecycle()
     val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
 
     // Fades in on appearing. To disappear the caller simply drops it from the composition: it
@@ -199,7 +207,8 @@ internal fun StreamActivityLine(
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier = modifier
-            .semantics { liveRegion = LiveRegionMode.Polite }
+            // During a voice conversation only the voice bar's status word is announced.
+            .semantics { if (!voiceConversationActive) liveRegion = LiveRegionMode.Polite }
             .graphicsLayer {
                 alpha = appear.value
                 // SrcAtop can only blend onto this layer's own pixels, so it has to composite offscreen.

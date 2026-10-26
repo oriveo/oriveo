@@ -16,24 +16,19 @@ import ai.oriveo.community.core.data.repository.UpdateSkillRequest
 import ai.oriveo.community.core.data.repository.ConversationRepository
 import ai.oriveo.community.core.data.repository.ProviderRepository
 import ai.oriveo.community.core.data.repository.SkillRepository
-import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.CapabilityPreferenceStore
 import ai.oriveo.community.core.model.CapabilityPreferenceValues
 import ai.oriveo.community.core.model.CapabilityWebPreference
-import ai.oriveo.community.core.model.ModelCapability
 import ai.oriveo.community.core.model.Provider
-import ai.oriveo.community.core.model.ProviderConnectionState
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.Skill
 import ai.oriveo.community.core.model.SkillCategory
 import ai.oriveo.community.core.model.SkillKnowledgeFile
-import ai.oriveo.community.core.model.resolveActiveModel
+import ai.oriveo.community.core.model.resolveSkillModel
 
 import ai.oriveo.community.core.provider.ModelSelectionUtils
 import ai.oriveo.community.core.provider.ProviderCredentialResolver
-import ai.oriveo.community.core.provider.RelayModelFallback
 import ai.oriveo.community.core.provider.ModelControlRuntimeIdentityResolver
-import ai.oriveo.community.core.provider.CapabilityEvidenceProductionAdapter
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -362,68 +357,8 @@ class SkillViewModel(
     /** Exposed only so the edit surface re-evaluates an exact confirmation target after catalog refresh. */
     val capabilityConfirmationProviders: StateFlow<List<Provider>> = providers
 
-    private data class ActiveModel(
-        val provider: Provider,
-        val model: AIModel,
-    )
-
-    private fun matchesCapabilityHint(provider: Provider, model: AIModel, hint: String): Boolean = when (hint) {
-        "reasoning" -> CapabilityEvidenceProductionAdapter.supportedReasoningModes(provider, model).isNotEmpty()
-        "vision" -> ModelCapability.Image in
-            CapabilityEvidenceProductionAdapter.governedMetadataCapabilities(provider, model)
-        "fast" -> model.priceTier == "$" ||
-            model.name.contains("mini", ignoreCase = true) ||
-            model.name.contains("haiku", ignoreCase = true) ||
-            model.name.contains("flash", ignoreCase = true)
-        "large-context" -> (model.contextLength ?: 0) >= 128_000
-        else -> false
-    }
-
-    private fun resolveModelForSkill(skill: Skill): ActiveModel? {
-        val providerList = providers.value
-            .filter { it.status !is ProviderConnectionState.Issue && it.models.isNotEmpty() }
-
-        if (providerList.isEmpty()) return null
-
-        if (skill.suggestedModelId != null && skill.suggestedProviderId != null) {
-            val suggestedProvider = providerList.firstOrNull {
-                it.id == skill.suggestedProviderId || it.kind.rawValue == skill.suggestedProviderId
-            }
-            val suggestedModel = suggestedProvider?.models?.let { models ->
-                ModelSelectionUtils.matchingModel(models, skill.suggestedModelId, suggestedProvider.kind)
-            }
-            if (suggestedProvider != null && suggestedModel != null) {
-                return ActiveModel(suggestedProvider, suggestedModel)
-            }
-        }
-
-        if (skill.modelCapabilityHint != "any") {
-            val activeProviderId = resolveActiveModel(providers.value, lastUsedModelRef.value)?.provider?.id
-            val sortedProviders = providerList.sortedByDescending { it.id == activeProviderId }
-            for (provider in sortedProviders) {
-                val model = provider.models.firstOrNull {
-                    matchesCapabilityHint(provider, it, skill.modelCapabilityHint)
-                }
-                if (model != null) {
-                    return ActiveModel(provider, model)
-                }
-            }
-        }
-
-        val active = resolveActiveModel(providerList, lastUsedModelRef.value)
-        if (active != null && providerList.any { it.id == active.provider.id }) {
-            return ActiveModel(active.provider, active.model)
-        }
-
-        val fallbackProvider = providerList.firstOrNull() ?: return null
-        // A relay falls back only to its enabled models, never to a catalog model that is not enabled.
-        val fallbackModel = if (RelayModelFallback.appliesTo(fallbackProvider)) {
-            RelayModelFallback.fallbackModel(fallbackProvider, lastUsedModelRef.value)
-        } else {
-            fallbackProvider.defaultModel ?: fallbackProvider.models.firstOrNull()
-        } ?: return null
-        return ActiveModel(fallbackProvider, fallbackModel)
-    }
+    private fun resolveModelForSkill(skill: Skill) =
+        resolveSkillModel(skill, providers.value, lastUsedModelRef.value)
 
     fun startConversationWithSkill(
         skill: Skill,
@@ -442,7 +377,7 @@ class SkillViewModel(
         }
 
         viewModelScope.launch {
-            appPreferencesRepository.setLastUsedModel(active.provider.id, active.model, active.provider.kind)
+            // Starting from a skill does not rewrite the last-used model; only sending with a model or picking one does.
             val conversation = conversationRepository.createDraft(
                 providerID = active.provider.id,
                 providerKind = active.provider.kind,

@@ -1,5 +1,8 @@
 package ai.oriveo.community.feature.chat
 
+import ai.oriveo.community.core.capability.truth.InputCapabilityProjections
+import ai.oriveo.community.core.capability.truth.ProviderForm
+import ai.oriveo.community.core.capability.truth.resolveInputCapabilityProjections
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.data.remote.canonicalCapabilityTransport
 import ai.oriveo.community.core.model.AIModel
@@ -8,10 +11,13 @@ import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ReasoningMode
 import ai.oriveo.community.core.provider.CapabilityControlResolution
+import ai.oriveo.community.core.provider.CapabilityEvidenceFacade
 import ai.oriveo.community.core.provider.CapabilityEvidenceProductionAdapter
+import ai.oriveo.community.core.provider.AttachmentInputGate
 import ai.oriveo.community.core.provider.MessageBuilder
 import ai.oriveo.community.core.provider.RelayRuntimeSupport
 import ai.oriveo.community.core.provider.relay.RelayNegativeCache
+import ai.oriveo.community.feature.chat.composer.ComposerAttachmentEntryModel
 
 /**
  * Given a set of models and a capability, picks out the ones for which that capability is
@@ -45,7 +51,7 @@ object CapabilityControlActionCandidates {
     }
 }
 
-class ChatModelCapabilityResolver(
+class ChatModelCapabilityResolver internal constructor(
     private val metadata: MetadataClient = MetadataClient.instance,
     private val runtimeConfigProvider: () -> MetadataClient.RelayRuntimeConfig = metadata::relayRuntimeConfig,
     private val negativeCache: RelayNegativeCache = RelayNegativeCache.shared,
@@ -80,54 +86,52 @@ class ChatModelCapabilityResolver(
         provider: Provider?,
         model: AIModel?,
         localIdentity: ai.oriveo.community.core.model.CapabilityEvidenceIdentity? = null,
-    ): Boolean {
-        // The relay image verdict needs the connection identity; without one the facade always fails
-        // closed (the entry stays hidden).
-        val identity = if (provider != null && model != null && localIdentity != null) {
-            CapabilityEvidenceProductionAdapter.uiDispatchIdentity(provider, model, localIdentity)
-        } else {
-            null
-        }
-        if (provider != null && model != null && provider.kind == ProviderKind.Relay) {
-            // auto / no configuration does not count as an incomplete identity (agreed across all three
-            // platforms): the image entry takes its identity and negative-cache key from the effective
-            // protocol (auto -> Chat).
-            val relayIdentity = identity ?: localIdentity?.let {
-                CapabilityEvidenceProductionAdapter.uiDispatchIdentity(
-                    provider,
-                    model.copy(relayTransport = ai.oriveo.community.core.provider.RelayEndpointResolver.effectiveTransport(provider, model)),
-                    it,
-                )
-            }
-            return relaySupportsImage(provider, model, relayIdentity)
-        }
-        if (!hasGovernedMetadataCapability(provider, model, ModelCapability.Image, identity)) return false
-        relayRuntimeAttachmentSupport(provider, model)?.let { return it.image }
-        // Evidence projection is the authority for the governed Image verdict. MessageBuilder
-        // still contributes only the provider attachment envelope, so pass the already-decided
-        // sentinel rather than consulting persisted model.capabilities a second time.
-        return MessageBuilder.supportsImageAttachments(
-            providerKind = provider?.kind,
-            capabilities = listOf(ModelCapability.Image),
-        )
-    }
+    ): Boolean = attachmentInputGate(provider, model, localIdentity).image
 
-    fun supportsFile(provider: Provider?, model: AIModel?): Boolean {
-        relayRuntimeAttachmentSupport(provider, model)?.let { return it.nativeFile || it.textFileInline }
-        return MessageBuilder.supportsFileAttachments(
-            providerKind = provider?.kind,
-            capabilities = activeModelCapabilities(model),
-        )
-    }
+    /**
+     * The single set of facts behind the attachment entries and the import decision: image / native file / video read the
+     * editable flag of [resolveInputCapabilityProjections] (unknown can still be attached); inline text files are not gated
+     * by file_input, see [textFileInline]. When a Relay connection identity is unavailable the three keys fail closed
+     * (the negative-cache and override keys are incomplete), so both the entries and the import must pass [localIdentity].
+     */
+    fun attachmentInputGate(
+        provider: Provider?,
+        model: AIModel?,
+        localIdentity: ai.oriveo.community.core.model.CapabilityEvidenceIdentity? = null,
+    ): AttachmentInputGate = attachmentInputFacts(provider, model, localIdentity).first
 
-    fun supportsVideo(provider: Provider?, model: AIModel?): Boolean {
-        val caps = activeModelCapabilities(model)
-        if (!caps.contains(ModelCapability.Video)) return false
-        relayRuntimeAttachmentSupport(provider, model)?.let { return it.video }
-        return MessageBuilder.supportsVideoAttachments(
-            providerKind = provider?.kind,
-            capabilities = caps,
-        )
+    /** The attachment menu model: the same projection as [attachmentInputGate], with a reason on every disabled item. */
+    internal fun attachmentEntryModel(
+        provider: Provider?,
+        model: AIModel?,
+        localIdentity: ai.oriveo.community.core.model.CapabilityEvidenceIdentity? = null,
+    ): ComposerAttachmentEntryModel = attachmentInputFacts(provider, model, localIdentity)
+        .let { (gate, projections) -> ComposerAttachmentEntryModel.from(projections, gate) }
+
+    private fun attachmentInputFacts(
+        provider: Provider?,
+        model: AIModel?,
+        localIdentity: ai.oriveo.community.core.model.CapabilityEvidenceIdentity?,
+    ): Pair<AttachmentInputGate, InputCapabilityProjections?> {
+        if (provider == null || model == null) return AttachmentInputGate.NONE to null
+        val relay = ProviderForm.of(provider) == ProviderForm.Relay
+        val envelope = relayRuntimeAttachmentSupport(provider, model)
+        val relayIdentity = if (relay) relayIdentity(provider, model, localIdentity) else null
+        val projections = resolveInputCapabilityProjections(
+            provider = provider,
+            model = model,
+            relayIdentity = relayIdentity,
+            relayAttachmentSupport = envelope,
+            metadataClient = metadata,
+            relayNegativeCache = negativeCache,
+        ) ?: return AttachmentInputGate.NONE to null
+        val textFileInline = textFileInline(provider, relay, envelope)
+        return AttachmentInputGate(
+            image = projections.vision.editable,
+            nativeFile = projections.file.editable,
+            textFileInline = textFileInline,
+            video = projections.video.editable,
+        ) to projections
     }
 
     fun supportsWeb(provider: Provider?, model: AIModel?): Boolean {
@@ -260,37 +264,42 @@ class ChatModelCapabilityResolver(
         }
 
     /**
-     * Relay photo-library entry: an unknown image verdict is still shown, and a hint card appears once
-     * the upstream really rejects it. It is hidden only on negative evidence: an override of false, an
-     * engine declaring false, a protocol envelope that does not take images, or an unexpired image
-     * negative-cache entry for this key (an override of true beats the negative cache). Without a
-     * connection identity the negative-cache key is incomplete, so it still fails closed.
+     * auto / no configuration does not count as an incomplete identity (agreed across all three platforms): the connection
+     * identity is taken from the first-send protocol (read the same way as the chat's first send).
      */
-    private fun relaySupportsImage(
+    private fun relayIdentity(
         provider: Provider,
         model: AIModel,
-        identity: ai.oriveo.community.core.provider.CapabilityEvidenceFacade.QueryIdentity?,
-    ): Boolean {
-        if (identity == null) return false
-        val cacheKey = RelayNegativeCache.keyFor(provider, model) ?: return false
-        if (relayRuntimeAttachmentSupport(provider, model)?.image != true) return false
-        val support = CapabilityEvidenceProductionAdapter.capabilityProjection(
-            provider = provider,
-            model = model,
-            identity = identity,
-            keys = setOf("vision_input"),
-            metadataClient = metadata,
-        ).decision("vision_input")?.resolution?.support
-        if (support == "unsupported") return false
-        if (model.relayCapabilityOverrides?.image == true) return true
-        return !negativeCache.isRejected(cacheKey, RelayNegativeCache.Kind.Image)
+        localIdentity: ai.oriveo.community.core.model.CapabilityEvidenceIdentity?,
+    ): CapabilityEvidenceFacade.QueryIdentity? {
+        localIdentity ?: return null
+        return CapabilityEvidenceProductionAdapter.uiDispatchIdentity(provider, model, localIdentity)
+            ?: CapabilityEvidenceProductionAdapter.uiDispatchIdentity(
+                provider,
+                model.copy(relayTransport = ai.oriveo.community.core.provider.relay.RelayFirstSendTransport.resolve(provider, model)),
+                localIdentity,
+            )
+    }
+
+    /**
+     * Inline text is the client injecting text into the prompt, which every form can take: a Relay reads its envelope and,
+     * with no envelope (Auto protocol), counts as attachable; subscription and official connections read the provider
+     * envelope's text bit, and file_input only governs native files.
+     */
+    private fun textFileInline(
+        provider: Provider,
+        relay: Boolean,
+        envelope: ai.oriveo.community.core.model.AttachmentSupportInfo?,
+    ): Boolean = when {
+        relay -> envelope?.textFileInline ?: true
+        else -> MessageBuilder.providerAttachmentEnvelope(provider.kind).textFileInline
     }
 
     private fun relayRuntimeAttachmentSupport(provider: Provider?, model: AIModel?) =
         provider
             ?.takeIf { it.kind == ProviderKind.Relay }
             ?.let {
-                RelayRuntimeSupport.attachmentSupport(
+                RelayRuntimeSupport.attachmentSupport( // capability-lint-allow R1: the Relay envelope is only passed as a parameter to resolveInputCapabilityProjections
                     provider = it,
                     runtimeConfig = runtimeConfigProvider(),
                     model = model,

@@ -137,6 +137,24 @@ import ai.oriveo.community.feature.home.homescreen.homeSectionHeaderInsets
 import ai.oriveo.community.feature.home.homescreen.homeGroupedCardSurface
 import org.koin.compose.koinInject
 import ai.oriveo.community.ui.util.findActivity
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import ai.oriveo.community.core.app.GlobalSnackbarMessage
+import ai.oriveo.community.core.app.GlobalToastStyle
+import ai.oriveo.community.core.app.UiText
+import ai.oriveo.community.core.util.COMPOSER_MAX_INPUT_LENGTH
+import ai.oriveo.community.core.util.ExternalActivityLaunchOutcome
+import ai.oriveo.community.core.util.launchExternalActivitySafely
+import ai.oriveo.community.core.util.normalizeUuid
+import ai.oriveo.community.core.voice.RecordingStore
+import ai.oriveo.community.feature.chat.composer.DictationHostActions
+import ai.oriveo.community.feature.chat.composer.DictationPromptSlot
+import ai.oriveo.community.feature.chat.composer.DictationToastSpec
+import ai.oriveo.community.feature.chat.composer.snackbarAction
+import ai.oriveo.community.feature.chat.composer.rememberDictationHost
+import ai.oriveo.community.ui.component.ComposerSelectionProbe
+import ai.oriveo.community.ui.component.rememberGlobalSnackbarManager
 import java.net.URI
 
 internal const val HOME_EARLIER_PAGE_SIZE = 10
@@ -215,8 +233,11 @@ fun HomeScreen(
     onNavigateToChat: (conversationId: String?, searchQuery: String?) -> Unit = { _, _ -> },
 
     onNavigateToChatAndAutoSend: (conversationId: String) -> Unit = {},
+    /** Returns to home after the home realtime conversation deletes an empty conversation that was never persisted (the argument is its id), only if the current page is still that conversation. */
+    onReturnHome: (conversationId: String) -> Unit = {},
     onNavigateToOnboarding: () -> Unit = {},
     onNavigateToProviderSetup: () -> Unit = {},
+    onNavigateToVoiceSettings: () -> Unit = {},
     onNavigateToProviderDetail: (providerID: String) -> Unit = {},
     onNavigateToFolderDetail: (folderID: String) -> Unit = {},
     onNavigateToSkills: () -> Unit = {},
@@ -244,7 +265,8 @@ fun HomeScreen(
     val modelDisplayLookup by viewModel.modelDisplayLookup.collectAsStateWithLifecycle()
     // Normalized keys: a conversation's skillId may use another UUID case than the catalog id
     val skillsById = remember(homeSkills) { homeSkills.associateBy { normalizeUuid(it.id) } }
-
+    // Reuse the by-id map instead of a linear `folders.firstOrNull { it.id == folderId }` lookup inside each row:
+    // with many pinned / search section rows and many folders, every recomposition would be O(pinned x folders).
     val foldersById = remember(folders) { folders.associateBy { it.id } }
     // The search text is not subscribed to in the root scope: it changes on every keystroke and would
     // invalidate the whole home screen (every LazyColumn item lambda with it). The root only needs
@@ -323,6 +345,101 @@ fun HomeScreen(
         }
     }
 
+    // Home input card send: the send key and dictation "Transcribe and send" go through the same call
+    val sendFromHero: () -> Unit = {
+        viewModel.sendFromHero(
+            onConversationCreated = { id -> onNavigateToChat(id, null) },
+            onConversationCreatedAutoSend = { id ->
+                onNavigateToChatAndAutoSend(id)
+            },
+            onMissingProvider = onNavigateToProviderSetup,
+        )
+    }
+    // The dictation host (slot draft:home) lives in the root scope rather than inside a LazyColumn item: the item is recycled when the hero scrolls off screen,
+    // and a host inside the item would detach the slot while recording. Only the handle is built here; controller state is not collected (it is subscribed only inside the DictationSlots components).
+    val homeSnackbar = rememberGlobalSnackbarManager()
+    val heroSelectionProbe = remember(homeSnackbar) {
+        ComposerSelectionProbe(
+            onLimitExceeded = {
+                homeSnackbar?.show(
+                    GlobalSnackbarMessage(
+                        message = UiText.Resource(
+                            R.string.chat_input_length_limit_reached,
+                            listOf(COMPOSER_MAX_INPUT_LENGTH),
+                        ),
+                    ),
+                )
+            },
+        )
+    }
+    val homeDictationActions = object : DictationHostActions {
+        override fun insert(text: String) {
+            viewModel.heroText = heroSelectionProbe.insert(text, viewModel.heroText)
+        }
+
+        override fun canSend(): Boolean = !viewModel.isSendingFromHero
+
+        override fun send() = sendFromHero()
+
+        override fun showToast(spec: DictationToastSpec, onUndo: (() -> Unit)?) {
+            homeSnackbar?.show(
+                GlobalSnackbarMessage(
+                    message = UiText.Resource(spec.message),
+                    style = spec.style,
+                    action = spec.snackbarAction(onUndo),
+                    durationMs = spec.durationMillis,
+                ),
+            )
+        }
+
+        override fun openAppSettings() {
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                .setData(Uri.fromParts("package", context.packageName, null))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            val outcome = launchExternalActivitySafely { context.startActivity(intent) }
+            if (outcome != ExternalActivityLaunchOutcome.LAUNCHED) {
+                homeSnackbar?.show(
+                    GlobalSnackbarMessage(
+                        UiText.Resource(R.string.external_app_unavailable),
+                        style = GlobalToastStyle.Error,
+                    ),
+                )
+            }
+        }
+
+        override fun openProviderDetail(providerId: String) = onNavigateToProviderDetail(providerId)
+
+        override fun openProviderSetup() = onNavigateToProviderSetup()
+
+        override fun openVoiceSettings() = onNavigateToVoiceSettings()
+    }
+    val homeDictation = rememberDictationHost(
+        slotKey = RecordingStore.HOME_DRAFT_KEY,
+        actions = homeDictationActions,
+    )
+    // Voice conversation on the hero card: hosted at the root (like dictation) so a scrolled-away hero item
+    // does not end it; the first transcript creates the conversation and hands over to its chat page.
+    val homeVoice = ai.oriveo.community.feature.chat.voice.rememberVoiceConversationHost(
+        page = ai.oriveo.community.feature.chat.voice.VoiceConversationPage.Home,
+        requests = viewModel.voiceConversationRequests,
+        target = ai.oriveo.community.feature.chat.voice.VoiceConversationTarget.Home(
+            createConversation = viewModel::createVoiceConversation,
+            navigate = { id -> onNavigateToChat(id, null) },
+            newConversation = viewModel::plannedVoiceConversation,
+            returnHome = onReturnHome,
+        ),
+        gate = { viewModel.voiceEntryAllowed(onMissingProvider = onNavigateToProviderSetup) },
+        onDraftTranscript = homeDictationActions::insert,
+    )
+    // The home waveform key passes the provider disclosure like the chat page; accepting re-enters the conversation.
+    viewModel.voiceDisclosureGate?.prompt?.let { prompt ->
+        ai.oriveo.community.feature.chat.components.ProviderDisclosureSheet(
+            prompt = prompt,
+            onAccept = viewModel::confirmVoiceDisclosure,
+            onCancel = viewModel::cancelVoiceDisclosure,
+        )
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -388,7 +505,14 @@ fun HomeScreen(
                 } else {
                     // Block spacing per the design: greeting → hero 22, hero → Notes 14
                     item(key = "new_chat_bar") {
-                        Box(modifier = Modifier.padding(top = 22.dp)) {
+                        Column(modifier = Modifier.padding(top = 22.dp)) {
+                            // The dictation status card sits above the input card; it takes no space when there is no card
+                            DictationPromptSlot(
+                                handle = homeDictation,
+                                modifier = Modifier
+                                    .padding(horizontal = listHorizontal)
+                                    .padding(bottom = 10.dp),
+                            )
                             NewChatBar(
                                 activeModel = activeModelState.activeModel,
                                 hasProvider = providers.isNotEmpty(),
@@ -397,17 +521,13 @@ fun HomeScreen(
                                 onHeroTextChange = { viewModel.heroText = it },
                                 isSendingFromHero = viewModel.isSendingFromHero,
                                 isSearchActive = isSearching,
-                                onSend = {
-                                    viewModel.sendFromHero(
-                                        onConversationCreated = { id -> onNavigateToChat(id, null) },
-                                        onConversationCreatedAutoSend = { id ->
-                                            onNavigateToChatAndAutoSend(id)
-                                        },
-                                        onMissingProvider = onNavigateToProviderSetup,
-                                    )
-                                },
+                                onSend = sendFromHero,
                                 onModelSelect = { viewModel.showModelPicker = true },
                                 onAddProvider = onNavigateToProviderSetup,
+                                dictation = homeDictation,
+                                selectionProbe = heroSelectionProbe,
+                                onStartVoiceConversation = viewModel::requestVoiceConversation,
+                                voice = homeVoice,
                             )
                         }
                     }

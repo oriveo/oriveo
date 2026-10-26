@@ -7,6 +7,7 @@ import ai.oriveo.community.core.context.ContextContractFixture.int
 import ai.oriveo.community.core.context.ContextContractFixture.objOrNull
 import ai.oriveo.community.core.context.ContextContractFixture.stringOrNull
 import ai.oriveo.community.core.tools.ToolWireProtocolAdapter
+import ai.oriveo.community.feature.chat.DirectiveSuggestionController
 import ai.oriveo.community.core.tools.ToolWireProtocol
 import java.io.File
 import kotlinx.serialization.json.Json
@@ -25,7 +26,7 @@ import org.junit.Test
 /** propose_memory contract: runs the shared memory-propose.v2 fixture case by case; failure messages start with the case id. */
 class ContextContractMemoryProposeTest {
 
-    private val fixture: JsonObject by lazy { ContextContractFixture.load("memory-propose.v2.json") }
+    private val fixture: JsonObject by lazy { ContextContractFixture.load("memory-propose.v3.json") }
 
     /** Case groups must be non-empty so a renamed fixture cannot pass vacuously. */
     private fun group(key: String): List<JsonObject> =
@@ -105,6 +106,7 @@ class ContextContractMemoryProposeTest {
         "action" to str(d.action.wire),
         "reason" to str(d.reason?.wire),
         "candidate" to (d.candidate?.let(::json) ?: JsonNull),
+        *listOfNotNull(d.sentence?.let { "sentence" to str(it) }).toTypedArray(),
     )
 
     /** Describes the path of the first difference; numbers compare as Double (fixture 1 equals output 1.0), everything else compares strictly by JSON type and content. */
@@ -161,6 +163,7 @@ class ContextContractMemoryProposeTest {
         assertEquals(fixture.strings("modes"), MemoryProposeMode.entries.map { it.wire })
         assertEquals(fixture.strings("episodicKinds").toSet(), MemoryPropose.EPISODIC_KINDS.map { it.wire }.toSet())
         assertEquals(fixture.objOrNull("constants")!!.int("maxProposalsPerTurn"), MemoryPropose.MAX_PROPOSALS_PER_TURN)
+        assertEquals(fixture.objOrNull("constants")!!.int("maxInstructPerTurn"), MemoryPropose.MAX_INSTRUCT_PER_TURN)
     }
 
     @Test
@@ -184,8 +187,26 @@ class ContextContractMemoryProposeTest {
                 argumentsJson = c.stringOrNull("arguments")!!,
                 context = context(c["context"]!!.jsonObject),
                 priorInTurn = c.int("priorInTurn"),
+                priorInstructInTurn = c.int("priorInstructInTurn"),
             )
             treeDiff("expected", e, json(actual))?.let { "${c.id()}: $it" }
+        }
+        assertTrue(failures.joinToString("\n"), failures.isEmpty())
+    }
+
+    /** v3 rule 5: whether an instruct sentence shows the "make this a conversation instruction" bar (ignore count < 3, not already a substring, at most 8000 code points after appending). */
+    @Test
+    fun instructBarCases() {
+        val cases = group("instructBarCases")
+        assertTrue(cases.isNotEmpty())
+        val failures = cases.mapNotNull { c ->
+            val expected = c["expected"]!!.jsonObject.bool("show")
+            val actual = DirectiveSuggestionController.shows(
+                sentence = c.stringOrNull("sentence")!!,
+                instructions = c.stringOrNull("instructions")!!,
+                ignoreCount = c.int("ignoreCount"),
+            )
+            if (actual == expected) null else "${c.id()}: expected $expected, got $actual"
         }
         assertTrue(failures.joinToString("\n"), failures.isEmpty())
     }

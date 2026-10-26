@@ -192,7 +192,7 @@ class MessageTokenUsagePresentationTest {
 
     @Test
     fun `menu subtitle shows the compact total and nothing without a total`() {
-        // P8 M12: same as iOS — compact total under the menu item; no total, no subtitle (no placeholder text).
+        // Same as iOS — compact total under the menu item; no total, no subtitle (no placeholder text).
         assertEquals("13.3K", tokenUsageMenuSubtitle(MessageTokenUsageSnapshot(inputTokens = 12_480, outputTokens = 856), "en"))
         assertEquals("999", tokenUsageMenuSubtitle(MessageTokenUsageSnapshot(inputTokens = 900, outputTokens = 99), "en"))
         assertEquals("0", tokenUsageMenuSubtitle(MessageTokenUsageSnapshot(inputTokens = 0, outputTokens = 0), "en"))

@@ -13,7 +13,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
- * L3 recall for chat sends (memory-recall.v1 rule 9, P7 contract 4): keeps one [MemoryRecallIndex] and rebuilds it
+ * L3 recall for chat sends (memory-recall.v1 rule 9): keeps one [MemoryRecallIndex] and rebuilds it
  * off the main thread only when the episodic item set changes. The key is the episodic items themselves (id,
  * revision, status, mutationId and every other field), which is stricter than an id + revision + status fingerprint.
  */

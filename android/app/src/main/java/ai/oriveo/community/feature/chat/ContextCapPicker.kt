@@ -57,7 +57,7 @@ class ContextCapPickerActions(
 )
 
 /**
- * "Limit for this chat" picker inside the context panel sheet (contract P9·U7 rules 1, 2 and 5):
+ * "Limit for this chat" picker inside the context panel sheet:
  * head line, follow global / automatic / no limit / custom (slider, tick labels, input, echo, hint), footer.
  */
 @Composable

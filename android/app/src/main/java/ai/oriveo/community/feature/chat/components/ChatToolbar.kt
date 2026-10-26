@@ -28,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -64,7 +65,7 @@ internal fun ChatToolbar(
     providerName: String,
     modelName: String,
     isSendingMessage: Boolean,
-    cost: Double,
+    /** Per-currency cost text ([ai.oriveo.community.ui.component.costPartsText]); empty means nothing is shown. */
     costText: String,
     showMenu: Boolean,
     onBack: () -> Unit,
@@ -123,7 +124,7 @@ internal fun ChatToolbar(
             // the title's start position do not change
             OriveoBackButton(
                 onClick = onBack,
-                modifier = Modifier.chatToolbarBackSlot(),
+                modifier = Modifier.chatToolbarBackSlot().testTag("chat_back_button"),
             )
 
             Row(
@@ -157,7 +158,7 @@ internal fun ChatToolbar(
                     ) {
                         Text(
                             text = modelName,
-                            // 15sp Bold title -- narrowed from 17sp so long model names don't wrap to two lines
+                            // 15sp Bold title, narrowed from 17sp so long model names don't wrap to two lines (matches iOS)
                             style = TextStyle(
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
@@ -196,9 +197,7 @@ internal fun ChatToolbar(
 
             }
 
-            if (cost > 0.0) {
-                CostPill(cost = cost)
-            }
+            CostPill(text = costText)
 
             if (showMemoryIndicator) {
                 // Flat bare icon (no fill / no border), just a circular ripple for feedback
@@ -250,7 +249,7 @@ internal fun ChatToolbar(
                             Icon(Icons.Outlined.Share, contentDescription = null)
                         },
                     )
-                    if (cost > 0.0) {
+                    if (costText.isNotEmpty()) {
                         DropdownMenuItem(
                             text = { Text(costText) },
                             onClick = {},

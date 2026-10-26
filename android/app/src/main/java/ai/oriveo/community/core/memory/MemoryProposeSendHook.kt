@@ -1,7 +1,7 @@
 package ai.oriveo.community.core.memory
 
 /**
- * P10 rules 4-6: what the chat send reports back about propose_memory on one fresh send in tool mode.
+ * What the chat send reports back about propose_memory on one fresh send in tool mode.
  * The tool itself rides [ai.oriveo.community.core.model.ChatRequestOptions.clientTools]; candidate writing, the
  * suggestion bar and the fallback stay with the implementation (feature layer).
  */
@@ -11,4 +11,11 @@ interface MemoryProposeSendHook {
 
     /** Rule 6: the first leg carrying tools was deterministically rejected and is resent once without tools. */
     suspend fun onToolsRejected()
+
+    /**
+     * The send was judged tool mode but its final request carries no propose_memory (image generation routes,
+     * non-streaming Relay): run the same fallback as [onToolsRejected], without degrading the connection.
+     * At most once per message together with [onToolsRejected].
+     */
+    suspend fun onToolsNotAttached() {}
 }

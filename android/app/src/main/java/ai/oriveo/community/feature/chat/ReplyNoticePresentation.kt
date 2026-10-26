@@ -22,7 +22,7 @@ enum class ReplyNotice(val wire: String) {
 
 data class ReplyNoticeModel(val notice: ReplyNotice, val showContinue: Boolean)
 
-/** P4·U4 contract item 6: whether an assistant reply shows the incomplete / filtered notice and [Continue]. */
+/** whether an assistant reply shows the incomplete / filtered notice and [Continue]. */
 object ReplyNoticePresentation {
 
     /** Label of the [Continue] action; matches iOS / Web "Continue Generating". */

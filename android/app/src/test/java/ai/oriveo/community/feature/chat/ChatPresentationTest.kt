@@ -75,8 +75,41 @@ class ChatPresentationTest {
 
         assertEquals(
             1700,
-            computeReservePx(viewportHeightPx = 2000, userHeightPx = 300, minAssistantVisiblePx = 120),
+            computeReservePx(viewportHeightPx = 2000, userHeightPx = 300, minAssistantVisiblePx = 120, afterContentPaddingPx = 0),
         )
+    }
+
+    /**
+     * With top and bottom contentPadding, viewportHeight (viewportEnd - viewportStart) includes both paddings,
+     * but the scrollable content area is only viewportHeight - before - after. Pinning pushes the user to
+     * viewportStartOffset (= -before), i.e. `before` px further than "user flush with the content top"; the max
+     * scroll must equal exactly that, otherwise the reserve is larger by the bottom padding and scrolling to the
+     * bottom after a short reply pushes the user out of the viewport.
+     */
+    @Test
+    fun reserve_excludes_content_padding_so_max_scroll_equals_pin() {
+        val viewportStart = -60
+        val viewportEnd = 1940
+        val before = -viewportStart
+        val after = 300
+        val viewportH = viewportEnd - viewportStart
+        val contentAreaH = viewportH - before - after
+        val min = 120
+
+        // Normal user: pin offset 0, max scroll (relative to user flush with the content top) = top padding
+        val userH = 300
+        val reserve = computeReservePx(viewportH, userH, min, afterContentPaddingPx = after)
+        val pinOffset = computeLongUserPinScrollOffsetPx(viewportH, userH, min, afterContentPaddingPx = after)
+        assertEquals(0, pinOffset)
+        assertEquals(before + pinOffset, userH + reserve - contentAreaH)
+
+        // Very long user: reserve falls back to the minimum hint, push-up and max scroll use the same basis,
+        // and the pin target stays reachable without overshooting
+        val longUserH = 2500
+        val longReserve = computeReservePx(viewportH, longUserH, min, afterContentPaddingPx = after)
+        val longPinOffset = computeLongUserPinScrollOffsetPx(viewportH, longUserH, min, afterContentPaddingPx = after)
+        assertEquals(min, longReserve)
+        assertEquals(before + longPinOffset, longUserH + longReserve - contentAreaH)
     }
 
     @Test
@@ -84,7 +117,7 @@ class ChatPresentationTest {
 
         assertEquals(
             120,
-            computeReservePx(viewportHeightPx = 1000, userHeightPx = 1500, minAssistantVisiblePx = 120),
+            computeReservePx(viewportHeightPx = 1000, userHeightPx = 1500, minAssistantVisiblePx = 120, afterContentPaddingPx = 0),
         )
     }
 
@@ -93,7 +126,7 @@ class ChatPresentationTest {
 
         assertEquals(
             120,
-            computeReservePx(viewportHeightPx = 1000, userHeightPx = 920, minAssistantVisiblePx = 120),
+            computeReservePx(viewportHeightPx = 1000, userHeightPx = 920, minAssistantVisiblePx = 120, afterContentPaddingPx = 0),
         )
     }
 
@@ -139,6 +172,7 @@ class ChatPresentationTest {
                 viewportHeightPx = 1000,
                 userHeightPx = 800,
                 minAssistantVisiblePx = 120,
+                afterContentPaddingPx = 0,
             ),
         )
     }
@@ -152,6 +186,7 @@ class ChatPresentationTest {
                 viewportHeightPx = 1000,
                 userHeightPx = 1500,
                 minAssistantVisiblePx = 120,
+                afterContentPaddingPx = 0,
             ),
         )
     }
@@ -165,6 +200,7 @@ class ChatPresentationTest {
                 viewportHeightPx = 1000,
                 userHeightPx = 1000,
                 minAssistantVisiblePx = 120,
+                afterContentPaddingPx = 0,
             ),
         )
     }
@@ -178,6 +214,7 @@ class ChatPresentationTest {
                 viewportHeightPx = 1000,
                 userHeightPx = 880,
                 minAssistantVisiblePx = 120,
+                afterContentPaddingPx = 0,
             ),
         )
     }

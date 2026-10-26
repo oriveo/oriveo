@@ -26,7 +26,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-/** Inputs of the panel cap rows for one conversation (contract P9·U7 rule 3). */
+/** Inputs of the panel cap rows for one conversation. */
 data class ContextCapInputs(
     /** Window of the chat send: provider, model, user max output, price line T. */
     val window: ContextWindowInput,
@@ -44,7 +44,7 @@ data class ContextCapInputs(
     /** Usable input U of the model (cap independent); null for an unknown window. */
     val usable: Int? get() = ContextBudget.window(window).U
 
-    /** Picker state (contract P9·U7 rule 1). */
+    /** Picker state. */
     fun picker(): ContextCapPicker = ContextCapPresentation.picker(window, conversationCap, globalCap)
 
     /** [used] unknown: no distance to the price line (the ring caption falls back to measured / estimated). */

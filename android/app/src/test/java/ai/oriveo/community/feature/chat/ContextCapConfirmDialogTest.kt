@@ -197,9 +197,9 @@ class ContextCapConfirmDialogTest {
             showToast = {},
         )
         val directive = requireNotNull(settings.directiveSuggestions)
-        directive.onUserMessageCreated(CONVERSATION_ID, "u1", "From now on, keep answers concise")
+        directive.onUserMessageCreated(CONVERSATION_ID, "u1", DIRECTIVE_TEXT)
         awaitState(directive.pending) { CONVERSATION_ID in it }
-        ChatContextRejections.shared.emit(rolledBack(text = "From now on, keep answers concise", userMessageId = "u1"))
+        ChatContextRejections.shared.emit(rolledBack(text = DIRECTIVE_TEXT, userMessageId = "u1"))
         awaitState(directive.pending) { CONVERSATION_ID !in it }
 
         val memoryUser = message("u2", ChatRole.User, "")
@@ -256,7 +256,7 @@ class ContextCapConfirmDialogTest {
 
         // The "Set as instruction" strip hangs under u1, the "Save to memory?" strip under u2.
         val directive = requireNotNull(settings.directiveSuggestions)
-        directive.onUserMessageCreated(CONVERSATION_ID, "u1", "From now on, keep answers concise")
+        directive.onUserMessageCreated(CONVERSATION_ID, "u1", DIRECTIVE_TEXT)
         awaitState(directive.pending) { CONVERSATION_ID in it }
         conversation = conversation(listOf(message("u1", ChatRole.User, ""), message("u2", ChatRole.User, "")))
         val memory = settings.memorySuggestions
@@ -276,7 +276,7 @@ class ContextCapConfirmDialogTest {
         memory.onUserMessageCreated(CONVERSATION_ID, "u3", "Remember that I use Kotlin", useMemory = false)
         awaitState(memory.pending) { CONVERSATION_ID in it }
         rejections.emit(rolledBack(text = "another send", userMessageId = "u0"))
-        rejections.emit(rolledBack(text = "From now on, keep answers concise", userMessageId = "u1"))
+        rejections.emit(rolledBack(text = DIRECTIVE_TEXT, userMessageId = "u1"))
         awaitState(directive.pending) { CONVERSATION_ID !in it }
         assertEquals("u3", memory.pending.value[CONVERSATION_ID]?.userMessageId)
     }
@@ -478,7 +478,7 @@ class ContextCapConfirmDialogTest {
                 host = ChatCompactionUiCoordinator.Host(
                     scope,
                     MutableStateFlow(ConversationRenderState(conversation(emptyList()))),
-                ) { },
+                ) { null },
                 pendingConfirmations = coordinator.pending,
                 resolveConfirm = coordinator::resolve,
                 cancelConfirm = coordinator::cancelConversation,
@@ -508,6 +508,8 @@ class ContextCapConfirmDialogTest {
     private companion object {
         const val CONVERSATION_ID = "conversation-confirm"
         const val MODEL_ID = "grok-4.7"
+        // The lexical "set as instruction" bar only recognizes suggestionLanguages, so use an in-gate zh-Hans sentence.
+        const val DIRECTIVE_TEXT = "\u4ee5\u540e\u6bcf\u6b21\u56de\u7b54\u90fd\u5148\u7ed9\u7ed3\u8bba"
         const val DONT_ASK_TAG = "context_confirm_dont_ask"
         const val SEND_TAG = "context_confirm_send"
         const val CANCEL_TAG = "context_confirm_cancel"
