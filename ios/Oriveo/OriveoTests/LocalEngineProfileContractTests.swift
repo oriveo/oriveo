@@ -195,4 +195,38 @@ struct LocalEngineProfileContractTests {
         state.migrateLlamaCppConnectionsToChatChannelIfNeeded(uid: "account-b", defaults: defaults)
         #expect(state.providers.first?.relayRequested?.transport == .openaiChatCompletions)
     }
+
+    @Test("cold launch: a pending native-transport connection in the partition must not hit an unbound ProviderManager during AppState.init")
+    func migrationDuringColdLaunchDoesNotCrash() throws {
+        let uid = "llamacpp-cold-launch-\(UUID().uuidString)"
+        let flagKey = "oriveo.providers.llamacppChatChannelMigrated.\(uid)"
+        defer {
+            AppSessionStore.clearPartition(for: uid)
+            UserDefaults.standard.removeObject(forKey: flagKey)
+        }
+        var requested = RelayRequestedConfig(transport: .llamacppNative)
+        requested.engineProfile = "llamacpp"
+        requested.resolvedAPIBaseURL = "http://127.0.0.1:8080"
+        let provider = Provider(
+            id: UUID(), kind: .relay, status: .connected,
+            models: [TestFactories.makeModel(id: "relay-model", capabilities: [.text], isDefault: true)],
+            catalogModels: [], apiKey: "", apiKeyPreview: "",
+            baseURLText: "http://127.0.0.1:8080", relayRequested: requested
+        )
+        AppSessionStore.save(
+            AppSessionSnapshot(
+                selectedTab: .providers,
+                hasCompletedOnboarding: true,
+                providers: [provider],
+                lastUsedModelRef: nil
+            ),
+            for: uid
+        )
+
+        let state = AppState(seedDemoData: false, sessionUID: uid)
+
+        let migrated = try #require(state.providers.first(where: { $0.id == provider.id })?.relayRequested)
+        #expect(migrated.transport == .openaiChatCompletions)
+        #expect(UserDefaults.standard.bool(forKey: flagKey))
+    }
 }
