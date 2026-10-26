@@ -775,4 +775,49 @@ class ConversationRepositoryTest {
 
         coVerify(exactly = 0) { messageDao.upsert(any()) }
     }
+
+    // The old row is past the CursorWindow, so a whole-row read throws SQLiteBlobTooBigException; the final write falls back to reading only the sort order, overwriting and healing the row
+    @Test
+    fun `updateMessage overwrites a row too big to read back`() = runTest {
+        coEvery { messageDao.getById(testAccountId, "MSG-BIG") } throws
+            android.database.sqlite.SQLiteBlobTooBigException("Row too big to fit into CursorWindow")
+        coEvery { messageDao.sortOrderOf(testAccountId, "MSG-BIG") } returns 7
+        val written = slot<ai.oriveo.community.core.data.entity.MessageEntity>()
+        coEvery { messageDao.upsert(capture(written)) } returns Unit
+        coEvery { conversationDao.getById(testAccountId, "CONV-1") } returns null
+        coEvery { messageDao.lastDelivered(any(), any()) } returns null
+        coEvery { messageDao.lastDeliveredUser(any(), any()) } returns null
+
+        repository.updateMessage(
+            "CONV-1",
+            ChatMessage(
+                id = "MSG-BIG",
+                role = ChatRole.Assistant,
+                text = "slim text",
+                providerID = "PROVIDER-1",
+                providerKind = ProviderKind.OpenAI,
+                providerName = "OpenAI",
+                modelID = "gpt-4o",
+                modelName = "GPT-4o",
+                state = ChatMessageState.Failed,
+                createdAt = 1700000001000L,
+            ),
+        )
+
+        assertEquals(7, written.captured.sortOrder)
+        assertEquals("slim text", written.captured.text)
+    }
+
+    // The bootstrap window read runs in the chat ViewModel's viewModelScope and must not throw on a corrupt row; it returns metadata and leaves the messages to the window loader
+    @Test
+    fun `getWithLatestMessageWindow returns metadata when the window holds a row too big to read`() = runTest {
+        coEvery { conversationDao.getById(testAccountId, "CONV-1") } returns makeConversationEntity("CONV-1")
+        coEvery { messageDao.fetchLatestMessageWindow(testAccountId, "CONV-1", any()) } throws
+            android.database.sqlite.SQLiteBlobTooBigException("Row too big to fit into CursorWindow")
+
+        val conversation = repository.getWithLatestMessageWindow("CONV-1")
+
+        assertEquals("CONV-1", conversation?.id)
+        assertEquals(emptyList<ChatMessage>(), conversation?.messages)
+    }
 }

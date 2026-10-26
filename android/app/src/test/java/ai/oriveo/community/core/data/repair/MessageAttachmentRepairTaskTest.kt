@@ -41,6 +41,8 @@ class MessageAttachmentRepairTaskTest {
     @Before
     fun setUp() {
         task = MessageAttachmentRepairTask(messageDao, preferenceDao, attachmentStore)
+        // The inline-image text repair is a separate pass; attachment-repair cases assume it is done, text cases override this
+        coEvery { preferenceDao.get(MessageAttachmentRepairTask.TEXT_PREF_KEY) } returns MessageAttachmentRepairTask.PREF_DONE_VALUE
     }
 
     private fun b64(text: String) = Base64.getEncoder().encodeToString(text.toByteArray())
@@ -207,5 +209,71 @@ class MessageAttachmentRepairTaskTest {
         // the good row is repaired as usual; but since a row failed, this run does not write the done marker, so the next launch retries everything
         coVerify(exactly = 1) { messageDao.updateAttachmentsJson(accountId, "msg-good", any()) }
         coVerify(exactly = 0) { preferenceDao.set(any()) }
+    }
+
+    // A streaming partial wrote a generated image into the text and bloated the row; read in chunks, save the image, write text and attachments back together
+    @Test
+    fun `text repair extracts inline image to store and rewrites text with attachment`() = runTest {
+        val imageB64 = b64("png-bytes")
+        val text = "Here:\n![img](data:image/png;base64,$imageB64)\nDone ![half](data:image/png;base64,AAAA"
+        coEvery { preferenceDao.get(MessageAttachmentRepairTask.PREF_KEY) } returns MessageAttachmentRepairTask.PREF_DONE_VALUE
+        coEvery { preferenceDao.get(MessageAttachmentRepairTask.TEXT_PREF_KEY) } returns null
+        coEvery {
+            messageDao.findOversizedInlineImageTextRows(MessageAttachmentRepairTask.TEXT_THRESHOLD_CHARS)
+        } returns listOf(OversizedAttachmentsJsonRow(id = "msg-1", accountId = accountId, len = text.length))
+        // Hand out only 7 characters per read to force multi-chunk assembly
+        coEvery { messageDao.readTextChunk(accountId, "msg-1", any(), any()) } answers {
+            val start = thirdArg<Int>() - 1
+            text.substring(start, minOf(text.length, start + 7))
+        }
+        coEvery { messageDao.attachmentsJsonLength(accountId, "msg-1") } returns null
+        every { attachmentStore.saveOriginalImage(any(), any()) } returns ai.oriveo.community.core.data.attachment.StoredImage("img-1", "image/png")
+        val textSlot = slot<String>()
+        val jsonWrites = mutableListOf<String?>()
+        coEvery { messageDao.updateTextAndAttachmentsJson(accountId, "msg-1", capture(textSlot), captureNullable(jsonWrites)) } returns 1
+        coEvery { preferenceDao.set(PreferenceEntity(MessageAttachmentRepairTask.TEXT_PREF_KEY, MessageAttachmentRepairTask.PREF_DONE_VALUE)) } returns Unit
+
+        val chunked = MessageAttachmentRepairTask(messageDao, preferenceDao, attachmentStore, chunkSizeChars = 7)
+        chunked.runIfNeeded()
+
+        assertEquals("Here:\n\nDone ", textSlot.captured)
+        val attachments = json.decodeFromString<List<Attachment>>(jsonWrites.single()!!)
+        assertEquals(1, attachments.size)
+        assertEquals("img-1", attachments.single().localImageId)
+        assertNull(attachments.single().base64Data)
+        coVerify { preferenceDao.set(PreferenceEntity(MessageAttachmentRepairTask.TEXT_PREF_KEY, MessageAttachmentRepairTask.PREF_DONE_VALUE)) }
+    }
+
+    // When saving fails the images must not be removed from the text: the row is not rewritten, no completion marker is written, and the next launch retries
+    @Test
+    fun `text repair leaves row untouched and retries when image save fails`() = runTest {
+        val text = "![img](data:image/png;base64,${b64("png-bytes")})"
+        coEvery { preferenceDao.get(MessageAttachmentRepairTask.PREF_KEY) } returns MessageAttachmentRepairTask.PREF_DONE_VALUE
+        coEvery { preferenceDao.get(MessageAttachmentRepairTask.TEXT_PREF_KEY) } returns null
+        coEvery {
+            messageDao.findOversizedInlineImageTextRows(MessageAttachmentRepairTask.TEXT_THRESHOLD_CHARS)
+        } returns listOf(OversizedAttachmentsJsonRow(id = "msg-1", accountId = accountId, len = text.length))
+        coEvery { messageDao.readTextChunk(accountId, "msg-1", 1, any()) } returns text
+        coEvery { messageDao.attachmentsJsonLength(accountId, "msg-1") } returns null
+        every { attachmentStore.saveOriginalImage(any(), any()) } returns null
+
+        task.runIfNeeded()
+
+        coVerify(exactly = 0) { messageDao.updateTextAndAttachmentsJson(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { preferenceDao.set(PreferenceEntity(MessageAttachmentRepairTask.TEXT_PREF_KEY, MessageAttachmentRepairTask.PREF_DONE_VALUE)) }
+    }
+
+    // Existing installs already have the attachment repair marker; it must not skip the text pass
+    @Test
+    fun `text repair runs even when attachment repair is already marked done`() = runTest {
+        coEvery { preferenceDao.get(MessageAttachmentRepairTask.PREF_KEY) } returns MessageAttachmentRepairTask.PREF_DONE_VALUE
+        coEvery { preferenceDao.get(MessageAttachmentRepairTask.TEXT_PREF_KEY) } returns null
+        coEvery { messageDao.findOversizedInlineImageTextRows(any()) } returns emptyList()
+        coEvery { preferenceDao.set(any()) } returns Unit
+
+        task.runIfNeeded()
+
+        coVerify { messageDao.findOversizedInlineImageTextRows(MessageAttachmentRepairTask.TEXT_THRESHOLD_CHARS) }
+        coVerify { preferenceDao.set(PreferenceEntity(MessageAttachmentRepairTask.TEXT_PREF_KEY, MessageAttachmentRepairTask.PREF_DONE_VALUE)) }
     }
 }

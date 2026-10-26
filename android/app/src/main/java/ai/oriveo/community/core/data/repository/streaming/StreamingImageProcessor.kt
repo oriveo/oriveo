@@ -70,6 +70,40 @@ internal class StreamingImageProcessor(
             }
         }
 
+    /**
+     * Inline-image handling before a cancelled or failed message is persisted, with the same semantics
+     * as the success path: inline images in the text become saved attachments, and base64 in the
+     * streaming attachments is saved too. An unfinished stream may leave half a data URI in the text
+     * (not decodable); it is stripped as well — left in the text it would push the messages row past
+     * the 2MB CursorWindow, after which every whole-row read of it fails.
+     */
+    suspend fun localizeInlineImages(text: String, attachments: List<Attachment>): Pair<String, List<Attachment>> {
+        val (cleanedText, inlineImages) = if (text.contains(INLINE_IMAGE_DATA_MARKER)) {
+            extractInlineImages(text).let { (cleaned, images) -> stripInlineImageData(cleaned) to images }
+        } else {
+            text to emptyList()
+        }
+        return cleanedText to persistInlineBase64(attachments + inlineImages)
+    }
+
+    companion object {
+        private const val INLINE_IMAGE_DATA_MARKER = "](data:image/"
+        private val COMPLETE_INLINE_IMAGE = Regex("""!\[[^\]\n]*]\(data:image/[^;)]+;base64,[A-Za-z0-9+/=\s]*\)""")
+        private val UNCLOSED_INLINE_IMAGE_TAIL = Regex("""!\[[^\]\n]*]\(data:image/[^)]*$""")
+
+        /**
+         * For mid-stream persistence: removes inline data:image images from the text (including a
+         * not-yet-closed tail) and leaves the rest as-is. The UI renders the in-memory streamingText
+         * and completion extracts images from the full in-memory text, so the stored copy loses
+         * nothing by omitting them; storing them would let a single 2MB generated image make the row
+         * unreadable.
+         */
+        internal fun stripInlineImageData(text: String): String {
+            if (!text.contains(INLINE_IMAGE_DATA_MARKER)) return text
+            return text.replace(COMPLETE_INLINE_IMAGE, "").replace(UNCLOSED_INLINE_IMAGE_TAIL, "")
+        }
+    }
+
     private suspend fun downloadImageUrl(url: String): String? = withContext(Dispatchers.IO) {
         try {
             val connection = java.net.URL(url).openConnection() as java.net.HttpURLConnection
