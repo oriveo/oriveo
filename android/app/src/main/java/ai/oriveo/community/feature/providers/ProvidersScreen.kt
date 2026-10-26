@@ -34,7 +34,7 @@ import ai.oriveo.community.core.model.ProviderEffectiveStatusKind
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.CostFormatter
 import ai.oriveo.community.core.model.effectiveStatusKind
-
+import ai.oriveo.community.core.usage.CostParts
 import ai.oriveo.community.core.provider.BALANCE_CAPABLE_KINDS
 import ai.oriveo.community.ui.component.OriveoFadeHairline
 import ai.oriveo.community.ui.component.ProviderListCard
@@ -52,6 +52,7 @@ fun ProvidersScreen(
     val providers by viewModel.providers.collectAsStateWithLifecycle()
     val availableModelCounts by viewModel.availableModelCounts.collectAsStateWithLifecycle()
     val monthlyCostByProvider by viewModel.mergedMonthlyCostByProvider.collectAsStateWithLifecycle()
+    val billedMessageCountByProvider by viewModel.monthlyBilledMessageCountByProvider.collectAsStateWithLifecycle()
     val dailyCostsByProvider by viewModel.dailyCostsLast7DaysByProvider.collectAsStateWithLifecycle()
     val monthlyCostSummary by viewModel.monthlyCostSummary.collectAsStateWithLifecycle()
     val providerBalances by viewModel.providerBalances.collectAsStateWithLifecycle()
@@ -72,8 +73,14 @@ fun ProvidersScreen(
             precomputedCounts = availableModelCounts,
         )
     }
-    val spotlightProviders = remember(providers, monthlyCostByProvider) {
-        computeSpotlightProviders(providers, monthlyCostByProvider)
+    val spotlightProviders = remember(providers, billedMessageCountByProvider, monthlyCostByProvider) {
+        // The spotlight card is the provider with the most billed messages this month; only a tie
+        // compares USD amounts (other currencies are never converted or added).
+        computeSpotlightProviders(
+            providers = providers,
+            billedMessageCountByProvider = billedMessageCountByProvider,
+            monthlyUsdCostByProvider = monthlyCostByProvider.mapValues { CostParts.usdAmount(it.value) },
+        )
     }
     val providerBalancesRefreshKey = remember(providers) {
         providers
@@ -127,7 +134,7 @@ fun ProvidersScreen(
                         ProvidersSpotlightSection(
                             providers = spotlightProviders,
 
-                            costForProvider = { p -> monthlyCostByProvider[p.id] ?: 0.0 },
+                            costForProvider = { p -> monthlyCostByProvider[p.id].orEmpty() },
                             dailyCostsForProvider = { p -> dailyCostsByProvider[p.id] ?: emptyList() },
                             availableModelCountForProvider = { p ->
                                 providerListAvailableModelCount(
@@ -180,7 +187,7 @@ fun ProvidersScreen(
                                         } else {
                                             null
                                         },
-                                        monthlyEstimatedCost = monthlyCostByProvider[provider.id] ?: 0.0,
+                                        monthlyCostParts = monthlyCostByProvider[provider.id].orEmpty(),
                                         providerBalance = providerBalances[provider.id],
                                     )
                                 }
@@ -253,24 +260,42 @@ fun ProvidersScreen(
     }
 }
 
+/**
+ * Spotlight candidates: a single card.
+ *
+ * 1. Candidates are providers with billed messages this month (any currency), ordered by billed
+ *    message count descending; ties compare this month's USD amount descending (other currencies are
+ *    never converted or added), then connected > syncing > issue (needsKey counts as issue), then list order.
+ * 2. With no candidates: connected > syncing > issue, then list order.
+ * 3. With no providers: an empty list (the spotlight section is hidden).
+ */
 internal fun computeSpotlightProviders(
     providers: List<Provider>,
-    monthlyCostByProvider: Map<String, Double>,
+    billedMessageCountByProvider: Map<String, Int>,
+    monthlyUsdCostByProvider: Map<String, Double>,
 ): List<Provider> {
     val eligible = providers
     if (eligible.isEmpty()) return emptyList()
 
-    val withCost = eligible
-        .map { it to (monthlyCostByProvider[it.id] ?: 0.0) }
-        .filter { it.second > CostFormatter.COST_EPSILON }
-        .sortedByDescending { it.second }
-    if (withCost.isNotEmpty()) {
-        return listOf(withCost.first().first)
+    // sortedWith is stable: a full tie keeps the list order.
+    val ranked = eligible
+        .filter { (billedMessageCountByProvider[it.id] ?: 0) > 0 }
+        .sortedWith(
+            compareByDescending<Provider> { billedMessageCountByProvider[it.id] ?: 0 }
+                .thenByDescending { usdForRanking(monthlyUsdCostByProvider[it.id]) }
+                .thenBy { statusPriority(it.effectiveStatusKind) },
+        )
+    if (ranked.isNotEmpty()) {
+        return listOf(ranked.first())
     }
     return listOf(
         eligible.sortedBy { statusPriority(it.effectiveStatusKind) }.first()
     )
 }
+
+/** A USD amount below COST_EPSILON counts as 0 so floating-point noise cannot break a tie. */
+private fun usdForRanking(amount: Double?): Double =
+    amount?.takeIf { it > CostFormatter.COST_EPSILON } ?: 0.0
 
 private fun statusPriority(kind: ProviderEffectiveStatusKind): Int = when (kind) {
     ProviderEffectiveStatusKind.Connected -> 0

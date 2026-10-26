@@ -275,6 +275,49 @@ class ToolCallLoopBehaviorTest {
         assertEquals(107, result.usage?.resolvedTotalTokens)
     }
 
+    /** When any leg reports no usage, the merged result is marked allLegsReported = false (callers then record the whole turn as unknown); tokens still add up. */
+    @Test
+    fun `a leg without usage marks the merged usage as not fully reported`() = runTest {
+        val entry = ScriptedEntry("search")
+        val runner = ScriptedLegs(
+            listOf(
+                listOf(
+                    ToolLoopLegEvent.ToolCallDeltas(listOf(call(0, "c1", "search"))),
+                    ToolLoopLegEvent.Usage(ToolLoopUsage(promptTokens = 60, completionTokens = 40)),
+                ),
+                textLeg("answer"),
+            ),
+        )
+
+        val result = loop(runner, entry).run(user)
+
+        assertEquals("answer", result.text)
+        assertEquals(60, result.usage?.promptTokens)
+        assertEquals(false, result.usage?.allLegsReported)
+        assertEquals(true, ToolLoopUsage.merge(null, ToolLoopUsage(promptTokens = 1), priorLegs = 0)?.allLegsReported)
+        assertEquals(false, ToolLoopUsage.merge(null, ToolLoopUsage(promptTokens = 1), priorLegs = 1)?.allLegsReported)
+    }
+
+    /** Two usage events in one leg (input first, output later) merge field by field instead of the later one overwriting. */
+    @Test
+    fun `usage events within one leg merge field by field`() = runTest {
+        val runner = ScriptedLegs(
+            listOf(
+                listOf(
+                    ToolLoopLegEvent.TextDelta("answer"),
+                    ToolLoopLegEvent.Usage(ToolLoopUsage(promptTokens = 12)),
+                    ToolLoopLegEvent.Usage(ToolLoopUsage(completionTokens = 5)),
+                ),
+            ),
+        )
+
+        val result = loop(runner, ScriptedEntry("search")).run(user)
+
+        assertEquals(12, result.usage?.promptTokens)
+        assertEquals(5, result.usage?.completionTokens)
+        assertEquals(true, result.usage?.allLegsReported)
+    }
+
     /** Below the budget, execution proceeds as usual; the budget is judged on cumulative usage and is only crossed after accumulating across legs. */
     @Test
     fun `token budget is judged on usage accumulated across legs`() = runTest {

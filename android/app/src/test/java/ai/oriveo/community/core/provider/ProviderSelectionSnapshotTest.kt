@@ -41,7 +41,7 @@ class ProviderSelectionSnapshotTest {
             provider = provider,
             storedModelId = "gpt-4o-2024-08-06",
         )
-        val defaultModel = ProviderSelectionSnapshot.defaultModel(provider)
+        val defaultModel = ProviderSelectionSnapshot.newChatFallbackModel(provider)
 
         assertEquals("gpt-4o", currentModel?.id)
         assertEquals("gpt-4o", defaultModel?.id)
@@ -58,7 +58,7 @@ class ProviderSelectionSnapshotTest {
         )
 
         ProviderCatalogResolver.debugResolveCallCount = 0
-        val defaultModel = ProviderSelectionSnapshot.defaultModel(provider)
+        val defaultModel = ProviderSelectionSnapshot.newChatFallbackModel(provider)
 
         assertNull(defaultModel)
         assertEquals(0, ProviderCatalogResolver.debugResolveCallCount)
@@ -102,7 +102,7 @@ class ProviderSelectionSnapshotTest {
         )
 
         ProviderCatalogResolver.debugResolveCallCount = 0
-        val defaultModel = ProviderSelectionSnapshot.defaultModel(provider)
+        val defaultModel = ProviderSelectionSnapshot.newChatFallbackModel(provider)
 
         assertEquals("o4-mini-2026-04-10", defaultModel?.id)
         assertEquals(0, ProviderCatalogResolver.debugResolveCallCount)
@@ -194,12 +194,88 @@ class ProviderSelectionSnapshotTest {
             provider = provider,
             storedModelId = "o4-mini-2026-04-10",
         )
-        val defaultModel = ProviderSelectionSnapshot.defaultModel(provider)
+        val defaultModel = ProviderSelectionSnapshot.newChatFallbackModel(provider)
 
         assertEquals("o4-mini", currentModel?.id)
         assertEquals("o4-mini", currentModel?.canonicalModelId)
         assertEquals("o4-mini", currentModel?.name)
         assertEquals("gpt-4o", defaultModel?.id)
         assertEquals(0, ProviderCatalogResolver.debugResolveCallCount)
+    }
+    @Test
+    fun `new chat fallback skips retired enabled models and connection isDefault once catalog is loaded`() {
+        MetadataTestFixtures.applyRaw(OPENAI_CATALOG)
+        val provider = Provider(
+            id = "provider-openai",
+            kind = ProviderKind.OpenAI,
+            status = ProviderConnectionState.Connected,
+            models = listOf(
+                AIModel(id = "gpt-legacy", name = "GPT Legacy", isDefault = true),
+                AIModel(id = "gpt-next", name = "GPT Next"),
+            ),
+        )
+
+        assertEquals("gpt-next", ProviderSelectionSnapshot.newChatFallbackModel(provider)?.id)
+        // A conversation with an empty modelID follows the new-conversation chain: it likewise does not fall to a retired model marked isDefault on the connection.
+        assertEquals("gpt-next", ProviderSelectionSnapshot.currentModel(provider, storedModelId = "")?.id)
+    }
+
+    @Test
+    fun `new chat fallback returns none when every enabled model is retired`() {
+        MetadataTestFixtures.applyRaw(OPENAI_CATALOG)
+        val provider = Provider(
+            id = "provider-openai",
+            kind = ProviderKind.OpenAI,
+            status = ProviderConnectionState.Connected,
+            models = listOf(AIModel(id = "gpt-legacy", name = "GPT Legacy", isDefault = true)),
+        )
+
+        assertNull(ProviderSelectionSnapshot.newChatFallbackModel(provider))
+        assertNull(ProviderSelectionSnapshot.currentModel(provider, storedModelId = null))
+    }
+
+    @Test
+    fun `retirement adapter does not judge relay conversations`() {
+        MetadataTestFixtures.applyRaw(OPENAI_CATALOG)
+        val relay = Provider(id = "relay-1", kind = ProviderKind.Relay, models = listOf(AIModel(id = "a", name = "A")))
+
+        assertNull(ProviderSelectionSnapshot.modelRetirement(relay, "gpt-legacy"))
+    }
+
+    @Test
+    fun `retirement adapter judges official BYOK against the loaded catalog`() {
+        MetadataTestFixtures.applyRaw(OPENAI_CATALOG)
+        val provider = Provider(
+            id = "provider-openai",
+            kind = ProviderKind.OpenAI,
+            models = listOf(AIModel(id = "gpt-next", name = "GPT Next", isDefault = true)),
+        )
+
+        val retired = ProviderSelectionSnapshot.modelRetirement(provider, "gpt-legacy")
+        assertEquals(ModelRetirement.Status.Retired, retired?.status)
+        assertEquals("gpt-next", retired?.successorId)
+        assertEquals(ModelRetirement.Status.Available, ProviderSelectionSnapshot.modelRetirement(provider, "gpt-next")?.status)
+        // The conversation tier judged it retired: do not fall back to the default model.
+        assertNull(ProviderSelectionSnapshot.currentModel(provider, "gpt-legacy"))
+        assertNull(ProviderSelectionSnapshot.currentModel(provider, "gpt-vanished"))
+    }
+
+    private companion object {
+        val OPENAI_CATALOG = """
+            {
+              "version": 1,
+              "contractVersion": 1,
+              "providers": {
+                "openAI": {
+                  "defaultModelId": "gpt-next",
+                  "retiredModels": [
+                    { "id": "gpt-legacy", "displayName": "GPT Legacy", "retiredAt": "2026-07-24T00:00:00Z", "routedTo": "gpt-next" }
+                  ],
+                  "resolveMap": { "gpt-next": "gpt-next" },
+                  "models": { "gpt-next": { "canonicalModelId": "gpt-next", "displayName": "GPT Next" } }
+                }
+              }
+            }
+        """.trimIndent()
     }
 }

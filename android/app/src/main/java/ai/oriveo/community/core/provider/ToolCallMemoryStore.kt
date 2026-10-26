@@ -16,6 +16,8 @@ import kotlinx.serialization.json.Json
 class ToolCallMemoryStore(
     private val prefsProvider: () -> SharedPreferences,
     private val json: Json,
+    /** Current modelFactsRevision; a rejection (false) recorded under another revision is void. */
+    private val factsRevision: () -> String? = { MetadataClient.modelFactsRevision() },
 ) {
     @Serializable
     private data class PersistedEntry(
@@ -26,6 +28,8 @@ class ToolCallMemoryStore(
         val toolCall: Boolean,
         val observedAt: Long,
         val reason: String,
+        /** modelFactsRevision at record time; lookup drops the entry when it differs from the current one. */
+        val factsRevision: String? = null,
     )
 
     private data class Key(
@@ -51,7 +55,8 @@ class ToolCallMemoryStore(
         val key = key(partitionId, provider, model.id) ?: return null
         return synchronized(lock) {
             hydrateLocked()
-            entries[key]?.toolCall
+            // A changed revision only voids a rejection (false); an observed support (true) is kept.
+            entries[key]?.takeIf { it.toolCall || it.factsRevision == factsRevision() }?.toolCall
         }
     }
 
@@ -59,7 +64,7 @@ class ToolCallMemoryStore(
         partitionId: String,
         provider: Provider,
         model: AIModel,
-        toolCall: Boolean,
+        observedToolCall: Boolean,
         reason: String,
     ): Boolean {
         if (!isEligible(provider, model) || partitionId.isBlank()) return false
@@ -67,15 +72,20 @@ class ToolCallMemoryStore(
         synchronized(lock) {
             hydrateLocked()
             val previous = entries[key]
-            if (previous?.toolCall == toolCall && previous.reason == reason) return false
+            val revision = factsRevision()
+            if (
+                previous?.toolCall == observedToolCall && previous.reason == reason &&
+                previous.factsRevision == revision
+            ) return false
             entries[key] = PersistedEntry(
                 partitionId = key.partitionId,
                 connectionId = key.connectionId,
                 authMode = key.authMode,
                 modelId = key.modelId,
-                toolCall = toolCall,
+                toolCall = observedToolCall,
                 observedAt = System.currentTimeMillis(),
                 reason = reason,
+                factsRevision = revision,
             )
             trimLocked()
             persistLocked()

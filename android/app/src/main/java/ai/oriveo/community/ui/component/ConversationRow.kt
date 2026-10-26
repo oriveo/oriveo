@@ -46,7 +46,6 @@ import ai.oriveo.community.R
 import ai.oriveo.community.core.model.AttachmentKind
 import ai.oriveo.community.core.model.ConnectionAvatar
 import ai.oriveo.community.core.model.Conversation
-import ai.oriveo.community.core.model.CostFormatter
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.ui.theme.OriveoTheme
@@ -184,9 +183,12 @@ fun ConversationRow(
                         StatusPill(text = stringResource(R.string.draft), tone = StatusTone.Primary)
                     }
                 }
-                if (conversation.estimatedCost > 0) {
+                // costParts is a computed property: remember it on its real dependencies so list row recomposition doesn't recompute
+                val costParts = remember(conversation.estimatedCost, conversation.nonUsdCostTotals) { conversation.costParts }
+                val costText = costPartsText(costParts)
+                if (costText.isNotEmpty()) {
                     Text(
-                        text = CostFormatter.format(conversation.estimatedCost),
+                        text = costText,
                         fontSize = 12.sp,
                         lineHeight = 15.sp,
                         fontWeight = FontWeight.Medium,

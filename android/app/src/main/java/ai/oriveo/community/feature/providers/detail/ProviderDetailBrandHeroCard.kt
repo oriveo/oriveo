@@ -93,6 +93,8 @@ internal fun shouldShowResidualCredentialRemoval(provider: Provider): Boolean =
 fun ProviderDetailBrandHeroCard(
     provider: Provider,
     enabledModelCount: Int,
+    // Enabled state of "start chat": the caller passes the same criterion the tap uses (startChatModelID != null); isDefault is not read.
+    canStartChat: Boolean,
     onStartChat: () -> Unit,
     onResync: () -> Unit,
     onEditApiKey: () -> Unit,
@@ -126,7 +128,6 @@ fun ProviderDetailBrandHeroCard(
     val pressedBrand = remember(subduedBrand) { subduedBrand.hsbAdjusted(saturation = 0.85f, brightness = 0.55f) }
 
     val effective = provider.effectiveStatusKind
-    val canStartChat = provider.defaultModel != null
     val isSyncing = isResyncing || provider.status is ProviderConnectionState.Syncing
 
     Box(

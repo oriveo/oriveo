@@ -35,6 +35,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import java.time.Instant
 import java.util.UUID
 import java.net.URI
 
@@ -188,6 +189,7 @@ class MiniMaxService(client: HttpClient, json: Json) : OpenAICompatibleService(
             ProviderChatResult(
                 text = "",
                 attachments = attachments,
+                usageReported = false,
             )
         )
     }
@@ -224,19 +226,44 @@ class MiniMaxService(client: HttpClient, json: Json) : OpenAICompatibleService(
         val resolved = MetadataClient.resolveCatalogModel(modelID, ProviderKind.MiniMax)
         // Build the messages outside runCatching: when this turn's attachments do not fit it throws the attachment
         // overrun the user should see, which must not be swallowed as "invalid recipe".
+        val transport = ai.oriveo.community.core.attachments.AttachmentTransportProfile.MiniMaxAnthropicMessages
+        // Whether images / videos are kept follows the three-key projection for the route actually used (anthropic_messages).
+        val inputs = officialInputProjections(
+            ai.oriveo.community.core.model.Provider(id = "runtime-${ProviderKind.MiniMax.rawValue}", kind = ProviderKind.MiniMax),
+            requestOptions.activeModel?.takeIf { it.id == modelID } ?: ai.oriveo.community.core.model.AIModel(id = modelID, name = modelID),
+            finalTransport = "anthropic_messages",
+            options = requestOptions,
+        )
         val messagesJson = MessageBuilder.buildAnthropicMessages(
-            messages,
+            messagesForInputOutbound(
+                messages,
+                inputs,
+                transport.imagePlaceholderText ?: ai.oriveo.community.core.attachments.AttachmentTransportProfile.TEXT_ONLY_IMAGE_PLACEHOLDER,
+            ),
             MetadataClient.resolveAIModelForRouter(modelID, ProviderKind.MiniMax),
-            ai.oriveo.community.core.attachments.AttachmentTransportProfile.MiniMaxAnthropicMessages,
+            transport,
         )
         val messageArray = runCatching {
             json.parseToJsonElement("[$messagesJson]") as JsonArray
         }.getOrNull() ?: return null
+        // temperature goes through the same gate as the chat route: the outbound projection allows it and
+        // the upstream has not recently rejected the parameter.
+        val temperatureOutbound = officialRequestCapabilityProjection(
+            ProviderKind.MiniMax, modelID, requestOptions, webSearchEnabled = true, messages = messages,
+            finalTransport = "anthropic_messages", runtimeTransport = "openai_chat",
+        ).permitsOutbound("generation_parameter/temperature") &&
+            "temperature" !in ai.oriveo.community.core.capability.InputRejectionFlow.rejectedParameters(requestOptions, modelID)
         var body = buildJsonObject {
             put("model", modelID)
-            // Main chat path base value = plan.budget.oWire; non-chat paths keep metadata, then 8192.
-            put("max_tokens", requestOptions.maxTokens ?: requestOptions.outputTokenBudget ?: resolved?.maxOutputTokens ?: 8192)
-            requestOptions.temperature?.let { put("temperature", it) }
+            // Explicit value (including the main chat path base plan.budget.oWire) > model maxOutputTokens > protocol default 8192.
+            put(
+                "max_tokens",
+                MaxOutputTokensPolicy.anthropicMessages(
+                    requestOptions.maxTokens ?: requestOptions.outputTokenBudget,
+                    resolved?.maxOutputTokens,
+                ),
+            )
+            if (temperatureOutbound) requestOptions.temperature?.let { put("temperature", it) }
             put("stream", stream)
             put("messages", messageArray)
             requestOptions.systemPrompt.trim().takeIf(String::isNotEmpty)?.let { put("system", it) }
@@ -300,6 +327,8 @@ class MiniMaxService(client: HttpClient, json: Json) : OpenAICompatibleService(
             var reasoning = ""
             var inputTokens = 0
             var outputTokens = 0
+            // Whether upstream returned a usage object: absent means cost unknown, all-zero means a real zero.
+            var usageReported = false
             val blocks = sortedMapOf<Int, JsonObject>()
             val partialInputs = mutableMapOf<Int, StringBuilder>()
             var replayStateValid = true
@@ -316,7 +345,11 @@ class MiniMaxService(client: HttpClient, json: Json) : OpenAICompatibleService(
                 }
                 val index = (root?.get("index") as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: 0
                 when (eventType) {
-                    "message_start" -> inputTokens = (((root?.get("message") as? JsonObject)?.get("usage") as? JsonObject)?.get("input_tokens") as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: 0
+                    "message_start" -> {
+                        val usage = (root?.get("message") as? JsonObject)?.get("usage") as? JsonObject
+                        if (usage != null) usageReported = true
+                        inputTokens = (usage?.get("input_tokens") as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: 0
+                    }
                     "content_block_start" -> {
                         val block = root?.get("content_block") as? JsonObject
                         if (block == null || !block.isValidMiniMaxAnthropicBlock(partial = true)) replayStateValid = false
@@ -339,11 +372,15 @@ class MiniMaxService(client: HttpClient, json: Json) : OpenAICompatibleService(
                             blocks[index] = JsonObject(updated)
                         } else replayStateValid = false
                     }
-                    "message_delta" -> outputTokens = (((root?.get("usage") as? JsonObject)?.get("output_tokens") as? JsonPrimitive)?.contentOrNull?.toIntOrNull()) ?: outputTokens
+                    "message_delta" -> {
+                        val usage = root?.get("usage") as? JsonObject
+                        if (usage != null) usageReported = true
+                        outputTokens = ((usage?.get("output_tokens") as? JsonPrimitive)?.contentOrNull?.toIntOrNull()) ?: outputTokens
+                    }
                 }
                 events
             }, onDone = {
-                StreamEvent.Done(ProviderChatResult(text.trim(), inputTokens, outputTokens, reasoningText = reasoning.trim().ifEmpty { null }))
+                StreamEvent.Done(ProviderChatResult(text.trim(), inputTokens, outputTokens, reasoningText = reasoning.trim().ifEmpty { null }, usageReported = usageReported))
             }).collect { event ->
                 if (event is StreamEvent.Done && replayStateValid && blocks.isNotEmpty()) {
                     val finalized = blocks.map { (index, block) ->
@@ -390,7 +427,7 @@ class MiniMaxService(client: HttpClient, json: Json) : OpenAICompatibleService(
         val promptTokens = (usage?.get("input_tokens") as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: 0
         val completionTokens = (usage?.get("output_tokens") as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: 0
         val breakdown = UsageBreakdown(promptTokens = promptTokens, completionTokens = completionTokens)
-        val (cost, source) = CostCalculator.calcCost(breakdown, MetadataClient.resolveCatalogModel(modelID, ProviderKind.MiniMax))
+        val (cost, source) = CostCalculator.calcCost(breakdown, MetadataClient.resolveCatalogModel(modelID, ProviderKind.MiniMax), at = Instant.now())
         return StreamEvent.Done(ProviderChatResult(
             text = text,
             rawText = rawText,
@@ -398,6 +435,7 @@ class MiniMaxService(client: HttpClient, json: Json) : OpenAICompatibleService(
             completionTokens = completionTokens,
             estimatedCost = cost,
             reasoningText = reasoning.ifEmpty { null }, citations = citations.ifEmpty { null }, costSource = source.name,
+            usageReported = usage != null,
         ))
     }
 

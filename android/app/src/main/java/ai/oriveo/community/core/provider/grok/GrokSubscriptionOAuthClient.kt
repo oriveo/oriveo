@@ -129,7 +129,11 @@ sealed class GrokSubscriptionError {
     /** The configuration is missing or invalid, including failing host allow-list checks. */
     data object ConfigurationUnavailable : GrokSubscriptionError()
 
-    data class Transport(val detail: String) : GrokSubscriptionError()
+    data class Transport(
+        val detail: String,
+        /** Underlying transport exception; attached as the cause when mapped to ProviderServiceError.Network. */
+        val underlying: Throwable? = null,
+    ) : GrokSubscriptionError()
 
     data class Upstream(val status: Int, val body: String) : GrokSubscriptionError()
 
@@ -358,7 +362,7 @@ class GrokSubscriptionOAuthClient(
             throw e
         } catch (e: Exception) {
             throw GrokSubscriptionException(
-                GrokSubscriptionError.Transport(e.message ?: e::class.java.simpleName)
+                GrokSubscriptionError.Transport(e.message ?: e::class.java.simpleName, underlying = e)
             )
         }
         val body = runCatching { response.bodyAsText() }.getOrDefault("")

@@ -146,6 +146,12 @@ data class AIModel(
      * until the user resynced by hand.
      */
     val upstreamReasoningLevels: List<String> = emptyList(),
+    /**
+     * Subscription `/models` per-model input media declaration (Codex `input_modalities`), copied verbatim.
+     * null = the upstream declared nothing (Grok, or data persisted before this field) and the input verdict
+     * falls back to model facts. Local-only, never synced.
+     */
+    val upstreamInputModalities: List<String>? = null,
     /** Subscription `/models` default entry. Local-only, never synced. */
     val upstreamDefaultReasoningLevel: String? = null,
     /** Subscription `/models` protocol declaration (`responses` / `chat`). Local-only. */
@@ -161,6 +167,13 @@ data class AIModel(
     val relayTransportSource: RelayTransportSource? = null,
     /** The user's manual overrides of a single model's capabilities; null when none is left. Local-only, never synced. */
     val relayCapabilityOverrides: RelayCapabilityOverrides? = null,
+    /**
+     * Local override deltas for a relay's input capabilities: `{vision_input|file_input|video_input: {op, setAt, baseVerdict}}`.
+     * Written only when the user changes something; on read each entry is validated through
+     * [ai.oriveo.community.core.capability.CapabilityOverrides.normalize] and reconciled with the legacy fields.
+     * Stored as raw JSON so a malformed shape cannot break decoding. Local-only: not part of [RELAY_MODEL_FIELDS] or the portable export.
+     */
+    val capabilityOverrides: JsonElement? = null,
     /** Per-model capability declaration resolved by the local engine connector; null when none is left. Local-only, never synced. */
     val engineDeclaration: EngineDeclaration? = null,
     /**

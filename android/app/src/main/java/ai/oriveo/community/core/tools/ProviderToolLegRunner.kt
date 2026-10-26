@@ -118,7 +118,7 @@ class ToolsUnsupportedError(
  * Runs one model leg of a tool loop against a provider, over whichever of the four wire
  * protocols the connection speaks.
  */
-class ProviderToolLegRunner(
+class ProviderToolLegRunner internal constructor(
     private val client: HttpClient,
     provider: Provider,
     private val model: AIModel,

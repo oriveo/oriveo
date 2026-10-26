@@ -27,11 +27,11 @@ import kotlinx.serialization.json.jsonArray
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Client-tool injection point of an ordinary chat request body: tools equal the matching entry of the memory-propose.v2 fixture projections. */
+/** Client-tool injection point of an ordinary chat request body: tools equal the matching entry of the memory-propose.v3 fixture projections. */
 class ProposeMemoryRequestBodyTest {
 
     private val projections: JsonObject by lazy {
-        ContextContractFixture.load("memory-propose.v2.json")["projections"]!!.jsonObject
+        ContextContractFixture.load("memory-propose.v3.json")["projections"]!!.jsonObject
     }
 
     private val base = """{"model":"m","stream":true}"""

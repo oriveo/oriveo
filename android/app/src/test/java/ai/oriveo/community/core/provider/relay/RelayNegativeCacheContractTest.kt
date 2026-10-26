@@ -1,5 +1,9 @@
 package ai.oriveo.community.core.provider.relay
 
+import ai.oriveo.community.core.capability.InputNegativeCache
+import ai.oriveo.community.core.capability.InputRejectionFlow
+import ai.oriveo.community.core.capability.truth.relayInputNegativeCacheTarget
+import ai.oriveo.community.core.capability.truth.resolveInputCapabilityProjections
 import ai.oriveo.community.core.data.attachment.AttachmentStore
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.data.repository.ChatRepository
@@ -7,6 +11,7 @@ import ai.oriveo.community.core.data.repository.ConversationRepository
 import ai.oriveo.community.core.data.repository.ProviderRepository
 import ai.oriveo.community.core.error.ErrorMapper
 import ai.oriveo.community.core.model.Attachment
+import ai.oriveo.community.core.model.AttachmentSupportInfo
 import ai.oriveo.community.core.model.AttachmentKind
 import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.ChatMessageState
@@ -44,6 +49,7 @@ import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.RelayCapabilityOverrides
 import ai.oriveo.community.core.model.RelayRequestedConfig
 import ai.oriveo.community.core.model.RelayTransport
+import ai.oriveo.community.core.provider.CapabilityEvidenceFacade
 import ai.oriveo.community.core.provider.CapabilityEvidenceProductionAdapter
 import ai.oriveo.community.feature.chat.ChatModelCapabilityResolver
 import kotlinx.serialization.json.Json
@@ -202,7 +208,7 @@ class RelayNegativeCacheContractTest {
     }
 
     @Test
-    fun `RL2_NEGCACHE_01 key protocol uses the effective protocol and is chat when the connection is auto and the model has none`() {
+    fun `RL2_NEGCACHE_01 key protocol uses the first-send protocol and is chat when the connection is auto and the model has none`() {
         val auto = relayProvider(engineProfile = null).let {
             it.copy(relayRequested = it.relayRequested!!.copy(transport = RelayTransport.Auto))
         }
@@ -226,6 +232,10 @@ class RelayNegativeCacheContractTest {
                 runtimeConfigProvider = { runtimeConfig(envelopeAllowsImage) },
                 negativeCache = cache,
             )
+            // Cases carrying e39Expect assert the three-valued projection (the negative cache is read from v2; recording goes through the production v1+v2 dual-write path).
+            val e39 = case["e39Expect"]?.takeUnless { it is JsonNull }?.jsonObject
+            val v2 = InputNegativeCache(InputNegativeCache.MemoryStore())
+            var projection: CapabilityEvidenceFacade.InputCapabilityProjection? = null
             val visible = when (case.getValue("form").jsonPrimitive.content) {
                 "relay" -> {
                     val provider = relayProvider(engineProfile = engineImage?.let { "ollama" })
@@ -242,18 +252,56 @@ class RelayNegativeCacheContractTest {
                         },
                     )
                     if (case.getValue("imageNegCached").jsonPrimitive.boolean) {
-                        cache.record(RelayNegativeCache.keyFor(provider, model)!!, RelayNegativeCache.Kind.Image, 1_000L)
+                        val key = RelayNegativeCache.keyFor(provider, model)!!
+                        cache.record(key, RelayNegativeCache.Kind.Image, 1_000L)
+                        InputRejectionFlow.recordRelay(
+                            relayInputNegativeCacheTarget(
+                                provider = provider,
+                                model = model,
+                                transport = key.transport,
+                                key = CapabilityEvidenceFacade.VISION_INPUT,
+                                relayIdentity = CapabilityEvidenceProductionAdapter.uiDispatchIdentity(provider, model, identity(provider)),
+                                metadataClient = MetadataClient(),
+                            ),
+                            v2,
+                        )
+                    }
+                    if (e39 != null) {
+                        projection = resolveInputCapabilityProjections(
+                            provider = provider,
+                            model = model,
+                            relayIdentity = CapabilityEvidenceProductionAdapter.uiDispatchIdentity(provider, model, identity(provider)),
+                            relayAttachmentSupport = AttachmentSupportInfo(image = envelopeAllowsImage, nativeFile = false, textFileInline = true),
+                            metadataClient = MetadataClient(),
+                            negativeCache = v2,
+                        )?.vision
                     }
                     resolver.supportsImage(provider, model, identity(provider))
                 }
                 "official" -> {
                     val provider = Provider(id = "official", kind = ProviderKind.OpenAI, status = ProviderConnectionState.Connected)
                     val model = AIModel(id = "m1", name = "m1", capabilities = listOf(ModelCapability.Text))
+                    if (e39 != null) {
+                        // Official unknown: the route is known (official OpenAI uses Chat Completions) but the vision verdict has no key.
+                        projection = resolveInputCapabilityProjections(
+                            provider = provider,
+                            model = model,
+                            finalTransport = "openai_chat",
+                            metadataClient = MetadataClient(),
+                            negativeCache = v2,
+                        )?.vision
+                    }
                     resolver.supportsImage(provider, model, identity(provider))
                 }
                 else -> error("unknown form")
             }
-            assertEquals(caseId, case.getValue("expectVisible").jsonPrimitive.boolean, visible)
+            if (e39 == null) {
+                assertEquals(caseId, case.getValue("expectVisible").jsonPrimitive.boolean, visible)
+            } else {
+                val actual = requireNotNull(projection) { caseId }
+                assertEquals(caseId, e39.getValue("visible").jsonPrimitive.boolean, actual.visible)
+                assertEquals(caseId, e39.getValue("editable").jsonPrimitive.boolean, actual.editable)
+            }
         }
     }
 
@@ -272,7 +320,7 @@ class RelayNegativeCacheContractTest {
 
     @Test
     fun `RL2_NEGCACHE_03 auto connection model without protocol vision unknown uses chat key entry visible then hidden after negative cache is recorded`() {
-        // auto / no config is not an incomplete identity; the key is taken from effectiveTransport (auto -> Chat).
+        // auto / no config is not an incomplete identity; the key follows the first-send protocol (auto -> Chat for non-Claude families, Messages for Claude families).
         val cache = RelayNegativeCache(RelayNegativeCache.MemoryStore(), clock = { 2_000L })
         val resolver = ChatModelCapabilityResolver(
             metadata = MetadataClient(),
@@ -286,6 +334,19 @@ class RelayNegativeCacheContractTest {
         assertTrue(resolver.supportsImage(auto, model, identity(auto)))
         cache.record(RelayNegativeCache.Key("c1", "m1", transports.getValue("chat")), RelayNegativeCache.Kind.Image, 1_000L)
         assertFalse(resolver.supportsImage(auto, model, identity(auto)))
+
+        // A Claude-family model on an auto connection sends Messages first: the key and the connection identity both use messages, so a rejection recorded under the chat key does not count.
+        withCachedFamilies(mapOf(CLAUDE to "anthropic")) {
+            val claude = AIModel(id = CLAUDE, name = CLAUDE, capabilities = listOf(ModelCapability.Text))
+            // The Messages API root gets its version segment from the connection address (connections default to auto, so a legacy single-value root does not apply); real connections always carry an address,
+            // and without it there is no messages identity, so the entry fails closed as expected.
+            val messagesAuto = auto.copy(baseUrlText = "https://relay.example.com")
+            assertTrue(resolver.supportsImage(messagesAuto, claude, identity(messagesAuto)))
+            cache.record(RelayNegativeCache.Key("c1", CLAUDE, transports.getValue("chat")), RelayNegativeCache.Kind.Image, 1_000L)
+            assertTrue(resolver.supportsImage(messagesAuto, claude, identity(messagesAuto)))
+            cache.record(RelayNegativeCache.Key("c1", CLAUDE, transports.getValue("messages")), RelayNegativeCache.Kind.Image, 1_000L)
+            assertFalse(resolver.supportsImage(messagesAuto, claude, identity(messagesAuto)))
+        }
     }
 
     private val capabilityFixture: JsonObject = Json.parseToJsonElement(
@@ -392,6 +453,23 @@ class RelayNegativeCacheContractTest {
         // The store has an image entry; the key is the same keyFor as the read side.
         val key = RelayNegativeCache.keyFor(harness.provider, harness.model)!!
         assertEquals(listOf(key to RelayNegativeCache.Kind.Image), harness.cache.entries().map { it.key to it.kind })
+        // The v2 cache gets a vision_input entry too (same key and revision as the projection read side), with signature relay.classified_rejected.
+        assertEquals(
+            listOf(
+                InputNegativeCache.Key("c1", "m1", "openai_chat.image_url", CapabilityEvidenceFacade.VISION_INPUT) to
+                    InputRejectionFlow.RELAY_CLASSIFIED_REJECTED_SIGNATURE_ID,
+            ),
+            harness.inputCache.entries().map { it.first to it.second.signatureId },
+        )
+        val projected = resolveInputCapabilityProjections(
+            provider = harness.provider,
+            model = harness.model,
+            relayIdentity = CapabilityEvidenceProductionAdapter.uiDispatchIdentity(harness.provider, harness.model, identity(harness.provider)),
+            relayAttachmentSupport = AttachmentSupportInfo(image = true, nativeFile = false, textFileInline = true),
+            metadataClient = MetadataClient(),
+            negativeCache = harness.inputCache,
+        )!!.vision
+        assertEquals(CapabilityEvidenceFacade.InputCapabilityDisabledReason.REJECTED_RECENTLY, projected.disabledReason)
         // Entry hidden (the production ChatModelCapabilityResolver reads the same store).
         val resolver = ChatModelCapabilityResolver(
             metadata = MetadataClient(),
@@ -617,9 +695,88 @@ class RelayNegativeCacheContractTest {
                     rejected = case.getValue("rejected").jsonPrimitive.boolean,
                     outputStarted = case.getValue("outputStarted").jsonPrimitive.boolean,
                     protocolSwitched = case.getValue("protocolSwitched").jsonPrimitive.boolean,
+                    relayIdentity = ai.oriveo.community.core.capability.truth.relayInputIdentity(provider, model, identity(provider)),
                 ),
             )
         }
+    }
+
+    @Test
+    fun `RL2_NEGCACHE_03 unconfirmed vision reads the facade support level where accepted and supported are confirmed and unknown is unconfirmed`() {
+        val provider = relayProvider(engineProfile = null)
+        fun level(model: AIModel) = ai.oriveo.community.core.capability.truth.relayVisionInputSupport(
+            provider,
+            model,
+            ai.oriveo.community.core.capability.truth.relayInputIdentity(provider, model, identity(provider)),
+            MetadataClient(),
+        )
+        fun unknown(p: Provider, model: AIModel) = ai.oriveo.community.core.data.repository.relayImageSupportUnknown(
+            p,
+            model,
+            ai.oriveo.community.core.capability.truth.relayInputIdentity(p, model, identity(p)),
+        )
+        // accepted: the model declares Image (an unverified declaration); the facade returns accepted, which counts as positive evidence.
+        val declared = AIModel(id = "m1", name = "m1", capabilities = listOf(ModelCapability.Text, ModelCapability.Image))
+        assertEquals("accepted", level(declared))
+        assertFalse(unknown(provider, declared))
+        // supported: an override that passed a real test; the facade returns supported.
+        val tested = AIModel(
+            id = "m1",
+            name = "m1",
+            capabilities = listOf(ModelCapability.Text),
+            relayCapabilityOverrides = RelayCapabilityOverrides(image = true, testedKeys = setOf("image")),
+        )
+        assertEquals("supported", level(tested))
+        assertFalse(unknown(provider, tested))
+        // unknown: no declaration at all, so the facade has no level and the result is unconfirmed; a missing connection identity fails closed and is also unconfirmed.
+        val bare = AIModel(id = "m1", name = "m1", capabilities = listOf(ModelCapability.Text))
+        assertNull(level(bare))
+        assertTrue(unknown(provider, bare))
+        assertTrue(ai.oriveo.community.core.data.repository.relayImageSupportUnknown(provider, bare, null))
+    }
+
+    @Test
+    fun `RL2_NEGCACHE_03 whether a rejected image send is recorded depends only on facade supported and the listed declaration and an override of false still records`() {
+        val provider = relayProvider(engineProfile = null)
+        fun level(model: AIModel) = ai.oriveo.community.core.capability.truth.relayVisionInputSupport(
+            provider,
+            model,
+            ai.oriveo.community.core.capability.truth.relayInputIdentity(provider, model, identity(provider)),
+            MetadataClient(),
+        )
+        fun records(model: AIModel) = ai.oriveo.community.core.data.repository.relayImageRejectionRecords(
+            provider = provider,
+            model = model,
+            rejected = true,
+            outputStarted = false,
+            protocolSwitched = false,
+            relayIdentity = ai.oriveo.community.core.capability.truth.relayInputIdentity(provider, model, identity(provider)),
+        )
+        // User override false: neither supported nor a listed declaration, so a rejection still records image.
+        val overrideOff = AIModel(
+            id = "m1",
+            name = "m1",
+            capabilities = listOf(ModelCapability.Text),
+            relayCapabilityOverrides = RelayCapabilityOverrides(image = false),
+        )
+        assertTrue(level(overrideOff) !in setOf("supported", "accepted"))
+        assertTrue(records(overrideOff))
+        // Override false wins: it still records even when the model capabilities / listed declaration include Image.
+        val overrideOffListed = overrideOff.copy(capabilities = listOf(ModelCapability.Text, ModelCapability.Image))
+        assertTrue(records(overrideOffListed))
+        // Listed image declaration (model capabilities include Image, facade accepted): not recorded.
+        val listed = AIModel(id = "m1", name = "m1", capabilities = listOf(ModelCapability.Text, ModelCapability.Image))
+        assertEquals("accepted", level(listed))
+        assertFalse(records(listed))
+        // Facade supported (passed a real test): not recorded.
+        val tested = AIModel(
+            id = "m1",
+            name = "m1",
+            capabilities = listOf(ModelCapability.Text),
+            relayCapabilityOverrides = RelayCapabilityOverrides(image = true, testedKeys = setOf("image")),
+        )
+        assertEquals("supported", level(tested))
+        assertFalse(records(tested))
     }
 
     @Test
@@ -874,6 +1031,7 @@ class RelayNegativeCacheContractTest {
         private val reply: (url: String, body: String) -> Reply,
     ) {
         val cache = RelayNegativeCache(RelayNegativeCache.MemoryStore(), clock = { 2_000L })
+        val inputCache = InputNegativeCache(InputNegativeCache.MemoryStore())
         val requests = mutableListOf<Pair<String, String>>()
         val model = AIModel(
             id = modelID,
@@ -927,6 +1085,7 @@ class RelayNegativeCacheContractTest {
                 providerRepository = providerRepository,
                 attachmentStore = mockk<AttachmentStore>(relaxed = true),
                 relayNegativeCache = cache,
+                inputNegativeCache = inputCache,
             )
             repository.sendMessage(
                 conversation = Conversation(

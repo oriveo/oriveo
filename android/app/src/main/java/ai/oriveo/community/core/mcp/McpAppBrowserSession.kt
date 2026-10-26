@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.browser.customtabs.CustomTabsIntent
 import ai.oriveo.community.core.util.ExternalActivityLaunchOutcome
+import ai.oriveo.community.core.util.launchCustomTab
 import ai.oriveo.community.core.util.launchExternalActivitySafely
 import java.lang.ref.WeakReference
 import kotlinx.coroutines.CoroutineStart
@@ -88,9 +89,7 @@ class McpAuthorizationPageLauncher(private val appContext: Context) {
         val activity = host?.get()?.takeUnless { it.isFinishing || it.isDestroyed }
         val context: Context = activity ?: appContext
         val viaCustomTabs = launchExternalActivitySafely {
-            val tabs = CustomTabsIntent.Builder().setShowTitle(true).build()
-            if (activity == null) tabs.intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            tabs.launchUrl(context, uri)
+            launchCustomTab(context, uri, CustomTabsIntent.Builder().setShowTitle(true).build())
         }
         if (viaCustomTabs == ExternalActivityLaunchOutcome.LAUNCHED) return true
         val viaBrowser = launchExternalActivitySafely {

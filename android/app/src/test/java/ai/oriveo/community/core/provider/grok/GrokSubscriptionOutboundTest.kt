@@ -23,6 +23,7 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
+import java.time.Instant
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
@@ -133,6 +134,57 @@ class GrokSubscriptionOutboundTest {
         assertEquals("high", root.getValue("reasoning").jsonObject
             .getValue("effort").jsonPrimitive.content)
         assertEquals("hi", events.filterIsInstance<StreamEvent.Done>().single().result.text)
+    }
+
+    /** The Responses request body actually sent when the user turns web search on; the web declaration comes only from the bit copied from `/models` into [AIModel.capabilities]. */
+    private suspend fun responsesBodyWithWebOn(declaresWeb: Boolean): kotlinx.serialization.json.JsonObject {
+        var body: String? = null
+        val client = HttpClient(MockEngine { request ->
+            body = (request.body as io.ktor.http.content.TextContent).text
+            respond(
+                responsesSseBody(),
+                HttpStatusCode.OK,
+                headersOf(HttpHeaders.ContentType, "text/event-stream"),
+            )
+        })
+        val model = AIModel(
+            id = "grok-4.6",
+            name = "grok-4.6",
+            capabilities = listOfNotNull(
+                ai.oriveo.community.core.model.ModelCapability.Text,
+                ai.oriveo.community.core.model.ModelCapability.Web.takeIf { declaresWeb },
+            ),
+            upstreamApiBackend = "responses",
+        )
+        GrokService(client, json, transportRegistry).sendMessageStream(
+            apiKey = "access-token",
+            modelID = model.id,
+            messages = listOf(sampleMessage()),
+            reasoningMode = ReasoningMode.Automatic,
+            webSearchEnabled = true,
+            requestOptions = ChatRequestOptions(
+                grokSubscription = responsesSubscription,
+                activeModel = model,
+            ),
+        ).toList()
+        return json.parseToJsonElement(body!!).jsonObject
+    }
+
+    @Test
+    fun `a subscription model declaring web carries web_search when the user turns web search on`() = runTest {
+        val root = responsesBodyWithWebOn(declaresWeb = true)
+        assertEquals(
+            listOf("web_search"),
+            root.getValue("tools").jsonArray.map { it.jsonObject.getValue("type").jsonPrimitive.content },
+        )
+    }
+
+    @Test
+    fun `a subscription model not declaring web omits web_search even when the user turns web search on`() = runTest {
+        val root = responsesBodyWithWebOn(declaresWeb = false)
+        val toolTypes = root["tools"]?.jsonArray.orEmpty()
+            .map { it.jsonObject["type"]?.jsonPrimitive?.content }
+        assertFalse(toolTypes.toString(), "web_search" in toolTypes)
     }
 
     /**
@@ -329,6 +381,7 @@ class GrokSubscriptionOutboundTest {
         val (cost, source) = CostCalculator.calcCost(
             UsageBreakdown(promptTokens = 100, completionTokens = 50, upstreamCost = 0.0038),
             pricing = null,
+            at = Instant.now(),
         )
         assertEquals(0.0038, cost, 1e-9)
         assertEquals(CostSource.UPSTREAM, source)

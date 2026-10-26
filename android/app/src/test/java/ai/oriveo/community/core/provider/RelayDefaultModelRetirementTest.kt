@@ -102,6 +102,8 @@ class RelayDefaultModelRetirementTest {
             kind = kind,
             status = ProviderConnectionState.Connected,
             customName = raw.str("name"),
+            // The default authMode needs credentials: without a key a new conversation drops it for missing credentials.
+            apiKey = "sk-test",
             relayKind = if (kind == ProviderKind.Relay) RelayKind.OpenAICompatible else null,
             relayRequested = if (kind == ProviderKind.Relay) {
                 RelayRequestedConfig(engineProfile = raw.str("engineProfile"))
@@ -161,6 +163,7 @@ class RelayDefaultModelRetirementTest {
                 providers = listOf(provider),
                 activeProviderId = conversation.providerID,
                 activeModelId = conversation.modelID,
+                providersLoaded = true,
             )
             val removed = expect.getValue("removed").jsonPrimitive.content.toBoolean()
             assertEquals("$id: removed", removed, state.issue?.removedConnectionName != null)
@@ -227,7 +230,7 @@ class RelayDefaultModelRetirementTest {
     @Test
     fun `RD1_BANNER_01 removed conversation shows the banner, blocks sending and every send entry makes zero requests`() = runTest {
         val conversation = removedConversation()
-        val state = resolveChatConversationState(conversation, listOf(relay), relay.id, conversation.modelID)
+        val state = resolveChatConversationState(conversation, listOf(relay), relay.id, conversation.modelID, providersLoaded = true)
         val issue = requireNotNull(state.issue)
         val content = requireNotNull(relayModelRemovedBannerContent(issue))
         assertEquals(R.string.chat_model_removed_banner, content.messageRes)
@@ -298,7 +301,7 @@ class RelayDefaultModelRetirementTest {
         val conversationRepository = mockk<ConversationRepository>(relaxed = true)
         var activeProvider: String? = relay.id
         var activeModel: String? = conversation.modelID
-        assertNotNull(resolveChatConversationState(conversation, listOf(relay), activeProvider, activeModel).issue)
+        assertNotNull(resolveChatConversationState(conversation, listOf(relay), activeProvider, activeModel, providersLoaded = true).issue)
 
         val selection = ChatModelSelectionCoordinator(
             viewModelScope = this,
@@ -318,7 +321,7 @@ class RelayDefaultModelRetirementTest {
         advanceUntilIdle()
 
         coVerify { conversationRepository.updateProviderAndModel(conversation.id, relay.id, ProviderKind.Relay, "claude-4-haiku", any()) }
-        val after = resolveChatConversationState(conversation.copy(modelID = "claude-4-haiku"), listOf(relay), activeProvider, activeModel)
+        val after = resolveChatConversationState(conversation.copy(modelID = "claude-4-haiku"), listOf(relay), activeProvider, activeModel, providersLoaded = true)
         assertNull("banner disappears", after.issue)
         assertEquals("claude-4-haiku", after.model?.id)
     }
@@ -339,9 +342,10 @@ class RelayDefaultModelRetirementTest {
             providers = listOf(official, legacy),
             activeProviderId = legacy.id,
             activeModelId = null,
+            providersLoaded = true,
         )
         assertEquals("gpt-5.4", state.model?.id)
-        assertEquals("gpt-5.4", ProviderSelectionSnapshot.defaultModel(legacy)?.id)
+        assertEquals("gpt-5.4", ProviderSelectionSnapshot.newChatFallbackModel(legacy)?.id)
         assertEquals("gpt-5.4", legacy.defaultModel?.id)
     }
 
@@ -377,7 +381,6 @@ class RelayDefaultModelRetirementTest {
             every { keys.getApiKey(any(), any()) } returns "sk-test"
             ProviderRepository(
                 dao = dao,
-                conversationDao = mockk(relaxed = true),
                 secureKeyStore = keys,
                 openRouterService = mockk(relaxed = true),
                 openAIService = mockk(relaxed = true),

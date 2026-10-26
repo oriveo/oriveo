@@ -41,6 +41,8 @@ data class CodexModelDescriptor(
     val defaultReasoningLevel: String? = null,
     val supportsImageInput: Boolean = false,
     val contextWindow: Int? = null,
+    /** Upstream `input_modalities` as-is; null = not provided by upstream. */
+    val inputModalities: List<String>? = null,
 ) {
     val supportsReasoning: Boolean get() = supportedReasoningLevels.isNotEmpty()
 }
@@ -156,7 +158,11 @@ sealed class OpenAISubscriptionError {
     /** The published configuration is missing or invalid, including failing host allowlist checks. */
     data object ConfigurationUnavailable : OpenAISubscriptionError()
 
-    data class Transport(val detail: String) : OpenAISubscriptionError()
+    data class Transport(
+        val detail: String,
+        /** Underlying transport exception; attached as the cause when mapped to ProviderServiceError.Network. */
+        val underlying: Throwable? = null,
+    ) : OpenAISubscriptionError()
 
     data class Upstream(val status: Int, val body: String) : OpenAISubscriptionError()
 
@@ -474,6 +480,7 @@ class OpenAISubscriptionOAuthClient(
                     supportsImageInput = item.inputModalities.orEmpty()
                         .any { it.equals("image", ignoreCase = true) },
                     contextWindow = item.contextWindow,
+                    inputModalities = item.inputModalities,
                 )
             }
     }
@@ -506,7 +513,7 @@ class OpenAISubscriptionOAuthClient(
             throw e
         } catch (e: Exception) {
             throw OpenAISubscriptionException(
-                OpenAISubscriptionError.Transport(e.message ?: e::class.java.simpleName)
+                OpenAISubscriptionError.Transport(e.message ?: e::class.java.simpleName, underlying = e)
             )
         }
         val body = runCatching { response.bodyAsText() }.getOrDefault("")

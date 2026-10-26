@@ -36,6 +36,7 @@ import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
@@ -55,6 +56,10 @@ import org.w3c.dom.Element
  * [GenerationParameterSettingsStore], and the final body is produced by the production `buildAnthropicBody`.
  */
 class GenerationParameterLifecycleTest {
+
+    // Cases install the fixture into the global MetadataClient.instance; it is cleared after each case so it does not leak into other test classes.
+    @After
+    fun clearGlobalMetadata() = MetadataTestFixtures.clear()
 
     private val json = Json { ignoreUnknownKeys = true }
 

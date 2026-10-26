@@ -53,15 +53,22 @@ object RelayReasoningTiers {
     /** Auto tier set for the relay shape; local engine connections do not come here (still per the write-path table). */
     fun automaticTiers(provider: Provider, model: AIModel, metadata: MetadataClient = MetadataClient.instance): List<ReasoningMode> {
         if (!provider.relayRequested?.engineProfile.isNullOrBlank()) return emptyList()
-        val kind = metadata.resolveCatalogModelAcrossProvidersWithProvider(
-            model.id.trim(),
-            RelayRuntimeSupport.transportProviderKind(provider, model),
-        )?.matchedProviderKind
+        // Same match entry as pricing / capability inheritance: canonicalModelId first, then the id.
+        val match = relayOfficialMatch(
+            modelID = model.id.trim(),
+            canonicalModelId = model.canonicalModelId,
+            transportPriority = RelayRuntimeSupport.transportProviderKind(provider, model),
+            metadata = metadata,
+        )
+        val kind = match?.matchedProviderKind
             // Reads only the cached by-model family, sends no request for it and does not guess from the id text.
             ?: ai.oriveo.community.core.data.remote.RelayModelFamilyLookup.shared.cachedFamily(model.id)
                 ?.let { FAMILY_KINDS[it.lowercase()] }
             ?: return emptyList()
-        return tiers(metadata.modelFacts(kind, model.id)?.reasoningEfforts.orEmpty())
+        val canonical = (match?.canonicalModelId ?: model.canonicalModelId)?.trim()?.takeIf { it.isNotEmpty() }
+        // Canonical first, same as pricing / capability inheritance: look up the canonical id, then the original id.
+        val facts = canonical?.let { metadata.modelFacts(kind, it) } ?: metadata.modelFacts(kind, model.id)
+        return tiers(facts?.reasoningEfforts.orEmpty())
     }
 
     fun bodyNamesThinking(body: String?): Boolean {

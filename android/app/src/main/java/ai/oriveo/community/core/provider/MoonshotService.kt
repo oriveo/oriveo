@@ -127,19 +127,10 @@ class MoonshotService(
      * Moonshot puts cached_tokens at the TOP level of `usage`, not as a sub-field of
      * prompt_tokens_details. Reading it from the usual place gets it wrong.
      */
-    override fun parseUsage(usage: JsonObject?): ai.oriveo.community.core.provider.UsageBreakdown {
-        if (usage == null) return ai.oriveo.community.core.provider.UsageBreakdown()
-        val prompt = usage["prompt_tokens"]?.jsonPrimitive?.intOrNull ?: 0
-        val completion = usage["completion_tokens"]?.jsonPrimitive?.intOrNull ?: 0
-        val cached = usage["cached_tokens"]?.jsonPrimitive?.intOrNull ?: 0
-        return ai.oriveo.community.core.provider.UsageBreakdown(
-            promptTokens = (prompt - cached).coerceAtLeast(0),
-            cachedInputTokens = cached,
-            completionTokens = completion,
-            reasoningTokens = 0,  // kimi-k2-thinking has no separate field either; it is already inside completion
-            cacheReadObserved = usage["cached_tokens"]?.jsonPrimitive?.intOrNull != null,
-        )
-    }
+    override fun parseUsage(usage: JsonObject?): ai.oriveo.community.core.provider.UsageBreakdown = ChatUsageParsers.moonshot(usage)
+
+    /** When the top-level usage is missing, Kimi reports it in choices[0].usage. */
+    override fun chunkUsage(root: JsonObject): JsonObject? = ChatUsageParsers.moonshotChunkUsage(root)
 
     override fun sendMessageStream(
         apiKey: String,
@@ -403,30 +394,33 @@ class MoonshotService(
             }
 
             val text = accumulatedText.toString().trim()
-            // Each leg is billed separately, so usage is summed across legs and then goes
-            // through the same parseUsage channel (cached_tokens is at the top level).
-            val usages = legRunner.collectedUsages
-            val usageJson = if (usages.isNotEmpty()) {
-                buildJsonObject {
-                    put("prompt_tokens", JsonPrimitive(usages.sumOf { it.promptTokens }))
-                    put("completion_tokens", JsonPrimitive(usages.sumOf { it.completionTokens }))
-                    put("cached_tokens", JsonPrimitive(usages.sumOf { it.cachedTokens }))
+            // Each leg goes through the same parser (cached_tokens is at the top level) and legs are merged one by one;
+            // if any leg returned no usage, the whole turn counts as unknown.
+            // The service layer only reports usage and the upstream's actual charge: the delivery layer
+            // (DeliveredCostResolver) re-prices each leg at its injection time.
+            val legs = legRunner.collectedUsages.ifEmpty { listOf(null) }.map { breakdown ->
+                breakdown?.let {
+                    val upstream = it.upstreamCost
+                    ProviderChatResult(
+                        text = "",
+                        promptTokens = it.totalInputTokens,
+                        completionTokens = it.completionTokens,
+                        estimatedCost = upstream ?: 0.0,
+                        cachedInputTokens = it.reportedCachedInputTokens,
+                        costSource = if (upstream != null) CostSource.UPSTREAM.name else CostSource.UNKNOWN.name,
+                        usageReported = true,
+                    )
                 }
-            } else {
-                null
             }
-            val breakdown = parseUsage(usageJson)
-            val (cost, source) = ai.oriveo.community.core.provider.CostCalculator.calcCost(breakdown, resolved)
             emit(
                 StreamEvent.Done(
-                    ProviderChatResult(
-                        text = text,
-                        promptTokens = breakdown.promptTokens + breakdown.cachedInputTokens,
-                        completionTokens = breakdown.completionTokens,
-                        estimatedCost = cost,
-                        reasoningText = accumulatedReasoning.toString().trim().takeIf { it.isNotEmpty() },
-                        cachedInputTokens = breakdown.reportedCachedInputTokens,
-                        costSource = source.name,
+                    DeliveredCostResolver.mergeLegs(
+                        legs,
+                        base = ProviderChatResult(
+                            text = text,
+                            reasoningText = accumulatedReasoning.toString().trim().takeIf { it.isNotEmpty() },
+                            usageReported = legs.none { it == null },
+                        ),
                     ),
                 ),
             )

@@ -1,6 +1,7 @@
 package ai.oriveo.community.core.model
 
 import ai.oriveo.community.core.model.ProviderKind
+import ai.oriveo.community.core.usage.CostPart
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
@@ -8,22 +9,23 @@ import org.junit.Test
 
 class ConversationTest {
 
-    // ── estimatedCostText ────────────────────────────────────────
+    // ── costParts ────────────────────────────────────────
 
     @Test
-    fun `estimatedCostText returns empty for zero cost`() {
+    fun `costParts empty for zero cost`() {
         val conv = Conversation(id = "1", title = "Test", providerID = "p1", providerKind = ProviderKind.OpenAI, modelID = "m1")
-        assertEquals("", conv.estimatedCostText)
+        assertEquals(emptyList<CostPart>(), conv.costParts)
     }
 
     @Test
-    fun `estimatedCostText returns formatted cost`() {
+    fun `costParts lists USD first then other currencies`() {
         val conv = Conversation(
             id = "1", title = "Test", providerID = "p1", modelID = "m1",
             providerKind = ProviderKind.OpenAI,
             estimatedCost = 1.50,
+            nonUsdCostTotals = mapOf("EUR" to 2.0, "CNY" to 3.5),
         )
-        assertEquals("$1.50", conv.estimatedCostText)
+        assertEquals(listOf(CostPart("USD", 1.5), CostPart("CNY", 3.5), CostPart("EUR", 2.0)), conv.costParts)
     }
 
     // ── createdAt ────────────────────────────────────────────────

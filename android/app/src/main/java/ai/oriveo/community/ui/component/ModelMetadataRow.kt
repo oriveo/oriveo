@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,8 +34,12 @@ import androidx.compose.ui.unit.sp
 import ai.oriveo.community.R
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.ModelCapability
+import ai.oriveo.community.core.provider.DeliveredCostResolver
 import ai.oriveo.community.core.provider.ModelPricingFormatter
+import ai.oriveo.community.core.provider.connectionPriceLabelKey
+import ai.oriveo.community.core.provider.pricedForConnection
 import ai.oriveo.community.ui.theme.OriveoTheme
+import java.util.Locale
 
 data class HeroIconGradient(
     val start: Color,
@@ -177,7 +182,9 @@ fun ModelMetadataInlineStrip(
     prominentPrice: Boolean = false,
     compact: Boolean = false,
 ) {
-    val priceTier = model.normalizedPriceTierLabel()
+    // Without a connection context, use the same price-selection entry: catalog model-level price and currency win; the stored string is only a fallback when the catalog has no entry.
+    val priced = remember(connectionPriceLabelKey(null, model)) { model.pricedForConnection(null) }
+    val priceTier = priced.model.normalizedPriceTierLabel(priced.currencyCode)
     val capabilities = model.visibleMetadataCapabilities(maxCapabilities)
 
     if (priceTier.isBlank() && capabilities.isEmpty()) return
@@ -297,7 +304,9 @@ fun ModelListMetadataRow(
     statusText: String? = null,
     statusTone: StatusTone = StatusTone.Primary,
 ) {
-    val priceTier = model.normalizedPriceTierLabel()
+    // Without a connection context, use the same price-selection entry: catalog model-level price and currency win; the stored string is only a fallback when the catalog has no entry.
+    val priced = remember(connectionPriceLabelKey(null, model)) { model.pricedForConnection(null) }
+    val priceTier = priced.model.normalizedPriceTierLabel(priced.currencyCode)
     val capabilities = model.visibleMetadataCapabilities(maxCapabilities)
     val includePrice = showPrice && priceTier.isNotBlank()
 
@@ -774,7 +783,10 @@ private fun ModelCapability.toHeroIconTextItem(): HeroIconTextItem = when (this)
     )
 }
 
-internal fun AIModel.normalizedPriceTier(): String {
+internal fun AIModel.normalizedPriceTier(
+    currencyCode: String = DeliveredCostResolver.USD,
+    locale: Locale = Locale.getDefault(),
+): String {
     val explicitTier = priceTier.trim()
     if (explicitTier.isNotEmpty()) {
         return explicitTier
@@ -787,6 +799,8 @@ internal fun AIModel.normalizedPriceTier(): String {
     val perTokenTier = ModelPricingFormatter.formatPerMillion(
         promptPrice = promptPrice,
         completionPrice = completionPrice,
+        currencyCode = currencyCode,
+        locale = locale,
     )
     if (perTokenTier.isNotBlank()) {
         return perTokenTier
@@ -808,7 +822,7 @@ internal fun localizedPriceTier(tier: String): String = when (tier) {
 }
 
 @Composable
-internal fun AIModel.normalizedPriceTierLabel(): String {
+internal fun AIModel.normalizedPriceTierLabel(currencyCode: String = DeliveredCostResolver.USD): String {
     val explicitTier = priceTier.trim()
     if (explicitTier.isNotEmpty()) {
 
@@ -822,6 +836,8 @@ internal fun AIModel.normalizedPriceTierLabel(): String {
     val perTokenTier = ModelPricingFormatter.formatPerMillion(
         promptPrice = promptPrice,
         completionPrice = completionPrice,
+        currencyCode = currencyCode,
+        locale = rememberCostLocale(),
     )
     if (perTokenTier.isNotBlank()) {
         return perTokenTier

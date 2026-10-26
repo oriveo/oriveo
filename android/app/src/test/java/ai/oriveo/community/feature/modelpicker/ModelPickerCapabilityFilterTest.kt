@@ -2,6 +2,7 @@ package ai.oriveo.community.feature.modelpicker
 
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.model.AIModel
+import ai.oriveo.community.core.model.ModelCapability
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.RelayRequestedConfig
@@ -18,6 +19,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -128,7 +130,7 @@ class ModelPickerCapabilityFilterTest {
                     } else {
                         CapabilityControlResolution
                             .resolve(section.provider, model, kind.owner, metadata)
-                            .isAvailable
+                            .state == "auto_available"
                     }
                     assertEquals(
                         "${section.provider.kind.rawValue}/${model.id} ${kind.owner}",
@@ -203,6 +205,31 @@ class ModelPickerCapabilityFilterTest {
             metadata,
         ).sumOf { it.models.size }
         assertTrue("the intersection must be narrower than or equal to a single selection", both.sumOf { it.models.size } <= webOnly)
+    }
+
+    /**
+     * Qwen's raw capabilities list web, but capabilityControls.web is unknown:
+     * the web badge follows the same [CapabilityControlResolution.resolve] result as the control and stays off, with no Qwen special case.
+     */
+    @Test
+    fun `qwen raw web capability does not light the web badge while the web control is unknown`() {
+        val metadata = client()
+        val entry = models.getValue("qwen/qwen3-max")
+        val controlState = entry["capabilityControls"]!!.jsonObject["web"]!!.jsonObject["state"]!!.jsonPrimitive.content
+        assertEquals("Snapshot precondition: the qwen3-max web control is unknown", "unknown", controlState)
+        val provider = Provider(id = "qwen", kind = ProviderKind.Qwen)
+        val model = AIModel(id = "qwen3-max", name = "qwen3-max", capabilities = listOf(ModelCapability.Text, ModelCapability.Web))
+
+        val resolution = CapabilityControlResolution.resolve(provider, model, "web", metadata)
+        assertFalse(resolution.isAvailable)
+        assertFalse(ModelPickerCapabilityFilterKind.Web in modelPickerCapabilityBadges(provider, model, metadata))
+        assertFalse(
+            ModelCapability.Web in CapabilityEvidenceProductionAdapter.governedMetadataCapabilities(
+                provider,
+                model,
+                metadataClient = metadata,
+            ),
+        )
     }
 
     private fun workspaceFile(relative: String): File {

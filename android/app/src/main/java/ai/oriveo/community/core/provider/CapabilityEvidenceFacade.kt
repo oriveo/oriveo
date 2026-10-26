@@ -1,6 +1,10 @@
 package ai.oriveo.community.core.provider
 
+import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.GenerationParameterRef
+import ai.oriveo.community.core.model.ModelCapability
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
 /**
  * Pure resolution entry point for the shared capability-evidence contract v1.
@@ -28,6 +32,18 @@ internal object CapabilityEvidenceFacade {
      * it takes effect only when there is no valid prioritized candidate, and is resolved to an unknown that is not sent out.
      */
     const val CATALOG_ABSENT = "catalog_absent"
+
+    // The three input capability keys: callers reference the constants instead of writing bare literals.
+    const val VISION_INPUT = "vision_input"
+    const val FILE_INPUT = "file_input"
+    const val VIDEO_INPUT = "video_input"
+
+    /**
+     * Can only generate images, no text: the metadata declares ImageGen without Text.
+     * An empty capability list (unknown) does not count, so a text model whose metadata has not arrived yet is not treated as image-only.
+     */
+    fun isImageOnlyModel(model: AIModel): Boolean =
+        ModelCapability.ImageGen in model.capabilities && ModelCapability.Text !in model.capabilities
 
     /** A query must carry the full local isolation identity, so a call site cannot construct a "current connection with no generation". */
     data class QueryIdentity(
@@ -399,4 +415,174 @@ internal object CapabilityEvidenceFacade {
         "relay_declared", "user_declared", "engine_profile" -> "relay_declaration"
         else -> "legacy_metadata"
     }
+
+    // ---- Three-valued input capability projection (same semantics as Web capability-evidence-facade.ts) ----
+
+    /** Input capability verdict from the payload; a missing entry is passed as null by the caller and projected as unknown. */
+    data class InputCapabilityVerdict(
+        val state: String,
+        val reasonCode: String? = null,
+        val wireFamily: String? = null,
+    )
+
+    /** The Relay user's manual override of an input capability; ignored on official connections. */
+    @Serializable
+    enum class InputCapabilityOverride {
+        @SerialName("add") ADD,
+        @SerialName("remove") REMOVE,
+    }
+
+    @Serializable
+    enum class InputCapabilityConnection {
+        @SerialName("official") OFFICIAL,
+        @SerialName("relay") RELAY,
+    }
+
+    @Serializable
+    enum class InputCapabilityOutbound {
+        @SerialName("native_part") NATIVE_PART,
+        @SerialName("placeholder") PLACEHOLDER,
+    }
+
+    @Serializable
+    enum class InputCapabilityHint {
+        /** Hint only once per device per model. */
+        @SerialName("first_attach_once") FIRST_ATTACH_ONCE,
+    }
+
+    @Serializable
+    enum class InputCapabilityDisabledReason {
+        @SerialName("disabled.kill_switch") KILL_SWITCH,
+        @SerialName("disabled.wire_not_implemented") WIRE_NOT_IMPLEMENTED,
+        @SerialName("disabled.user_removed") USER_REMOVED,
+        @SerialName("disabled.rejected_recently") REJECTED_RECENTLY,
+        @SerialName("disabled.model_absent") MODEL_ABSENT,
+    }
+
+    /**
+     * Input capability projection. The constructor is private and instances come only from [projectInputCapability]
+     * (the rule body lives in the companion because the outer Kotlin object cannot see a nested class's private constructor);
+     * not a data class, so copy is not exposed.
+     */
+    class InputCapabilityProjection private constructor(
+        val visible: Boolean,
+        val editable: Boolean,
+        val outbound: InputCapabilityOutbound,
+        val hint: InputCapabilityHint?,
+        val disabledReason: InputCapabilityDisabledReason?,
+    ) {
+        override fun equals(other: Any?): Boolean =
+            other is InputCapabilityProjection &&
+                visible == other.visible &&
+                editable == other.editable &&
+                outbound == other.outbound &&
+                hint == other.hint &&
+                disabledReason == other.disabledReason
+
+        override fun hashCode(): Int = listOf(visible, editable, outbound, hint, disabledReason).hashCode()
+
+        override fun toString(): String =
+            "InputCapabilityProjection(visible=$visible, editable=$editable, outbound=$outbound, " +
+                "hint=$hint, disabledReason=$disabledReason)"
+
+        internal companion object {
+            // The control-state vocabulary lives only in CapabilityControlResolution.
+            private const val STATE_AUTO_AVAILABLE = CapabilityControlResolution.STATE_AUTO_AVAILABLE
+            private const val STATE_UNKNOWN = "unknown"
+            private const val STATE_UNAVAILABLE = "unavailable"
+
+            /** Priority: kill_switch > not implemented on this platform > Relay remove > Relay add > negative cache > verdict. */
+            internal fun project(
+                verdict: InputCapabilityVerdict?,
+                endImplements: Boolean,
+                override: InputCapabilityOverride?,
+                negativeCacheHit: Boolean,
+                connection: InputCapabilityConnection,
+            ): InputCapabilityProjection {
+                val reasonCode = verdict?.reasonCode?.takeIf { verdict.state == STATE_UNAVAILABLE }
+                // Hard block: no override can flip it.
+                if (reasonCode == "provider_kill_switch") return disabled(InputCapabilityDisabledReason.KILL_SWITCH)
+                if (
+                    !endImplements ||
+                    (verdict?.wireFamily != null && !endImplementsWireFamily(verdict.wireFamily)) ||
+                    reasonCode == "transport_not_supported" ||
+                    reasonCode == "transport_not_implemented"
+                ) {
+                    return disabled(InputCapabilityDisabledReason.WIRE_NOT_IMPLEMENTED)
+                }
+                if (connection == InputCapabilityConnection.RELAY && override != null) {
+                    return when (override) {
+                        InputCapabilityOverride.ADD -> available()
+                        InputCapabilityOverride.REMOVE -> disabled(InputCapabilityDisabledReason.USER_REMOVED)
+                    }
+                }
+                if (negativeCacheHit) return disabled(InputCapabilityDisabledReason.REJECTED_RECENTLY)
+                return when (verdict?.state ?: STATE_UNKNOWN) {
+                    STATE_AUTO_AVAILABLE -> available()
+                    STATE_UNKNOWN -> InputCapabilityProjection(
+                        visible = false,
+                        editable = true,
+                        outbound = InputCapabilityOutbound.NATIVE_PART,
+                        hint = InputCapabilityHint.FIRST_ATTACH_ONCE,
+                        disabledReason = null,
+                    )
+                    // Every other unavailable reason (model_capability_absent etc.) means the model lacks the capability.
+                    else -> disabled(InputCapabilityDisabledReason.MODEL_ABSENT)
+                }
+            }
+
+            private fun available() = InputCapabilityProjection(
+                visible = true,
+                editable = true,
+                outbound = InputCapabilityOutbound.NATIVE_PART,
+                hint = null,
+                disabledReason = null,
+            )
+
+            private fun disabled(reason: InputCapabilityDisabledReason) = InputCapabilityProjection(
+                visible = false,
+                editable = false,
+                outbound = InputCapabilityOutbound.PLACEHOLDER,
+                hint = null,
+                disabledReason = reason,
+            )
+        }
+    }
+
+    /**
+     * The single entry for input capability projection. [key] is [VISION_INPUT] / [FILE_INPUT] / [VIDEO_INPUT];
+     * a null [verdict] means the payload lacks the key and is projected as unknown.
+     */
+    fun projectInputCapability(
+        key: String,
+        verdict: InputCapabilityVerdict?,
+        endImplements: Boolean,
+        override: InputCapabilityOverride?,
+        negativeCacheHit: Boolean,
+        connection: InputCapabilityConnection,
+    ): InputCapabilityProjection {
+        require(key == VISION_INPUT || key == FILE_INPUT || key == VIDEO_INPUT) { "not an input capability key: $key" }
+        return InputCapabilityProjection.project(verdict, endImplements, override, negativeCacheHit, connection)
+    }
+
+    /**
+     * Input wire families implemented at compile time on Android; aligned item by item with the families whose implementedBy
+     * includes android in shared/model-contracts/wire_families.v1.json, locked by ProtocolImplementationsTest,
+     * so change both together when protocol implementations are added or removed.
+     */
+    object ProtocolImplementations {
+        val android: Set<String> = setOf(
+            "openai_chat.image_url",
+            "openai_chat.file",
+            "openai_chat.video_url",
+            "openai_responses.input_image",
+            "openai_responses.input_file",
+            "anthropic.image",
+            "anthropic.document",
+            "gemini.inline_data",
+        )
+    }
+
+    /** Whether this platform implements the wire family; missing or not in the table counts as not implemented. */
+    fun endImplementsWireFamily(id: String?): Boolean = id != null && id in ProtocolImplementations.android
 }

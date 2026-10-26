@@ -18,13 +18,6 @@ import ai.oriveo.community.core.model.RelayAuthMode
 import ai.oriveo.community.core.model.RelayRequestedConfig
 import ai.oriveo.community.core.model.RelayTransport
 import ai.oriveo.community.core.provider.relay.RelayChatBuildExtras
-import ai.oriveo.community.core.tools.ToolLoopLegRequest
-import ai.oriveo.community.core.tools.ToolLoopMessage
-import ai.oriveo.community.core.tools.ToolLoopToolCall
-import ai.oriveo.community.core.tools.ToolLoopToolCallFunction
-import ai.oriveo.community.core.tools.ToolLoopToolChoice
-import ai.oriveo.community.core.tools.ToolLoopToolDefinition
-import ai.oriveo.community.core.tools.ToolLoopToolFunction
 import ai.oriveo.community.core.provider.relay.buildAnthropicBody
 import ai.oriveo.community.core.provider.transport.TransportRegistry
 import io.ktor.client.HttpClient
@@ -57,9 +50,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Anthropic allows at most 4 cache_control breakpoints per request. With 5 images in the current
- * turn plus an image in history, the request body of both production paths (direct Anthropic and
- * relay) must carry no more than 1 cache_control.
+ * Anthropic allows at most 4 cache_control breakpoints per request. With 5 images in the current turn and images in history,
+ * the request bodies of both the official direct and the Relay production paths must contain no more than 1 cache_control.
  */
 class AnthropicCacheBreakpointTest {
     private val json = Json { ignoreUnknownKeys = true }
@@ -103,8 +95,30 @@ class AnthropicCacheBreakpointTest {
         } ?: 0
     }
 
-    /** Sends once through the production direct path (AnthropicService.sendMessageStream) and returns the request body captured by MockEngine. */
-    private suspend fun officialBody(messages: List<ChatMessage>, options: ChatRequestOptions = ChatRequestOptions()): String {
+    /**
+     * Injects a claude catalog model into the official Anthropic metadata; when [promptCache] is null the entry carries no promptCache.
+     * The shape matches the claude entries in bundled-metadata.v2 (`promptCache: {policyRef: anthropic.explicit}`).
+     */
+    private fun injectCatalogModel(promptCache: String? = """{"policyRef":"${MessageBuilder.ANTHROPIC_EXPLICIT_PROMPT_CACHE}"}""") {
+        val promptCacheJson = promptCache?.let { ""","promptCache":$it""" }.orEmpty()
+        MetadataTestFixtures.applyRaw(
+            """{"version":1,"providers":{"${ProviderKind.Anthropic.rawValue}":{"defaultModelId":"$modelId",""" +
+                """"resolveMap":{"$modelId":"$modelId"},"models":{""" +
+                """"$modelId":{"canonicalModelId":"$modelId","displayName":"Claude Haiku 4.5","contextLength":200000""" +
+                """$promptCacheJson}}}}}""",
+        )
+    }
+
+    /**
+     * Sends once through the official production path (AnthropicService.sendMessageStream) and returns the request body captured by MockEngine.
+     * By default a catalog model with a policyRef is injected first; with [inject] = false the metadata the caller prepared is kept (including not loaded).
+     */
+    private suspend fun officialBody(
+        messages: List<ChatMessage>,
+        options: ChatRequestOptions = ChatRequestOptions(),
+        inject: Boolean = true,
+    ): String {
+        if (inject) injectCatalogModel()
         var body: String? = null
         val client = HttpClient(
             MockEngine { request ->
@@ -144,7 +158,7 @@ class AnthropicCacheBreakpointTest {
             buildExtras = RelayChatBuildExtras(keepImageAttachments = true),
         )
 
-    /** wire-system.v1 system_history_and_dynamic_block: yields messages and options in the shape of transportInput ([D] is already appended to the end of the last user text). */
+    /** wire-system.v1 system_history_and_dynamic_block: builds messages and options in the shape of transportInput ([D] is already appended to the end of the last user text). */
     private class DynamicCase(val messages: List<ChatMessage>, val options: ChatRequestOptions, val expected: JsonObject)
 
     private fun dynamicCase(): DynamicCase {
@@ -179,7 +193,7 @@ class AnthropicCacheBreakpointTest {
         val parsed = json.parseToJsonElement(sent).jsonObject
         assertEquals("system is byte-identical to the fixture", case.expected.getValue("system").toString(), parsed.getValue("system").toString())
         assertEquals(
-            "content of the last user is byte-identical to the fixture ([D] is a separate final block, the breakpoint is on the block before it)",
+            "content of the last user message is byte-identical to the fixture ([D] is a separate final block, the breakpoint is on the block before it)",
             lastUserContent(case.expected.getValue("messages").jsonArray).toString(),
             lastUserContent(parsed.getValue("messages").jsonArray).toString(),
         )
@@ -208,7 +222,7 @@ class AnthropicCacheBreakpointTest {
             assertNull("$route has no top-level cache_control", parsed["cache_control"])
             assertEquals("$route has exactly 1 cache_control: $sent", 1, countCacheControl(sent))
             val content = lastUserContent(parsed.getValue("messages").jsonArray)
-            assertEquals("$route keeps the original text when there is no dynamicText", case.messages.last().text, content.single().jsonObject["text"]?.jsonPrimitive?.content)
+            assertEquals("$route keeps the original text unstripped without dynamicText", case.messages.last().text, content.single().jsonObject["text"]?.jsonPrimitive?.content)
             assertNotNull("$route breakpoint is on the last block", content.last().jsonObject["cache_control"])
         }
     }
@@ -219,14 +233,14 @@ class AnthropicCacheBreakpointTest {
 
     @Test
     fun anthropic_image_only_dynamic_breakpoint_on_image() = runTest {
-        // When the body is empty the current user text is [D] itself; it is still split off as the last block, and the breakpoint lands on the image block.
+        // When the body is empty the current user text is [D] itself; it must still be split off as the last block, with the breakpoint on the image block.
         val current = ProviderTestFixtures.userMessage(dynamic, ProviderKind.Anthropic, modelId)
             .copy(attachments = listOf(image("c1")))
         val options = ChatRequestOptions(dynamicText = dynamic)
         for ((route, sent) in listOf("official" to officialBody(listOf(current), options), "relay" to relayBody(listOf(current), options))) {
             assertEquals("$route has exactly 1 cache_control: $sent", 1, countCacheControl(sent))
             val content = lastUserContent(json.parseToJsonElement(sent).jsonObject.getValue("messages").jsonArray)
-            assertEquals("$route has only the image + [D] blocks: $sent", listOf("image", "text"), content.map { it.jsonObject["type"]?.jsonPrimitive?.content })
+            assertEquals("$route has only the image and [D] blocks: $sent", listOf("image", "text"), content.map { it.jsonObject["type"]?.jsonPrimitive?.content })
             assertNotNull("$route breakpoint is on the image block", content[0].jsonObject["cache_control"])
             assertEquals("$route [D] is the last block", dynamic, textOf(content[1]))
             assertNull("$route [D] block carries no breakpoint", content[1].jsonObject["cache_control"])
@@ -235,7 +249,7 @@ class AnthropicCacheBreakpointTest {
 
     @Test
     fun anthropic_file_text_injected_before_dynamic() = runTest {
-        // Extracted attachment file text is injected before [D]; [D] is always the final segment.
+        // File text extracted from attachments is injected before [D]; [D] is always the final segment.
         val file = Attachment(
             id = "f1",
             kind = AttachmentKind.File,
@@ -251,8 +265,8 @@ class AnthropicCacheBreakpointTest {
             val content = lastUserContent(json.parseToJsonElement(sent).jsonObject.getValue("messages").jsonArray)
             assertEquals("$route [D] is the last block: $sent", dynamic, textOf(content.last()))
             val before = content.dropLast(1).mapNotNull(::textOf).joinToString("\n")
-            assertTrue("$route file text is before [D]: $sent", before.contains("FILE-BODY-42") && before.contains("Summarize the file."))
-            assertTrue("$route the part before [D] no longer contains [D]: $sent", !before.contains(dynamic))
+            assertTrue("$route file text comes before [D]: $sent", before.contains("FILE-BODY-42") && before.contains("Summarize the file."))
+            assertTrue("$route no [D] before the split: $sent", !before.contains(dynamic))
             assertNotNull("$route breakpoint is on the block before [D]", content[content.size - 2].jsonObject["cache_control"])
         }
     }
@@ -262,9 +276,9 @@ class AnthropicCacheBreakpointTest {
         val sent = officialBody(conversation())
         val parsed = json.parseToJsonElement(sent).jsonObject
         val messages = parsed.getValue("messages").jsonArray
-        assertEquals("The 1 history image and the 5 current-turn images must all be sent", 6, imageBlocks(messages))
-        assertNull("direct path no longer sends a top-level cache_control", parsed["cache_control"])
-        assertNotNull("breakpoint is on the last content block of the last user", lastUserContent(messages).last().jsonObject["cache_control"])
+        assertEquals("1 history image + 5 current-turn images must all be sent", 6, imageBlocks(messages))
+        assertNull("official no longer sends a top-level cache_control", parsed["cache_control"])
+        assertNotNull("breakpoint is on the last content block of the last user message", lastUserContent(messages).last().jsonObject["cache_control"])
         assertEquals(1, countCacheControl(sent))
     }
 
@@ -276,17 +290,17 @@ class AnthropicCacheBreakpointTest {
             stream = true,
             reasoningMode = ReasoningMode.Automatic,
             requestOptions = ChatRequestOptions(),
-            // Without capability evidence the vision gate would drop the images; this test measures breakpoints on a request with images, so keep them.
+            // Without capability evidence the vision gate does not pass; what is measured here is the breakpoint count of a request with images, so keep the image attachments.
             buildExtras = RelayChatBuildExtras(keepImageAttachments = true),
         )
         val parsed = json.parseToJsonElement(body).jsonObject
         val messages = parsed.getValue("messages").jsonArray
         assertEquals(6, imageBlocks(messages))
-        assertTrue("At most 1 cache_control: $body", countCacheControl(body) <= 1)
-        assertNull("The relay sends no top-level cache_control", parsed["cache_control"])
+        assertTrue("at most 1 cache_control: $body", countCacheControl(body) <= 1)
+        assertNull("Relay sends no top-level cache_control", parsed["cache_control"])
         val lastUser = messages.last { it.jsonObject["role"]?.jsonPrimitive?.content == "user" }.jsonObject
         val lastBlock = lastUser.getValue("content").jsonArray.last().jsonObject
-        assertNotNull("The breakpoint sits on the last content block of the last user message", lastBlock["cache_control"])
+        assertNotNull("breakpoint is on the last content block of the last user message", lastBlock["cache_control"])
         assertEquals(1, countCacheControl(body))
     }
 
@@ -305,5 +319,37 @@ class AnthropicCacheBreakpointTest {
         assertEquals("Hello", content["text"]?.jsonPrimitive?.content)
         assertNotNull(content["cache_control"])
         assertTrue(content["cache_control"] is JsonObject)
+    }
+
+    // -- Official Anthropic breakpoints only follow the catalog promptCache.policyRef == anthropic.explicit --
+
+    @Test
+    fun `official anthropic without promptCache sends no cache_control`() = runTest {
+        injectCatalogModel(promptCache = null)
+        val sent = officialBody(conversation(), inject = false)
+        assertEquals("a catalog entry without promptCache gets no breakpoint: $sent", 0, countCacheControl(sent))
+        assertEquals("images are still sent", 6, imageBlocks(json.parseToJsonElement(sent).jsonObject.getValue("messages").jsonArray))
+    }
+
+    @Test
+    fun `official anthropic with a non anthropic policyRef sends no cache_control`() = runTest {
+        injectCatalogModel(promptCache = """{"policyRef":"openai.chat.automatic"}""")
+        assertEquals(0, countCacheControl(officialBody(conversation(), inject = false)))
+    }
+
+    @Test
+    fun `official anthropic with metadata not loaded sends no cache_control`() = runTest {
+        MetadataTestFixtures.clear()
+        val case = dynamicCase()
+        val sent = officialBody(case.messages, case.options, inject = false)
+        assertEquals("no breakpoint when metadata is not loaded: $sent", 0, countCacheControl(sent))
+        val content = lastUserContent(json.parseToJsonElement(sent).jsonObject.getValue("messages").jsonArray)
+        assertEquals("[D] is still split into a separate final block", case.options.dynamicText, textOf(content.last()))
+    }
+
+    @Test
+    fun `relay anthropic keeps its breakpoint without catalog verdict`() {
+        injectCatalogModel(promptCache = null)
+        assertEquals(1, countCacheControl(relayBody(conversation())))
     }
 }

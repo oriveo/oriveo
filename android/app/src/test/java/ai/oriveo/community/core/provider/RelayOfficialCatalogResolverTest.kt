@@ -409,6 +409,23 @@ class RelayOfficialCatalogResolverTest {
     }
 
     @Test
+    fun `an id that differs from the official one inherits official capabilities by canonicalModelId match`() {
+        injectFixture()
+        val local = localModel("my-gpt-alias").copy(canonicalModelId = "gpt-5.4")
+        val provider = makeRelayProvider(transport = RelayTransport.OpenAIResponses, catalogModels = listOf(local))
+        val enriched = RelayOfficialCatalogResolver.enrich(
+            localModel = local,
+            provider = provider,
+            runtimeConfig = MetadataClient.relayRuntimeConfig(),
+        )
+
+        assertEquals("my-gpt-alias", enriched.id)
+        assertEquals("gpt-5.4", enriched.canonicalModelId)
+        assertEquals("GPT-5.4", enriched.name)
+        assertTrue(ModelCapability.Reasoning in enriched.capabilities)
+    }
+
+    @Test
     fun `RelayRuntimeSupport attachmentSupport reports nativeFile false for openai_chat_completions`() {
         injectFixture()
         val provider = makeRelayProvider(transport = RelayTransport.OpenAIChatCompletions)

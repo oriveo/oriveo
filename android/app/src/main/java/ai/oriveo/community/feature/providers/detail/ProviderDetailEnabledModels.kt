@@ -68,7 +68,12 @@ import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.data.repository.ProviderRepository
+import ai.oriveo.community.core.provider.DeliveredCostResolver
 import ai.oriveo.community.core.provider.ModelPricingFormatter
+import ai.oriveo.community.core.provider.connectionPriceLabelKey
+import ai.oriveo.community.core.provider.pricedForConnection
+import ai.oriveo.community.ui.component.rememberCostLocale
+import java.util.Locale
 import ai.oriveo.community.ui.component.HeroModelCapabilityStrip
 import ai.oriveo.community.ui.component.MODEL_ROW_MAX_CAPABILITIES
 import ai.oriveo.community.ui.component.localizedPriceTier
@@ -91,6 +96,11 @@ fun LazyListScope.providerDetailEnabledModels(
     /** null = the model row menu on this page offers no "Set as default" (relay / local: the default model is changed only in the model card on the detail page). */
     onSetDefault: ((AIModel) -> Unit)?,
     onStartChat: (AIModel) -> Unit,
+    /**
+     * Whether a model row can start a chat (the criterion is ProviderDetailViewModel.modelRowStartChatID != null:
+     * false when the credential is missing or the model is unavailable); when false the title tap and chat button show a disabled state.
+     */
+    canStartChat: (AIModel) -> Boolean = { it.isAvailable },
     /**
      * Membership index of the confirmed relay catalog; null means the catalog is unconfirmed or
      * failed to load, so no model may be reported as gone from it.
@@ -167,6 +177,7 @@ fun LazyListScope.providerDetailEnabledModels(
                     isHighlighted = highlightedModelID == model.id,
                     canSetDefault = onSetDefault != null && !isDefault,
                     canRemove = canRemove,
+                    canStartChat = canStartChat(model),
                     onStartChat = { onStartChat(model) },
                     onSetDefault = { onSetDefault?.invoke(model) },
                     onToggle = { onToggleModel(model) },
@@ -319,6 +330,8 @@ private fun EnabledModelRow(
     isHighlighted: Boolean,
     canSetDefault: Boolean,
     canRemove: Boolean,
+    /** Whether a chat can start (false when the credential is missing or the model is unavailable): when false the title tap and chat button are disabled. */
+    canStartChat: Boolean,
     onStartChat: () -> Unit,
     onSetDefault: () -> Unit,
     onToggle: () -> Unit,
@@ -332,6 +345,8 @@ private fun EnabledModelRow(
     val menuItems = RelayModelAdvancedBoard.enabledRowActions(canSetDefault, canRemove).menu
     val hasMenu = if (boardRow != null) RelayCatalogTrailing.More in boardRow.trailing else menuItems.isNotEmpty()
     var showMenu by remember { mutableStateOf(false) }
+    // The unit-price label picks the price by the connection's effective region (same entry point as delivered billing)
+    val priced = remember(connectionPriceLabelKey(provider, model)) { model.pricedForConnection(provider) }
 
     val highlightTint by animateColorAsState(
         targetValue = if (isHighlighted) {
@@ -372,7 +387,7 @@ private fun EnabledModelRow(
                         .clickable {
                             when (RelayCatalogBoardModel.rowTap(model.id, boardRow.tapTarget, enabledRow = true)) {
                                 is RelayCatalogRowTap.OpenAdvanced -> onOpenAdvanced()
-                                RelayCatalogRowTap.StartChat -> if (model.isAvailable) onStartChat()
+                                RelayCatalogRowTap.StartChat -> if (canStartChat) onStartChat()
                                 RelayCatalogRowTap.Enable -> Unit
                             }
                         }
@@ -384,7 +399,7 @@ private fun EnabledModelRow(
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(8.dp))
-                    .clickable(enabled = model.isAvailable, onClick = onStartChat)
+                    .clickable(enabled = canStartChat, onClick = onStartChat)
                     .alpha(if (model.isAvailable) 1f else 0.72f),
                 horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.md),
                 verticalAlignment = Alignment.CenterVertically,
@@ -411,12 +426,12 @@ private fun EnabledModelRow(
                         model = model,
                         capabilityObservationRevision = capabilityObservationRevision,
                     )
-                    ModelSpecInline(model = model)
+                    ModelSpecInline(model = priced.model, currencyCode = priced.currencyCode)
                 }
             }
 
-            if (!hasDetailedSpecifications(model)) {
-                EnabledModelPriceLabel(model = model)
+            if (!hasDetailedSpecifications(priced.model, priced.currencyCode)) {
+                EnabledModelPriceLabel(model = priced.model, currencyCode = priced.currencyCode)
             }
             }
 
@@ -427,11 +442,11 @@ private fun EnabledModelRow(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 if (boardRow == null) {
-                    EnabledRowChatButton(available = model.isAvailable, onClick = onStartChat)
+                    EnabledRowChatButton(available = canStartChat, onClick = onStartChat)
                 } else if (RelayCatalogTrailing.NewChat in boardRow.trailing) {
                     // "New chat" uses the same icon in the same position as an official enabled row.
                     EnabledRowChatButton(
-                        available = model.isAvailable,
+                        available = canStartChat,
                         onClick = onStartChat,
                         contentDescription = stringResource(R.string.new_chat),
                     )
@@ -590,8 +605,9 @@ internal data class EnabledModelSpecification(
 )
 
 @Composable
-internal fun ModelSpecInline(model: AIModel) {
-    val specifications = remember(model) { modelSpecifications(model) }
+internal fun ModelSpecInline(model: AIModel, currencyCode: String = DeliveredCostResolver.USD) {
+    val locale = rememberCostLocale()
+    val specifications = remember(model, currencyCode, locale) { modelSpecifications(model, currencyCode, locale) }
     if (specifications.isEmpty()) return
 
     val primary = specifications.filter { !it.isSecondary }
@@ -654,23 +670,29 @@ private fun SpecLine(items: List<EnabledModelSpecification>) {
     }
 }
 
-private fun hasDetailedSpecifications(model: AIModel): Boolean = modelSpecifications(model).isNotEmpty()
+private fun hasDetailedSpecifications(model: AIModel, currencyCode: String): Boolean =
+    modelSpecifications(model, currencyCode).isNotEmpty()
 
-internal fun modelSpecifications(model: AIModel): List<EnabledModelSpecification> = buildList {
+/** Spec rows; prices are shown in [currencyCode] (with a connection context, select the price through [pricedForConnection] first). */
+internal fun modelSpecifications(
+    model: AIModel,
+    currencyCode: String = DeliveredCostResolver.USD,
+    locale: Locale = Locale.getDefault(),
+): List<EnabledModelSpecification> = buildList {
     compactTokenCount(model.contextLength)?.let {
         add(EnabledModelSpecification(labelRes = null, value = it, showsContextIcon = true))
     }
-    perMillionPriceFromPerToken(model.promptPrice)?.let {
+    perMillionPriceFromPerToken(model.promptPrice, currencyCode, locale)?.let {
         add(EnabledModelSpecification(R.string.price_input, it))
     }
-    perMillionPriceFromPerToken(model.completionPrice)?.let {
+    perMillionPriceFromPerToken(model.completionPrice, currencyCode, locale)?.let {
         add(EnabledModelSpecification(R.string.price_output, it))
     }
-    perMillionPriceFromPerMillion(model.cacheReadInputPerMToken)?.let {
+    perMillionPriceFromPerMillion(model.cacheReadInputPerMToken, currencyCode, locale)?.let {
         add(EnabledModelSpecification(R.string.price_cache_read, it, isSecondary = true))
     }
     val cacheWrite = model.cacheWrite5mPerMToken ?: model.cacheCreationInputPerMToken
-    perMillionPriceFromPerMillion(cacheWrite)?.let {
+    perMillionPriceFromPerMillion(cacheWrite, currencyCode, locale)?.let {
         add(EnabledModelSpecification(R.string.price_cache_write, it, isSecondary = true))
     }
 }
@@ -684,14 +706,14 @@ private fun compactTokenCount(tokens: Int?): String? {
     }
 }
 
-private fun perMillionPriceFromPerToken(price: Double?): String? {
+private fun perMillionPriceFromPerToken(price: Double?, currencyCode: String, locale: Locale): String? {
     val value = price?.takeIf { it.isFinite() && it > 0 } ?: return null
-    return ModelPricingFormatter.formatPerMillionValue(value)?.takeIf(String::isNotEmpty)
+    return ModelPricingFormatter.formatPerMillionValue(value, currencyCode, locale)?.takeIf(String::isNotEmpty)
 }
 
-private fun perMillionPriceFromPerMillion(price: Double?): String? {
+private fun perMillionPriceFromPerMillion(price: Double?, currencyCode: String, locale: Locale): String? {
     val value = price?.takeIf { it.isFinite() && it > 0 } ?: return null
-    return ModelPricingFormatter.formatPerMillionValue(value / 1_000_000.0)?.takeIf(String::isNotEmpty)
+    return ModelPricingFormatter.formatPerMillionValue(value / 1_000_000.0, currencyCode, locale)?.takeIf(String::isNotEmpty)
 }
 
 @Composable
@@ -733,13 +755,16 @@ private fun EnabledModelMetadataRow(
 }
 
 @Composable
-private fun EnabledModelPriceLabel(model: AIModel) {
+private fun EnabledModelPriceLabel(model: AIModel, currencyCode: String) {
     val colors = OriveoTheme.colors
+    val locale = rememberCostLocale()
 
     val priceText = localizedPriceTier(model.priceTier.trim()).ifBlank {
         ModelPricingFormatter.formatPerMillion(
             promptPrice = model.promptPrice,
             completionPrice = model.completionPrice,
+            currencyCode = currencyCode,
+            locale = locale,
         )
     }
     if (priceText.isBlank()) return

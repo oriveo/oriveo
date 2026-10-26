@@ -5,6 +5,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+/** The pricing time is passed explicitly (`at` has no default): a fixed time keeps results independent of the run date. */
+private val AT: java.time.Instant = java.time.Instant.parse("2026-10-20T00:00:00Z")
+
 /**
  * Unit tests for CostCalculator, covering the whole acceptance set for cost-calculation precision.
  */
@@ -50,7 +53,7 @@ class CostCalculatorTest {
             completionTokens = 50,
             upstreamCost = 0.00037756,  // derived from 37756 ticks
         )
-        val (cost, source) = CostCalculator.calcCost(breakdown, null)
+        val (cost, source) = CostCalculator.calcCost(breakdown, null, at = AT)
         assertEquals(0.00037756, cost, 1e-9)
         assertEquals(CostSource.UPSTREAM, source)
     }
@@ -66,6 +69,7 @@ class CostCalculatorTest {
         val (cost, source) = CostCalculator.calcCost(
             breakdown,
             pricing(input = 5.0, output = 15.0),
+            at = AT,
         )
         assertEquals(0.00026985, cost, 1e-9)
         assertEquals(CostSource.UPSTREAM, source)
@@ -93,7 +97,7 @@ class CostCalculatorTest {
         )
         // Expected: (1000*3 + 2000*0.3 + 1000*3.75 + 500*6 + 200*15) / 1_000_000
         //     = (3000 + 600 + 3750 + 3000 + 3000) / 1e6 = 0.01335
-        val (cost, source) = CostCalculator.calcCost(breakdown, p)
+        val (cost, source) = CostCalculator.calcCost(breakdown, p, at = AT)
         assertEquals(0.01335, cost, 1e-9)
         assertEquals(CostSource.LOCAL_ESTIMATE, source)
     }
@@ -112,7 +116,7 @@ class CostCalculatorTest {
             completionTokens = 0,
         )
         // Expected: 1000 * 3.75 / 1e6 = 0.00375
-        val (cost, _) = CostCalculator.calcCost(breakdown, p)
+        val (cost, _) = CostCalculator.calcCost(breakdown, p, at = AT)
         assertEquals(0.00375, cost, 1e-9)
     }
 
@@ -121,7 +125,7 @@ class CostCalculatorTest {
         val p = pricing(input = 3.0, output = 15.0, cachedInput = 0.30, cacheWrite5m = 3.75)
         // cacheWrite1h absent, so fall back to input * 2.0 = 6.0
         val breakdown = UsageBreakdown(cacheCreation1hTokens = 1000)
-        val (cost, _) = CostCalculator.calcCost(breakdown, p)
+        val (cost, _) = CostCalculator.calcCost(breakdown, p, at = AT)
         assertEquals(0.006, cost, 1e-9)  // 1000 * 6 / 1e6
     }
 
@@ -130,7 +134,7 @@ class CostCalculatorTest {
         val p = pricing(input = 4.0, output = 0.0)  // cachedInput missing
         val breakdown = UsageBreakdown(cachedInputTokens = 1000)
         // fallback: 4.0 * 0.5 = 2.0 per M → 1000 * 2.0 / 1e6 = 0.002
-        val (cost, _) = CostCalculator.calcCost(breakdown, p)
+        val (cost, _) = CostCalculator.calcCost(breakdown, p, at = AT)
         assertEquals(0.002, cost, 1e-9)
     }
 
@@ -225,6 +229,7 @@ class CostCalculatorTest {
         val (cost, source) = CostCalculator.calcCost(
             UsageBreakdown(promptTokens = 100, completionTokens = 50),
             null,
+            at = AT,
         )
         assertEquals(0.0, cost, 0.0)
         assertEquals(CostSource.UNKNOWN, source)
@@ -242,6 +247,7 @@ class CostCalculatorTest {
         val (cost, source) = CostCalculator.calcCost(
             UsageBreakdown(promptTokens = 100, completionTokens = 50),
             p,
+            at = AT,
         )
         assertEquals(0.0, cost, 0.0)
         assertEquals(CostSource.LOCAL_ESTIMATE, source)
@@ -255,9 +261,21 @@ class CostCalculatorTest {
             pricingStatus = "priced",
             costPerUnit = 0.04,
         )
-        val (cost, source) = CostCalculator.calcCost(UsageBreakdown(), p)
+        val (cost, source) = CostCalculator.calcCost(UsageBreakdown(), p, at = AT)
         assertEquals(0.04, cost, 0.0)
         assertEquals(CostSource.LOCAL_ESTIMATE, source)
+    }
+
+    @Test
+    fun `legacy single-tier price missing a per-unit price records unknown, not 0`() {
+        val p = MetadataClient.ResolvedModelMetadata(
+            canonicalModelId = "test",
+            pricingUnit = "per_image",
+            pricingStatus = "priced",
+        )
+        val (cost, source) = CostCalculator.calcCost(UsageBreakdown(), p, at = AT)
+        assertEquals(0.0, cost, 0.0)
+        assertEquals(CostSource.UNKNOWN, source)
     }
 
     @Test

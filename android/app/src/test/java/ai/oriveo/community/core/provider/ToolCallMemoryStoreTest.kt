@@ -38,6 +38,37 @@ class ToolCallMemoryStoreTest {
     }
 
     @Test
+    fun `memory recorded under another modelFactsRevision is void after restart`() {
+        val prefs = TestSharedPreferences()
+        var revision: String? = "r0"
+        val relay = relayProvider()
+        val model = manualModel()
+        val store = ToolCallMemoryStore({ prefs }, json, factsRevision = { revision })
+        assertTrue(store.record("account-a", relay, model, false, "tools_rejected_4xx"))
+        assertEquals(false, store.lookup("account-a", relay, model))
+
+        revision = "r1"
+        assertNull(store.lookup("account-a", relay, model))
+        assertNull(ToolCallMemoryStore({ prefs }, json, factsRevision = { revision }).lookup("account-a", relay, model))
+        // Same value and same cause but the revision changed, so it must be re-recorded under the current revision.
+        assertTrue(store.record("account-a", relay, model, false, "tools_rejected_4xx"))
+        assertEquals(false, store.lookup("account-a", relay, model))
+    }
+
+    @Test
+    fun `observed support survives a modelFactsRevision change`() {
+        val prefs = TestSharedPreferences()
+        var revision: String? = "r0"
+        val relay = relayProvider()
+        val model = manualModel()
+        val store = ToolCallMemoryStore({ prefs }, json, factsRevision = { revision })
+        assertTrue(store.record("account-a", relay, model, true, "tool_call_observed"))
+        revision = "r1"
+        assertEquals(true, store.lookup("account-a", relay, model))
+        assertEquals(true, ToolCallMemoryStore({ prefs }, json, factsRevision = { revision }).lookup("account-a", relay, model))
+    }
+
+    @Test
     fun `catalog models never learn memory while eligible unknown models do`() {
         val store = ToolCallMemoryStore({ TestSharedPreferences() }, json)
         val official = Provider(id = "openai", kind = ProviderKind.OpenAI)
@@ -50,7 +81,7 @@ class ToolCallMemoryStoreTest {
     }
 
     @Test
-    fun `relay negative memory is ignored and positive memory requires a native adapter`() {
+    fun `relay negative memory is ignored, auto falls back to the first-send native adapter and positive memory can send`() {
         val relay = relayProvider()
         val model = manualModel().copy(toolCall = null)
         val identity = relayIdentity(model)
@@ -81,9 +112,20 @@ class ToolCallMemoryStoreTest {
         )
         assertTrue(positive.permitsOutbound("tool_call"))
 
+        // The tool final transport takes the first-attempt protocol: an auto connection falls back to the native adapter of the first-attempt protocol (Chat here), so a positive memory can be sent.
         val auto = relay.copy(relayRequested = relay.relayRequested?.copy(transport = RelayTransport.Auto))
-        val unavailable = CapabilityEvidenceProductionAdapter.toolCallProjection(
+        val firstSend = CapabilityEvidenceProductionAdapter.toolCallProjection(
             auto,
+            model,
+            identity = identity,
+            memoryVerdict = true,
+        )
+        assertTrue(firstSend.permitsOutbound("tool_call"))
+
+        // The native local channel has no tool adapter and the first attempt cannot resolve one either, so a positive memory is still not sendable.
+        val native = relay.copy(relayRequested = relay.relayRequested?.copy(transport = RelayTransport.LlamaCppNative))
+        val unavailable = CapabilityEvidenceProductionAdapter.toolCallProjection(
+            native,
             model,
             identity = identity,
             memoryVerdict = true,

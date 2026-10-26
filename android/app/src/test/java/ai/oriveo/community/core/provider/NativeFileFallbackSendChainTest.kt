@@ -159,11 +159,22 @@ class NativeFileFallbackSendChainTest {
             requestOptions = options,
         ).toList()
         val identified = relayOptions().copy(capabilityEvidenceIdentity = identity("c1"))
+        val v2 = ai.oriveo.community.core.capability.InputNegativeCache.shared
+        v2.clearConnection("c1")
+        v2.clearConnection("c2")
 
         assertTrue(send(identified).last() is StreamEvent.Done)
         assertEquals(2, bodies.size)
         val key = RelayNegativeCache.Key("c1", MODEL, RelayTransport.GeminiGenerateContent.value)
         assertEquals(listOf(key to RelayNegativeCache.Kind.File), cache.entries().map { it.key to it.kind })
+        // The v1 entry is mirrored by a v2 file_input entry (protocol family follows this request's protocol) with signature relay.classified_rejected.
+        assertEquals(
+            listOf(
+                ai.oriveo.community.core.capability.InputNegativeCache.Key("c1", MODEL, "gemini.inline_data", CapabilityEvidenceFacade.FILE_INPUT) to
+                    ai.oriveo.community.core.capability.InputRejectionFlow.RELAY_CLASSIFIED_REJECTED_SIGNATURE_ID,
+            ),
+            v2.entries().filter { it.first.connectionId == "c1" }.map { it.first to it.second.signatureId },
+        )
 
         // The next message for the same connection x model x protocol goes straight to text.
         send(identified)
@@ -176,6 +187,9 @@ class NativeFileFallbackSendChainTest {
         assertEquals(5, bodies.size)
         assertTrue(bodies[3], bodies[3].contains("inlineData"))
         assertEquals(1, cache.entries().size)
+        // 413 is not a rejected signal: neither v1 nor v2 remembers it.
+        assertTrue(v2.entries().none { it.first.connectionId == "c2" })
+        v2.clearConnection("c1")
     }
 
     @Test

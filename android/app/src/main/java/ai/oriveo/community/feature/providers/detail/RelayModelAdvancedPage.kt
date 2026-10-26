@@ -206,6 +206,7 @@ internal fun RelayModelAdvancedHost(
                 toolMemory = toolMemory,
                 automaticReasoning = automatic,
                 readOnly = readOnly,
+                identity = identity,
             ) to automatic
         }
     }

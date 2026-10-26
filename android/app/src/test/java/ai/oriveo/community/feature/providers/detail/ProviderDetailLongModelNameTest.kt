@@ -49,7 +49,7 @@ class ProviderDetailLongModelNameTest {
         ).readText()
         val rowSource = source.requiredSlice(
             from = "private fun CatalogModelRow(",
-            to = "val priceTier = model.normalizedPriceTierLabel()",
+            to = "val priceTier = priced.model.normalizedPriceTierLabel(priced.currencyCode)",
         )
         val titleSource = rowSource.requiredSlice(
             from = "text = model.name",

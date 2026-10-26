@@ -31,6 +31,16 @@ data class ProviderChatResult(
      * Used only for explicit "continue" stitching: leading whitespace / newlines of the continuation are appended to the original as is; display and persistence of a new answer still use [text].
      */
     val rawText: String? = null,
+    /**
+     * Whether the upstream returned a usage object: true = it did (all-zero buckets are a real zero), false = it did not (the price is unknown).
+     * Every production exit (official / relay / image generation / merged multi-leg) sets it explicitly; the default of true exists only for test fixtures that build a result with tokens.
+     */
+    val usageReported: Boolean = true,
+    /**
+     * Per-leg results of a multi-leg message: filled in by [ai.oriveo.community.core.provider.DeliveredCostResolver.mergeLegs] when one message is made of several upstream requests;
+     * delivered-cost pricing prices each leg on its own and adds them up; null = a single leg.
+     */
+    val legs: List<ProviderChatResult>? = null,
 )
 
 /** Everything that can go wrong between this app and a provider the user configured. */

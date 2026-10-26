@@ -788,6 +788,113 @@ class MoonshotServiceTest {
         )
     }
 
+    /** The usage of a recorded Kimi stream sits in choices[0] (nothing at the top level); plain chat reads it through the same parser and does not mark usage as unreported. */
+    @Test
+    fun `plain chat reads choices usage from recorded Kimi stream`() = runTest {
+        val recorded = recordedStream("moonshot.leg1.sse")
+        val client = HttpClient(
+            MockEngine {
+                respond(
+                    content = recorded,
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, "text/event-stream"),
+                )
+            }
+        )
+        val events = MoonshotService(client, json, transportRegistry).sendMessageStream(
+            apiKey = "sk-test",
+            modelID = "kimi-k2.5",
+            messages = listOf(userMessage("Melbourne weather")),
+            baseUrl = null,
+            supportsImageGen = false,
+            reasoningMode = ReasoningMode.Automatic,
+            webSearchEnabled = false,
+            requestOptions = ChatRequestOptions(),
+        ).toList()
+
+        val done = events.last() as StreamEvent.Done
+        assertTrue(done.result.usageReported)
+        assertEquals(67, done.result.promptTokens)
+        assertEquals(88, done.result.completionTokens)
+    }
+
+    /** Web-search tool-loop legs also read choices[0].usage (the first leg is a recorded stream); when every leg reports usage the total is not unknown. */
+    @Test
+    fun `webSearch tool loop reads choices usage from recorded Kimi leg`() = runTest {
+        applyKimiWebRecipe()
+        val leg1 = recordedStream("moonshot_web_search.leg1.sse")
+        val leg2 = """
+            data: {"choices":[{"index":0,"delta":{"content":"answer"},"finish_reason":null}]}
+
+            data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop","usage":{"prompt_tokens":30,"completion_tokens":4,"total_tokens":34}}]}
+
+            data: [DONE]
+        """.trimIndent()
+        var calls = 0
+        val client = HttpClient(
+            MockEngine {
+                calls += 1
+                respond(
+                    content = if (calls == 1) leg1 else leg2,
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, "text/event-stream"),
+                )
+            }
+        )
+        val events = MoonshotService(client, json, transportRegistry).sendMessageStream(
+            apiKey = "sk-test",
+            modelID = "kimi-k2.5",
+            messages = listOf(userMessage("what is the weather in Shanghai")),
+            baseUrl = null,
+            supportsImageGen = false,
+            reasoningMode = ReasoningMode.Automatic,
+            webSearchEnabled = true,
+            requestOptions = ChatRequestOptions(),
+        ).toList()
+
+        assertEquals(2, calls)
+        val done = events.last() as StreamEvent.Done
+        assertEquals("answer", done.result.text)
+        assertTrue(done.result.usageReported)
+        assertEquals(50, done.result.promptTokens)
+        assertEquals(5, done.result.completionTokens)
+    }
+
+    private fun recordedStream(name: String): String {
+        val root = File(System.getProperty("user.dir")).absoluteFile.parentFile!!.parentFile!!
+        return File(root, "shared/test-fixtures/provider-toolcall/recorded/$name").readText()
+    }
+
+    private fun applyKimiWebRecipe() {
+        MetadataTestFixtures.applyRaw(
+            """
+            {
+              "version": 1,
+              "capabilityRuntime": ${MetadataTestFixtures.capabilityRuntimeJson()},
+              "providers": {
+                "moonshot": {
+                  "defaultModelId": "kimi-k2.5",
+                  "resolveMap": { "kimi-k2.5": "kimi-k2.5" },
+                  "models": {
+                    "kimi-k2.5": {
+                      "canonicalModelId": "kimi-k2.5",
+                      "transport": "openai_chat",
+                      "capabilities": ["web"],
+                      "capabilityControls": ${MetadataTestFixtures.capabilityControlsJson(
+                        MetadataTestFixtures.ControlSpec(
+                            capability = "web",
+                            recipeRef = "moonshot.chat.web.v1",
+                        ),
+                    )}
+                    }
+                  }
+                }
+              }
+            }
+            """.trimIndent()
+        )
+    }
+
     /** Several parallel tool calls in one leg: (id, name, arguments already escaped as a JSON string). */
     private fun toolCallLeg(calls: List<Triple<String, String, String>>): String {
         val toolCalls = calls.mapIndexed { index, (id, name, arguments) ->

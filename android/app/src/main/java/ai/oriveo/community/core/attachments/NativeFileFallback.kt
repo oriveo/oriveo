@@ -1,10 +1,15 @@
 package ai.oriveo.community.core.attachments
 
+import ai.oriveo.community.core.capability.InputNegativeCache
+import ai.oriveo.community.core.capability.InputRejectionFlow
+import ai.oriveo.community.core.capability.truth.relayInputNegativeCacheTarget
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.ChatMessage
+import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ProviderServiceError
 import ai.oriveo.community.core.model.StreamEvent
+import ai.oriveo.community.core.provider.CapabilityEvidenceFacade
 import ai.oriveo.community.core.provider.relay.RelayKeyAccess
 import ai.oriveo.community.core.provider.relay.RelayNegativeCache
 import java.util.concurrent.ConcurrentHashMap
@@ -32,10 +37,25 @@ object NativeFileFallback {
         val key: RelayNegativeCache.Key,
         /** Model-level file override; On beats the `file` negative cache, and a rejection still falls back and is still recorded as usual. */
         val fileOverride: Boolean? = null,
+        /** Negative cache v2: recording the v1 `file` entry also writes a `file_input` entry (the decision still reads v1). */
+        val inputNegativeCache: InputNegativeCache = InputNegativeCache.shared,
     ) {
         internal fun isTextOnly(): Boolean =
             fileOverride != true && cache.isRejected(key, RelayNegativeCache.Kind.File)
-        internal fun remember(first: Throwable): Boolean = cache.recordIfRejected(key, RelayNegativeCache.Kind.File, first)
+        internal fun remember(first: Throwable): Boolean {
+            if (!cache.recordIfRejected(key, RelayNegativeCache.Kind.File, first)) return false
+            // The relay verdict for the file key never reads connection evidence (always unknown), so the connection / model in the key are enough for provider / model.
+            InputRejectionFlow.recordRelay(
+                relayInputNegativeCacheTarget(
+                    provider = Provider(id = key.connectionId, kind = ProviderKind.Relay),
+                    model = AIModel(id = key.modelId, name = key.modelId),
+                    transport = key.transport,
+                    key = CapabilityEvidenceFacade.FILE_INPUT,
+                ),
+                inputNegativeCache,
+            )
+            return true
+        }
     }
 
     /** One protocol on one connection. */

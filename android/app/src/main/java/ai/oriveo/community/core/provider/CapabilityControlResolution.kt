@@ -1,6 +1,7 @@
 package ai.oriveo.community.core.provider
 
 import ai.oriveo.community.core.capability.truth.ProviderForm
+import ai.oriveo.community.core.capability.truth.SubscriptionTruthAdapter
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.data.remote.canonicalCapabilityTransport
 import ai.oriveo.community.core.model.AIModel
@@ -56,7 +57,8 @@ object CapabilityControlResolution {
     }
 
     private const val STATE_UNKNOWN = "unknown"
-    private const val STATE_AUTO_AVAILABLE = "auto_available"
+    /** auto_available from the registered vocabulary; exits outside the registry (e.g. input arbitration) reference it instead of writing the literal. */
+    internal const val STATE_AUTO_AVAILABLE = "auto_available"
     private const val STATE_UNAVAILABLE = "unavailable"
 
     /** The upstream said **nothing at all** about this capability, which is not the same as
@@ -278,7 +280,7 @@ object CapabilityControlResolution {
     /** Subscription `/models` declaration > persisted models.dev facts > unknown. */
     fun subscriptionDeclaredReasoningLevels(providerKind: ProviderKind, model: AIModel): List<String> =
         model.upstreamReasoningLevels.takeIf { it.isNotEmpty() }
-            ?: MetadataClient.modelFacts(providerKind, model.id)?.reasoningEfforts.orEmpty()
+            ?: SubscriptionTruthAdapter.modelFacts(MetadataClient.instance, providerKind, model)?.reasoningEfforts.orEmpty()
 
     fun subscriptionDefaultReasoningLevel(providerKind: ProviderKind, model: AIModel?): String? {
         val declaredDefault = model?.upstreamDefaultReasoningLevel ?: return null

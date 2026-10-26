@@ -10,7 +10,6 @@ import ai.oriveo.community.core.model.ProviderConnectionState
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.RelayTransport
 import ai.oriveo.community.core.model.resolveActiveModel
-import ai.oriveo.community.core.model.resolveLastUsedModelRef
 import ai.oriveo.community.feature.providers.detail.buildProviderCatalogGroups
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -42,6 +41,8 @@ class RelayModelIdentityTest {
         status = ProviderConnectionState.Connected,
         models = models,
         catalogModels = catalog,
+        // The default authMode needs credentials: without a key a new conversation drops it for missing credentials.
+        apiKey = "sk-test",
     )
 
     @Test
@@ -78,11 +79,10 @@ class RelayModelIdentityTest {
         assertEquals("gpt-4o-2024-08-06", persisted?.storedModelId)
         assertEquals("gpt-4o-2024-08-06", ProviderSelectionSnapshot.runtimeModelId(provider, "gpt-4o-2024-08-06"))
 
-        val lastUsed = resolveLastUsedModelRef(listOf(provider), LastUsedModelRef("relay-1", "gpt-4o-2024-08-06"))
-        assertEquals("gpt-4o-2024-08-06", lastUsed?.modelID)
+        val datedActive = resolveActiveModel(listOf(provider), LastUsedModelRef("relay-1", "gpt-4o-2024-08-06"))
+        assertEquals("gpt-4o-2024-08-06", datedActive?.model?.id)
         val active = resolveActiveModel(listOf(provider), LastUsedModelRef("relay-1", "gpt-4o"))
         assertEquals("gpt-4o", active?.model?.id)
-        assertEquals("gpt-4o", resolveLastUsedModelRef(listOf(provider), LastUsedModelRef("relay-1", "gpt-4o"))?.modelID)
     }
 
     @Test

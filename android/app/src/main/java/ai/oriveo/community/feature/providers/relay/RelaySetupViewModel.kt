@@ -837,6 +837,8 @@ class RelaySetupViewModel(
                 if (!customLLMCoordinator.canPersist(attempt)) return@launch
                 if (!customLLMCoordinator.finishCommit(attempt)) return@launch
                 registeredProvider = provider
+                // Adding a connection only records a verified model as last used: here, the first model just verified.
+                backgroundScope.launch { runCatching { rememberLastUsedModel(provider.id, first) } }
                 completionTarget = RelaySetupCompletionTarget.ProviderDetail(
                     provider.id,
                     // The notice reports the actual enabled count, by the same criterion as persisting (deduplicated after trim, ignoring case).

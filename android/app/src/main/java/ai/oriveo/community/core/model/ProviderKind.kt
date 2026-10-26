@@ -155,6 +155,10 @@ enum class ProviderKind {
     val isProviderSetupAggregator: Boolean
         get() = this in aggregators
 
+    /**
+     * Provider-level attachment envelope, taken only from the catalog (including the snapshot bundled in the APK);
+     * when it is missing no support is claimed (all false). Relay does not publish one, so the entry check reads the input-capability projection.
+     */
     val attachmentSupport: AttachmentSupportInfo
         get() = MetadataClient.providerAttachmentSupport(this)?.let { support ->
             AttachmentSupportInfo(
@@ -163,27 +167,7 @@ enum class ProviderKind {
                 nativeFile = support.nativeFile,
                 textFileInline = support.textFileInline,
             )
-        } ?: fallbackAttachmentSupport
-
-    private val fallbackAttachmentSupport: AttachmentSupportInfo
-        get() = when (this) {
-            OpenRouter -> AttachmentSupportInfo(image = true, nativeFile = true, textFileInline = true)
-            OpenAI -> AttachmentSupportInfo(image = true, nativeFile = true, textFileInline = true)
-            Gemini -> AttachmentSupportInfo(image = true, nativeFile = true, textFileInline = true)
-            Anthropic -> AttachmentSupportInfo(image = true, nativeFile = true, textFileInline = true)
-            DeepSeek -> AttachmentSupportInfo(image = false, nativeFile = false, textFileInline = true)
-            Grok -> AttachmentSupportInfo(image = true, nativeFile = false, textFileInline = true)
-            Groq -> AttachmentSupportInfo(image = true, nativeFile = false, textFileInline = true)
-            Together -> AttachmentSupportInfo(image = true, nativeFile = false, textFileInline = true)
-            Fireworks -> AttachmentSupportInfo(image = true, nativeFile = false, textFileInline = true)
-            MiniMax -> AttachmentSupportInfo(image = false, nativeFile = false, textFileInline = true)
-            Zhipu -> AttachmentSupportInfo(image = true, nativeFile = false, textFileInline = true)
-            Qwen -> AttachmentSupportInfo(image = true, nativeFile = false, textFileInline = true)
-            Moonshot -> AttachmentSupportInfo(image = true, video = false, nativeFile = false, textFileInline = true)
-            Mistral -> AttachmentSupportInfo(image = true, nativeFile = false, textFileInline = true)
-            SiliconFlow -> AttachmentSupportInfo(image = true, nativeFile = false, textFileInline = true)
-            Relay -> AttachmentSupportInfo(image = true, nativeFile = false, textFileInline = true)
-        }
+        } ?: AttachmentSupportInfo(image = false, video = false, nativeFile = false, textFileInline = false)
 
     val autoFillNote: String?
         get() = when (this) {

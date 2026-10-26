@@ -4,6 +4,7 @@ import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.ModelCapability
 import ai.oriveo.community.core.model.ProviderKind
+import java.util.Locale
 
 /**
  * The single catalog-model builder.
@@ -155,9 +156,12 @@ object CatalogModelBuilder {
                     PricingPresentation(priceTier = "Non-standard billing")
                 } else {
                     PricingPresentation(
+                        // The stored string is written in the catalog price's currency (fixed Locale.US, not the device locale, when persisted): a non-USD price must not be written as "$".
                         priceTier = ModelPricingFormatter.formatPerMillion(
                             metadata.promptPerToken,
                             metadata.completionPerToken,
+                            DeliveredCostResolver.pricingCurrency(metadata),
+                            Locale.US,
                         ),
                         promptPrice = metadata.promptPerToken,
                         completionPrice = metadata.completionPerToken,

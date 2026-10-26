@@ -95,6 +95,8 @@ class RelayDetailBoardStructureTest {
     private fun relay(
         requested: RelayRequestedConfig = RelayRequestedConfig(transport = RelayTransport.OpenAIChatCompletions),
         apiKey: String = "sk-live-0000000000007f2a",
+        // The caller supplies the preview together with apiKey: cases with no stored key pass it empty explicitly, so the fixture never judges credential presence itself.
+        apiKeyPreview: String = "sk-••••••••7f2a",
         relayKind: RelayKind? = RelayKind.OpenAICompatible,
         models: List<AIModel> = listOf(AIModel(id = "claude-sonnet-4.5", name = "claude-sonnet-4.5", isDefault = true), AIModel(id = "gpt-5", name = "gpt-5")),
         catalog: List<AIModel> = models + listOf(AIModel(id = "o3", name = "o3"), AIModel(id = "gemini-2.5-pro", name = "gemini-2.5-pro")),
@@ -104,7 +106,7 @@ class RelayDetailBoardStructureTest {
         customName = "myrelay.dev",
         baseUrlText = "https://api.myrelay.dev",
         apiKey = apiKey,
-        apiKeyPreview = if (apiKey.isBlank()) "" else "sk-••••••••7f2a",
+        apiKeyPreview = apiKeyPreview,
         relayKind = relayKind,
         relayRequested = requested,
         models = models,
@@ -215,7 +217,7 @@ class RelayDetailBoardStructureTest {
     @Test
     fun `BOARD-DETAIL-01 a missing required key shows tap to set and a residual key keeps the remove exit`() {
         // Auth required with no stored key: keeps the existing "tap to set up" value, not the "no key required" one.
-        val noKey = RelayDetailBoardModel.build(relay(apiKey = ""), isRedetecting = false).connectionRows[1]
+        val noKey = RelayDetailBoardModel.build(relay(apiKey = "", apiKeyPreview = ""), isRedetecting = false).connectionRows[1]
         assertEquals(R.string.tap_to_set, noKey.valueRes)
         assertNull(noKey.value)
         assertNull(noKey.trailingRes)
@@ -348,7 +350,7 @@ class RelayDetailBoardStructureTest {
         assertEquals(0, key.moreKeys)
         // authMode none with no stored key is still not tappable.
         val none = RelayDetailBoardModel.build(
-            relay(apiKey = "", requested = RelayRequestedConfig(transport = RelayTransport.OpenAIChatCompletions, authMode = RelayAuthMode.None)),
+            relay(apiKey = "", apiKeyPreview = "", requested = RelayRequestedConfig(transport = RelayTransport.OpenAIChatCompletions, authMode = RelayAuthMode.None)),
             isRedetecting = false,
         ).connectionRows.single { it.id == RelayDetailRowId.ApiKey }
         assertNull(none.action)
@@ -554,7 +556,6 @@ class RelayDetailBoardStructureTest {
             every { keys.getApiKey(any(), any()) } returns "sk-live-0000000000007f2a"
             ProviderRepository(
                 dao = dao,
-                conversationDao = mockk(relaxed = true),
                 secureKeyStore = keys,
                 openRouterService = mockk(relaxed = true),
                 openAIService = mockk(relaxed = true),
@@ -810,7 +811,7 @@ class RelayDetailBoardStructureTest {
         )
 
         // (2) Missing key: key icon + "not saved on this device", title tappable = same destination as API key, reason row empty.
-        val missing = requireNotNull(RelayDetailBoardModel.recoveryCard(relay(apiKey = ""), false, false))
+        val missing = requireNotNull(RelayDetailBoardModel.recoveryCard(relay(apiKey = "", apiKeyPreview = ""), false, false))
         assertEquals(R.string.provider_api_key_not_saved, missing.titleRes)
         assertEquals(R.drawable.ph_key, missing.titleIconRes)
         assertEquals(RelayDetailAction.OpenKeys, missing.titleAction)
@@ -946,12 +947,12 @@ class RelayDetailBoardStructureTest {
         assertEquals(2, many.keyCount)
         assertNull(many.trailingRes)
 
-        val unset = apiKeyRowOf(relay(apiKey = ""))
+        val unset = apiKeyRowOf(relay(apiKey = "", apiKeyPreview = ""))
         assertEquals(R.string.tap_to_set, unset.valueRes)
         assertNull(unset.trailingRes)
 
         val notNeeded = apiKeyRowOf(
-            relay(apiKey = "", requested = RelayRequestedConfig(transport = RelayTransport.OpenAIChatCompletions, authMode = RelayAuthMode.None)),
+            relay(apiKey = "", apiKeyPreview = "", requested = RelayRequestedConfig(transport = RelayTransport.OpenAIChatCompletions, authMode = RelayAuthMode.None)),
         )
         assertEquals(R.string.relay_detail_no_key, notNeeded.valueRes)
         assertNull(notNeeded.trailingRes)

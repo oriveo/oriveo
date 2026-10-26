@@ -4,10 +4,34 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import ai.oriveo.community.core.data.remote.MetadataClient
+import org.junit.After
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 
 class ProviderKindTest {
+
+    // Official-provider attachment support comes only from the catalog; this class asserts the behavior when it is missing, so the table is cleared before and after.
+    @Before
+    fun clearMetadataBefore() = clearMetadataTable()
+
+    @After
+    fun clearMetadataAfter() = clearMetadataTable()
+
+    private fun clearMetadataTable() {
+        val tableField = MetadataClient::class.java.getDeclaredField("table")
+        tableField.isAccessible = true
+        tableField.set(MetadataClient.instance, null)
+    }
+
+    private fun assertNoAttachmentSupport(kind: ProviderKind) {
+        val support = kind.attachmentSupport
+        assertFalse("$kind must not claim image without metadata", support.image)
+        assertFalse("$kind must not claim video without metadata", support.video)
+        assertFalse("$kind must not claim native files without metadata", support.nativeFile)
+        assertFalse("$kind must not claim text inline without metadata", support.textFileInline)
+    }
 
     // ── displayName ──────────────────────────────────────────────
 
@@ -120,10 +144,8 @@ class ProviderKindTest {
         assertEquals("api.mistral.ai/v1", ProviderKind.Mistral.defaultBaseUrl)
         // Mistral keys have no fixed prefix, so the placeholder stays empty and takes no part in key-prefix inference.
         assertEquals("", ProviderKind.Mistral.apiKeyPlaceholder)
-        val support = ProviderKind.Mistral.attachmentSupport
-        assertTrue("Mistral supports vision via image_url", support.image)
-        assertFalse("Mistral has no Files API", support.nativeFile)
-        assertTrue("Mistral relies on inline text attachments", support.textFileInline)
+        // Attachment support comes only from the catalog; none is claimed when it is missing
+        assertNoAttachmentSupport(ProviderKind.Mistral)
     }
 
     @Test
@@ -164,11 +186,8 @@ class ProviderKindTest {
     }
 
     @Test
-    fun `grok supports vision and text inline but no native file`() {
-        val support = ProviderKind.Grok.attachmentSupport
-        assertTrue("Grok supports vision", support.image)
-        assertFalse("Grok has no native file API", support.nativeFile)
-        assertTrue("Grok inlines text files", support.textFileInline)
+    fun `grok claims no attachment support without metadata`() {
+        assertNoAttachmentSupport(ProviderKind.Grok)
     }
 
     @Test
@@ -286,42 +305,31 @@ class ProviderKindTest {
     // ── attachmentSupport ────────────────────────────────────────
 
     @Test
-    fun `direct providers support all attachment types`() {
+    fun `direct providers claim no attachment support without metadata`() {
         listOf(ProviderKind.OpenRouter, ProviderKind.OpenAI, ProviderKind.Gemini, ProviderKind.Anthropic).forEach {
-            val support = it.attachmentSupport
-            assertTrue("$it should support images", support.image)
-            assertTrue("$it should support native files", support.nativeFile)
-            assertTrue("$it should support text inline", support.textFileInline)
+            assertNoAttachmentSupport(it)
         }
     }
 
     @Test
-    fun `aggregators do not support native files`() {
-        listOf(ProviderKind.Groq, ProviderKind.Together, ProviderKind.Fireworks, ProviderKind.Relay).forEach {
-            val support = it.attachmentSupport
-            assertTrue("$it should support images", support.image)
-            assertFalse("$it should NOT support native files", support.nativeFile)
-            assertTrue("$it should support text inline", support.textFileInline)
+    fun `aggregators and relay claim no attachment support without metadata`() {
+        listOf(ProviderKind.Groq, ProviderKind.Together, ProviderKind.Fireworks).forEach {
+            assertNoAttachmentSupport(it)
         }
+        // Relay attachment support is read from the connection envelope and the input-capability projection; there is no provider-level local default.
+        assertNoAttachmentSupport(ProviderKind.Relay)
     }
 
     @Test
-    fun `siliconflow supports image and text inline like other openai-compatible providers`() {
-        val support = ProviderKind.SiliconFlow.attachmentSupport
-        assertTrue("SiliconFlow hosts vision models, should support image", support.image)
-        assertFalse("SiliconFlow has no native file API", support.nativeFile)
-        assertTrue("SiliconFlow uses OpenAI-compatible API, should support text inline", support.textFileInline)
+    fun `siliconflow claims no attachment support without metadata`() {
+        assertNoAttachmentSupport(ProviderKind.SiliconFlow)
     }
 
     @Test
-    fun `all openai-compatible aggregators share image and textFileInline support`() {
-        // SiliconFlow / Groq / Together / Fireworks all use the OpenAI-compatible protocol.
-        listOf(ProviderKind.Groq, ProviderKind.Together, ProviderKind.Fireworks, ProviderKind.SiliconFlow).forEach {
-            val support = it.attachmentSupport
-            assertTrue("$it should support images", support.image)
-            assertFalse("$it should NOT support native files", support.nativeFile)
-            assertTrue("$it should support text inline", support.textFileInline)
-        }
+    fun `all fifteen official providers claim no attachment support without metadata`() {
+        val official = ProviderKind.entries.filterNot { it == ProviderKind.Relay }
+        assertEquals(15, official.size)
+        official.forEach { assertNoAttachmentSupport(it) }
     }
 
     // ── openRouterVendorPrefix ───────────────────────────────────

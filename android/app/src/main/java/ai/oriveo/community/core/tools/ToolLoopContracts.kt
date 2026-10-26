@@ -1,5 +1,6 @@
 package ai.oriveo.community.core.tools
 
+import ai.oriveo.community.core.provider.UsageBreakdown
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -92,7 +93,21 @@ data class ToolLoopUsage(
     @SerialName("prompt_tokens") val promptTokens: Int? = null,
     @SerialName("completion_tokens") val completionTokens: Int? = null,
     @SerialName("total_tokens") val totalTokens: Int? = null,
+    /** After a multi-leg merge: every merged leg reported usage; false when any leg did not, and then the whole message has an unknown price. Not sent over the wire. */
+    @kotlinx.serialization.Transient val allLegsReported: Boolean = true,
+    /**
+     * Cost breakdown of this leg's usage, parsed by the same parser as the provider's ordinary chat ([ai.oriveo.community.core.provider.ChatUsageParsers]):
+     * both cache buckets and the upstream actual cost are kept. null = the leg runner gave only prompt / completion. Not sent over the wire.
+     */
+    @kotlinx.serialization.Transient val breakdown: UsageBreakdown? = null,
+    /** After a cross-leg merge, the cost breakdown of each leg; a null item = that leg returned no usage; null for a single leg, see [perLeg]. Not sent over the wire. */
+    @kotlinx.serialization.Transient val legBreakdowns: List<UsageBreakdown?>? = null,
 ) {
+    /** Per-leg cost breakdown (for per-leg pricing): a single entry for this leg when nothing was merged across legs; a leg with only prompt / completion is built from them. */
+    fun perLeg(): List<UsageBreakdown?> = legBreakdowns ?: listOf(
+        breakdown ?: UsageBreakdown(promptTokens = promptTokens ?: 0, completionTokens = completionTokens ?: 0),
+    )
+
     val resolvedTotalTokens: Int
         get() = maxOf(totalTokens ?: 0, (promptTokens ?: 0) + (completionTokens ?: 0))
 
@@ -104,12 +119,68 @@ data class ToolLoopUsage(
             promptTokens = sum(promptTokens, other.promptTokens),
             completionTokens = sum(completionTokens, other.completionTokens),
             totalTokens = sum(totalTokens, other.totalTokens),
+            allLegsReported = allLegsReported && other.allLegsReported,
+            legBreakdowns = perLeg() + other.perLeg(),
         )
     }
 
     companion object {
-        fun merge(current: ToolLoopUsage?, next: ToolLoopUsage?): ToolLoopUsage? =
-            current?.merging(next) ?: next
+        /**
+         * Merges several usage events within one leg: take the later non-null value per field instead of overwriting the whole record. Upstream usage is cumulative
+         * (Anthropic message_start carries input, message_delta carries output), so the later value is the latest total; an event that reports only half does not wipe the other half.
+         */
+        fun mergeWithinLeg(current: ToolLoopUsage?, next: ToolLoopUsage): ToolLoopUsage =
+            if (current == null) {
+                next
+            } else {
+                ToolLoopUsage(
+                    promptTokens = next.promptTokens ?: current.promptTokens,
+                    completionTokens = next.completionTokens ?: current.completionTokens,
+                    totalTokens = next.totalTokens ?: current.totalTokens,
+                    allLegsReported = current.allLegsReported && next.allLegsReported,
+                    breakdown = mergeBreakdownWithinLeg(current.breakdown, next.breakdown),
+                )
+            }
+
+        /**
+         * Merges the breakdowns of two usage events within one leg: upstream usage is cumulative, so each bucket takes the larger value (an event reporting only half does not wipe the other half),
+         * the upstream actual cost takes the later non-null value, and the observed flags are OR-ed.
+         */
+        private fun mergeBreakdownWithinLeg(current: UsageBreakdown?, next: UsageBreakdown?): UsageBreakdown? {
+            if (current == null) return next
+            if (next == null) return current
+            return UsageBreakdown(
+                promptTokens = maxOf(current.promptTokens, next.promptTokens),
+                cachedInputTokens = maxOf(current.cachedInputTokens, next.cachedInputTokens),
+                cacheCreation5mTokens = maxOf(current.cacheCreation5mTokens, next.cacheCreation5mTokens),
+                cacheCreation1hTokens = maxOf(current.cacheCreation1hTokens, next.cacheCreation1hTokens),
+                completionTokens = maxOf(current.completionTokens, next.completionTokens),
+                reasoningTokens = maxOf(current.reasoningTokens, next.reasoningTokens),
+                upstreamCost = next.upstreamCost ?: current.upstreamCost,
+                cacheReadObserved = current.cacheReadObserved || next.cacheReadObserved,
+                cacheWriteObserved = current.cacheWriteObserved || next.cacheWriteObserved,
+            )
+        }
+
+        /**
+         * Cross-leg merge: [current] is the merged result of the first [priorLegs] legs, [next] is this leg's usage (null = this leg returned no usage).
+         * Tokens add up as usual; when any leg returned no usage, the result carries [allLegsReported] = false and the caller records the whole message as having an unknown price.
+         * Returns null when no leg returned usage.
+         */
+        fun merge(current: ToolLoopUsage?, next: ToolLoopUsage?, priorLegs: Int): ToolLoopUsage? {
+            val merged = when {
+                current == null -> next
+                next == null -> current.copy(allLegsReported = false, legBreakdowns = current.perLeg() + null)
+                else -> current.merging(next)
+            }
+            val earlierLegMissing = priorLegs > 0 && current == null
+            // None of the earlier legs returned usage: pad the per-leg breakdowns with the same number of null legs, so the whole message is unknown on delivery.
+            return if (earlierLegMissing) {
+                merged?.copy(allLegsReported = false, legBreakdowns = List(priorLegs) { null } + merged.perLeg())
+            } else {
+                merged
+            }
+        }
     }
 }
 

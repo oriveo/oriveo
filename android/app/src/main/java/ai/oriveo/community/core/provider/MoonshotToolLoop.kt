@@ -112,7 +112,9 @@ internal class MoonshotWebSearchTool(
  * on each leg, sends the messages appended by the loop after the base messages. The stream is decoded with `SseParser`,
  * turning text / reasoning / tool_call chunks into the loop's leg events. The loop's `initialMessages` is empty: the base messages belong to this executor and never pass through the loop.
  *
- * Usage is billed per leg; the caller sums [collectedUsages] across legs (`ToolLoopUsage` has no cached_tokens).
+ * Each leg's usage is priced independently through the same parser as plain Moonshot chat ([ChatUsageParsers.openAIChat],
+ * with cached_tokens at the top level). [collectedUsages] is reported per leg (null = that leg returned no usage) and the
+ * caller merges them leg by leg.
  */
 internal class MoonshotToolLoopLegRunner(
     private val client: HttpClient,
@@ -126,10 +128,8 @@ internal class MoonshotToolLoopLegRunner(
     private val identity: CapabilityEvidenceFacade.QueryIdentity?,
     private val applyAuth: HttpRequestBuilder.() -> Unit,
 ) : ToolLoopLegRunning {
-    data class LegUsage(val promptTokens: Int, val completionTokens: Int, val cachedTokens: Int)
-
-    private val usages = mutableListOf<LegUsage>()
-    val collectedUsages: List<LegUsage> get() = usages.toList()
+    private val usages = mutableListOf<UsageBreakdown?>()
+    val collectedUsages: List<UsageBreakdown?> get() = usages.toList()
 
     override fun run(request: ToolLoopLegRequest): Flow<ToolLoopLegEvent> = flow {
         val body = buildLegBody(request)
@@ -159,7 +159,7 @@ internal class MoonshotToolLoopLegRunner(
                         val events = mutableListOf<StreamEvent>()
                         val root = runCatching { json.parseToJsonElement(payload).jsonObject }.getOrNull()
                         if (root != null) {
-                            (root["usage"] as? JsonObject)?.let { legUsage = it }
+                            ChatUsageParsers.moonshotChunkUsage(root)?.let { legUsage = it }
                             val delta = ((root["choices"] as? JsonArray)?.firstOrNull() as? JsonObject)
                                 ?.get("delta") as? JsonObject
                             (delta?.get("tool_calls") as? JsonArray)?.forEach { element ->
@@ -181,7 +181,7 @@ internal class MoonshotToolLoopLegRunner(
                         events
                     },
                     // Placeholder Done at the end of a leg: the outer layer finishes a multi-leg run once, so it is filtered out on collect and never emitted.
-                    onDone = { StreamEvent.Done(ProviderChatResult(text = "")) },
+                    onDone = { StreamEvent.Done(ProviderChatResult(text = "", usageReported = false)) },
                 ).collect { event ->
                     when (event) {
                         is StreamEvent.Delta -> emit(ToolLoopLegEvent.TextDelta(event.text))
@@ -192,16 +192,13 @@ internal class MoonshotToolLoopLegRunner(
             }
         }
 
+        val breakdown = legUsage?.let { ChatUsageParsers.openAIChat(providerKind, it) }
+        usages += breakdown
         legUsage?.let { usage ->
-            val collected = LegUsage(
+            emit(ToolLoopLegEvent.Usage(ToolLoopUsage(
                 promptTokens = usage["prompt_tokens"]?.jsonPrimitive?.intOrNull ?: 0,
                 completionTokens = usage["completion_tokens"]?.jsonPrimitive?.intOrNull ?: 0,
-                cachedTokens = usage["cached_tokens"]?.jsonPrimitive?.intOrNull ?: 0,
-            )
-            usages += collected
-            emit(ToolLoopLegEvent.Usage(ToolLoopUsage(
-                promptTokens = collected.promptTokens,
-                completionTokens = collected.completionTokens,
+                breakdown = breakdown,
             )))
         }
         if (toolDeltas.isNotEmpty()) emit(ToolLoopLegEvent.ToolCallDeltas(toolDeltas))

@@ -8,6 +8,8 @@ import ai.oriveo.community.core.model.ChatRequestOptions
 import ai.oriveo.community.core.model.ChatRole
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ReasoningMode
+import ai.oriveo.community.testing.BundledAttachmentSupportFixture
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -17,6 +19,10 @@ import org.junit.Test
 import java.util.Base64
 
 class MessageBuilderTest {
+
+    // Attachment support of official providers comes only from metadata; after a case that injected any, the MetadataClient.instance table is cleared.
+    @After
+    fun clearInjectedMetadata() = BundledAttachmentSupportFixture.clear()
 
     private fun textMessage(role: ChatRole, text: String) = ChatMessage(
         id = "test", role = role, text = text,
@@ -185,45 +191,25 @@ class MessageBuilderTest {
     }
 
     @Test
-    fun `supportsFileAttachments respects provider support matrix`() {
-        assertTrue(
-            MessageBuilder.supportsFileAttachments(
-                providerKind = ProviderKind.OpenAI,
-                capabilities = listOf(ai.oriveo.community.core.model.ModelCapability.File),
-            ),
+    fun `file entry follows provider text inline without native file_input`() {
+        // SiliconFlow sets textFileInline=true and no longer depends on model.capabilities.File; text inlining is not gated by file_input.
+        BundledAttachmentSupportFixture.install("siliconFlow")
+        val resolver = ai.oriveo.community.feature.chat.ChatModelCapabilityResolver(metadata = ai.oriveo.community.core.data.remote.MetadataClient())
+        val model = ai.oriveo.community.core.model.AIModel(
+            id = "unlisted",
+            name = "Unlisted",
+            capabilities = listOf(ai.oriveo.community.core.model.ModelCapability.Image),
         )
-        assertFalse(
-            MessageBuilder.supportsFileAttachments(
-                providerKind = null,
-                capabilities = listOf(ai.oriveo.community.core.model.ModelCapability.File),
-            ),
-        )
+        assertTrue(resolver.attachmentInputGate(ai.oriveo.community.core.model.Provider(id = "sf", kind = ProviderKind.SiliconFlow), model).file)
+        assertFalse(resolver.attachmentInputGate(null, model).file)
     }
 
     @Test
-    fun `supportsFileAttachments works for SiliconFlow textFileInline`() {
-        // SiliconFlow sets textFileInline=true and no longer depends on model.capabilities.File
-        assertTrue(
-            MessageBuilder.supportsFileAttachments(
-                providerKind = ProviderKind.SiliconFlow,
-                capabilities = listOf(ai.oriveo.community.core.model.ModelCapability.File),
-            ),
-        )
-        // Even with no File capability, textFileInline=true is enough to support it
-        assertTrue(
-            MessageBuilder.supportsFileAttachments(
-                providerKind = ProviderKind.SiliconFlow,
-                capabilities = listOf(ai.oriveo.community.core.model.ModelCapability.Image),
-            ),
-        )
-    }
-
-    @Test
-    fun `canAttachFile accepts text file for SiliconFlow`() {
+    fun `canAttachFile accepts text file through text inline gate`() {
         val textContent = Base64.getEncoder().encodeToString("def hello(): pass".toByteArray())
         assertTrue(
             MessageBuilder.canAttachFile(
-                providerKind = ProviderKind.SiliconFlow,
+                gate = ai.oriveo.community.core.provider.AttachmentInputGate(textFileInline = true),
                 mimeType = "text/plain",
                 base64Data = textContent,
             ),
@@ -231,13 +217,13 @@ class MessageBuilderTest {
     }
 
     @Test
-    fun `canAttachFile rejects PDF for SiliconFlow`() {
+    fun `canAttachFile rejects binary PDF through text inline gate`() {
         val binaryPdf = Base64.getEncoder().encodeToString(
             byteArrayOf(0x25, 0x50, 0x44, 0x46, 0x2D, 0xFF.toByte()),
         )
         assertFalse(
             MessageBuilder.canAttachFile(
-                providerKind = ProviderKind.SiliconFlow,
+                gate = ai.oriveo.community.core.provider.AttachmentInputGate(textFileInline = true),
                 mimeType = "application/pdf",
                 base64Data = binaryPdf,
             ),
@@ -265,13 +251,20 @@ class MessageBuilderTest {
     }
 
     @Test
-    fun `canAttachFile rejects binary relay file without native file support`() {
+    fun `canAttachFile gates binary file on native file_input`() {
         val binaryPdf = Base64.getEncoder().encodeToString(
             byteArrayOf(0x25, 0x50, 0x44, 0x46, 0x2D, 0xFF.toByte()),
         )
         assertFalse(
             MessageBuilder.canAttachFile(
-                providerKind = ProviderKind.Relay,
+                gate = ai.oriveo.community.core.provider.AttachmentInputGate(textFileInline = true),
+                mimeType = "application/pdf",
+                base64Data = binaryPdf,
+            ),
+        )
+        assertTrue(
+            MessageBuilder.canAttachFile(
+                gate = ai.oriveo.community.core.provider.AttachmentInputGate(nativeFile = true),
                 mimeType = "application/pdf",
                 base64Data = binaryPdf,
             ),

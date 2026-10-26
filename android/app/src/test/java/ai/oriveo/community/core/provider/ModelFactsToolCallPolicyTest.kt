@@ -47,11 +47,11 @@ class ModelFactsToolCallPolicyTest {
             kind = ProviderKind.Grok,
             authMode = ProviderAuthMode.Subscription,
         )
-        val firstPartyFalse = AIModel(id = "grok-4.6", name = "Grok 4.6", toolCall = false)
-        val firstParty = CapabilityEvidenceProductionAdapter.toolCallProjection(grok, firstPartyFalse)
-        // The first-hand declaration source of a subscription snapshot is upstream_declaration; support and the outbound policy are unchanged.
-        assertEquals("upstream_declaration", firstParty.decision("tool_call")?.resolution?.source)
-        assertFalse(firstParty.permitsOutbound("tool_call"))
+        // The subscription /models listing has no tool field: model.toolCall=false is a catalog bit, not first-party evidence; built-in modelFacts (grok-4.6 = true) wins.
+        val catalogFalse = AIModel(id = "grok-4.6", name = "Grok 4.6", toolCall = false)
+        val firstParty = CapabilityEvidenceProductionAdapter.toolCallProjection(grok, catalogFalse)
+        assertEquals("model_facts", firstParty.decision("tool_call")?.resolution?.source)
+        assertEquals("supported", firstParty.decision("tool_call")?.resolution?.support)
 
         val gemini = Provider(id = "gemini-manual", kind = ProviderKind.Gemini)
         val manual = AIModel(

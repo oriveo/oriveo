@@ -9,11 +9,19 @@ import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.ChatMessageState
 import ai.oriveo.community.core.model.ChatRole
 import ai.oriveo.community.core.model.ProviderKind
+import ai.oriveo.community.testing.BundledAttachmentSupportFixture
+import io.ktor.client.engine.mock.respond
+import kotlinx.coroutines.flow.toList
+import org.junit.After
 import org.junit.Assert.*
 import org.junit.Test
 import java.util.Base64
 
 class MessageBuilderAttachmentTest {
+
+    // Attachment support of official providers comes only from metadata; after a case that injected any, the MetadataClient.instance table is cleared.
+    @After
+    fun clearInjectedMetadata() = BundledAttachmentSupportFixture.clear()
 
     private fun makeTextAttachment(text: String, fileName: String = "doc.txt"): Attachment {
         val encoded = Base64.getEncoder().encodeToString(text.toByteArray())
@@ -59,9 +67,16 @@ class MessageBuilderAttachmentTest {
 
     @Test
     fun supportsFileD2NoCapabilityRequired() {
-        // textFileInline=true no longer depends on the model's declared capabilities
-        val result = MessageBuilder.supportsFileAttachments(ProviderKind.DeepSeek, emptyList())
-        assertTrue("DeepSeek with textFileInline=true must accept files", result)
+        // textFileInline=true no longer depends on the model's declared capabilities; text inlining is not gated by file_input.
+        BundledAttachmentSupportFixture.install("deepseek")
+        val gate = ai.oriveo.community.feature.chat.ChatModelCapabilityResolver(
+            metadata = BundledAttachmentSupportFixture.bundledMetadataClient(),
+        ).attachmentInputGate(
+            ai.oriveo.community.core.model.Provider(id = "deepseek", kind = ProviderKind.DeepSeek),
+            ai.oriveo.community.core.model.AIModel(id = "deepseek-v4-pro", name = "DeepSeek V4 Pro"),
+        )
+        assertFalse("bundled file_input=unavailable, so native files cannot be attached", gate.nativeFile)
+        assertTrue("DeepSeek with textFileInline=true must accept files", gate.file)
     }
 
     private val docxMime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -313,6 +328,17 @@ class MessageBuilderAttachmentTest {
 
     @Test
     fun imagePlaceholdersAreDeclaredOnTheTextOnlyTransports() {
+        // Routes that only send text: llama.cpp native and Gemini Interactions.
+        listOf(
+            ai.oriveo.community.core.attachments.AttachmentTransportProfile.LlamaCppNative,
+            ai.oriveo.community.core.attachments.AttachmentTransportProfile.GeminiInteractions,
+        ).forEach { assertFalse("$it", it.sendsImages) }
+        // DeepSeek / MiniMax no longer write a placeholder for the whole route: whether an image is sent follows the vision projection, and the placeholder text is only used when the projection says placeholder.
+        listOf(
+            ai.oriveo.community.core.attachments.AttachmentTransportProfile.DeepSeekChat,
+            ai.oriveo.community.core.attachments.AttachmentTransportProfile.ChatCompletions(ProviderKind.MiniMax),
+            ai.oriveo.community.core.attachments.AttachmentTransportProfile.MiniMaxAnthropicMessages,
+        ).forEach { assertTrue("$it", it.sendsImages) }
         assertEquals("[Image omitted: unsupported by DeepSeek]", ai.oriveo.community.core.attachments.AttachmentTransportProfile.DeepSeekChat.imagePlaceholderText)
         // The same literal on all three clients: every new text-only route uses this one sentence.
         assertEquals("[Image omitted: this route sends text only]", ai.oriveo.community.core.attachments.AttachmentTransportProfile.LlamaCppNative.imagePlaceholderText)
@@ -324,12 +350,207 @@ class MessageBuilderAttachmentTest {
             ai.oriveo.community.core.attachments.AttachmentTransportProfile.LlamaCppNative.imagePlaceholderText,
             ai.oriveo.community.core.attachments.AttachmentTransportProfile.LlamaCppNative.withoutNativeFiles().imagePlaceholderText,
         )
+        // The DeepSeek body no longer hard-codes an image placeholder: the outbound gate decides whether the image stays.
         val image = Attachment(id = "img", kind = AttachmentKind.Image, fileName = "p.png", mimeType = "image/png", base64Data = "aW1hZ2U=")
         val deepSeek = MessageBuilder.buildDeepSeekContentForTest(makeMsg(ProviderKind.DeepSeek, "hi", image))
-        assertEquals("hi\n\n[Image omitted: unsupported by DeepSeek]", deepSeek)
+        assertEquals("hi", deepSeek)
     }
 
-    /** Older builds stored PNG screenshots as JPEG but kept image/png; Anthropic validates bytes against media_type and returns 400. */
+    // -- DeepSeek official outbound follows the vision projection --
+
+    private val deepSeekImage = Attachment(id = "img", kind = AttachmentKind.Image, fileName = "p.png", mimeType = "image/png", base64Data = "aW1hZ2U=")
+
+    /** Official DeepSeek metadata: one openai_chat model, with the vision verdict given by parameter. */
+    private fun deepSeekVisionMetadata(model: String, visionControl: String) =
+        """{"version":1,"providers":{"${ProviderKind.DeepSeek.rawValue}":{"resolveMap":{"$model":"$model"},"models":{"$model":""" +
+            """{"canonicalModelId":"$model","transport":"openai_chat","capabilityControls":{"vision_input":$visionControl}}}}}}"""
+
+    /** Sends one streaming request through the production DeepSeekService and returns the messages of the request body. */
+    private suspend fun deepSeekSentMessages(model: String, message: ChatMessage): kotlinx.serialization.json.JsonArray {
+        var captured: String? = null
+        val client = io.ktor.client.HttpClient(io.ktor.client.engine.mock.MockEngine { request ->
+            if (captured == null) captured = (request.body as io.ktor.http.content.TextContent).text
+            respond(
+                "data: [DONE]\n\n", io.ktor.http.HttpStatusCode.OK,
+                io.ktor.http.headersOf(io.ktor.http.HttpHeaders.ContentType, "text/event-stream"),
+            )
+        })
+        runCatching {
+            DeepSeekService(client, kotlinx.serialization.json.Json { ignoreUnknownKeys = true }).sendMessageStream(
+                "key", model, listOf(message), null, false,
+                ai.oriveo.community.core.model.ReasoningMode.Automatic, false, ai.oriveo.community.core.model.ChatRequestOptions(),
+            ).toList()
+        }
+        client.close()
+        val body = kotlinx.serialization.json.Json.parseToJsonElement(requireNotNull(captured) { "DeepSeek did not issue a request" })
+        return (body as kotlinx.serialization.json.JsonObject)["messages"] as kotlinx.serialization.json.JsonArray
+    }
+
+    @Test
+    fun deepseekFlashSendsTheImageAsAnImageUrlDataUrl() = kotlinx.coroutines.test.runTest {
+        MetadataTestFixtures.applyRaw(deepSeekVisionMetadata("deepseek-flash", """{"state":"auto_available","wireFamily":"openai_chat.image_url"}"""))
+        try {
+            val messages = deepSeekSentMessages("deepseek-flash", makeMsg(ProviderKind.DeepSeek, "what is this", deepSeekImage))
+            val body = messages.toString()
+            assertTrue(body, body.contains(""""image_url":{"url":"data:image/""") && body.contains("aW1hZ2U="))
+            assertFalse(body, body.contains("[Image omitted"))
+        } finally {
+            MetadataTestFixtures.clear()
+        }
+    }
+
+    @Test
+    fun deepseekV4ProWritesThePlaceholderAfterTheTextAndFileBlocks() = kotlinx.coroutines.test.runTest {
+        MetadataTestFixtures.applyRaw(
+            deepSeekVisionMetadata(
+                "deepseek-v4-pro",
+                """{"state":"unavailable","reasonCode":"model_capability_absent","wireFamily":"openai_chat.image_url"}""",
+            ),
+        )
+        try {
+            val original = makeMsg(ProviderKind.DeepSeek, "Read this", makeTextAttachment("file body", "notes.txt"), deepSeekImage)
+            val messages = deepSeekSentMessages("deepseek-v4-pro", original)
+            val content = (messages.last() as kotlinx.serialization.json.JsonObject)["content"]
+            val text = (content as kotlinx.serialization.json.JsonPrimitive).content
+            val placeholder = ai.oriveo.community.core.attachments.AttachmentTransportProfile.DeepSeekChat.imagePlaceholderText!!
+            val bodyAt = text.indexOf("Read this")
+            val fileAt = text.indexOf("file body")
+            val placeholderAt = text.indexOf(placeholder)
+            assertTrue(text, bodyAt == 0 && fileAt > bodyAt && placeholderAt > fileAt)
+            // A blank line between the body / file blocks and the placeholder, same as the video placeholder main path and on iOS / desktop / Web.
+            assertTrue(text, text.endsWith("\n\n$placeholder") && !text.endsWith("\n\n\n$placeholder"))
+            assertFalse(messages.toString(), messages.toString().contains("image_url") || messages.toString().contains("aW1hZ2U="))
+            // The original local message is unchanged.
+            assertEquals("Read this", original.text)
+            assertEquals(2, original.attachments!!.size)
+        } finally {
+            MetadataTestFixtures.clear()
+        }
+    }
+
+    /**
+     * Resending history: after the outbound gate swaps images / videos for placeholders, the body and each placeholder are always separated by "\n\n";
+     * when the next turn sends it as history again it is split back by the same separator and joined as-is, without stacking into "\n" or extra blank lines.
+     */
+    @Test
+    fun historyResendKeepsBlankLineBetweenTextAndEveryCarriedPlaceholder() = kotlinx.coroutines.test.runTest {
+        MetadataTestFixtures.applyRaw(
+            deepSeekVisionMetadata(
+                "deepseek-v4-pro",
+                """{"state":"unavailable","reasonCode":"model_capability_absent","wireFamily":"openai_chat.image_url"}""",
+            ),
+        )
+        try {
+            val model = ai.oriveo.community.core.model.AIModel(
+                id = "deepseek-v4-pro",
+                name = "DeepSeek V4 Pro",
+                capabilities = listOf(ai.oriveo.community.core.model.ModelCapability.Text),
+            )
+            val inputs = requireNotNull(
+                ai.oriveo.community.core.capability.truth.resolveInputCapabilityProjections(
+                    ai.oriveo.community.core.model.Provider(id = "official-deepseek", kind = ProviderKind.DeepSeek),
+                    model,
+                ),
+            )
+            val placeholder = routeImagePlaceholder(ProviderKind.DeepSeek.rawValue)
+            val original = makeMsg(ProviderKind.DeepSeek, "Look", deepSeekImage, deepSeekImage.copy(id = "img-2"))
+            val history = messagesForInputOutbound(listOf(original), inputs, placeholder).single()
+            assertEquals("Look\n\n$placeholder\n\n$placeholder", history.text)
+            assertEquals("Look" to listOf(placeholder, placeholder), MessageBuilder.splitOutboundPlaceholders(history))
+
+            val current = makeMsg(ProviderKind.DeepSeek, "next").copy(id = "m2", attachments = null)
+            val body = MessageBuilder.buildDeepSeekMessages(listOf(history, current), activeModel = model)
+            val messages = kotlinx.serialization.json.Json.parseToJsonElement("[$body]") as kotlinx.serialization.json.JsonArray
+            val resent = ((messages.first() as kotlinx.serialization.json.JsonObject)["content"] as kotlinx.serialization.json.JsonPrimitive).content
+            assertEquals("Look\n\n$placeholder\n\n$placeholder", resent)
+            // When the body is empty only placeholders remain, still separated by a blank line.
+            val imageOnly = messagesForInputOutbound(listOf(makeMsg(ProviderKind.DeepSeek, "", deepSeekImage)), inputs, placeholder).single()
+            assertEquals(placeholder, imageOnly.text)
+            assertEquals("" to listOf(placeholder), MessageBuilder.splitOutboundPlaceholders(imageOnly))
+        } finally {
+            MetadataTestFixtures.clear()
+        }
+    }
+
+    /** Official metadata: deepseek-v4-pro hangs under [kind] and uses [transport], with vision unavailable and native files allowed. */
+    private fun placeholderAndPdfMetadata(kind: ProviderKind, transport: String, fileWire: String) =
+        """{"version":1,"providers":{"${kind.rawValue}":{"resolveMap":{"deepseek-v4-pro":"deepseek-v4-pro"},"models":{"deepseek-v4-pro":""" +
+            """{"canonicalModelId":"deepseek-v4-pro","transport":"$transport","capabilityControls":{""" +
+            """"vision_input":{"state":"unavailable","reasonCode":"model_capability_absent"},""" +
+            """"file_input":{"state":"auto_available","wireFamily":"$fileWire"}}}}}}}"""
+
+    /**
+     * One turn with two images + one native PDF where vision resolves to placeholder: after the production outbound gate the part order of all four protocols is [body text, file block, placeholder text],
+     * and the placeholder text joins two lines with "\n\n" (same as iOS / desktop / Web); the original local message is unchanged.
+     */
+    @Test
+    fun placeholderIsOneTrailingTextPartAfterTheFileBlockOnEveryProtocol() {
+        data class Case(
+            val name: String,
+            val kind: ProviderKind,
+            val transport: String,
+            val fileWire: String,
+            val build: (List<ChatMessage>, ai.oriveo.community.core.model.AIModel) -> String,
+            val parts: (kotlinx.serialization.json.JsonArray) -> kotlinx.serialization.json.JsonArray,
+            val textOf: (kotlinx.serialization.json.JsonObject) -> String?,
+            val fileTag: (kotlinx.serialization.json.JsonObject) -> Boolean,
+        )
+        fun obj(e: kotlinx.serialization.json.JsonElement) = e as kotlinx.serialization.json.JsonObject
+        fun str(o: kotlinx.serialization.json.JsonObject, k: String) = (o[k] as? kotlinx.serialization.json.JsonPrimitive)?.content
+        val lastContent = { arr: kotlinx.serialization.json.JsonArray -> obj(arr.last())["content"] as kotlinx.serialization.json.JsonArray }
+        val cases = listOf(
+            Case("openai chat", ProviderKind.OpenRouter, "openai_chat", "openai_chat.file",
+                { m, model -> MessageBuilder.buildOpenAIMessages(m, ProviderKind.OpenRouter, activeModel = model) }, lastContent,
+                { o -> if (str(o, "type") == "text") str(o, "text") else null }, { o -> str(o, "type") == "file" }),
+            Case("responses", ProviderKind.OpenAI, "openai_responses", "openai_responses.input_file",
+                { m, model -> MessageBuilder.buildOpenAIResponsesInput(m, model) }, lastContent,
+                { o -> if (str(o, "type") == "input_text") str(o, "text") else null }, { o -> str(o, "type") == "input_file" }),
+            Case("anthropic", ProviderKind.Anthropic, "anthropic_messages", "anthropic.document",
+                { m, model -> MessageBuilder.buildAnthropicMessages(m, model) }, lastContent,
+                { o -> if (str(o, "type") == "text") str(o, "text") else null }, { o -> str(o, "type") == "document" }),
+            Case("gemini", ProviderKind.Gemini, "gemini_generate_content", "gemini.inline_data",
+                { m, model -> MessageBuilder.buildGeminiContents(m, model) },
+                { arr -> obj(arr.last())["parts"] as kotlinx.serialization.json.JsonArray },
+                { o -> str(o, "text") }, { o -> o["inlineData"] != null }),
+        )
+        val model = ai.oriveo.community.core.model.AIModel(
+            id = "deepseek-v4-pro",
+            name = "DeepSeek V4 Pro",
+            capabilities = listOf(ai.oriveo.community.core.model.ModelCapability.Text),
+            nativeFileMimes = listOf(pdfMime),
+            pdfNativeDefault = true,
+        )
+        for (case in cases) {
+            MetadataTestFixtures.applyRaw(placeholderAndPdfMetadata(case.kind, case.transport, case.fileWire))
+            try {
+                val original = makeMsg(case.kind, "Read this", deepSeekImage, deepSeekImage.copy(id = "img-2"), textPdf())
+                val inputs = requireNotNull(
+                    ai.oriveo.community.core.capability.truth.resolveInputCapabilityProjections(
+                        ai.oriveo.community.core.model.Provider(id = "official-${case.kind.rawValue}", kind = case.kind),
+                        model,
+                    ),
+                ) { case.name }
+                val placeholder = routeImagePlaceholder(case.kind.rawValue)
+                val gated = messagesForInputOutbound(listOf(original), inputs, placeholder)
+                val body = case.build(gated, model)
+                val parts = case.parts(kotlinx.serialization.json.Json.parseToJsonElement("[$body]") as kotlinx.serialization.json.JsonArray)
+                    .map { obj(it) }
+                assertEquals("${case.name}: $body", 3, parts.size)
+                assertTrue("${case.name}: $body", case.textOf(parts[0])!!.startsWith("Read this"))
+                assertFalse("${case.name}: $body", case.textOf(parts[0])!!.contains(placeholder))
+                assertTrue("${case.name}: $body", case.fileTag(parts[1]))
+                assertEquals("${case.name}: $body", "$placeholder\n\n$placeholder", case.textOf(parts[2]))
+                assertFalse("${case.name}: $body", body.contains("aW1hZ2U="))
+                // The original local message is unchanged.
+                assertEquals("Read this", original.text)
+                assertEquals(3, original.attachments!!.size)
+            } finally {
+                MetadataTestFixtures.clear()
+            }
+        }
+    }
+
+    /** Older Android compressed PNG screenshots to JPEG yet still labeled them image/png; Anthropic validates bytes against media_type, so a wrong label is a straight 400. */
     @Test
     fun imageMimeSentUpstreamFollowsTheBytesNotTheLabel() {
         val jpegBase64 = Base64.getEncoder().encodeToString(

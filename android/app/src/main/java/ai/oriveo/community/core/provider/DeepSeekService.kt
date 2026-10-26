@@ -99,22 +99,6 @@ class DeepSeekService(client: HttpClient, json: Json) : OpenAICompatibleService(
      * `prompt_cache_miss_tokens`. The upstream docs state
      * "prompt_tokens = prompt_cache_hit_tokens + prompt_cache_miss_tokens".
      */
-    override fun parseUsage(usage: JsonObject?): ai.oriveo.community.core.provider.UsageBreakdown {
-        if (usage == null) return ai.oriveo.community.core.provider.UsageBreakdown()
-        val cached = usage["prompt_cache_hit_tokens"]?.jsonPrimitive?.intOrNull ?: 0
-        val miss = usage["prompt_cache_miss_tokens"]?.jsonPrimitive?.intOrNull
-        // Prefer the miss field; older responses fall back to prompt_tokens.
-        val prompt = miss ?: usage["prompt_tokens"]?.jsonPrimitive?.intOrNull ?: 0
-        val completion = usage["completion_tokens"]?.jsonPrimitive?.intOrNull ?: 0
-        val reasoning = (usage["completion_tokens_details"] as? JsonObject)
-            ?.get("reasoning_tokens")?.jsonPrimitive?.intOrNull ?: 0
-        return ai.oriveo.community.core.provider.UsageBreakdown(
-            promptTokens = prompt,
-            cachedInputTokens = cached,
-            completionTokens = completion,
-            reasoningTokens = reasoning,
-            cacheReadObserved = usage["prompt_cache_hit_tokens"]?.jsonPrimitive?.intOrNull != null,
-        )
-    }
+    override fun parseUsage(usage: JsonObject?): ai.oriveo.community.core.provider.UsageBreakdown = ChatUsageParsers.deepSeek(usage)
 
 }

@@ -1,6 +1,8 @@
 package ai.oriveo.community.core.model
 
 import androidx.compose.runtime.Immutable
+import ai.oriveo.community.core.usage.CostPart
+import ai.oriveo.community.core.usage.CostParts
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
@@ -87,6 +89,19 @@ data class Attachment(
     val rawContentRef: String? = null,
 )
 
+/**
+ * The non-USD part of a message's cost: [currencyCode] is an upper-case ISO 4217 code and is never converted;
+ * [costSource] has the same meaning as [ChatMessage.costSource] (a [ai.oriveo.community.core.provider.CostSource] name).
+ * When a second non-USD currency shows up on the same message it is recorded as {first currency, 0, UNKNOWN} and the amounts are not added.
+ */
+@Immutable
+@Serializable
+data class NonUsdCost(
+    val currencyCode: String,
+    val amount: Double,
+    val costSource: String,
+)
+
 /** One message in a conversation. */
 @Immutable
 @Serializable
@@ -127,6 +142,12 @@ data class ChatMessage(
      */
     @kotlinx.serialization.Transient
     val memoryItemIds: List<String>? = null,
+    /**
+     * Placeholder lines appended to the end of [text] when the outbound input-capability gate strips media; the request body builder
+     * uses them to move the lines after the file blocks. Exists only on the outbound copy: @Transient keeps it out of storage, and out of export.
+     */
+    @kotlinx.serialization.Transient
+    val outboundPlaceholders: List<String>? = null,
     /**
      * Summaries of the remote MCP tool steps, stored with the message. Raw arguments and results
      * are not here; they live in `mcp_step_payload`.
@@ -169,9 +190,16 @@ data class ChatMessage(
     val cacheCreation5mTokens: Int? = null,
     val cacheCreation1hTokens: Int? = null,
     val costSource: String? = null,
+    /** The non-USD part; [estimatedCost] and [costSource] describe only the USD part. Null = there is no non-USD part. */
+    val nonUsdCost: NonUsdCost? = null,
 ) {
-    val estimatedCostText: String
-        get() = CostFormatter.format(estimatedCost)
+    /** Cost parts for display, per currency: USD first, zero amounts omitted. */
+    val costParts: List<CostPart>
+        get() = CostParts.messageParts(estimatedCost, nonUsdCost)
+
+    /** Non-USD currencies whose amount is unknown: show the existing "not available" text, never 0. */
+    val notAvailableCostCodes: List<String>
+        get() = CostParts.messageNotAvailableCodes(nonUsdCost)
 
     companion object {
         /**
@@ -358,10 +386,15 @@ data class ChatRequestOptions(
     @kotlinx.serialization.Transient val rejectedCustomSettings: Map<String, Set<String>> = emptyMap(),
     /** Normal sends suppress an entire rejected owner. Only an explicit one-request recipe latch may bypass it. */
     @kotlinx.serialization.Transient val dormantCapabilityOwners: Set<String> = emptySet(),
+    /**
+     * Parameter names explicitly omitted for this one request by "resend without this parameter" (a subset of the parameter-gate list). It covers only this request and does not change what is persisted;
+     * the parameters are omitted even if the negative cache has expired or been cleared, and later ordinary retries still follow the negative cache.
+     */
+    @kotlinx.serialization.Transient val omitParametersOnce: Set<String> = emptySet(),
     @kotlinx.serialization.Transient val activeModel: AIModel? = null,
     /** This request must not carry original file blocks (the resend after a native file fallback, or a connection already known not to accept them). Set only inside the outbound path. */
     @kotlinx.serialization.Transient val nativeFilesDisabled: Boolean = false,
-    /** P3c local-only continuation: populated only by ChatRepository on an explicit continue/retry. */
+    /** Local-only continuation: populated only by ChatRepository on an explicit continue/retry. */
     @kotlinx.serialization.Transient val localContinuationMessageId: String? = null,
     @kotlinx.serialization.Transient val localContinuationState: JsonObject? = null,
     @kotlinx.serialization.Transient val localContinuationExplicit: Boolean = false,

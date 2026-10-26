@@ -229,6 +229,81 @@ class ComposerLengthLimitFieldUiTest {
         assertNotNull(snackbar.active.value)
     }
 
+    private fun renderProbedField(probe: ComposerSelectionProbe, shown: () -> Boolean = { true }) = render {
+        if (shown()) {
+            val field = rememberComposerLengthLimitedField(
+                text = upstream,
+                onTextChange = { upstream = it },
+                selectionProbe = probe,
+            )
+            BasicTextField(
+                value = field.value,
+                onValueChange = field.onValueChange,
+                modifier = Modifier.testTag(FIELD_TAG),
+            )
+        }
+    }
+
+    @Test
+    fun probe_recordsSelection() {
+        val probe = ComposerSelectionProbe()
+        upstream = "hello world"
+        renderProbedField(probe)
+
+        plainField().performTextInputSelection(TextRange(2, 5))
+        composeRule.waitForIdle()
+        assertEquals(TextRange(2, 5), probe.selection)
+
+        plainField().performTextInputSelection(TextRange(11))
+        plainField().performTextInput("!")
+        composeRule.waitForIdle()
+        assertEquals(TextRange(12), probe.selection)
+    }
+
+    @Test
+    fun probe_insert_caretAfterInsertedText() {
+        val probe = ComposerSelectionProbe()
+        upstream = "hello world"
+        renderProbedField(probe)
+        plainField().performTextInputSelection(TextRange(5))
+        composeRule.waitForIdle()
+
+        upstream = probe.insert("there", upstream)
+        composeRule.waitForIdle()
+
+        assertEquals("hello there world", plainField().editableText())
+        assertEquals(TextRange(11), plainField().selection())
+        assertNull(probe.pendingCaret)
+        assertEquals(TextRange(11), probe.selection)
+
+        // The field's internal buffer is aligned to the inserted value: further typing lands after the inserted text.
+        plainField().performTextInput("!")
+        composeRule.waitForIdle()
+        assertEquals("hello there! world", upstream)
+    }
+
+    @Test
+    fun probe_reenterComposition_usesPendingCaret() {
+        val probe = ComposerSelectionProbe()
+        var shown by mutableStateOf(true)
+        upstream = "hello world"
+        renderProbedField(probe) { shown }
+        plainField().performTextInputSelection(TextRange(5))
+        composeRule.waitForIdle()
+
+        // Inserting while the field is swapped out uses the cached selection; on re-entering composition the cursor sits after the inserted text.
+        shown = false
+        composeRule.waitForIdle()
+        upstream = probe.insert("there", upstream)
+        assertEquals("hello there world", upstream)
+        shown = true
+        composeRule.waitForIdle()
+
+        assertEquals("hello there world", plainField().editableText())
+        assertEquals(TextRange(11), plainField().selection())
+        assertNull(probe.pendingCaret)
+    }
+
     @Test
     fun limit_homeComposer_sameRule() {
         render {

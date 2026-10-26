@@ -1,5 +1,6 @@
 package ai.oriveo.community.core.provider
 
+import ai.oriveo.community.core.capability.InputRejectionFlow
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.model.ChatRequestOptions
 import ai.oriveo.community.core.model.GenerationOverrideState
@@ -138,6 +139,12 @@ internal object GenerationParameterResolver {
         val written = mutableMapOf<String, JsonElement>()
         val omittedKeys = mutableSetOf<String>()
         val overrides = options.generationParameters?.values
+        // Parameters the upstream recently rejected on an official connection under a narrow signature (param negative cache) are not sent this time, same as the panel value and the builder default.
+        // The one-shot omit list from the user's "resend without this parameter" is already merged in by rejectedParameters, so it is not assembled again here.
+        val rejected = InputRejectionFlow.rejectedParameters(
+            options,
+            modelId = (parsed["model"] as? JsonPrimitive)?.contentOrNull ?: options.activeModel?.id,
+        )
         if (profile != null && overrides != null) {
             val accepted = acceptValues(overrides, profile, toolsActive = root["tools"] is JsonArray, dropped)
             for (key in orderedKeys(overrides, profile)) {
@@ -154,6 +161,7 @@ internal object GenerationParameterResolver {
                     null -> capabilityProjection?.permitsOutbound("generation_parameter/$key") == true
                 }
                 if (!allowed) continue
+                if (InputRejectionFlow.gatedParameterName(key) in rejected) continue
                 val rejection = wireRejectionReason(wire)
                 if (rejection != null) {
                     recordWireRejection(key, wire, rejection)
@@ -178,11 +186,37 @@ internal object GenerationParameterResolver {
             }
         }
         if (profile != null) root = keepSingleMaxTokensName(root, profile, omitted = "max_output_tokens" in omittedKeys)
+        root = removeRejectedParameters(root, rejected, profile)
         if (template == "anthropic_messages") {
             root = guardAnthropicThinking(root, profile, written, builderMaxTokens, dropped)
         }
         if (root === parsed && dropped.isEmpty()) return Result(body, emptyList())
         return Result(root.toString(), dropped.sortedBy { it.parameterId })
+    }
+
+    /**
+     * Rejected parameters the builder wrote itself are not sent either: temperature / top_p follow the profile wire (default: same-named root field),
+     * and thinking is dropped as a whole field (the typed-off `{"type":"disabled"}` is the same rejected field).
+     * structured_output is only written by the panel json_schema, which the per-item loop above already skipped.
+     */
+    private fun removeRejectedParameters(
+        source: JsonObject,
+        rejected: Set<String>,
+        profile: GenerationProfileRef?,
+    ): JsonObject {
+        var root = source
+        for (name in rejected) {
+            when (name) {
+                "temperature", "top_p" -> {
+                    root = remove(root, listOf(name))
+                    profile?.wire?.get(name)?.takeIf { wireRejectionReason(it) == null }?.let { wire ->
+                        root = remove(root, wire.split('.'))
+                    }
+                }
+                "thinking" -> if ("thinking" in root) root = JsonObject(root - "thinking")
+            }
+        }
+        return root
     }
 
     private fun budgetedMaxOutput(key: String, value: JsonElement, outputTokenBudget: Int?): JsonElement {

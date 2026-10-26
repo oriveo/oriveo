@@ -155,6 +155,7 @@ class OpenRouterService(
                 var accumulatedText = ""
                 var accumulatedReasoning = ""
                 var lastUsage: Usage? = null
+                var lastUsageJson: kotlinx.serialization.json.JsonObject? = null
                 var lastModel: String? = null
                 val continuationAccumulator = continuationRecipe?.responseParserKind?.let {
                     ProviderRecipeExecution.ReasoningAssistantAccumulator(it)
@@ -176,6 +177,7 @@ class OpenRouterService(
                         val chunk = json.decodeFromString<StreamChunk>(payload)
                         chunk.model?.let { lastModel = it }
                         chunk.usage?.let { lastUsage = it }
+                        (rawRoot?.get("usage") as? kotlinx.serialization.json.JsonObject)?.let { lastUsageJson = it }
 
                         // Citation parsing; the strategy already wraps this in runCatching.
                         val cits = runCatching { strategy.parseCitations(payload, shape) }
@@ -203,25 +205,13 @@ class OpenRouterService(
                     },
                     onDone = {
                         val usage = lastUsage
-                        val cached = usage?.prompt_tokens_details?.cached_tokens ?: 0
-                        val cacheWrite = usage?.prompt_tokens_details?.cache_write_tokens ?: 0
-                        val breakdown = ai.oriveo.community.core.provider.UsageBreakdown(
-                            promptTokens = ((usage?.prompt_tokens ?: 0) - cached - cacheWrite).coerceAtLeast(0),
-                            cachedInputTokens = cached,
-                            // OpenRouter passes cache writes through for Anthropic models; count
-                            // them as 1h, which is OpenRouter's default TTL.
-                            cacheCreation1hTokens = cacheWrite,
-                            completionTokens = usage?.completion_tokens ?: 0,
-                            // OpenRouter returns cost by default, already net of every discount.
-                            upstreamCost = usage?.cost,
-                            cacheReadObserved = usage?.prompt_tokens_details?.cached_tokens != null,
-                            cacheWriteObserved = usage?.prompt_tokens_details?.cache_write_tokens != null,
-                        )
+                        // Same parser as every tool-loop leg: cost is the upstream's actual charge, cache writes count as 1h.
+                        val breakdown = ChatUsageParsers.openRouter(lastUsageJson)
                         // There is no local catalog pricing for OpenRouter, since the user is
                         // routing many vendors' models through it. Passing pricing=null makes
                         // CostCalculator report UNKNOWN, but a non-null upstreamCost takes
                         // precedence over that.
-                        val (cost, source) = ai.oriveo.community.core.provider.CostCalculator.calcCost(breakdown, null)
+                        val (cost, source) = ai.oriveo.community.core.provider.CostCalculator.calcCost(breakdown, null, at = Instant.now())
                         StreamEvent.Done(
                             ProviderChatResult(
                                 text = accumulatedText.trim(),
@@ -233,6 +223,7 @@ class OpenRouterService(
                                 cachedInputTokens = breakdown.reportedCachedInputTokens,
                                 cacheCreation1hTokens = breakdown.reportedCacheCreation1hTokens,
                                 costSource = source.name,
+                                usageReported = usage != null,
                             )
                         )
                     },

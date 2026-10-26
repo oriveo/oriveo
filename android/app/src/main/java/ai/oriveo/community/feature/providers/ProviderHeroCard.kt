@@ -1,5 +1,7 @@
 package ai.oriveo.community.feature.providers
 
+import ai.oriveo.community.core.usage.CostPart
+import ai.oriveo.community.core.usage.CostParts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -64,6 +66,7 @@ import ai.oriveo.community.core.model.resolveProviderLogoKind
 import ai.oriveo.community.ui.component.OriveoStatusDot
 import ai.oriveo.community.ui.component.ProviderBadgeIcon
 import ai.oriveo.community.ui.component.brandWatermarkIcon
+import ai.oriveo.community.ui.component.costPartsText
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.ProviderBadgeColors
 import ai.oriveo.community.ui.util.formatRelativeTime
@@ -72,7 +75,8 @@ import kotlin.math.max
 @Composable
 fun ProviderHeroCard(
     provider: Provider,
-    monthlyEstimatedCost: Double,
+    /** This month's cost per currency: USD first, zero amounts omitted. */
+    monthlyCostParts: List<CostPart>,
 
     availableModelCount: Int,
     dailyCostsLast7Days: List<Double> = emptyList(),
@@ -116,11 +120,11 @@ fun ProviderHeroCard(
         ProviderEffectiveStatusKind.NeedsKey -> stringResource(R.string.needs_api_key)
     }
 
-    val isZeroCost = monthlyEstimatedCost <= CostFormatter.COST_EPSILON
-    val monthlyCostText = remember(monthlyEstimatedCost) {
-        val formatted = CostFormatter.format(monthlyEstimatedCost)
-        if (formatted.isBlank()) "$0" else formatted
-    }
+    val isZeroCost = monthlyCostParts.isEmpty()
+    // A month with only non-USD cost shows the per-currency amount, never "$0".
+    val monthlyCostText = costPartsText(monthlyCostParts).ifEmpty { "$0" }
+    // The derived weekly trend uses the USD part only (the server's 7-day buckets count USD only).
+    val monthlyUsdCost = CostParts.usdAmount(monthlyCostParts)
 
     val isAggregatedMismatch = provider.kind.isAggregatedProvider &&
         provider.enabledModelCount != availableModelCount
@@ -150,8 +154,8 @@ fun ProviderHeroCard(
         }
     }
 
-    val resolvedWeekly = remember(dailyCostsLast7Days, monthlyEstimatedCost) {
-        resolveWeeklyCosts(dailyCostsLast7Days, monthlyEstimatedCost)
+    val resolvedWeekly = remember(dailyCostsLast7Days, monthlyUsdCost) {
+        resolveWeeklyCosts(dailyCostsLast7Days, monthlyUsdCost)
     }
     val hasWeeklySignal = resolvedWeekly.any { it > CostFormatter.COST_EPSILON }
 
@@ -569,12 +573,12 @@ private fun HeroWeeklyBarChart(values: List<Double>) {
     }
 }
 
-private fun resolveWeeklyCosts(real: List<Double>, monthlyEstimatedCost: Double): List<Double> {
+private fun resolveWeeklyCosts(real: List<Double>, monthlyUsdCost: Double): List<Double> {
     if (real.isNotEmpty()) return real.takeLast(7)
-    if (monthlyEstimatedCost <= CostFormatter.COST_EPSILON) return List(7) { 0.0 }
+    if (monthlyUsdCost <= CostFormatter.COST_EPSILON) return List(7) { 0.0 }
     val weights = doubleArrayOf(0.45, 0.62, 0.38, 0.78, 0.50, 0.85, 1.00)
     val sum = weights.sum()
-    val dailyBudget = monthlyEstimatedCost * 0.32
+    val dailyBudget = monthlyUsdCost * 0.32
     return weights.map { (it / sum) * dailyBudget }
 }
 

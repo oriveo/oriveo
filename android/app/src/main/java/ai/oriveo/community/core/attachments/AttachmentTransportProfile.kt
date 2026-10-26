@@ -31,10 +31,20 @@ sealed class AttachmentTransportProfile private constructor(
     val routingProvider: ProviderKind,
 ) {
     /**
-     * The one-line placeholder written into the text for each image when this route cannot send images, so the model knows an image did not arrive;
-     * null for routes that can carry images.
+     * The one-line placeholder written into the text for each image that is not sent on this route, so the model knows an image did not arrive;
+     * null for routes without a dedicated placeholder (the outbound projection uses [TEXT_ONLY_IMAGE_PLACEHOLDER] when it decides on a placeholder).
+     * Whether a placeholder is written is not decided here: official routes follow the vision projection's outbound, and only routes where [sendsImages] is false use a placeholder for every image.
      */
     open val imagePlaceholderText: String? get() = null
+
+    /** Whether the route can send image parts at all; false = not implemented on the route, and every image is replaced by [imagePlaceholderText]. */
+    open val sendsImages: Boolean get() = true
+
+    /**
+     * Whether the route can send video parts: a route that declares an image placeholder (text only / images placeholdered by projection) always writes a placeholder line for videos,
+     * regardless of the catalog's video_input (same shape as the image placeholder, shared fixture media-outbound.v1).
+     */
+    val sendsVideos: Boolean get() = imagePlaceholderText == null
 
     /** Whether this turn's files may go up natively; when false they are all delivered as text. */
     val allowsNativeFiles: Boolean get() = hasNativeFileBlocks && nativeFiles != NativeFileMode.Off
@@ -50,11 +60,12 @@ sealed class AttachmentTransportProfile private constructor(
         routingProvider = base.routingProvider,
     ) {
         override val imagePlaceholderText: String? get() = base.imagePlaceholderText
+        override val sendsImages: Boolean get() = base.sendsImages
     }
 
     /**
      * OpenAI Chat Completions family (content parts): the wrapper format follows the owning provider. OpenRouter and DeepSeek each have a separate entry.
-     * The MiniMax Chat route sends text only, so images are written as a placeholder.
+     * Whether the MiniMax Chat route sends images follows the vision projection; the line declared here is used when it decides on a placeholder.
      */
     data class ChatCompletions(val provider: ProviderKind) : AttachmentTransportProfile(
         hasNativeFileBlocks = false,
@@ -73,7 +84,7 @@ sealed class AttachmentTransportProfile private constructor(
         routingProvider = ProviderKind.OpenRouter,
     )
 
-    /** DeepSeek Chat Completions: content accepts only a string, so attachments are folded into the text. */
+    /** DeepSeek Chat Completions: files are folded into the text; images / videos are sent as parts or written as a placeholder per the input capability projection. */
     data object DeepSeekChat : AttachmentTransportProfile(
         hasNativeFileBlocks = false,
         nativeFiles = NativeFileMode.Off,
@@ -109,7 +120,7 @@ sealed class AttachmentTransportProfile private constructor(
 
     /**
      * The Anthropic-compatible endpoint the MiniMax web search recipe uses: the request format is Messages, the wrapper format still follows MiniMax (markdown),
-     * and files are always delivered as text, with images written as a placeholder.
+     * and files are always delivered as text; images go up as image blocks or are written as a placeholder per the vision projection.
      */
     data object MiniMaxAnthropicMessages : AttachmentTransportProfile(
         hasNativeFileBlocks = false,
@@ -160,6 +171,7 @@ sealed class AttachmentTransportProfile private constructor(
         routingProvider = ProviderKind.Gemini,
     ) {
         override val imagePlaceholderText: String? get() = TEXT_ONLY_IMAGE_PLACEHOLDER
+        override val sendsImages: Boolean get() = false
     }
 
     /** A relay's llama.cpp native `/completion`: the whole conversation is folded into one prompt string, so images can only leave a placeholder. */
@@ -170,9 +182,10 @@ sealed class AttachmentTransportProfile private constructor(
         routingProvider = ProviderKind.Relay,
     ) {
         override val imagePlaceholderText: String? get() = TEXT_ONLY_IMAGE_PLACEHOLDER
+        override val sendsImages: Boolean get() = false
     }
 
-    private companion object {
+    companion object {
         /** Byte-identical across all three platforms (shared fixture image-placeholder.v1.json): every text-only route uses this one sentence. */
         const val TEXT_ONLY_IMAGE_PLACEHOLDER = "[Image omitted: this route sends text only]"
     }

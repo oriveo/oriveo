@@ -36,6 +36,8 @@ class CapabilityEvidenceContractTest {
     fun clearRuntimeEvidence() {
         UnsupportedParamCache.resetForTest()
         CapabilityEvidenceObservationBridge.resetForTesting()
+        // The publish cases install the fixture into the global MetadataClient.instance.
+        MetadataTestFixtures.clear()
     }
 
     @Test

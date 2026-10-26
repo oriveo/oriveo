@@ -85,8 +85,8 @@ class ProviderDetailCatalogHotPathTest {
                 lhs.isDefault != rhs.isDefault -> if (lhs.isDefault) -1 else 1
                 lhs.isAvailable != rhs.isAvailable -> if (lhs.isAvailable) -1 else 1
                 (lhs.sortRank ?: 0) != (rhs.sortRank ?: 0) -> (rhs.sortRank ?: 0) - (lhs.sortRank ?: 0)
-                enabledModelPriorityScore(lhs) != enabledModelPriorityScore(rhs) ->
-                    enabledModelPriorityScore(rhs) - enabledModelPriorityScore(lhs)
+                enabledModelPriorityScore(provider, lhs) != enabledModelPriorityScore(provider, rhs) ->
+                    enabledModelPriorityScore(provider, rhs) - enabledModelPriorityScore(provider, lhs)
                 (lhs.createdAt ?: 0.0) != (rhs.createdAt ?: 0.0) ->
                     (rhs.createdAt ?: 0.0).compareTo(lhs.createdAt ?: 0.0)
                 else -> lhs.name.compareTo(rhs.name, ignoreCase = true)

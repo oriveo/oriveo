@@ -64,12 +64,24 @@ object RelayRuntimeSupport {
         )
     }
 
+    /** The same mapping when the actual transport is known (used by pricing and request building): reads transportRules of [runtimeConfig]. */
+    internal fun transportProviderKind(transport: RelayTransport, runtimeConfig: MetadataClient.RelayRuntimeConfig): ProviderKind? =
+        providerKindFromBackendKey(runtimeConfig.transportRules[envelopeKey(transport)]?.providerPriority)
+
+    private fun envelopeKey(transport: RelayTransport): String = when (transport) {
+        RelayTransport.Auto, RelayTransport.LlamaCppNative, RelayTransport.OpenAIChatCompletions ->
+            TransportKey.OPENAI_CHAT_COMPLETIONS
+        RelayTransport.OpenAIResponses -> TransportKey.OPENAI_RESPONSES
+        RelayTransport.AnthropicMessages -> TransportKey.ANTHROPIC_MESSAGES
+        RelayTransport.GeminiGenerateContent -> TransportKey.GEMINI_GENERATE_CONTENT
+    }
+
     /**
      * Attachment support for the relay's current transport.
      * Returns null when this is not a relay provider, or when the catalog has no envelope for
      * that transport.
      */
-    fun attachmentSupport(
+    internal fun attachmentSupport(
         provider: Provider,
         runtimeConfig: MetadataClient.RelayRuntimeConfig,
         model: AIModel? = null,
@@ -84,7 +96,7 @@ object RelayRuntimeSupport {
         )
     }
 
-    fun supportsWebSearch(
+    internal fun supportsWebSearch(
         provider: Provider,
         runtimeConfig: MetadataClient.RelayRuntimeConfig,
         model: AIModel? = null,
@@ -93,16 +105,7 @@ object RelayRuntimeSupport {
         return runtimeConfig.transportEnvelopes[key]?.webSearch == true
     }
 
-    fun supportsImageGeneration(
-        provider: Provider,
-        runtimeConfig: MetadataClient.RelayRuntimeConfig,
-        model: AIModel? = null,
-    ): Boolean {
-        val key = envelopeKey(provider, model) ?: return false
-        return runtimeConfig.transportEnvelopes[key]?.imageGeneration == true
-    }
-
-    fun supportsReasoning(
+    internal fun supportsReasoning(
         provider: Provider,
         runtimeConfig: MetadataClient.RelayRuntimeConfig,
         model: AIModel? = null,
@@ -196,7 +199,7 @@ object RelayRuntimeSupport {
      * remotely; otherwise fall back to the static mapping below. There is deliberately no runtime
      * probe: probing burns the user's key and multiplies the number of failure paths.
      */
-    fun imageRoute(
+    internal fun imageRoute(
         transport: RelayTransport,
         runtimeConfig: MetadataClient.RelayRuntimeConfig? = MetadataClient.relayRuntimeConfig(),
     ): ImageRoute {
@@ -294,14 +297,14 @@ object RelayRuntimeSupport {
      * the user's setting. The reason is measured behaviour: against several relays, a non-streaming
      * `/responses` call returns a truncated image.
      */
-    fun shouldForceStream(
+    internal fun shouldForceStream(
         transport: RelayTransport,
         capabilities: List<ModelCapability>,
         runtimeConfig: MetadataClient.RelayRuntimeConfig? = MetadataClient.relayRuntimeConfig(),
     ): Boolean = shouldForceStream(transport, capabilities.contains(ModelCapability.ImageGen), runtimeConfig)
 
     /** [dispatchesImageGeneration] is whether this send takes the image generation dispatch (for a relay this includes a model-level image generation override). */
-    fun shouldForceStream(
+    internal fun shouldForceStream(
         transport: RelayTransport,
         dispatchesImageGeneration: Boolean,
         runtimeConfig: MetadataClient.RelayRuntimeConfig? = MetadataClient.relayRuntimeConfig(),

@@ -2,6 +2,7 @@ package ai.oriveo.community.core.provider.relay
 
 import ai.oriveo.community.core.data.entity.ProviderEntity
 import ai.oriveo.community.core.data.mapper.ProviderMapper
+import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.data.repository.ProviderRepository
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.Provider
@@ -37,9 +38,11 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import java.io.File
 
@@ -49,6 +52,21 @@ import java.io.File
  * persisted objects encoded/decoded by the production ProviderMapper).
  */
 class RelayKeyCatalogContractTest {
+
+    // Catalog decoding fills in groups / names from the global MetadataClient.instance (current production behavior), which changes the merge order;
+    // this class asserts the order under empty metadata, so each case swaps in a fresh instance and restores the old one afterwards, ignoring global snapshots left by other tests.
+    private lateinit var previousMetadata: MetadataClient
+
+    @Before
+    fun isolateMetadata() {
+        previousMetadata = MetadataClient.instance
+        MetadataClient.instance = MetadataClient()
+    }
+
+    @After
+    fun restoreMetadata() {
+        MetadataClient.instance = previousMetadata
+    }
 
     private val fixture: JsonObject = Json.parseToJsonElement(
         generateSequence(File(System.getProperty("user.dir") ?: ".").absoluteFile) { it.parentFile }
@@ -343,7 +361,6 @@ class RelayKeyCatalogContractTest {
             }
             ProviderRepository(
                 dao = dao,
-                conversationDao = mockk(relaxed = true),
                 secureKeyStore = keys,
                 openRouterService = mockk(relaxed = true),
                 openAIService = mockk(relaxed = true),

@@ -64,26 +64,7 @@ class GrokService(
      * Fatal trap: 1 USD = 10,000,000,000 ticks (10^10), NOT 1e8. Dividing by 1e8 would
      * overstate the cost of every Grok assistant message by 100x.
      */
-    override fun parseUsage(usage: JsonObject?): ai.oriveo.community.core.provider.UsageBreakdown {
-        if (usage == null) return ai.oriveo.community.core.provider.UsageBreakdown()
-        val prompt = usage["prompt_tokens"]?.jsonPrimitive?.intOrNull ?: 0
-        val completion = usage["completion_tokens"]?.jsonPrimitive?.intOrNull ?: 0
-        val cached = (usage["prompt_tokens_details"] as? JsonObject)
-            ?.get("cached_tokens")?.jsonPrimitive?.intOrNull ?: 0
-        val reasoning = (usage["completion_tokens_details"] as? JsonObject)
-            ?.get("reasoning_tokens")?.jsonPrimitive?.intOrNull ?: 0
-        val ticks = usage["cost_in_usd_ticks"]?.jsonPrimitive?.longOrNull
-        val upstreamCost = ticks?.let { it / GROK_TICKS_PER_USD }
-        return ai.oriveo.community.core.provider.UsageBreakdown(
-            promptTokens = (prompt - cached).coerceAtLeast(0),
-            cachedInputTokens = cached,
-            completionTokens = completion,
-            reasoningTokens = reasoning,
-            upstreamCost = upstreamCost,
-            cacheReadObserved = (usage["prompt_tokens_details"] as? JsonObject)
-                ?.get("cached_tokens")?.jsonPrimitive?.intOrNull != null,
-        )
-    }
+    override fun parseUsage(usage: JsonObject?): ai.oriveo.community.core.provider.UsageBreakdown = ChatUsageParsers.grok(usage)
 
     // Whether reasoning_effort is injected is decided by the catalog's profiles.reasoning;
     // all this override keeps is the fallback to the 400-driven self-healing cache.

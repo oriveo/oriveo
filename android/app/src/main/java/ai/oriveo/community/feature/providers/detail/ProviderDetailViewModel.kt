@@ -20,6 +20,8 @@ import ai.oriveo.community.core.data.repository.RelayEditMerge
 import ai.oriveo.community.core.error.ErrorMapper
 import ai.oriveo.community.core.model.OriveoError
 import ai.oriveo.community.core.model.LastUsedModelRef
+import ai.oriveo.community.core.model.isMissingCredentialForNewChat
+import ai.oriveo.community.core.model.resolveActiveModel
 import ai.oriveo.community.core.provider.BALANCE_CAPABLE_KINDS
 import ai.oriveo.community.core.provider.BalanceQueryable
 import ai.oriveo.community.core.provider.ProviderBalance
@@ -220,13 +222,37 @@ class ProviderDetailViewModel(
             provider.defaultModel?.id
         }
 
-    /** The model used to start a chat from a connection: a relay uses the fallback (enabled models only), an official provider keeps using its default model. */
+    /**
+     * The model used to start a chat from a connection. The new-chat chain is scoped to this connection:
+     * its last-used model, then the catalog default, then the first available one; isDefault is not read.
+     * A relay uses the fallback (enabled models only). Returns null when none is available.
+     */
     fun startChatModelID(provider: Provider): String? =
-        if (provider.kind == ProviderKind.Relay) {
+        // A missing credential (no key) means a chat cannot start, relay included.
+        if (provider.isMissingCredentialForNewChat()) {
+            null
+        } else if (provider.kind == ProviderKind.Relay) {
             RelayModelFallback.fallbackModel(provider, lastUsedModelRefSnapshot)?.id
         } else {
-            provider.defaultModel?.id
+            resolveActiveModel(
+                providers = listOf(provider),
+                lastUsedModelRef = lastUsedModelRefSnapshot?.takeIf { it.providerID == provider.id },
+            )?.model?.id
         }
+
+    /**
+     * Which model the "start chat" action on a model row opens: null (do not start) when the credential
+     * is missing (same criterion as [canStartChat]) or the model is unavailable.
+     */
+    fun modelRowStartChatID(provider: Provider, model: AIModel): String? =
+        if (provider.isMissingCredentialForNewChat() || !model.isAvailable) {
+            null
+        } else {
+            model.id
+        }
+
+    /** Enabled state of the detail page's "start chat" button: same source as the tap ([startChatModelID]); disabled when every enabled model is retired. */
+    fun canStartChat(provider: Provider): Boolean = startChatModelID(provider) != null
 
     /**
      * Immediate loading state for "verify connection".

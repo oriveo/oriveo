@@ -133,7 +133,6 @@ class RelayRequestGoldenTest {
         }
         repository = ProviderRepository(
             dao = dao,
-            conversationDao = mockk(relaxed = true),
             secureKeyStore = secureKeyStore,
             openRouterService = OpenRouterService(client, json, transportRegistry),
             openAIService = OpenAIService(client, json, transportRegistry),
@@ -311,12 +310,29 @@ class RelayRequestGoldenTest {
         }
     }
 
+    private fun injectExplicitPromptCacheModel(modelID: String) {
+        MetadataTestFixtures.applyRaw(
+            """{"version":1,"providers":{"${ProviderKind.Anthropic.rawValue}":{"defaultModelId":"$modelID",""" +
+                """"resolveMap":{"$modelID":"$modelID"},"models":{"$modelID":{"canonicalModelId":"$modelID",""" +
+                """"displayName":"$modelID","promptCache":{"policyRef":"anthropic.explicit"}}}}}}""",
+        )
+    }
+
     private fun recordAll(): List<JsonObject> {
         val cases = manifest.getValue("official").jsonArray.map { it.jsonObject to ::officialCase } +
             manifest.getValue("relay").jsonArray.map { it.jsonObject to ::relayCase }
         return cases.map { (case, build) ->
             val caseId = case.str("caseId")
-            val captured = send(build(case))
+            val built = build(case)
+            // Official Anthropic only places cache breakpoints when the catalog has promptCache.policyRef == anthropic.explicit;
+            // the golden sample records a request with breakpoints, so a catalog entry of the same shape is injected for this case only and cleared after sending; other cases still run without metadata.
+            val catalogInjected = built.provider.kind == ProviderKind.Anthropic
+            if (catalogInjected) injectExplicitPromptCacheModel(built.model.id)
+            val captured = try {
+                send(built)
+            } finally {
+                if (catalogInjected) MetadataTestFixtures.clear()
+            }
             if (captured == null) {
                 val reason = lastFailure?.let { "${it::class.simpleName}: ${it.message}" } ?: "no request issued"
                 buildJsonObject {

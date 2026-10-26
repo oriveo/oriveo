@@ -5,7 +5,10 @@ import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.RelayTransport
 import ai.oriveo.community.core.provider.CostCalculator
 import ai.oriveo.community.core.provider.CostSource
+import ai.oriveo.community.core.provider.RelayRuntimeSupport
 import ai.oriveo.community.core.provider.UsageBreakdown
+import java.time.Instant
+import kotlinx.serialization.Serializable
 
 /*
  * Breakdown builders for relay responses. Every one of them has to carry an explicit observation
@@ -74,6 +77,59 @@ internal fun anthropicUsageBreakdown(
     )
 }
 
+/** Relay usage parse result: [usageReported] = whether the response carried a usage object. The parser decides it; the exit path does not re-judge. */
+internal data class RelayParsedUsage(val breakdown: UsageBreakdown, val usageReported: Boolean)
+
+/**
+ * Usage of an Anthropic Messages non-streaming response -> pricing breakdown + whether usage was returned.
+ * The exit path and the contract tests both go through here; when the 5m cache write has no nested tier it falls back to the outer cache_creation_input_tokens (older responses).
+ */
+internal fun relayAnthropicUsage(usage: RelayAnthropicUsage?): RelayParsedUsage =
+    RelayParsedUsage(
+        breakdown = anthropicUsageBreakdown(
+            inputTokens = usage?.input_tokens,
+            outputTokens = usage?.output_tokens,
+            cacheReadInputTokens = usage?.cache_read_input_tokens,
+            cacheCreation5mInputTokens = usage?.cache_creation?.ephemeral_5m_input_tokens ?: usage?.cache_creation_input_tokens,
+            cacheCreation1hInputTokens = usage?.cache_creation?.ephemeral_1h_input_tokens,
+        ),
+        usageReported = usage != null,
+    )
+
+/** Relay Anthropic Messages non-streaming response (only the body and usage are decoded). */
+@Serializable
+internal data class RelayAnthropicResponse(
+    val content: List<RelayAnthropicContent>? = null,
+    val usage: RelayAnthropicUsage? = null,
+) {
+    val resolvedText: String
+        get() = content.orEmpty()
+            .filter { it.type == "text" }
+            .mapNotNull { it.text }
+            .joinToString("")
+}
+
+@Serializable
+internal data class RelayAnthropicContent(
+    val type: String? = null,
+    val text: String? = null,
+)
+
+@Serializable
+internal data class RelayAnthropicUsage(
+    val input_tokens: Int? = null,
+    val output_tokens: Int? = null,
+    val cache_read_input_tokens: Int? = null,
+    val cache_creation_input_tokens: Int? = null,
+    val cache_creation: RelayAnthropicCacheCreation? = null,
+)
+
+@Serializable
+internal data class RelayAnthropicCacheCreation(
+    val ephemeral_5m_input_tokens: Int? = null,
+    val ephemeral_1h_input_tokens: Int? = null,
+)
+
 internal fun geminiUsageBreakdown(
     promptTokenCount: Int?,
     candidatesTokenCount: Int?,
@@ -93,52 +149,57 @@ internal fun geminiUsageBreakdown(
     )
 }
 
+/**
+ * Relay service-layer pricing: when an official catalog entry matches, it goes through the same entry as the official services, [CostCalculator.calcCost]
+ * (actual upstream cost > pricingV2 > legacy single-tier price, USD only). When the matched entry is not USD this is unknown, and the delivery layer
+ * [ai.oriveo.community.core.provider.DeliveredCostResolver.resolve] records it in the original currency via the same [CostCalculator.estimate]. When nothing matches, the delivery layer falls back to the local unit price.
+ * [at] is the pricing moment (time-of-day pricing is chosen by it), injected by the caller (production passes the moment the response was received); no wall clock is read here.
+ */
 internal fun computeRelayCost(
     modelID: String,
+    canonicalModelId: String?,
     transport: RelayTransport,
     breakdown: UsageBreakdown,
+    at: Instant,
     metadata: MetadataClient = MetadataClient.instance,
 ): Pair<Double, CostSource> {
-    val matched = metadata.resolveCatalogModelAcrossProvidersWithProvider(
-        modelID = modelID,
-        transportPriority = relayCostPriorityProviderKind(transport),
-    )
-    return CostCalculator.calcCost(breakdown, matched?.metadata)
+    return CostCalculator.calcCost(breakdown, relayCatalogMatch(modelID, canonicalModelId, transport, metadata)?.metadata, at = at)
 }
 
-internal fun estimateRelayCost(
+/**
+ * Cross-family catalog match used for relay pricing: the family of the actual transport goes first (the service-layer [computeRelayCost] and the delivery-layer
+ * [ai.oriveo.community.core.provider.DeliveredCostResolver] share this one place, so two separate matches cannot pick different catalog prices).
+ * When [transport] is null (unknown), [RelayTransport.Auto] is used. See [relayOfficialMatch] for the matching rules.
+ */
+internal fun relayCatalogMatch(
     modelID: String,
-    transport: RelayTransport,
-    promptTokens: Int,
-    completionTokens: Int,
+    canonicalModelId: String?,
+    transport: RelayTransport?,
     metadata: MetadataClient = MetadataClient.instance,
-): Double {
-    val matched = metadata.resolveCatalogModelAcrossProvidersWithProvider(
+): MetadataClient.RelayCatalogMatchResult? =
+    relayOfficialMatch(
         modelID = modelID,
-        transportPriority = relayCostPriorityProviderKind(transport),
-    ) ?: return 0.0
-    return metadata.estimateCost(
-        modelID = modelID,
-        providerKind = matched.matchedProviderKind,
-        promptTokens = promptTokens,
-        completionTokens = completionTokens,
+        canonicalModelId = canonicalModelId,
+        // Same priority family as capability inheritance (RelayRuntimeSupport.transportProviderKind, reads transportRules).
+        transportPriority = RelayRuntimeSupport.transportProviderKind(
+            transport ?: RelayTransport.Auto,
+            metadata.relayRuntimeConfig(),
+        ),
+        metadata = metadata,
     )
+
+/**
+ * The single entry for matching a relay model to the official catalog (shared by pricing, unit-price labels and official capability inheritance): first by the model's [canonicalModelId],
+ * then, if absent or not found, by [modelID] (canonicalModelId is used only for pricing and official capability inheritance).
+ * [transportPriority] is the official family preferred during the cross-family scan.
+ */
+internal fun relayOfficialMatch(
+    modelID: String,
+    canonicalModelId: String?,
+    transportPriority: ProviderKind?,
+    metadata: MetadataClient = MetadataClient.instance,
+): MetadataClient.RelayCatalogMatchResult? {
+    val canonical = canonicalModelId?.trim()?.takeIf { it.isNotEmpty() }
+    return canonical?.let { metadata.resolveCatalogModelAcrossProvidersWithProvider(it, transportPriority) }
+        ?: metadata.resolveCatalogModelAcrossProvidersWithProvider(modelID, transportPriority)
 }
-
-internal fun relayCostPriorityBackendKey(transport: RelayTransport): String =
-    when (relayCostPriorityProviderKind(transport)) {
-        ProviderKind.OpenAI -> "openAI"
-        ProviderKind.Anthropic -> "anthropic"
-        ProviderKind.Gemini -> "gemini"
-        else -> "openAI"
-    }
-
-private fun relayCostPriorityProviderKind(transport: RelayTransport): ProviderKind =
-    when (transport) {
-        RelayTransport.LlamaCppNative,
-        RelayTransport.OpenAIChatCompletions,
-        RelayTransport.OpenAIResponses,
-        RelayTransport.Auto -> ProviderKind.OpenAI
-        RelayTransport.AnthropicMessages -> ProviderKind.Anthropic
-        RelayTransport.GeminiGenerateContent -> ProviderKind.Gemini
-    }

@@ -48,6 +48,7 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
+import java.time.Instant
 import java.util.UUID
 
 /**
@@ -191,6 +192,7 @@ class GeminiService(
             promptTokens = usage?.promptTokenCount ?: 0,
             completionTokens = (usage?.candidatesTokenCount ?: 0) + (usage?.thoughtsTokenCount ?: 0),
             reasoningText = parts.filter { it.thought == true }.mapNotNull { it.text }.joinToString("").takeIf { it.isNotEmpty() },
+            usageReported = usage != null,
         ))
     }
 
@@ -291,6 +293,8 @@ class GeminiService(
             var thoughtsTokens = 0
             var cachedTokens = 0
             var cacheReadObserved = false
+            // Whether upstream returned usageMetadata: absent means cost unknown, all-zero means a real zero.
+            var usageReported = false
             val imageAttachments = mutableListOf<Attachment>()
             val continuationContents = mutableListOf<JsonElement>()
             val nativeToolParser = NativeToolCallParser(NativeToolProtocol.GeminiGenerate)
@@ -324,6 +328,7 @@ class GeminiService(
                     // already emitted is preserved by the Failed path above.
                     throwIfBlockedChunk(chunk)
                     chunk.usageMetadata?.let { u ->
+                        usageReported = true
                         promptTokensTotal = u.promptTokenCount ?: promptTokensTotal
                         candidatesTokens = u.candidatesTokenCount ?: candidatesTokens
                         thoughtsTokens = u.thoughtsTokenCount ?: thoughtsTokens
@@ -390,7 +395,7 @@ class GeminiService(
                         cacheReadObserved = cacheReadObserved,
                     )
                     val resolved = MetadataClient.resolveCatalogModel(modelID, ProviderKind.Gemini)
-                    val (cost, source) = ai.oriveo.community.core.provider.CostCalculator.calcCost(breakdown, resolved)
+                    val (cost, source) = ai.oriveo.community.core.provider.CostCalculator.calcCost(breakdown, resolved, at = Instant.now())
                     StreamEvent.Done(
                         ProviderChatResult(
                             text = accumulatedText.trim(),
@@ -400,6 +405,7 @@ class GeminiService(
                             attachments = imageAttachments.ifEmpty { null },
                             cachedInputTokens = breakdown.reportedCachedInputTokens,
                             costSource = source.name,
+                            usageReported = usageReported,
                         )
                     )
                 },
@@ -550,8 +556,10 @@ class GeminiService(
             InteractionsAttachmentStage.Activated -> {
                 val media = attachments.mapNotNull { attachment ->
                     when (attachment.kind) {
+                        // An image whose data is unavailable gets a placeholder text part instead of being dropped silently (same as the Web handling of a broken data URL).
                         AttachmentKind.Image -> (attachment.base64Data ?: attachment.thumbnailBase64)
                             ?.let { interactionsMedia("image", it, ImageMediaType.resolve(it, attachment.mimeType)) }
+                            ?: interactionsText(AttachmentTransportProfile.TEXT_ONLY_IMAGE_PLACEHOLDER)
                         AttachmentKind.File -> (attachment.originalBase64Data ?: attachment.base64Data)
                             ?.let { interactionsMedia("document", it, attachment.mimeType) }
                         AttachmentKind.Video -> null
@@ -806,7 +814,7 @@ class GeminiService(
             cacheReadObserved = usage?.cachedTokens != null,
         )
         val (cost, source) = CostCalculator.calcCost(
-            breakdown, MetadataClient.resolveCatalogModel(modelID, ProviderKind.Gemini),
+            breakdown, MetadataClient.resolveCatalogModel(modelID, ProviderKind.Gemini), at = Instant.now(),
         )
         return StreamEvent.Done(
             ProviderChatResult(
@@ -817,6 +825,7 @@ class GeminiService(
                 estimatedCost = cost,
                 cachedInputTokens = breakdown.reportedCachedInputTokens,
                 costSource = source.name,
+                usageReported = usage != null,
             ),
             // Reaching here means interaction.completed was received (otherwise finish() already threw the EOF-type error)
             finish = StreamFinish(StopFamily.GEMINI_INTERACTIONS, StreamEnding.CLEAN, parser.terminalStatus),

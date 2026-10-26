@@ -74,6 +74,18 @@ class CapabilityExecutionCollector(
         legacyWebSearchDispatched = true
     }
 
+    /**
+     * Normalized-or-raw transport the official input projection was computed for, reported when the
+     * final body is built (last build wins, i.e. the leg that actually went out). The rejection flow
+     * records the negative cache under the same transport so the next projection hits it.
+     */
+    @Volatile var inputDispatchTransport: String? = null
+        private set
+
+    fun noteInputDispatchTransport(transport: String) {
+        inputDispatchTransport = transport
+    }
+
     @Synchronized fun recordCompiled(
         owner: String,
         evidenceSignals: List<CapabilityResponseEvidenceSignal>,

@@ -54,6 +54,8 @@ import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.ui.component.ModelListMetadataRow
 import ai.oriveo.community.core.provider.CapabilityEvidenceProductionAdapter
+import ai.oriveo.community.core.provider.connectionPriceLabelKey
+import ai.oriveo.community.core.provider.pricedForConnection
 import ai.oriveo.community.ui.component.ModelVendorIcon
 import ai.oriveo.community.ui.component.StatusPill
 import ai.oriveo.community.ui.component.StatusTone
@@ -296,6 +298,8 @@ private fun CatalogModelRow(
     val spacing = OriveoTheme.spacing
 
     val dividerColor = colors.border.opacity(0.45f)
+    // The unit-price label picks the price by the connection's effective region (same entry point as delivered billing)
+    val priced = remember(connectionPriceLabelKey(provider, model)) { model.pricedForConnection(provider) }
 
     Row(
         modifier = modifier
@@ -329,7 +333,7 @@ private fun CatalogModelRow(
         horizontalArrangement = Arrangement.spacedBy(spacing.md),
     ) {
 
-        val hasSpecs = modelSpecifications(model).isNotEmpty()
+        val hasSpecs = modelSpecifications(priced.model, priced.currencyCode).isNotEmpty()
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -355,12 +359,12 @@ private fun CatalogModelRow(
             )
 
             if (hasSpecs) {
-                ModelSpecInline(model = model)
+                ModelSpecInline(model = priced.model, currencyCode = priced.currencyCode)
             }
         }
 
         if (!hasSpecs) {
-            val priceTier = model.normalizedPriceTierLabel()
+            val priceTier = priced.model.normalizedPriceTierLabel(priced.currencyCode)
             if (priceTier.isNotBlank()) {
                 Text(
                     text = priceTier,

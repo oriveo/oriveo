@@ -4,8 +4,9 @@ import androidx.annotation.StringRes
 import androidx.compose.runtime.Immutable
 import ai.oriveo.community.R
 import ai.oriveo.community.core.model.AIModel
-import ai.oriveo.community.core.model.ModelCapability
+import ai.oriveo.community.core.provider.CapabilityEvidenceFacade
 import ai.oriveo.community.core.model.Provider
+import ai.oriveo.community.core.provider.CapabilityEvidenceProductionAdapter
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.provider.ModelSelectionUtils
 import ai.oriveo.community.core.provider.ProviderCatalogResolver
@@ -67,9 +68,17 @@ fun buildProviderCatalogGroups(
     fun groupIdOf(model: AIModel): String = identityById[model.id]?.id ?: provider.kind.rawValue
     fun groupTitleOf(model: AIModel): String = identityById[model.id]?.title ?: provider.displayName
 
+    // Compute scores before sorting: scoring goes through the capability facade (governedFileBadge), so doing it
+    // inside the comparator would call it n log n times, and recencyScore reads the current time, so a score that
+    // changes mid-sort would break the comparator's transitivity.
+    val priorityById = HashMap<String, Int>(dedupedCatalog.size).apply {
+        for (model in dedupedCatalog) put(model.id, catalogPriorityScore(provider, model))
+    }
+    fun priorityOf(model: AIModel): Int = priorityById[model.id] ?: catalogPriorityScore(provider, model)
+
     val groupScoresById = dedupedCatalog
         .groupBy(::groupIdOf)
-        .mapValues { (_, models) -> catalogGroupScore(models) }
+        .mapValues { (_, models) -> rankedGroupScore(models.map(::priorityOf)) }
     // Deduplicate again at the presentation layer as a safety net against duplicates left behind by
     // older persisted data.
     return dedupedCatalog
@@ -90,11 +99,11 @@ fun buildProviderCatalogGroups(
             ProviderCatalogGroup(
                 id = groupId,
                 title = title,
-                models = filteredModels.sortedWith { lhs, rhs -> compareCatalogModels(lhs, rhs) },
+                models = filteredModels.sortedWith { lhs, rhs -> compareCatalogModels(lhs, rhs, priorityOf(lhs), priorityOf(rhs)) },
             )
         }
         .filter { it.models.isNotEmpty() }
-        .sortedWith { lhs, rhs -> compareCatalogGroups(lhs, rhs, groupScoresById) }
+        .sortedWith { lhs, rhs -> compareCatalogGroups(lhs, rhs, provider, groupScoresById) }
 }
 
 /**
@@ -153,7 +162,7 @@ fun sortedEnabledModels(provider: Provider): List<AIModel> {
     //   2. Its recencyScore reads System.currentTimeMillis(), so a score could change in the
     //      middle of a sort. A comparator that stops being transitive makes TimSort throw
     //      "Comparison method violates its general contract!". Freezing the scores closes that window.
-    val scored = provider.models.map { model -> model to enabledModelPriorityScore(model) }
+    val scored = provider.models.map { model -> model to enabledModelPriorityScore(provider, model) }
     return scored.sortedWith { lhs, rhs ->
         val left = lhs.first
         val right = rhs.first
@@ -201,12 +210,15 @@ fun groupModelsByVendor(
             )
         }
 
+    // Group scores are computed once before sorting, for the same reason as in compareCatalogModels.
     val groups = mappedGroups
-        .sortedWith { lhs, rhs ->
-            val scoreDiff = catalogGroupScore(rhs.models) - catalogGroupScore(lhs.models)
+        .map { group -> group to catalogGroupScore(provider, group.models) }
+        .sortedWith { (lhs, lhsScore), (rhs, rhsScore) ->
+            val scoreDiff = rhsScore - lhsScore
             if (scoreDiff != 0) scoreDiff
             else lhs.groupName.orEmpty().compareTo(rhs.groupName.orEmpty(), ignoreCase = true)
         }
+        .map { it.first }
         .toMutableList()
 
     val ungroupedModels = models.filter { explicitVendorGroupIdentity(it) == null }
@@ -248,10 +260,11 @@ fun shouldAutoExpandCatalogGroups(searchQuery: String): Boolean =
 private fun compareCatalogGroups(
     lhs: ProviderCatalogGroup,
     rhs: ProviderCatalogGroup,
+    provider: Provider,
     groupScoresById: Map<String, Int>,
 ): Int {
-    val lhsScore = groupScoresById[lhs.id] ?: catalogGroupScore(lhs)
-    val rhsScore = groupScoresById[rhs.id] ?: catalogGroupScore(rhs)
+    val lhsScore = groupScoresById[lhs.id] ?: catalogGroupScore(provider, lhs)
+    val rhsScore = groupScoresById[rhs.id] ?: catalogGroupScore(provider, rhs)
     val scoreDiff = rhsScore - lhsScore
     if (scoreDiff != 0) {
         return scoreDiff
@@ -260,7 +273,7 @@ private fun compareCatalogGroups(
     return lhs.title.compareTo(rhs.title, ignoreCase = true)
 }
 
-private fun compareCatalogModels(lhs: AIModel, rhs: AIModel): Int {
+private fun compareCatalogModels(lhs: AIModel, rhs: AIModel, lhsPriority: Int, rhsPriority: Int): Int {
     // Ordered by sortRank descending for every provider; the comparison strategy never switches on
     // `providerKind`.
     if (lhs.isAvailable != rhs.isAvailable) {
@@ -271,7 +284,7 @@ private fun compareCatalogModels(lhs: AIModel, rhs: AIModel): Int {
     val rankDiff = (rhs.sortRank ?: 0) - (lhs.sortRank ?: 0)
     if (rankDiff != 0) return rankDiff
 
-    val priorityDiff = catalogPriorityScore(rhs) - catalogPriorityScore(lhs)
+    val priorityDiff = rhsPriority - lhsPriority
     if (priorityDiff != 0) {
         return priorityDiff
     }
@@ -287,14 +300,15 @@ private fun compareCatalogModels(lhs: AIModel, rhs: AIModel): Int {
     return lhsId.compareTo(rhsId)
 }
 
-private fun catalogGroupScore(group: ProviderCatalogGroup): Int {
-    return catalogGroupScore(group.models)
+private fun catalogGroupScore(provider: Provider, group: ProviderCatalogGroup): Int {
+    return catalogGroupScore(provider, group.models)
 }
 
-private fun catalogGroupScore(models: List<AIModel>): Int {
-    val rankedScores = models
-        .map(::catalogPriorityScore)
-        .sortedDescending()
+private fun catalogGroupScore(provider: Provider, models: List<AIModel>): Int =
+    rankedGroupScore(models.map { catalogPriorityScore(provider, it) })
+
+private fun rankedGroupScore(scores: List<Int>): Int {
+    val rankedScores = scores.sortedDescending()
     val first = rankedScores.getOrElse(0) { 0 }
     val second = rankedScores.getOrElse(1) { 0 }
     val third = rankedScores.getOrElse(2) { 0 }
@@ -305,7 +319,7 @@ private fun catalogGroupScore(models: List<AIModel>): Int {
 /** Lightweight provider score for the model picker, based only on enabled models so it avoids resolve(). */
 private fun pickerProviderScore(provider: Provider): Int {
     val models = provider.models
-    val bestScore = models.maxOfOrNull(::catalogPriorityScore) ?: 0
+    val bestScore = models.maxOfOrNull { catalogPriorityScore(provider, it) } ?: 0
     var score = bestScore
     if (preferredEnabledModel(provider)?.isAvailable == true) {
         score += 80
@@ -320,7 +334,7 @@ private fun preferredEnabledModel(provider: Provider): AIModel? =
         provider.models.firstOrNull { it.isDefault } ?: provider.models.firstOrNull()
     }
 
-private fun catalogPriorityScore(model: AIModel): Int {
+private fun catalogPriorityScore(provider: Provider, model: AIModel): Int {
     model.sortRank?.let { rank ->
         return rank
     }
@@ -330,7 +344,7 @@ private fun catalogPriorityScore(model: AIModel): Int {
     if (model.isAvailable) {
         score += 180
     }
-    if (model.capabilities.contains(ModelCapability.File)) {
+    if (governedFileBadge(provider, model)) {
         score += 12
     }
     if ((model.promptPrice == 0.0) || (model.completionPrice == 0.0)) {
@@ -340,13 +354,21 @@ private fun catalogPriorityScore(model: AIModel): Int {
     return score + recencyScore(model.createdAt)
 }
 
+/**
+ * The "file" bonus only counts when the file_input projection is shown (same rule as iOS
+ * permitsDisplay(.file) and the Web input projection), never the raw capability array. Only this one
+ * key is projected, so a model's whole badge set (web search / thinking controls) is not resolved.
+ */
+private fun governedFileBadge(provider: Provider, model: AIModel): Boolean =
+    CapabilityEvidenceProductionAdapter.governedInputVisible(provider, model, CapabilityEvidenceFacade.FILE_INPUT)
+
 // internal so the equivalence test can use the production scoring function as its reference
 // instead of a copy that would only prove the copy agrees with itself.
-internal fun enabledModelPriorityScore(model: AIModel): Int {
+internal fun enabledModelPriorityScore(provider: Provider, model: AIModel): Int {
     var score = 0
 
     if (model.isAvailable) score += 180
-    if (model.capabilities.contains(ModelCapability.File)) score += 8
+    if (governedFileBadge(provider, model)) score += 8
     val identifier = model.id.lowercase()
     if (
         identifier.contains("claude") ||

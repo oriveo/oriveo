@@ -43,6 +43,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import java.time.Instant
 import java.util.Base64
 import java.util.UUID
 
@@ -201,7 +202,7 @@ class QwenService(
                     },
                     onDone = {
                         val breakdown = parseUsage(lastUsageJson)
-                        val (cost, source) = CostCalculator.calcCost(breakdown, resolved)
+                        val (cost, source) = CostCalculator.calcCost(breakdown, resolved, at = Instant.now())
                         StreamEvent.Done(
                             ProviderChatResult(
                                 text = accumulatedText.trim(),
@@ -211,6 +212,7 @@ class QwenService(
                                 reasoningText = accumulatedReasoning.trim().takeIf { it.isNotEmpty() },
                                 cachedInputTokens = breakdown.reportedCachedInputTokens,
                                 costSource = source.name,
+                                usageReported = lastUsageJson != null,
                             )
                         )
                     },
@@ -354,26 +356,7 @@ class QwenService(
     }
 
     /** OpenAI-compatible usage parsing (prompt/completion, plus two fallbacks for cached and reasoning). */
-    private fun parseUsage(usage: JsonObject?): UsageBreakdown {
-        if (usage == null) return UsageBreakdown()
-        val prompt = usage["prompt_tokens"]?.jsonPrimitive?.intOrNull ?: 0
-        val completion = usage["completion_tokens"]?.jsonPrimitive?.intOrNull ?: 0
-        val cached = (usage["prompt_tokens_details"] as? JsonObject)
-            ?.get("cached_tokens")?.jsonPrimitive?.intOrNull
-            ?: usage["cached_tokens"]?.jsonPrimitive?.intOrNull
-            ?: 0
-        val reasoning = (usage["completion_tokens_details"] as? JsonObject)
-            ?.get("reasoning_tokens")?.jsonPrimitive?.intOrNull ?: 0
-        return UsageBreakdown(
-            promptTokens = (prompt - cached).coerceAtLeast(0),
-            cachedInputTokens = cached,
-            completionTokens = completion,
-            reasoningTokens = reasoning,
-            cacheReadObserved = (usage["prompt_tokens_details"] as? JsonObject)
-                ?.get("cached_tokens")?.jsonPrimitive?.intOrNull != null
-                || usage["cached_tokens"]?.jsonPrimitive?.intOrNull != null,
-        )
-    }
+    private fun parseUsage(usage: JsonObject?): UsageBreakdown = ChatUsageParsers.qwen(usage)
 
     /**
      * Resolves the chat endpoint, always onto the OpenAI-compatible one.
@@ -505,6 +488,7 @@ class QwenService(
             throw ProviderServiceError.Upstream(
                 statusCode = 200,
                 detail = "No image generated in Qwen response",
+                inBandFailure = ai.oriveo.community.core.model.UpstreamInBandFailure.EmptyResponse,
             )
         }
 
@@ -543,6 +527,7 @@ class QwenService(
             ProviderChatResult(
                 text = "",
                 attachments = attachments,
+                usageReported = false,
             ),
         )
     }

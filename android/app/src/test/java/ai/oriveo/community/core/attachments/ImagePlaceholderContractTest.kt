@@ -6,8 +6,8 @@ import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.ChatRequestOptions
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ReasoningMode
+import ai.oriveo.community.core.provider.DeepSeekService
 import ai.oriveo.community.core.provider.GeminiService
-import ai.oriveo.community.core.provider.MessageBuilder
 import ai.oriveo.community.core.provider.MetadataTestFixtures
 import ai.oriveo.community.core.provider.MiniMaxService
 import ai.oriveo.community.core.provider.ProviderTestFixtures
@@ -41,8 +41,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Shared fixture `attachments/image-placeholder.v1.json`: for text-only wires each image is written as one placeholder line,
- * byte-identical on all clients, and the request body produced by that wire's production builder contains no image block. One same-named test per case.
+ * Shared fixture `shared/test-fixtures/attachments/image-placeholder.v1.json`: a text-only route writes one placeholder line per image,
+ * byte-identical on every platform, and the request body the production builder emits for that route carries no image block. One test per case, named after it.
+ * Routes with byModel are walked row by row: the row's vision verdict is written into the official metadata and one request goes out through the production outbound path,
+ * then the request body is asserted to carry the real image or the placeholder according to the row's outbound.
  */
 class ImagePlaceholderContractTest {
     private val json = Json { ignoreUnknownKeys = true }
@@ -64,6 +66,23 @@ class ImagePlaceholderContractTest {
             }
     }
 
+    /** One byModel fixture row: model x vision verdict -> expected outbound. */
+    private data class ByModelRow(val model: String, val vision: JsonObject, val outbound: String)
+
+    private val byModel: Map<String, List<ByModelRow>> by lazy {
+        readJson("shared/test-fixtures/attachments/image-placeholder.v1.json")["cases"]!!.jsonArray
+            .associate { case ->
+                val obj = case.jsonObject
+                obj["id"]!!.jsonPrimitive.content to obj["byModel"]?.jsonArray.orEmpty().map { row ->
+                    val r = row.jsonObject
+                    ByModelRow(r["model"]!!.jsonPrimitive.content, r["vision"]!!.jsonObject, r["outbound"]!!.jsonPrimitive.content)
+                }
+            }
+    }
+
+    /** The byModel rows of a case; only asserted non-empty, the count is not pinned. */
+    private fun rowsOf(id: String): List<ByModelRow> = byModel.getValue(id).also { assertTrue("$id has no byModel rows", it.isNotEmpty()) }
+
     @After
     fun tearDown() {
         MetadataTestFixtures.clear()
@@ -72,10 +91,18 @@ class ImagePlaceholderContractTest {
     }
 
     @Test
-    fun IMAGE_PLACEHOLDER_deepseek_chat() {
+    fun IMAGE_PLACEHOLDER_deepseek_chat() = runTest {
         assertRoute("deepseek_chat", AttachmentTransportProfile.DeepSeekChat)
-        val body = MessageBuilder.buildChatCompletionsMessages(listOf(message(ProviderKind.DeepSeek)), ProviderKind.DeepSeek)
-        assertPlaceholderBody("deepseek_chat", body)
+        rowsOf("deepseek_chat").forEach { row ->
+            MetadataTestFixtures.applyRaw(officialVisionMetadata(ProviderKind.DeepSeek, row))
+            val body = chatBody { client ->
+                DeepSeekService(client, json).sendMessageStream(
+                    "key", row.model, listOf(message(ProviderKind.DeepSeek, row.model)), null,
+                    false, ReasoningMode.Automatic, false, ChatRequestOptions(),
+                ).toList()
+            }
+            assertOutboundBody("deepseek_chat", row, body, imageBlock = "\"image_url\"")
+        }
     }
 
     @Test
@@ -86,35 +113,45 @@ class ImagePlaceholderContractTest {
     }
 
     @Test
-    fun IMAGE_PLACEHOLDER_minimax_chat() {
+    fun IMAGE_PLACEHOLDER_minimax_chat() = runTest {
         assertRoute("minimax_chat", AttachmentTransportProfile.ChatCompletions(ProviderKind.MiniMax))
-        val body = MessageBuilder.buildChatCompletionsMessages(listOf(message(ProviderKind.MiniMax)), ProviderKind.MiniMax)
-        assertPlaceholderBody("minimax_chat", body)
+        rowsOf("minimax_chat").forEach { row ->
+            MetadataTestFixtures.applyRaw(officialVisionMetadata(ProviderKind.MiniMax, row))
+            val body = chatBody { client ->
+                MiniMaxService(client, json).sendMessageStream(
+                    "key", row.model, listOf(message(ProviderKind.MiniMax, row.model)), "https://api.minimax.io/v1",
+                    false, ReasoningMode.Automatic, false, ChatRequestOptions(),
+                ).toList()
+            }
+            assertOutboundBody("minimax_chat", row, body, imageBlock = "\"image_url\"")
+        }
     }
 
     @Test
     fun IMAGE_PLACEHOLDER_minimax_web() = runTest {
         assertRoute("minimax_web", AttachmentTransportProfile.MiniMaxAnthropicMessages)
-        MetadataTestFixtures.applyRaw(miniMaxWebMetadata())
-        var captured: String? = null
-        val client = client { request ->
-            if (captured == null) captured = bodyText(request.body)
-            respond(
-                content = "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
-                status = HttpStatusCode.OK,
-                headers = headersOf(HttpHeaders.ContentType, "text/event-stream"),
-            )
+        rowsOf("minimax_web").forEach { row ->
+            MetadataTestFixtures.applyRaw(miniMaxWebMetadata(row))
+            var captured: String? = null
+            val client = client { request ->
+                if (captured == null) captured = bodyText(request.body)
+                respond(
+                    content = "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, "text/event-stream"),
+                )
+            }
+            runCatching {
+                MiniMaxService(client, json).sendMessageStream(
+                    "key", row.model, listOf(message(ProviderKind.MiniMax, row.model)), "https://api.minimax.io/v1",
+                    false, ReasoningMode.Automatic, true, ChatRequestOptions(),
+                ).toList()
+            }
+            val body = requireNotNull(captured) { "MiniMax web route did not issue a request" }
+            // Confirms the Anthropic-compatible web route was taken, not plain Chat.
+            assertTrue(body, body.contains("web_search_20250305"))
+            assertOutboundBody("minimax_web", row, body, imageBlock = "\"type\":\"image\"")
         }
-        runCatching {
-            MiniMaxService(client, json).sendMessageStream(
-                "key", "MiniMax-M3", listOf(message(ProviderKind.MiniMax, "MiniMax-M3")), "https://api.minimax.io/v1",
-                false, ReasoningMode.Automatic, true, ChatRequestOptions(),
-            ).toList()
-        }
-        val body = requireNotNull(captured) { "MiniMax web route did not issue a request" }
-        // Confirm that the Anthropic-compatible web search wire is used, not plain Chat.
-        assertTrue(body, body.contains("web_search_20250305"))
-        assertPlaceholderBody("minimax_web", body)
     }
 
     @Test
@@ -136,8 +173,6 @@ class ImagePlaceholderContractTest {
         assertPlaceholderBody("gemini_interactions", requireNotNull(captured))
     }
 
-    // ── helpers ──
-
     private val imageBase64 = "SU1BR0VfUExBQ0VIT0xERVI="
 
     private fun message(kind: ProviderKind, modelId: String = "test-model"): ChatMessage =
@@ -147,7 +182,7 @@ class ImagePlaceholderContractTest {
             ),
         )
 
-    /** The placeholder declared by the wire is byte-identical to the fixture; the fixture's android wire name matches the wire under test. */
+    /** The placeholder declared by the route is byte-identical to the fixture; the fixture's android route name matches the route under test. */
     private fun assertRoute(id: String, profile: AttachmentTransportProfile) {
         val expectedName = when (profile) {
             is AttachmentTransportProfile.ChatCompletions -> "ChatCompletions(${profile.provider.name})"
@@ -167,7 +202,44 @@ class ImagePlaceholderContractTest {
         }
     }
 
-    private fun client(handler: suspend io.ktor.client.engine.mock.MockRequestHandleScope.(io.ktor.client.request.HttpRequestData) -> io.ktor.client.request.HttpResponseData): HttpClient =
+    /** Asserts by the byModel row's outbound: native_part sends the real image (block + bytes, no placeholder), placeholder behaves like a text-only route. */
+    private fun assertOutboundBody(id: String, row: ByModelRow, body: String, imageBlock: String) {
+        when (row.outbound) {
+            "native_part" -> {
+                assertTrue("$id/${row.model} lacks image block $imageBlock: $body", body.contains(imageBlock))
+                assertTrue("$id/${row.model} lacks image bytes: $body", body.contains(imageBase64))
+                assertFalse("$id/${row.model} must not write the placeholder: $body", body.contains(fixture.getValue(id)))
+            }
+            "placeholder" -> assertPlaceholderBody(id, body)
+            else -> error("$id/${row.model} unknown outbound ${row.outbound}")
+        }
+    }
+
+    /** Runs one production Chat streaming request and returns the first request body verbatim. */
+    private suspend fun chatBody(send: suspend (HttpClient) -> Unit): String {
+        var captured: String? = null
+        val client = client { request ->
+            if (captured == null) captured = bodyText(request.body)
+            respond("data: [DONE]\n\n", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "text/event-stream"))
+        }
+        runCatching { send(client) }
+        return requireNotNull(captured) { "chat route did not issue a request" }
+    }
+
+    /** Official metadata: one openai_chat model whose capabilityControls.vision_input takes the byModel row's verdict. */
+    private fun officialVisionMetadata(kind: ProviderKind, row: ByModelRow): String = buildJsonObject {
+        put("version", 1)
+        put("providers", buildJsonObject { put(kind.rawValue, buildJsonObject {
+            put("resolveMap", buildJsonObject { put(row.model, row.model) })
+            put("models", buildJsonObject { put(row.model, buildJsonObject {
+                put("canonicalModelId", row.model)
+                put("transport", "openai_chat")
+                put("capabilityControls", buildJsonObject { put("vision_input", row.vision) })
+            }) })
+        }) })
+    }.toString()
+
+        private fun client(handler: suspend io.ktor.client.engine.mock.MockRequestHandleScope.(io.ktor.client.request.HttpRequestData) -> io.ktor.client.request.HttpResponseData): HttpClient =
         HttpClient(MockEngine(handler)).also { openClients.add(it) }
 
     private fun bodyText(body: OutgoingContent): String = when (body) {
@@ -181,7 +253,7 @@ class ImagePlaceholderContractTest {
     private fun readJson(relativePath: String): JsonObject =
         json.parseToJsonElement(File(repoRoot(), relativePath).readText()).jsonObject
 
-    /** Official Gemini web-search recipe: the real Server registry + a model whose web goes through Interactions (same as in GeminiServiceTest). */
+    /** Official Gemini web recipe: the real registry plus a model whose web goes through Interactions (same as GeminiServiceTest). */
     private fun geminiInteractionsMetadata(): String {
         val registry = readJson("shared/capabilityrecipe/capability_runtime.v1.json")
         val runtime = JsonObject(registry + mapOf(
@@ -202,8 +274,8 @@ class ImagePlaceholderContractTest {
         }.toString()
     }
 
-    /** Official MiniMax web-search recipe: the real Server registry + a model whose web goes through the Anthropic-compatible endpoint. */
-    private fun miniMaxWebMetadata(): String {
+    /** Official MiniMax web recipe: the real registry plus a model whose web goes through the Anthropic-compatible endpoint; the vision verdict comes from the byModel row. */
+    private fun miniMaxWebMetadata(row: ByModelRow): String {
         val registry = readJson("shared/capabilityrecipe/capability_runtime.v1.json")
         val runtime = JsonObject(registry + mapOf(
             "revision" to JsonPrimitive("sha256:image-placeholder-test"),
@@ -212,13 +284,16 @@ class ImagePlaceholderContractTest {
         return buildJsonObject {
             put("version", 1); put("capabilityRuntime", runtime)
             put("providers", buildJsonObject { put("miniMax", buildJsonObject {
-                put("resolveMap", buildJsonObject { put("MiniMax-M3", "MiniMax-M3") })
-                put("models", buildJsonObject { put("MiniMax-M3", buildJsonObject {
-                    put("canonicalModelId", "MiniMax-M3")
+                put("resolveMap", buildJsonObject { put(row.model, row.model) })
+                put("models", buildJsonObject { put(row.model, buildJsonObject {
+                    put("canonicalModelId", row.model)
                     put("transport", "openai_chat")
-                    put("capabilityControls", buildJsonObject { put("web", buildJsonObject {
-                        put("state", "auto_available"); put("recipeRef", "minimax.messages.web.v1")
-                    }) })
+                    put("capabilityControls", buildJsonObject {
+                        put("web", buildJsonObject {
+                            put("state", "auto_available"); put("recipeRef", "minimax.messages.web.v1")
+                        })
+                        put("vision_input", row.vision)
+                    })
                 }) })
             }) })
         }.toString()

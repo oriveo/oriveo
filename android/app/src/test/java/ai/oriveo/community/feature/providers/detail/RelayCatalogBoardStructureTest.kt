@@ -1443,7 +1443,6 @@ class RelayCatalogBoardStructureTest {
             every { keys.getRelayKeySecret(any(), any(), any()) } answers { secrets[thirdArg()] }
             ProviderRepository(
                 dao = dao,
-                conversationDao = mockk(relaxed = true),
                 secureKeyStore = keys,
                 openRouterService = mockk(relaxed = true),
                 openAIService = mockk(relaxed = true),

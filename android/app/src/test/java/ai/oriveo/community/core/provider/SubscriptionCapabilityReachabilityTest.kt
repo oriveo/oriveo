@@ -1,6 +1,7 @@
 package ai.oriveo.community.core.provider
 
 import ai.oriveo.community.core.data.remote.canonicalCapabilityTransport
+import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.ChatRequestOptions
 import ai.oriveo.community.core.model.ModelCapability
@@ -49,6 +50,7 @@ class SubscriptionCapabilityReachabilityTest {
         ),
         declaredLevels: List<String> = listOf("low", "medium", "high"),
         apiBackend: String? = null,
+        inputModalities: List<String>? = null,
     ) = AIModel(
         id = id,
         name = id,
@@ -56,6 +58,7 @@ class SubscriptionCapabilityReachabilityTest {
         reasoningModeAvailable = capabilities.contains(ModelCapability.Reasoning),
         upstreamReasoningLevels = declaredLevels,
         upstreamApiBackend = apiBackend,
+        upstreamInputModalities = inputModalities,
     )
 
     // ── The capability verdict follows what upstream declares ──
@@ -255,6 +258,8 @@ class SubscriptionCapabilityReachabilityTest {
         val model = subscriptionModel(
             capabilities = listOf(ModelCapability.Text, ModelCapability.Web, ModelCapability.Reasoning, ModelCapability.Image),
             declaredLevels = levels,
+            // The first-party declaration for vision is the upstream input_modalities; the legacy Image capability bit is no longer evidence.
+            inputModalities = listOf("text", "image"),
         )
         val provider = subscriptionProvider().copy(catalogModels = listOf(model))
 
@@ -283,18 +288,34 @@ class SubscriptionCapabilityReachabilityTest {
     }
 
     @Test
-    fun `subscription tool_call only trusts the snapshot model's own first-party declaration, and with no declaration and no facts there is no candidate`() {
-        val declared = subscriptionModel().copy(toolCall = true)
-        val provider = subscriptionProvider().copy(catalogModels = listOf(declared))
-        val firstParty = truthProjection(provider, declared).decision("tool_call")!!
-        assertEquals("supported", firstParty.resolution.support)
-        assertEquals("upstream_declaration", firstParty.resolution.source)
-        assertTrue(firstParty.permitsOutbound)
-
-        val silent = subscriptionModel()
-        val undeclared = truthProjection(provider.copy(catalogModels = listOf(silent)), silent).decision("tool_call")!!
+    fun `subscription tool_call ignores the catalog bit and only trusts modelFacts, with no facts there is no candidate`() {
+        // The subscription /models listing has no tool field: model.toolCall is a catalog bit, not first-party evidence; on its own it stays unknown.
+        val catalogBit = subscriptionModel().copy(toolCall = true)
+        val provider = subscriptionProvider().copy(catalogModels = listOf(catalogBit))
+        val undeclared = truthProjection(provider, catalogBit).decision("tool_call")!!
         assertFalse(undeclared.visible)
         assertEquals("unknown", undeclared.resolution.support)
+
+        // Once modelFacts carries it, modelFacts decides, with source model_facts.
+        val silent = subscriptionModel()
+        val facts = MetadataClient().apply {
+            loadNetworkPayloadForTesting(
+                """
+                {"version":1,"contractVersion":1,"providers":{},"modelFactsRevision":"sha256:subscription-tool-call",
+                 "modelFacts":{"${ProviderKind.OpenAI.rawValue}/${MetadataClient.normalizeModelFactsID(silent.id)}":{"toolCall":true}}}
+                """.trimIndent(),
+                "\"subscription-tool-call\"",
+            )
+        }
+        val fromFacts = CapabilityEvidenceProductionAdapter.capabilityProjection(
+            provider = provider.copy(catalogModels = listOf(silent)),
+            model = silent,
+            keys = truthKeys,
+            explicitKeys = truthKeys,
+            metadataClient = facts,
+        ).decision("tool_call")!!
+        assertEquals("supported", fromFacts.resolution.support)
+        assertEquals("model_facts", fromFacts.resolution.source)
     }
 
     @Test
@@ -323,6 +344,7 @@ class SubscriptionCapabilityReachabilityTest {
     fun `the subscription outbound projection and the UI projection share one shape and one source of truth`() {
         val model = subscriptionModel(
             capabilities = listOf(ModelCapability.Text, ModelCapability.Web, ModelCapability.Image),
+            inputModalities = listOf("text", "image"),
         )
         val options = ChatRequestOptions(
             openAISubscription = OpenAISubscriptionRequestContext(

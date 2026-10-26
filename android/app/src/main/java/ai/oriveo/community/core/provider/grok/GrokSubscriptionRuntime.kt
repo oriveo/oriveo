@@ -184,7 +184,7 @@ fun GrokSubscriptionError.toProviderServiceError(): ai.oriveo.community.core.mod
             )
 
         is GrokSubscriptionError.Transport ->
-            ai.oriveo.community.core.model.ProviderServiceError.Network(detail)
+            ai.oriveo.community.core.model.ProviderServiceError.Network(detail).apply { underlying?.let { initCause(it) } }
 
         is GrokSubscriptionError.Upstream ->
             ai.oriveo.community.core.model.ProviderServiceError.Upstream(status, body)

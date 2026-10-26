@@ -3,13 +3,13 @@ package ai.oriveo.community.feature.providers
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import androidx.browser.customtabs.CustomTabsIntent
 import ai.oriveo.community.R
 import ai.oriveo.community.core.app.GlobalSnackbarManager
 import ai.oriveo.community.core.app.GlobalSnackbarMessage
 import ai.oriveo.community.core.app.GlobalToastStyle
 import ai.oriveo.community.core.app.UiText
 import ai.oriveo.community.core.util.ExternalActivityLaunchOutcome
+import ai.oriveo.community.core.util.launchCustomTab
 import ai.oriveo.community.core.util.launchExternalActivitySafely
 
 /**
@@ -30,7 +30,7 @@ internal fun openSubscriptionVerificationPage(
         ExternalActivityLaunchOutcome.LAUNCHED
     ) return
     val customTab = launchExternalActivitySafely {
-        CustomTabsIntent.Builder().build().launchUrl(context, uri)
+        launchCustomTab(context, uri)
     }
     if (customTab == ExternalActivityLaunchOutcome.UNAVAILABLE) {
         snackbar?.show(

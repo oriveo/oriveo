@@ -1,5 +1,9 @@
 package ai.oriveo.community.core.provider
 
+import ai.oriveo.community.core.attachments.AttachmentTransportProfile
+import ai.oriveo.community.core.capability.truth.InputCapabilityProjections
+import ai.oriveo.community.core.capability.truth.ProviderForm
+import ai.oriveo.community.core.capability.truth.resolveInputCapabilityProjections
 import ai.oriveo.community.core.context.ContinuationInstructionsMode
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.tools.ToolWireProtocol
@@ -540,6 +544,7 @@ internal fun parseOpenAIChatDone(json: kotlinx.serialization.json.Json, raw: Str
         promptTokens = usage?.get("prompt_tokens")?.jsonPrimitive?.intOrNull ?: 0,
         completionTokens = usage?.get("completion_tokens")?.jsonPrimitive?.intOrNull ?: 0,
         reasoningText = (message?.get("reasoning_content") as? JsonPrimitive)?.contentOrNull,
+        usageReported = usage != null,
     ))
 }
 
@@ -585,7 +590,7 @@ internal fun officialRequestCapabilityProjection(
         options.generationParameters?.values.orEmpty().keys.forEach { id ->
             if (id.isNotBlank()) add("generation_parameter/$id")
         }
-        add("vision_input")
+        add(CapabilityEvidenceFacade.VISION_INPUT)
         add("web_search")
         add("tool_call")
         if (reasoningMode != ReasoningMode.Automatic) add("reasoning_level/${effectiveReasoning.rawValue}")
@@ -604,7 +609,7 @@ internal fun officialRequestCapabilityProjection(
         if (reasoningMode != ReasoningMode.Automatic) add("reasoning_level/${effectiveReasoning.rawValue}")
         if (webSearchEnabled) add("web_search")
         if (messages.any { it.attachments.orEmpty().any { attachment -> attachment.kind == AttachmentKind.Image } }) {
-            add("vision_input")
+            add(CapabilityEvidenceFacade.VISION_INPUT)
         }
         if (toolCallRequested) add("tool_call")
     }
@@ -613,17 +618,23 @@ internal fun officialRequestCapabilityProjection(
     // explicitly passes the freshly fetched catalog model); if absent or the id does not match, fail closed under state 1. This way the outbound projection and the UI projection
     // share the same form and the same source of truth (upstream_declaration), and official / Relay are unaffected.
     val subscription = options.openAISubscription != null || options.grokSubscription != null
+    val runtimeProvider = Provider(
+        id = "runtime-${providerKind.rawValue}",
+        kind = providerKind,
+        authMode = if (subscription) ProviderAuthMode.Subscription else ProviderAuthMode.ApiKey,
+        catalogModels = if (subscription) listOfNotNull(options.activeModel?.takeIf { it.id == modelID }) else emptyList(),
+    )
+    // Image / file / video outbound on official connections follows the three-key projection's outbound; other forms keep the previous behavior.
     val legacyProjection = CapabilityEvidenceProductionAdapter.capabilityProjection(
-        provider = Provider(
-            id = "runtime-${providerKind.rawValue}",
-            kind = providerKind,
-            authMode = if (subscription) ProviderAuthMode.Subscription else ProviderAuthMode.ApiKey,
-            catalogModels = if (subscription) listOfNotNull(options.activeModel?.takeIf { it.id == modelID }) else emptyList(),
-        ),
+        provider = runtimeProvider,
         model = model,
         keys = keys,
         explicitKeys = explicitKeys,
         finalTransport = finalTransport,
+    ).withInputOutbound(
+        officialInputProjections(runtimeProvider, model, finalTransport, options),
+        // On text-only Chat Completions routes (DeepSeek / MiniMax) videos follow the route's placeholder instead of the catalog's outbound decision.
+        routeSendsVideos = finalTransport != "openai_chat" || AttachmentTransportResolver.chatCompletions(providerKind).sendsVideos,
     )
     val runtime = MetadataClient.capabilityRuntimeRequest(
         providerKind, modelID, runtimeTransport, webRequested = false, reasoningMode = ReasoningMode.Automatic,
@@ -697,14 +708,141 @@ internal fun officialSelfHealIdentity(
     finalUrl = finalUrl,
 )
 
-/** Final writer vision gate: omit only image attachments; text/file content remains untouched. */
+/**
+ * The three-key input projection of an official connection; returns null for other forms (keeping the previous behavior).
+ * The negative cache is looked up by the real connection id (the same provider.id used when InputRejectionFlow recorded it): the temporary Provider at the request boundary
+ * is swapped for the connection id of [ChatRequestOptions.capabilityEvidenceIdentity], and only if that is unavailable is the temporary id kept (which matches no record).
+ * The transport dispatched this time is also reported to [ChatRequestOptions.capabilityExecutionCollector], so a failure records the negative cache against the same one.
+ */
+internal fun officialInputProjections(
+    provider: Provider,
+    model: AIModel,
+    finalTransport: String,
+    options: ChatRequestOptions? = null,
+): InputCapabilityProjections? {
+    if (ProviderForm.of(provider) != ProviderForm.Official) return null
+    options?.capabilityExecutionCollector?.noteInputDispatchTransport(finalTransport)
+    val connectionId = options?.capabilityEvidenceIdentity?.connectionInstanceId?.takeIf(String::isNotBlank)
+    val connection = connectionId?.let { provider.copy(id = it) } ?: provider
+    return resolveInputCapabilityProjections(connection, model, finalTransport = finalTransport)
+}
+
+private val INPUT_OUTBOUND_KEYS = listOf(
+    CapabilityEvidenceFacade.VISION_INPUT,
+    CapabilityEvidenceFacade.FILE_INPUT,
+    CapabilityEvidenceFacade.VIDEO_INPUT,
+)
+
+/**
+ * Writes the three-key projection's outbound into the outbound decisions: permitsOutbound of the three keys = (outbound == native_part).
+ * The file_input / video_input decisions only appear here, and [messagesForCapabilityProjection] uses them to recognize "already projected by the three keys".
+ */
+internal fun CapabilityEvidenceProductionAdapter.Projection.withInputOutbound(
+    inputs: InputCapabilityProjections?,
+    routeSendsVideos: Boolean = true,
+): CapabilityEvidenceProductionAdapter.Projection {
+    if (inputs == null) return this
+    val template = decisions[CapabilityEvidenceFacade.VISION_INPUT] ?: return this
+    val gated = INPUT_OUTBOUND_KEYS.associateWith { key ->
+        val native = inputs[key].outbound == CapabilityEvidenceFacade.InputCapabilityOutbound.NATIVE_PART
+        (decisions[key] ?: template).copy(
+            // When the route cannot send videos they are always placeholdered, and nothing the catalog's video_input says goes out ([AttachmentTransportProfile.sendsVideos]).
+            permitsOutbound = native && (key != CapabilityEvidenceFacade.VIDEO_INPUT || routeSendsVideos),
+        )
+    }
+    return copy(decisions = decisions + gated)
+}
+
+/**
+ * Input capability gate at the outbound write point.
+ *
+ * - Already projected by the three keys (official): each image / video with outbound=placeholder is replaced by one route placeholder line, joined to the end of the body with "\n" and recorded on
+ *   [ChatMessage.outboundPlaceholders] (text-only routes use this body directly); builders that can split into parts then split these lines back out,
+ *   merging them into one standalone text part appended after all parts of the turn (body, then file blocks / images, then placeholders, same as Web);
+ *   a native file judged placeholder sends no file block and goes through the route's text injection instead (inline text files are not gated by file_input).
+ * - Other forms: when vision is not allowed only images are removed, same as before.
+ *
+ * Only the outbound copy is changed; the original local message is untouched.
+ *
+ * @param imagePlaceholder image placeholder line; by default the one declared by the Chat route of the provider in the projection identity.
+ */
 internal fun messagesForCapabilityProjection(
     messages: List<ChatMessage>,
     projection: CapabilityEvidenceProductionAdapter.Projection,
-): List<ChatMessage> = if (projection.permitsOutbound("vision_input")) {
-    messages
-} else {
-    messages.map { message ->
-        message.copy(attachments = message.attachments.orEmpty().filter { it.kind != AttachmentKind.Image })
+    imagePlaceholder: String? = null,
+): List<ChatMessage> {
+    val fileDecision = projection.decision(CapabilityEvidenceFacade.FILE_INPUT)
+    val videoDecision = projection.decision(CapabilityEvidenceFacade.VIDEO_INPUT)
+    if (fileDecision == null || videoDecision == null) {
+        return if (projection.permitsOutbound(CapabilityEvidenceFacade.VISION_INPUT)) {
+            messages
+        } else {
+            messages.map { message ->
+                message.copy(attachments = message.attachments.orEmpty().filter { it.kind != AttachmentKind.Image })
+            }
+        }
     }
+    return messagesForInputOutbound(
+        messages = messages,
+        imageOutbound = projection.permitsOutbound(CapabilityEvidenceFacade.VISION_INPUT),
+        fileOutbound = fileDecision.permitsOutbound,
+        videoOutbound = videoDecision.permitsOutbound,
+        imagePlaceholder = imagePlaceholder ?: routeImagePlaceholder(projection.identity?.providerKind),
+    )
+}
+
+/** Rewrites outbound messages by the three-key projection; write points that do not go through the legacy decisions (the MiniMax web search route) call this directly. */
+internal fun messagesForInputOutbound(
+    messages: List<ChatMessage>,
+    inputs: InputCapabilityProjections?,
+    imagePlaceholder: String,
+): List<ChatMessage> {
+    if (inputs == null) return messages
+    fun native(key: String) = inputs[key].outbound == CapabilityEvidenceFacade.InputCapabilityOutbound.NATIVE_PART
+    return messagesForInputOutbound(
+        messages = messages,
+        imageOutbound = native(CapabilityEvidenceFacade.VISION_INPUT),
+        fileOutbound = native(CapabilityEvidenceFacade.FILE_INPUT),
+        videoOutbound = native(CapabilityEvidenceFacade.VIDEO_INPUT),
+        imagePlaceholder = imagePlaceholder,
+    )
+}
+
+private fun messagesForInputOutbound(
+    messages: List<ChatMessage>,
+    imageOutbound: Boolean,
+    fileOutbound: Boolean,
+    videoOutbound: Boolean,
+    imagePlaceholder: String,
+): List<ChatMessage> {
+    if (imageOutbound && fileOutbound && videoOutbound) return messages
+    return messages.map { message ->
+        val attachments = message.attachments.orEmpty()
+        if (attachments.isEmpty()) return@map message
+        val lines = mutableListOf<String>()
+        val kept = attachments.mapNotNull { attachment ->
+            when (attachment.kind) {
+                AttachmentKind.Image -> if (imageOutbound) attachment else null.also { lines += imagePlaceholder }
+                AttachmentKind.Video -> if (videoOutbound) attachment else null.also { lines += videoPlaceholder(imagePlaceholder) }
+                // With the original bytes removed, routing can only go through text injection (AttachmentRouter with no original bytes means client_extract).
+                AttachmentKind.File -> if (fileOutbound) attachment else attachment.copy(originalBase64Data = null)
+            }
+        }
+        if (lines.isEmpty() && kept == attachments) return@map message
+        message.copy(
+            text = MessageBuilder.appendPlaceholderLines(message.text, lines),
+            attachments = kept,
+            outboundPlaceholders = lines.takeIf { it.isNotEmpty() },
+        )
+    }
+}
+
+/** Placeholder line when a video is not sent: the route's image placeholder with Image replaced by Video, without the file name (shared fixture media-outbound.v1). */
+internal fun videoPlaceholder(imagePlaceholder: String): String = imagePlaceholder.replaceFirst("Image", "Video")
+
+/** The image placeholder follows the provider's Chat route declaration (DeepSeek has its own line); everything else uses the generic text-only placeholder. */
+internal fun routeImagePlaceholder(providerKindRaw: String?): String {
+    val kind = providerKindRaw?.let(ProviderKind::fromRawValue)
+    return kind?.let { AttachmentTransportResolver.chatCompletions(it).imagePlaceholderText }
+        ?: AttachmentTransportProfile.TEXT_ONLY_IMAGE_PLACEHOLDER
 }

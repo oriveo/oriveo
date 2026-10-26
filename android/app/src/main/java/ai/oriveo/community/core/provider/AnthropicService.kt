@@ -23,6 +23,7 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
+import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.Serializable
@@ -139,6 +140,8 @@ class AnthropicService(
             var cacheCreation1h = 0
             var cacheReadObserved = false
             var cacheWriteObserved = false
+            // Whether upstream returned a usage object: absent means cost unknown, all-zero means a real zero.
+            var usageReported = false
             val continuationBlocks = sortedMapOf<Int, JsonObject>()
             val continuationInputJson = mutableMapOf<Int, StringBuilder>()
             val nativeToolParser = NativeToolCallParser(NativeToolProtocol.AnthropicMessages)
@@ -191,6 +194,7 @@ class AnthropicService(
                     when (eventType) {
                         "message_start" -> {
                             val usage = json.decodeFromString<MessageStartEvent>(data).message?.usage
+                            if (usage != null) usageReported = true
                             inputTokens = usage?.input_tokens ?: 0
                             cacheReadTokens = usage?.cache_read_input_tokens ?: 0
                             cacheReadObserved = usage?.cache_read_input_tokens != null
@@ -228,6 +232,7 @@ class AnthropicService(
                         }
                         "message_delta" -> {
                             val deltaUsage = json.decodeFromString<MessageDeltaEvent>(data).usage
+                            if (deltaUsage != null) usageReported = true
                             outputTokens = deltaUsage?.output_tokens ?: outputTokens
                             // Fallback: a few responses pass the cache fields through on message_delta.
                             deltaUsage?.cache_read_input_tokens?.let {
@@ -262,7 +267,7 @@ class AnthropicService(
                         cacheWriteObserved = cacheWriteObserved,
                     )
                     val resolved = MetadataClient.resolveCatalogModel(modelID, ProviderKind.Anthropic)
-                    val (cost, source) = ai.oriveo.community.core.provider.CostCalculator.calcCost(breakdown, resolved)
+                    val (cost, source) = ai.oriveo.community.core.provider.CostCalculator.calcCost(breakdown, resolved, at = Instant.now())
                     StreamEvent.Done(
                         ProviderChatResult(
                             text = accumulatedText.trim(),
@@ -275,6 +280,7 @@ class AnthropicService(
                             cacheCreation5mTokens = breakdown.reportedCacheCreation5mTokens,
                             cacheCreation1hTokens = breakdown.reportedCacheCreation1hTokens,
                             costSource = source.name,
+                            usageReported = usageReported,
                         )
                     )
                 },
@@ -328,6 +334,7 @@ class AnthropicService(
             text = text,
             promptTokens = (usage?.get("input_tokens") as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: 0,
             completionTokens = (usage?.get("output_tokens") as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: 0,
+            usageReported = usage != null,
         ))
     }
 
@@ -412,13 +419,14 @@ class AnthropicService(
     ): String {
         val options = MessageBuilder.normalizeRequestOptions(requestOptions)
         // Resolve the model for AttachmentRouter (native PDF). No top-level cache_control is sent; a single
-        // breakpoint goes on the last non-[D] block of the last user message.
+        // breakpoint goes on the last non-[D] block of the last user message, and only when the catalog's
+        // promptCache.policyRef is anthropic.explicit (a missing policyRef or unloaded metadata sends none).
         val activeModel = MetadataClient.resolveAIModelForRouter(modelID, ProviderKind.Anthropic)
         // Build the message list, attachments included, through MessageBuilder.
         val msgs = MessageBuilder.buildAnthropicMessages(
             messagesForCapabilityProjection(messages, capabilityProjection),
             activeModel,
-            cacheLastUserBlock = true,
+            cacheLastUserBlock = MessageBuilder.usesAnthropicExplicitPromptCache(resolved?.promptCachePolicyRef),
             dynamicText = options.dynamicText,
         )
 
@@ -430,13 +438,15 @@ class AnthropicService(
         MessageBuilder.anthropicSystemJson(options.systemPrompt)?.let { extras.add(it) }
 
         val extrasStr = if (extras.isNotEmpty()) "," + extras.joinToString(",") else ""
-        val maxTokens = (if (capabilityProjection.permitsOutbound("generation_parameter/max_tokens") ||
+        val explicitMaxTokens = if (capabilityProjection.permitsOutbound("generation_parameter/max_tokens") ||
             capabilityProjection.permitsOutbound("generation_parameter/max_output_tokens")) {
-            MessageBuilder.maxTokensJson(options.maxTokens, key = "max_tokens")
-        } else null)
-            // Main chat path base value = plan.budget.oWire; non-chat paths (null) keep the old fallback of metadata, then 8192.
-            ?: (options.outputTokenBudget ?: resolved?.maxOutputTokens)?.let { """"max_tokens":$it""" }
-            ?: """"max_tokens":8192"""
+            options.maxTokens
+        } else null
+        // Explicit value (panel / main chat path base plan.budget.oWire) > model maxOutputTokens > protocol default 8192.
+        val maxTokens = """"max_tokens":${MaxOutputTokensPolicy.anthropicMessages(
+            explicitMaxTokens ?: options.outputTokenBudget,
+            resolved?.maxOutputTokens,
+        )}"""
         var baseJson =
             """{"model":"$modelID",$maxTokens,"stream":$stream,"messages":[$msgs]$extrasStr}"""
         val runtime = applyCapabilityRuntimeRecipes(

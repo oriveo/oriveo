@@ -288,7 +288,7 @@ object PlainTextExtractor {
         runCatching { if (Charset.isSupported(name)) Charset.forName(name) else null }.getOrNull()
 
     /** Strict = illegal sequences throw, not replaced by U+FFFD. */
-    private fun strictDecode(charset: Charset, data: ByteArray, offset: Int = 0, length: Int = data.size): String? =
+    internal fun strictDecode(charset: Charset, data: ByteArray, offset: Int = 0, length: Int = data.size): String? =
         try {
             charset.newDecoder()
                 .onMalformedInput(CodingErrorAction.REPORT)

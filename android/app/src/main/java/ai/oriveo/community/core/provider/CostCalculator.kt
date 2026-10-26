@@ -2,6 +2,7 @@ package ai.oriveo.community.core.provider
 
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.model.AIModel
+import java.time.Instant
 
 /**
  * Local cost estimate for a completed request.
@@ -33,6 +34,10 @@ object CostCalculator {
      *      return `(0.0, SUBSCRIPTION)` without consulting any price table;
      *   1. the upstream reported an exact cost (OpenRouter, Grok): return
      *      `(upstreamCost, UPSTREAM)`;
+     *   1.5 the metadata carries a per_token pricingV2: go through [PricingV2Estimator]
+     *      ([at] is the pricing instant and can be injected);
+     *      unavailable -> `(0.0, UNKNOWN)` (price unknown, never shown as 0); not_applicable
+     *      falls through to the older path below;
      *   2. the catalog has no pricing for this model: return `(0.0, UNKNOWN)`;
      *   3. otherwise multiply and sum promptTokens / cachedInputTokens /
      *      cacheCreation5m and 1h / completionTokens per bucket and mark the result
@@ -48,21 +53,63 @@ object CostCalculator {
         breakdown: UsageBreakdown,
         pricing: MetadataClient.ResolvedModelMetadata?,
         isSubscription: Boolean = false,
+        at: Instant,
     ): Pair<Double, CostSource> {
-        if (isSubscription) return 0.0 to CostSource.SUBSCRIPTION
+        val estimate = estimate(breakdown, pricing, isSubscription, at)
+        // A single entry only records USD: a non-USD estimate is not converted or recorded and counts as price unknown.
+        if (estimate.currencyCode != USD) return 0.0 to CostSource.UNKNOWN
+        return estimate.amount to estimate.source
+    }
+
+    /**
+     * Estimates and also returns the currency: same decision order as [calcCost], but a non-USD price is still
+     * computed, without conversion; the currency is that of the selected price (pricingV2 currencyCode, else the
+     * model-level currencyCode), uppercase, USD when empty.
+     * [units] is the unit count for per-unit pricing (per_image / per_second); unused for per-token pricing.
+     */
+    fun estimate(
+        breakdown: UsageBreakdown,
+        pricing: MetadataClient.ResolvedModelMetadata?,
+        isSubscription: Boolean = false,
+        at: Instant,
+        units: Int = 1,
+    ): CostEstimate {
+        if (isSubscription) return CostEstimate(0.0, CostSource.SUBSCRIPTION, USD)
 
         // An exact figure from the upstream wins over anything we could compute.
-        breakdown.upstreamCost?.let { return it to CostSource.UPSTREAM }
+        breakdown.upstreamCost?.let { return CostEstimate(it, CostSource.UPSTREAM, USD) }
 
-        if (pricing == null) return 0.0 to CostSource.UNKNOWN
-        if (pricing.pricingStatus == "free") return 0.0 to CostSource.LOCAL_ESTIMATE
-        if (pricing.pricingStatus == "unknown") return 0.0 to CostSource.UNKNOWN
-        if (pricing.pricingUnit != "per_token") {
-            return (pricing.costPerUnit ?: 0.0) to CostSource.LOCAL_ESTIMATE
+        // When the legacy status is unknown (including no pricing) pricingV2 is not read and no number is estimated; only priced / free go through v2.
+        if (pricing == null || pricing.pricingStatus == "unknown") return unknown()
+
+        // Price v2: promptTokens is already the uncached input after subtracting cache, so it is used directly as uncachedInput.
+        pricing.pricingV2?.let { v2 ->
+            val usage = PricingV2Usage(
+                uncachedInput = breakdown.promptTokens.toLong(),
+                cacheRead = breakdown.cachedInputTokens.toLong(),
+                cacheWrite5m = breakdown.cacheCreation5mTokens.toLong(),
+                cacheWrite1h = breakdown.cacheCreation1hTokens.toLong(),
+                output = breakdown.completionTokens.toLong(),
+            )
+            when (val estimate = PricingV2Estimator.estimate(v2, usage, at)) {
+                is PricingV2Estimate.Estimated ->
+                    return CostEstimate(estimate.amount, CostSource.LOCAL_ESTIMATE, normalizeCurrency(estimate.currencyCode))
+                PricingV2Estimate.Unavailable -> return unknown()
+                PricingV2Estimate.NotApplicable -> Unit
+            }
         }
 
-        val promptPerToken = pricing.promptPerToken ?: return 0.0 to CostSource.UNKNOWN
-        val completionPerToken = pricing.completionPerToken ?: return 0.0 to CostSource.UNKNOWN
+        val currency = normalizeCurrency(pricing.currencyCode)
+        if (pricing.pricingStatus == "free") return CostEstimate(0.0, CostSource.LOCAL_ESTIMATE, currency)
+        // Per-unit pricing: unit and unit price come from pricingV2 (unit / perUnit) first, the legacy single-tier fields only without v2.
+        if ((pricing.pricingV2?.unit ?: pricing.pricingUnit) != "per_token") {
+            // A missing unit price is recorded as unknown, not 0.
+            val perUnit = pricing.pricingV2?.perUnit ?: pricing.costPerUnit ?: return unknown()
+            return CostEstimate(perUnit * units, CostSource.LOCAL_ESTIMATE, currency)
+        }
+
+        val promptPerToken = pricing.promptPerToken ?: return unknown()
+        val completionPerToken = pricing.completionPerToken ?: return unknown()
 
         // Discounted rates: take the catalog value when present, otherwise the fallback
         // multiplier. Catalog prices are per million tokens, hence the division.
@@ -81,15 +128,23 @@ object CostCalculator {
         val cacheWrite1hPerToken = pricing.cacheWrite1hPerMToken?.div(1_000_000)
             ?: (promptPerToken * ANTHROPIC_CACHE_1H_MULTIPLIER)
 
-        return bucketedCost(
+        val amount = bucketedCost(
             breakdown = breakdown,
             promptPerToken = promptPerToken,
             completionPerToken = completionPerToken,
             cachedReadPerToken = cachedReadPerToken,
             cacheWrite5mPerToken = cacheWrite5mPerToken,
             cacheWrite1hPerToken = cacheWrite1hPerToken,
-        ) to CostSource.LOCAL_ESTIMATE
+        )
+        return CostEstimate(amount, CostSource.LOCAL_ESTIMATE, currency)
     }
+
+    private const val USD = "USD"
+
+    private fun unknown() = CostEstimate(0.0, CostSource.UNKNOWN, USD)
+
+    private fun normalizeCurrency(code: String?): String =
+        code?.trim()?.uppercase()?.takeIf { it.isNotEmpty() } ?: USD
 
     /**
      * Bucketed estimate from the prices the model carries locally, which is the fallback
@@ -149,3 +204,10 @@ object CostCalculator {
             breakdown.cacheCreation1hTokens * cacheWrite1hPerToken +
             breakdown.completionTokens * completionPerToken
 }
+
+/** One estimate: [amount] is in [currencyCode] (uppercase ISO 4217), not converted; when [source] is UNKNOWN the price is unknown (shown as unavailable). */
+data class CostEstimate(
+    val amount: Double,
+    val source: CostSource,
+    val currencyCode: String,
+)

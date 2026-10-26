@@ -99,8 +99,14 @@ import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.resolveProviderLogoKind
 import ai.oriveo.community.core.model.RelayAvatar
 import ai.oriveo.community.core.model.RelayAvatarResolver
+import ai.oriveo.community.core.provider.ModelRetirement
+import ai.oriveo.community.core.provider.ProviderSelectionSnapshot
 import ai.oriveo.community.core.provider.ModelSelectionUtils
+import ai.oriveo.community.core.provider.DeliveredCostResolver
 import ai.oriveo.community.core.provider.ModelPricingFormatter
+import ai.oriveo.community.core.provider.connectionPriceLabelKey
+import ai.oriveo.community.core.provider.pricedForConnection
+import ai.oriveo.community.ui.component.rememberCostLocale
 import ai.oriveo.community.core.provider.transport.TransportKind
 import ai.oriveo.community.feature.providers.detail.comparePickerModels
 import ai.oriveo.community.feature.providers.detail.sortedEnabledModels
@@ -1266,8 +1272,11 @@ private fun ModelPickerRow(
     onClick: () -> Unit,
 ) {
     val v2 = rememberV2PickerColors()
-    val pricing = remember(model.priceTier, model.promptPrice, model.completionPrice, model.pricingUnit) {
-        model.modelPickerPricePresentation()
+    // Unit price label picks the price by the connection's effective region (same entry point as delivered-cost billing)
+    val priceLocale = rememberCostLocale()
+    val pricing = remember(connectionPriceLabelKey(provider, model), priceLocale) {
+        val priced = model.pricedForConnection(provider)
+        priced.model.modelPickerPricePresentation(priced.currencyCode, priceLocale)
     }
     val title = model.modelPickerDisplayTitle()
     val contextLengthLabel = remember(model.contextLength) {
@@ -1416,15 +1425,18 @@ internal data class ModelPickerPricePresentation(
     val fallback: String?,
 )
 
-internal fun AIModel.modelPickerPricePresentation(): ModelPickerPricePresentation {
+internal fun AIModel.modelPickerPricePresentation(
+    currencyCode: String = DeliveredCostResolver.USD,
+    locale: Locale = Locale.getDefault(),
+): ModelPickerPricePresentation {
     val hasStructuredPricing = promptPrice != null || completionPrice != null
     if (pricingUnit == "per_token" && hasStructuredPricing) {
         if (promptPrice == 0.0 && completionPrice == 0.0) {
             return ModelPickerPricePresentation(input = null, output = null, fallback = "Free")
         }
         return ModelPickerPricePresentation(
-            input = promptPrice?.let(ModelPricingFormatter::formatPerMillionValue),
-            output = completionPrice?.let(ModelPricingFormatter::formatPerMillionValue),
+            input = promptPrice?.let { ModelPricingFormatter.formatPerMillionValue(it, currencyCode, locale) },
+            output = completionPrice?.let { ModelPricingFormatter.formatPerMillionValue(it, currencyCode, locale) },
             fallback = null,
         )
     }
@@ -1432,7 +1444,7 @@ internal fun AIModel.modelPickerPricePresentation(): ModelPickerPricePresentatio
     return ModelPickerPricePresentation(
         input = null,
         output = null,
-        fallback = normalizedPriceTier().takeIf(String::isNotBlank),
+        fallback = normalizedPriceTier(currencyCode, locale).takeIf(String::isNotBlank),
     )
 }
 
@@ -1585,6 +1597,14 @@ fun buildProviderSections(
             }
         }
             .filter { model -> isModelTransportSupportedForModelPicker(provider, model) }
+            .filter { model ->
+                // Retired models are hidden (missing stays visible); the current conversation model is kept in Chat.
+                val isCurrentConversationModel = !isHome &&
+                    provider.id == currentProviderId &&
+                    currentModel != null &&
+                    model.id == currentModel.id
+                isCurrentConversationModel || !isModelRetiredForModelPicker(provider, model)
+            }
 
         val models = candidateModels
             .filter { model ->
@@ -1766,6 +1786,9 @@ fun AIModel.modelPickerDisplayTitle(): String {
 
 fun shouldShowModelPickerVendorSource(provider: Provider): Boolean =
     provider.kind.isAggregatedProvider
+
+fun isModelRetiredForModelPicker(provider: Provider, model: AIModel): Boolean =
+    ProviderSelectionSnapshot.modelRetirement(provider, model.id)?.status == ModelRetirement.Status.Retired
 
 fun isModelTransportSupportedForModelPicker(provider: Provider, model: AIModel): Boolean {
     if (provider.kind == ProviderKind.Relay) {

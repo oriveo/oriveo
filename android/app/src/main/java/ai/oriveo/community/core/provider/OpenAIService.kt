@@ -30,6 +30,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.utils.io.jvm.javaio.toInputStream
+import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.Serializable
@@ -301,6 +302,7 @@ class OpenAIService(
                         attachments = attachments.ifEmpty { null },
                         breakdown = breakdown,
                         modelID = modelID,
+                        usageReported = parsed.usage != null,
                     ),
                 )
             }
@@ -551,7 +553,7 @@ class OpenAIService(
                                                 } else {
                                                     null
                                                 },
-                                            )
+                                            ).also { it.telemetryUpstreamErrorType = SseParser.upstreamErrorTypeOf(payload) }
                                         }
                                     }
 
@@ -574,6 +576,7 @@ class OpenAIService(
                             rawText = accumulatedText,
                             breakdown = breakdown,
                             modelID = modelID,
+                            usageReported = lastUsage != null,
                         ),
                         finish = finishTracker.finish(),
                     ),
@@ -944,6 +947,7 @@ class OpenAIService(
                         rawText = choice.message.content,
                         breakdown = breakdown,
                         modelID = modelID,
+                        usageReported = parsed.usage != null,
                     ),
                 )
             }
@@ -981,6 +985,7 @@ class OpenAIService(
                     attachments = attachments,
                     breakdown = breakdown,
                     modelID = modelID,
+                    usageReported = parsed.usage != null,
                 ),
             )
         }
@@ -1070,6 +1075,7 @@ class OpenAIService(
                             rawText = accumulatedText,
                             breakdown = breakdown,
                             modelID = modelID,
+                            usageReported = lastUsage != null,
                         ),
                     )
                 },
@@ -1175,9 +1181,10 @@ class OpenAIService(
         attachments: List<Attachment>? = null,
         breakdown: UsageBreakdown,
         modelID: String,
+        usageReported: Boolean,
     ): ProviderChatResult {
         val resolved = MetadataClient.resolveCatalogModel(modelID, ProviderKind.OpenAI)
-        val (cost, source) = CostCalculator.calcCost(breakdown, resolved)
+        val (cost, source) = CostCalculator.calcCost(breakdown, resolved, at = Instant.now())
         return ProviderChatResult(
             text = text,
             promptTokens = breakdown.promptTokens + breakdown.cachedInputTokens,
@@ -1187,6 +1194,7 @@ class OpenAIService(
             cachedInputTokens = breakdown.reportedCachedInputTokens,
             costSource = source.name,
             rawText = rawText,
+            usageReported = usageReported,
         )
     }
 

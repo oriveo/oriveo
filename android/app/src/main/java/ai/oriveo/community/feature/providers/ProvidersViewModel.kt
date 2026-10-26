@@ -13,6 +13,7 @@ import ai.oriveo.community.core.provider.BALANCE_CAPABLE_KINDS
 import ai.oriveo.community.core.provider.ProviderBalance
 import ai.oriveo.community.core.provider.ProviderBalanceRepository
 import ai.oriveo.community.core.usage.CostSummaryCalculator
+import ai.oriveo.community.core.usage.CostPart
 import ai.oriveo.community.core.usage.MonthlyCostSummary
 import ai.oriveo.community.core.provider.ProviderCredentialResolver
 import kotlinx.coroutines.CoroutineDispatcher
@@ -64,11 +65,17 @@ class ProvidersViewModel(
         .flowOn(defaultDispatcher)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
-    val monthlyCostByProvider: StateFlow<Map<String, Double>> =
+    /** This month's local cost per provider, kept apart per currency. */
+    val monthlyCostByProvider: StateFlow<Map<String, List<CostPart>>> =
         conversationRepository.observeMonthlyCostByConversationProvider()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
-    val mergedMonthlyCostByProvider: StateFlow<Map<String, Double>> = monthlyCostByProvider
+    /** This month's local billed-message count per provider; the spotlight card is ranked by it. */
+    val monthlyBilledMessageCountByProvider: StateFlow<Map<String, Int>> =
+        conversationRepository.observeMonthlyBilledMessageCountByProvider()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    val mergedMonthlyCostByProvider: StateFlow<Map<String, List<CostPart>>> = monthlyCostByProvider
 
     val dailyCostsLast7DaysByProvider: StateFlow<Map<String, List<Double>>> =
         MutableStateFlow(emptyMap())

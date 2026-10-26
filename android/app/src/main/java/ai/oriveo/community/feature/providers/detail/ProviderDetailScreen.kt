@@ -586,6 +586,7 @@ fun ProviderDetailScreen(
                             ProviderDetailBrandHeroCard(
                                 provider = currentProvider,
                                 enabledModelCount = enabledModelCount,
+                                canStartChat = viewModel.canStartChat(currentProvider),
                                 onStartChat = {
                                     viewModel.startChatModelID(currentProvider)?.let { modelId ->
                                         onStartChat(currentProvider.id, modelId)
@@ -668,8 +669,11 @@ fun ProviderDetailScreen(
                                 null
                             },
                             onStartChat = { model ->
-                                onStartChat(currentProvider.id, model.id)
+                                viewModel.modelRowStartChatID(currentProvider, model)?.let { modelId ->
+                                    onStartChat(currentProvider.id, modelId)
+                                }
                             },
+                            canStartChat = { model -> viewModel.modelRowStartChatID(currentProvider, model) != null },
                             confirmedRelayCatalogIndex = confirmedRelayCatalogIndex,
                             onOpenAdvanced = { model -> relayNavStack = relayNavStack.push(RelayDetailLayer.Advanced(model.id, readOnly = false)) },
                             relayBoard = board?.enabled,

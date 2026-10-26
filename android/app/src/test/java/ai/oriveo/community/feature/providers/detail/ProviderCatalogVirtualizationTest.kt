@@ -202,7 +202,7 @@ class ProviderCatalogVirtualizationTest {
     fun `catalog rows have a single metadata candidate so probing can be skipped`() {
         val catalogRow = catalogComponents.requiredSlice(
             from = "ModelListMetadataRow(",
-            to = "ModelSpecInline(model = model)",
+            to = "ModelSpecInline(model = priced.model",
         )
         assertTrue("catalog rows must keep the price rung off, or the ladder grows back to 6 rungs", catalogRow.contains("showPrice = false"))
         assertFalse("catalog rows carry no statusText; adding one would add a rung", catalogRow.contains("statusText ="))

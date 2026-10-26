@@ -293,6 +293,58 @@ class MiniMaxServiceTest {
         assertFalse(sent, sent.contains("ATTACHMENT_FILE"))
     }
 
+    // -- Official outbound follows the vision projection: MiniMax no longer writes an image placeholder for the whole route --
+
+    private val image = ai.oriveo.community.core.model.Attachment(
+        id = "img", kind = AttachmentKind.Image, fileName = "p.png", mimeType = "image/png", base64Data = "aW1hZ2U=",
+    )
+
+    /** Sends once on the plain chat route (web search off) and returns the raw request body. */
+    private suspend fun chatBody(model: String, message: ChatMessage): String {
+        var body: String? = null
+        val client = HttpClient(MockEngine { request ->
+            if (body == null) body = (request.body as TextContent).text
+            respond("data: [DONE]\n\n", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "text/event-stream"))
+        })
+        runCatching {
+            MiniMaxService(client, json).sendMessageStream(
+                "key", model, listOf(message), "https://api.minimax.io/v1",
+                false, ReasoningMode.Automatic, false, ChatRequestOptions(),
+            ).toList()
+        }
+        return requireNotNull(body) { "MiniMax chat route did not issue a request" }
+    }
+
+    @Test
+    fun `MiniMax-M3 sends the image on the chat route and on the web route`() = runTest {
+        injectMiniMaxWebMetadata()
+        val message = userMessage("what is this").copy(attachments = listOf(image))
+        val chat = chatBody("MiniMax-M3", message)
+        assertTrue(chat, chat.contains(""""image_url":{"url":"data:image/""") && chat.contains("aW1hZ2U="))
+        assertFalse(chat, chat.contains("[Image omitted"))
+
+        val (client, bodies) = captureWebBodies()
+        runCatching {
+            MiniMaxService(client, json).sendMessageStream(
+                "key", "MiniMax-M3", listOf(message), "https://api.minimax.io/v1",
+                false, ReasoningMode.Automatic, true, ChatRequestOptions(),
+            ).toList()
+        }
+        val web = bodies.single().toString()
+        assertTrue(web, web.contains("web_search_20250305"))
+        assertTrue(web, web.contains(""""type":"image"""") && web.contains("aW1hZ2U="))
+        assertFalse(web, web.contains("[Image omitted"))
+    }
+
+    /** The M2.x catalog has no vision verdict (missing key = unknown): unknown still sends the real image, no placeholder. */
+    @Test
+    fun `MiniMax-M2 without a vision verdict still sends the real image`() = runTest {
+        injectMiniMaxWebMetadata()
+        val chat = chatBody("MiniMax-M2", userMessage("what is this").copy(attachments = listOf(image)))
+        assertTrue(chat, chat.contains(""""image_url":{"url":"data:image/""") && chat.contains("aW1hZ2U="))
+        assertFalse(chat, chat.contains("[Image omitted"))
+    }
+
     /** When this turn's files do not fit, the attachment overrun must be reported, not swallowed as a configuration error, and the request must not be sent. */
     @Test
     fun `web route surfaces an attachment over the text budget instead of a configuration error`() = runTest {
@@ -322,6 +374,20 @@ class MiniMaxServiceTest {
             unary,
         )
         assertTrue("No request should be sent", bodies.isEmpty())
+    }
+
+    @Test
+    fun `web route leaves temperature out when the projection does not permit it`() = runTest {
+        injectMiniMaxWebMetadata()
+        val (client, bodies) = captureWebBodies()
+        val service = MiniMaxService(client, json)
+        service.sendMessageStream(
+            "key", "MiniMax-M3", listOf(userMessage("news")), "https://api.minimax.io/v1",
+            false, ReasoningMode.Automatic, true, ChatRequestOptions(temperature = 0.7f),
+        ).toList()
+        val body = bodies.single()
+        assertEquals("web_search_20250305", body["tools"]!!.jsonArray.single().jsonObject["type"]!!.jsonPrimitive.content)
+        assertFalse("temperature must pass the same outbound gate as the chat route", "temperature" in body)
     }
 
     @Test
@@ -555,7 +621,7 @@ class MiniMaxServiceTest {
         {
           "version":1,
           "providers":{"miniMax":{"resolveMap":{"MiniMax-M3":"MiniMax-M3","MiniMax-M2":"MiniMax-M2"},"models":{
-            "MiniMax-M3":{"canonicalModelId":"MiniMax-M3","transport":"openai_chat","capabilities":["text","web"],"capabilityControls":{"web":{"state":"auto_available","recipeRef":"minimax.messages.web.v1"}}},
+            "MiniMax-M3":{"canonicalModelId":"MiniMax-M3","transport":"openai_chat","capabilities":["text","web"],"capabilityControls":{"web":{"state":"auto_available","recipeRef":"minimax.messages.web.v1"},"vision_input":{"state":"auto_available"}}},
             "MiniMax-M2":{"canonicalModelId":"MiniMax-M2","transport":"openai_chat","capabilities":["text"],"capabilityControls":{"web":{"state":"unknown","reasonCode":"model_capability_absent"}}}
           }}},
           "capabilityRuntime":{"schemaVersion":2,"revision":"minimax-web-test","generatedAt":"2026-08-23T00:00:00Z","controlDefinitions":{},

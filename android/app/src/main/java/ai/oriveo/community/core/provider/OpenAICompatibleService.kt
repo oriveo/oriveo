@@ -40,6 +40,7 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
+import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
@@ -287,7 +288,7 @@ open class OpenAICompatibleService(
                             // on JsonNull. That throw would swallow the entire chunk inside
                             // SseParser's try/catch and lose the delta with it - the root cause of
                             // DeepSeek returning completely empty responses.
-                            (root["usage"] as? JsonObject)?.let { lastUsageJson = it }
+                            chunkUsage(root)?.let { lastUsageJson = it }
                             // Groq is a special case: usage may hide in x_groq.usage.
                             ((root["x_groq"] as? JsonObject)?.get("usage") as? JsonObject)
                                 ?.let { lastUsageJson = it }
@@ -400,7 +401,7 @@ open class OpenAICompatibleService(
                             MetadataClient.resolveCatalogModel(modelID, providerKind)
                         } else null
                         val (cost, source) = CostCalculator.calcCost(
-                            breakdown, resolved, isSubscription = subscription != null,
+                            breakdown, resolved, isSubscription = subscription != null, at = Instant.now(),
                         )
                         StreamEvent.Done(
                             ProviderChatResult(
@@ -414,6 +415,7 @@ open class OpenAICompatibleService(
                                 cacheCreation5mTokens = breakdown.reportedCacheCreation5mTokens,
                                 cacheCreation1hTokens = breakdown.reportedCacheCreation1hTokens,
                                 costSource = source.name,
+                                usageReported = lastUsageJson != null,
                             )
                         )
                     },
@@ -532,13 +534,14 @@ open class OpenAICompatibleService(
             }
         }
         if (text.isBlank()) throw ProviderServiceError.EmptyResponse
-        val usage = root["usage"] as? JsonObject
+        val usage = chunkUsage(root)
         val breakdown = if (responses) parseResponsesUsage(usage) else parseUsage(usage)
-        val (cost, source) = CostCalculator.calcCost(breakdown, resolved, isSubscription = subscription != null)
+        val (cost, source) = CostCalculator.calcCost(breakdown, resolved, isSubscription = subscription != null, at = Instant.now())
         return StreamEvent.Done(ProviderChatResult(
             text.trim(), breakdown.promptTokens + breakdown.cachedInputTokens, breakdown.completionTokens,
             cost, reasoningText = null, cachedInputTokens = breakdown.reportedCachedInputTokens, costSource = source.name,
             rawText = text,
+            usageReported = usage != null,
         ))
     }
 
@@ -585,7 +588,7 @@ open class OpenAICompatibleService(
             }
         }
         if (attachments.isEmpty()) throw ProviderServiceError.EmptyResponse
-        return StreamEvent.Done(ProviderChatResult(text = "", attachments = attachments))
+        return StreamEvent.Done(ProviderChatResult(text = "", attachments = attachments, usageReported = false))
     }
 
     private fun imageAttachment(base64OrUrl: String, mime: String): Attachment {
@@ -637,8 +640,7 @@ open class OpenAICompatibleService(
                 // What upstream declares about web search for *this* model, copied verbatim from
                 // `/models` when the catalog entry was built. It is an independent condition from
                 // the user's intent (see the parameter docs on `buildResponsesBody`).
-                webSearchDeclared = requestOptions.activeModel
-                    ?.capabilities?.contains(ModelCapability.Web) == true,
+                webSearchDeclared = subscriptionWebAvailable(requestOptions.activeModel),
                 reasoningMode = reasoningMode.rawValue,
                 declaredReasoningLevels = requestOptions.activeModel?.let {
                     CapabilityControlResolution.subscriptionDeclaredReasoningLevels(providerKind, it)
@@ -798,6 +800,7 @@ open class OpenAICompatibleService(
                             breakdown,
                             resolved,
                             isSubscription = codex != null || grok != null,
+                            at = Instant.now(),
                         )
                         StreamEvent.Done(
                             ProviderChatResult(
@@ -811,6 +814,7 @@ open class OpenAICompatibleService(
                                 cacheCreation5mTokens = breakdown.reportedCacheCreation5mTokens,
                                 cacheCreation1hTokens = breakdown.reportedCacheCreation1hTokens,
                                 costSource = source.name,
+                                usageReported = lastUsageJson != null,
                             )
                         )
                     },
@@ -843,6 +847,21 @@ open class OpenAICompatibleService(
             messages, requestOptions.activeModel, AttachmentTransportProfile.SubscriptionResponses,
         )
 
+    /**
+     * Whether the subscription route reports web search as available for this model. It reads the `web` verdict from
+     * [CapabilityControlResolution.subscriptionVerdict], the same source the panel uses; only auto_available counts as
+     * declared support, and a missing model counts as unsupported.
+     */
+    private fun subscriptionWebAvailable(model: AIModel?): Boolean {
+        model ?: return false
+        val link = Provider(
+            id = "runtime-${providerKind.name}",
+            kind = providerKind,
+            authMode = ai.oriveo.community.core.model.ProviderAuthMode.Subscription,
+        )
+        return CapabilityControlResolution.subscriptionVerdict(link, model, "web").state == CapabilityControlResolution.STATE_AUTO_AVAILABLE
+    }
+
     private fun buildGrokSubscriptionResponsesBody(
         modelID: String,
         messages: List<ChatMessage>,
@@ -857,7 +876,7 @@ open class OpenAICompatibleService(
                 messages, model, subscriptionAttachmentTransport(requestOptions),
             ),
             systemPrompt = MessageBuilder.normalizeRequestOptions(requestOptions).systemPrompt,
-            supportsWebSearch = model?.capabilities?.contains(ModelCapability.Web) == true,
+            supportsWebSearch = subscriptionWebAvailable(model),
             reasoningMode = reasoningMode.rawValue,
             declaredReasoningLevels = model?.let {
                 CapabilityControlResolution.subscriptionDeclaredReasoningLevels(providerKind, it)
@@ -882,27 +901,10 @@ open class OpenAICompatibleService(
      *   - completionTokens = completion_tokens (already includes reasoning)
      *   - reasoningTokens = completion_tokens_details.reasoning_tokens (informational)
      */
-    protected open fun parseUsage(usage: JsonObject?): UsageBreakdown {
-        if (usage == null) return UsageBreakdown()
-        val prompt = usage["prompt_tokens"]?.jsonPrimitive?.intOrNull ?: 0
-        val completion = usage["completion_tokens"]?.jsonPrimitive?.intOrNull ?: 0
-        val cached = (usage["prompt_tokens_details"] as? JsonObject)
-            ?.get("cached_tokens")?.jsonPrimitive?.intOrNull ?: 0
-        val cacheReadObserved = (usage["prompt_tokens_details"] as? JsonObject)
-            ?.get("cached_tokens")?.jsonPrimitive?.intOrNull != null
-        val reasoning = (usage["completion_tokens_details"] as? JsonObject)
-            ?.get("reasoning_tokens")?.jsonPrimitive?.intOrNull ?: 0
-        return UsageBreakdown(
-            promptTokens = (prompt - cached).coerceAtLeast(0),
-            cachedInputTokens = cached,
-            cacheCreation5mTokens = 0,
-            cacheCreation1hTokens = 0,
-            completionTokens = completion,
-            reasoningTokens = reasoning,
-            upstreamCost = null,
-            cacheReadObserved = cacheReadObserved,
-        )
-    }
+    protected open fun parseUsage(usage: JsonObject?): UsageBreakdown = ChatUsageParsers.openAIChatDefault(usage)
+
+    /** Picks the usage object out of a streamed chunk / non-streamed response: top level for OpenAI-compatible; subclasses override for the upstream's own location (see Moonshot). */
+    protected open fun chunkUsage(root: JsonObject): JsonObject? = root["usage"] as? JsonObject
 
     // ── Overridable by subclasses ──
 
@@ -1263,33 +1265,7 @@ open class OpenAICompatibleService(
         return merged.toString()
     }
 
-    private fun parseResponsesUsage(usage: JsonObject?): UsageBreakdown {
-        if (usage == null) return UsageBreakdown()
-        val input = usage["input_tokens"]?.jsonPrimitive?.intOrNull ?: 0
-        val output = usage["output_tokens"]?.jsonPrimitive?.intOrNull ?: 0
-        val cached = (usage["input_tokens_details"] as? JsonObject)
-            ?.get("cached_tokens")?.jsonPrimitive?.intOrNull ?: 0
-        val cacheReadObserved = (usage["input_tokens_details"] as? JsonObject)
-            ?.get("cached_tokens")?.jsonPrimitive?.intOrNull != null
-        val reasoning = (usage["output_tokens_details"] as? JsonObject)
-            ?.get("reasoning_tokens")?.jsonPrimitive?.intOrNull ?: 0
-        val ticks = usage["cost_in_usd_ticks"]?.jsonPrimitive?.longOrNull
-        val upstreamCost = if (providerKind == ProviderKind.Grok) {
-            ticks?.let { it / GrokService.GROK_TICKS_PER_USD }
-        } else {
-            null
-        }
-        return UsageBreakdown(
-            promptTokens = (input - cached).coerceAtLeast(0),
-            cachedInputTokens = cached,
-            cacheCreation5mTokens = 0,
-            cacheCreation1hTokens = 0,
-            completionTokens = output,
-            reasoningTokens = reasoning,
-            upstreamCost = upstreamCost,
-            cacheReadObserved = cacheReadObserved,
-        )
-    }
+    private fun parseResponsesUsage(usage: JsonObject?): UsageBreakdown = ChatUsageParsers.openAIResponses(providerKind, usage)
 
     private fun reasoningMergeParamsForRequest(
         modelID: String,

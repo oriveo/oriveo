@@ -192,7 +192,7 @@ class RelayCatalogCapabilityMemo(private val source: RelayCatalogCapabilitySourc
  * Fact source of the five-capability tri-states: only calls the existing criteria of the chat page and evidence layer, without defining its own verdicts.
  * [identityFor] supplies the connection identity the Relay vision / thinking / web criteria need; when unavailable those criteria fail closed on their own terms.
  */
-class RelayCatalogCapabilityFacts(
+class RelayCatalogCapabilityFacts internal constructor(
     private val metadata: MetadataClient = MetadataClient.instance,
     private val negativeCache: RelayNegativeCache = RelayNegativeCache.shared,
     runtimeConfigProvider: () -> MetadataClient.RelayRuntimeConfig = metadata::relayRuntimeConfig,
@@ -203,17 +203,18 @@ class RelayCatalogCapabilityFacts(
 
     override fun states(provider: Provider, model: AIModel, nowSeconds: Long): List<RelayCatalogCapabilityState> {
         val localIdentity = identityFor(model)
-        // Same lookup as the chat page's vision entry: auto / no config takes identity from the effective transport (auto -> Chat).
+        // Same lookup as the chat page's vision entry: auto / no config takes identity from the first-send transport
+        // (read the same way as the first chat send); the transport chip still shows the effective transport.
         val queryIdentity = localIdentity?.let {
             CapabilityEvidenceProductionAdapter.uiDispatchIdentity(
                 provider,
-                model.copy(relayTransport = RelayEndpointResolver.effectiveTransport(provider, model)),
+                model.copy(relayTransport = ai.oriveo.community.core.provider.relay.RelayFirstSendTransport.resolve(provider, model)),
                 it,
             )
         }
         return RelayCatalogCapability.entries.map { capability ->
             when (capability) {
-                RelayCatalogCapability.Image -> image(provider, model, localIdentity)
+                RelayCatalogCapability.Image -> image(provider, model, localIdentity, queryIdentity)
                 RelayCatalogCapability.File -> file(provider, model, nowSeconds)
                 RelayCatalogCapability.Thinking -> thinking(provider, model, queryIdentity)
                 RelayCatalogCapability.Tool -> tool(provider, model)
@@ -223,11 +224,16 @@ class RelayCatalogCapabilityFacts(
     }
 
     /** The same facts for the vision tri-state: entry-visibility function x no-positive-evidence predicate. */
-    private fun image(provider: Provider, model: AIModel, localIdentity: CapabilityEvidenceIdentity?) =
+    private fun image(
+        provider: Provider,
+        model: AIModel,
+        localIdentity: CapabilityEvidenceIdentity?,
+        queryIdentity: ai.oriveo.community.core.provider.CapabilityEvidenceFacade.QueryIdentity?,
+    ) =
         when (
             ModelOptionsTiles.vision(
                 entryVisible = resolver.supportsImage(provider, model, localIdentity),
-                relayWithoutPositiveEvidence = ModelOptionsPanelInput.visionUnknown(provider, model),
+                relayWithoutPositiveEvidence = ModelOptionsPanelInput.visionUnknown(provider, model, queryIdentity),
             )
         ) {
             ModelOptionsTiles.Vision.Available -> RelayCatalogCapabilityState.Supported

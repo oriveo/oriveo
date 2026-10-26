@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import ai.oriveo.community.R
 import ai.oriveo.community.core.app.GlobalSnackbarMessage
@@ -32,29 +33,50 @@ internal class ComposerLengthLimitedField(
  *
  * Owner text that differs from the local one means a programmatic write (draft restore, edit
  * restore, clearing after send): accepted as it is, with no truncation and no notice.
+ *
+ * When [selectionProbe] is non-null: selection changes are written into it; on creation and on
+ * external text sync, a pending cursor it holds (left by a dictation insert) is applied and then
+ * cleared, otherwise the original behavior is kept.
  */
 @Composable
 internal fun rememberComposerLengthLimitedField(
     text: String,
     onTextChange: (String) -> Unit,
     limit: Int = COMPOSER_MAX_INPUT_LENGTH,
+    selectionProbe: ComposerSelectionProbe? = null,
 ): ComposerLengthLimitedField {
     val snackbar = rememberGlobalSnackbarManager()
     val limiter = remember { ComposerLengthLimiter(text, limit) }
-    var fieldValue by remember { mutableStateOf(TextFieldValue(text)) }
-    val value = if (fieldValue.text == text) fieldValue else fieldValue.copy(text = text)
+    var fieldValue by remember {
+        val caret = selectionProbe?.consumePendingCaret(text.length)
+        if (caret != null) selectionProbe?.record(TextRange(caret))
+        mutableStateOf(if (caret == null) TextFieldValue(text) else TextFieldValue(text, TextRange(caret)))
+    }
+    // The pending cursor is only read during composition; clearing and recording happen in a SideEffect so it is not consumed when the composition is discarded.
+    val pendingCaret = selectionProbe?.pendingCaret
+    val value = when {
+        fieldValue.text == text -> fieldValue
+        pendingCaret != null ->
+            fieldValue.copy(text = text, selection = TextRange(pendingCaret.coerceIn(0, text.length)))
+        else -> fieldValue.copy(text = text)
+    }
     SideEffect {
         if (value !== fieldValue) {
             fieldValue = value
             limiter.acceptProgrammatic(text)
+            if (pendingCaret != null && selectionProbe?.consumePendingCaret(text.length) != null) {
+                selectionProbe?.record(value.selection)
+            }
         }
     }
+    val currentProbe by rememberUpdatedState(selectionProbe)
     val currentText by rememberUpdatedState(text)
     val currentOnTextChange by rememberUpdatedState(onTextChange)
     val onValueChange: (TextFieldValue) -> Unit = remember {
         { incoming ->
             val edit = limiter.onUserEdit(incoming)
             fieldValue = edit.value
+            currentProbe?.record(edit.value.selection)
             if (edit.value.text != currentText) currentOnTextChange(edit.value.text)
             if (edit.shouldNotify) {
                 snackbar?.show(

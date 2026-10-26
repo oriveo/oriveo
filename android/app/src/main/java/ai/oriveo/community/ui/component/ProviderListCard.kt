@@ -36,7 +36,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.oriveo.community.R
-import ai.oriveo.community.core.model.CostFormatter
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderConnectionState
 import ai.oriveo.community.core.model.ProviderEffectiveStatusKind
@@ -47,6 +46,7 @@ import ai.oriveo.community.core.model.RelayAvatar
 import ai.oriveo.community.core.model.RelayAvatarResolver
 import ai.oriveo.community.core.provider.BALANCE_CAPABLE_KINDS
 import ai.oriveo.community.core.provider.ProviderBalance
+import ai.oriveo.community.core.usage.CostPart
 import ai.oriveo.community.ui.theme.OriveoColors
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.ProviderBadgeColors
@@ -74,7 +74,8 @@ fun ProviderListCard(
     availableModelCount: Int,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
-    monthlyEstimatedCost: Double = 0.0,
+    /** Per-currency cost for this month: USD first, zero amounts omitted. */
+    monthlyCostParts: List<CostPart> = emptyList(),
     providerBalance: ProviderBalance? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -115,10 +116,9 @@ fun ProviderListCard(
     } else {
         stringResource(R.string.models_count, availableModelCount)
     }
-    val monthlyCostText = remember(monthlyEstimatedCost) {
-        rememberMonthlyCostText(monthlyEstimatedCost)
-    }
-    val isMonthlyCostZero = monthlyEstimatedCost <= CostFormatter.COST_EPSILON
+    // Only the USD part is compacted (non-USD keeps the platform currency format as is); a month with only non-USD cost shows the per-currency amount, not $0
+    val monthlyCostText = costPartsText(monthlyCostParts, usdPartTransform = ::compactCurrencyText).ifEmpty { "$0" }
+    val isMonthlyCostZero = monthlyCostParts.isEmpty()
     val trailingAmount = remember(
         provider.kind,
         monthlyCostText,
@@ -434,12 +434,8 @@ private val ProviderAmountLabelTextStyle: TextStyle = compactTextStyle(
     TextStyle(fontWeight = FontWeight.Medium, fontSize = 10.5.sp, lineHeight = 13.sp),
 )
 
-private fun rememberMonthlyCostText(monthlyEstimatedCost: Double): String {
-    val formatted = CostFormatter.format(monthlyEstimatedCost)
-    return if (formatted.isBlank()) "$0" else compactCurrencyText(formatted)
-}
-
-private fun compactCurrencyText(text: String): String {
+/** Strips redundant trailing zeros from USD amount text (the `$1.50` form); used for the USD part only, since in non-USD locale text `.` may be a thousands separator. */
+internal fun compactCurrencyText(text: String): String {
     val separatorIndex = text.lastIndexOf('.')
     if (separatorIndex == -1 || separatorIndex == text.lastIndex) return text
     val prefix = text.substring(0, separatorIndex + 1)

@@ -139,6 +139,7 @@ class RelayModelAdvancedBoardTest {
         negativeCache = negativeCache,
         toolMemory = toolMemory,
         automaticReasoning = automaticReasoning,
+        identity = identity(provider),
     )
 
     private fun RelayModelAdvancedBoard.row(capability: RelayAdvancedCapability) =
@@ -314,6 +315,15 @@ class RelayModelAdvancedBoardTest {
         assertEquals(RelayAdvancedSource.User, overridden.row(RelayAdvancedCapability.ToolCall).source)
         assertEquals(RelayAdvancedControl.On, overridden.row(RelayAdvancedCapability.ToolCall).control)
 
+        // user > negative cache > tested: a tested vision override rejected by the negative cache is unsupported, same as the entry.
+        val testedOn = base.copy(relayCapabilityOverrides = overrides("""{"image":{"value":true,"source":"tested"}}"""))
+        val testedProvider = relay(listOf(testedOn))
+        val rejected = cache()
+        rejected.record(requireNotNull(RelayNegativeCache.keyFor(testedProvider, testedOn)), RelayNegativeCache.Kind.Image, nowSeconds)
+        val testedRejected = board(testedProvider, testedOn, negativeCache = rejected).row(RelayAdvancedCapability.Image)
+        assertEquals("a tested override does not outrank the negative cache", RelayCatalogCapabilityState.Unsupported, testedRejected.state)
+        assertEquals("overridden by the negative cache, the source follows as Detected", RelayAdvancedSource.Detected, testedRejected.source)
+
         val engineModel = AIModel(id = "qwen", name = "qwen", engineDeclaration = ai.oriveo.community.core.model.EngineDeclaration(image = true, toolCall = false))
         val engine = board(local("ollama", listOf(engineModel)), engineModel)
         assertEquals(RelayAdvancedSource.Engine, engine.row(RelayAdvancedCapability.Image).source)
@@ -357,22 +367,37 @@ class RelayModelAdvancedBoardTest {
         negative.record(key, RelayNegativeCache.Kind.File, nowSeconds)
         negative.record(key, RelayNegativeCache.Kind.ToolCall, nowSeconds)
 
-        val off = RelayModelAdvancedEdits.settingCapabilityOverride(provider, "m", RelayAdvancedCapability.Image, false, negative)
+        val setAt = java.time.Instant.ofEpochSecond(nowSeconds)
+        val off = RelayModelAdvancedEdits.settingCapabilityOverride(provider, "m", RelayAdvancedCapability.Image, false, negative, setAt)
         for (list in listOf(off.models, off.catalogModels)) {
             val written = list.single().relayCapabilityOverrides!!
-            assertEquals(false, written.image)
+            assertEquals("the legacy field is still written, never deleted", false, written.image)
             assertEquals(RelayCapabilityOverrides.SOURCE_USER, written.sourceOf("image"))
             assertEquals("other keys untouched", RelayCapabilityOverrides.SOURCE_TESTED, written.sourceOf("toolCall"))
+            assertEquals(
+                "delta: vision is remove, baseVerdict is the Relay verdict at that moment",
+                json.parseToJsonElement("""{"vision_input":{"op":"remove","setAt":"$setAt","baseVerdict":"unknown"}}"""),
+                list.single().capabilityOverrides,
+            )
         }
         assertFalse("clears the negative cache of the same tier", negative.isRejected(key, RelayNegativeCache.Kind.Image, nowSeconds))
         assertTrue(negative.isRejected(key, RelayNegativeCache.Kind.File, nowSeconds))
         assertTrue(negative.isRejected(key, RelayNegativeCache.Kind.ToolCall, nowSeconds))
 
-        val fileOn = RelayModelAdvancedEdits.settingCapabilityOverride(off, "m", RelayAdvancedCapability.File, true, negative)
+        val fileOn = RelayModelAdvancedEdits.settingCapabilityOverride(off, "m", RelayAdvancedCapability.File, true, negative, setAt)
         assertEquals(true, fileOn.models.single().relayCapabilityOverrides!!.file)
+        assertEquals(
+            "the delta accumulates key by key, in fixed key order",
+            json.parseToJsonElement(
+                """{"vision_input":{"op":"remove","setAt":"$setAt","baseVerdict":"unknown"},""" +
+                    """"file_input":{"op":"add","setAt":"$setAt","baseVerdict":"unknown"}}""",
+            ),
+            fileOn.models.single().capabilityOverrides,
+        )
         assertFalse(negative.isRejected(key, RelayNegativeCache.Kind.File, nowSeconds))
         val generationOn = RelayModelAdvancedEdits.settingCapabilityOverride(fileOn, "m", RelayAdvancedCapability.ImageGeneration, true, negative)
         assertEquals(true, generationOn.models.single().relayCapabilityOverrides!!.imageGeneration)
+        assertEquals("non-input keys stay out of the delta", fileOn.models.single().capabilityOverrides, generationOn.models.single().capabilityOverrides)
         assertTrue("image generation has no tier", negative.isRejected(key, RelayNegativeCache.Kind.ToolCall, nowSeconds))
 
         val autoTested = RelayModelAdvancedEdits.settingCapabilityOverride(generationOn, "m", RelayAdvancedCapability.ToolCall, null, negative)
@@ -381,10 +406,16 @@ class RelayModelAdvancedBoardTest {
         assertTrue("Auto does not clear the negative cache", negative.isRejected(key, RelayNegativeCache.Kind.ToolCall, nowSeconds))
         val autoUser = RelayModelAdvancedEdits.settingCapabilityOverride(autoTested, "m", RelayAdvancedCapability.Image, null, negative)
         assertNull("Auto removes user", autoUser.models.single().relayCapabilityOverrides!!.image)
+        assertEquals(
+            "Auto removes that key from the delta",
+            json.parseToJsonElement("""{"file_input":{"op":"add","setAt":"$setAt","baseVerdict":"unknown"}}"""),
+            autoUser.models.single().capabilityOverrides,
+        )
         val empty = listOf(RelayAdvancedCapability.File, RelayAdvancedCapability.ImageGeneration).fold(autoUser) { acc, capability ->
             RelayModelAdvancedEdits.settingCapabilityOverride(acc, "m", capability, null, negative)
         }
         assertNull("the whole key is omitted when nothing is left", empty.models.single().relayCapabilityOverrides)
+        assertNull("the delta is null when nothing is left", empty.models.single().capabilityOverrides)
     }
 
     @Test
@@ -436,7 +467,10 @@ class RelayModelAdvancedBoardTest {
                 """{"image":{"value":true,"source":"tested"},"file":{"value":false,"source":"user"},"reasoningLevels":{"value":["deep"],"source":"user"}}""",
             ),
         )
-        val dirtyProvider = relay(listOf(dirty), catalog = listOf(dirty))
+        val dirtyProvider = RelayModelAdvancedEdits.settingCapabilityOverride(
+            relay(listOf(dirty), catalog = listOf(dirty)), "m", RelayAdvancedCapability.Image, true, cache(),
+        )
+        assertNotNull("turning image on writes the delta", dirtyProvider.models.single().capabilityOverrides)
         assertTrue(board(dirtyProvider, dirty).restoreAllEnabled)
         val negative = cache()
         val key = requireNotNull(RelayNegativeCache.keyFor(dirtyProvider, dirty))
@@ -445,6 +479,7 @@ class RelayModelAdvancedBoardTest {
         for (list in listOf(restored.models, restored.catalogModels)) {
             val model = list.single()
             assertNull(model.relayCapabilityOverrides)
+            assertNull("restoring everything to automatic clears the delta", model.capabilityOverrides)
             assertNull(model.relayTransport)
             assertNull(model.relayTransportSource)
         }
@@ -628,7 +663,7 @@ class RelayModelAdvancedBoardTest {
         val rows = source("feature/providers/detail/ProviderDetailEnabledModels.kt")
         assertFalse("no chevron", "RelayCatalogChevron(" in rows)
         assertTrue("board row taps dispatch by tapTarget", "RelayCatalogBoardModel.rowTap(model.id, boardRow.tapTarget, enabledRow = true)" in rows)
-        assertTrue("tapping an official row still opens chat", ".clickable(enabled = model.isAvailable, onClick = onStartChat)" in rows)
+        assertTrue("tapping an official row still opens chat; a missing credential or unavailable model disables it alike", ".clickable(enabled = canStartChat, onClick = onStartChat)" in rows)
         val screen = source("feature/providers/detail/ProviderDetailScreen.kt")
         assertTrue("the Advanced page shares the restorable layer stack with the model library", "push(RelayDetailLayer.Advanced(" in screen)
     }
@@ -899,6 +934,44 @@ class RelayModelAdvancedBoardTest {
      * RL2-WEBPROBE-15: the "Web search" row after tool calling on the advanced page capability card; status and source come from the fixture
      * `web-probe.v1.json` presentationCases `advanced`; Auto / On / Off write the web override (user source, Auto = clear), and "Restore all to Auto" clears it too.
      */
+    /** Shared fixture negative-cache.v1 advancedBoardCases: advanced-page state / source agree with every platform. */
+    @Test
+    fun `BOARD-ADVANCED-17 advancedBoardCases from the shared negative cache fixture`() {
+        val cases = readFixture("shared/test-fixtures/relay/negative-cache.v1.json")
+            .getValue("advancedBoardCases").jsonArray.map { it.jsonObject }
+        assertEquals(4, cases.size)
+        cases.forEach { case ->
+            val caseId = case.getValue("caseId").jsonPrimitive.content
+            val message = "BOARD-ADVANCED-17-$caseId"
+            assertEquals(message, "image", case.getValue("capability").jsonPrimitive.content)
+            val transport = when (val wire = case.getValue("transport").jsonPrimitive.content) {
+                "openai_chat" -> RelayTransport.OpenAIChatCompletions
+                "auto" -> RelayTransport.Auto
+                else -> error("$message: unknown transport $wire")
+            }
+            val override = case["override"] as? kotlinx.serialization.json.JsonObject
+            val model = AIModel(
+                id = "m",
+                name = "m",
+                capabilities = if (case.getValue("catalogDeclares").jsonPrimitive.content.toBooleanStrict()) listOf(ModelCapability.Image) else emptyList(),
+                relayCapabilityOverrides = override?.let { overrides("""{"image":$it}""") },
+            )
+            val provider = when (val connection = case.getValue("connection").jsonPrimitive.content) {
+                "remote" -> relay(listOf(model), transport = transport)
+                "local" -> local("ollama", listOf(model), channel = transport)
+                else -> error("$message: unknown connection $connection")
+            }
+            val negative = cache()
+            if (case.getValue("negCacheRejected").jsonPrimitive.content.toBooleanStrict()) {
+                negative.record(requireNotNull(RelayNegativeCache.keyFor(provider, model)), RelayNegativeCache.Kind.Image, nowSeconds)
+            }
+            val row = board(provider, model, negativeCache = negative).row(RelayAdvancedCapability.Image)
+            val expect = case.getValue("expect").jsonObject
+            assertEquals("$message：$row", expect.getValue("state").jsonPrimitive.content, row.state.name.lowercase())
+            assertEquals("$message：$row", expect.getValue("source").jsonPrimitive.content, row.source?.name?.lowercase())
+        }
+    }
+
     @Test
     fun `RL2-WEBPROBE-15 advanced web row status and source per presentationCases, writes and restore`() {
         val fixture = readFixture("shared/test-fixtures/relay/web-probe.v1.json")

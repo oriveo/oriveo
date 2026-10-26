@@ -73,6 +73,13 @@ class ModelDisplayLookup private constructor(
             localModel(provider, targetId)?.name?.let { return it }
         }
 
+        // Retired model: when the catalog lookup fails use the tombstone name, still before the fallback.
+        metadata.retiredModels(provider.kind)
+            .firstOrNull { it.id == targetId }
+            ?.displayName
+            ?.takeIf { it.isNotBlank() }
+            ?.let { return it }
+
         return fallback
     }
 

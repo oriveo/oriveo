@@ -227,7 +227,7 @@ fun OpenAISubscriptionError.toProviderServiceError(): ai.oriveo.community.core.m
             )
 
         is OpenAISubscriptionError.Transport ->
-            ai.oriveo.community.core.model.ProviderServiceError.Network(detail)
+            ai.oriveo.community.core.model.ProviderServiceError.Network(detail).apply { underlying?.let { initCause(it) } }
 
         is OpenAISubscriptionError.Upstream ->
             ai.oriveo.community.core.model.ProviderServiceError.Upstream(status, body)

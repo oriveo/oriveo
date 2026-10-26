@@ -52,6 +52,7 @@ class ProvidersViewModelBehaviorTest {
         every { providerRepository.observeAll() } returns flowOf(emptyList())
         every { conversationRepository.observeCount() } returns flowOf(0)
         every { conversationRepository.observeMonthlyCostByConversationProvider() } returns flowOf(emptyMap())
+        every { conversationRepository.observeMonthlyBilledMessageCountByProvider() } returns flowOf(emptyMap())
         every { conversationRepository.observeMonthlyCostSummary() } returns monthlyCostSummaryFlow
     }
 

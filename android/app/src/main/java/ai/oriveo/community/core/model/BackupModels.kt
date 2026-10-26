@@ -353,17 +353,28 @@ data class BackupConversation(
     val useMemory: Boolean = true,
     val previewText: String = "",
     val estimatedCost: Double = 0.0,
+    /**
+     * Non-USD conversation totals (currency code to total). With no non-USD part `{}` is written (reading `{}` clears them); a key missing in an older backup = none (a merge import keeps the local value).
+     * This device's "thread complete" marker is not part of backups.
+     */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val nonUsdCostTotals: Map<String, Double>? = null,
     val messages: List<ChatMessage> = emptyList(),
     val folderID: String? = null,
     val skillId: String? = null,
     val createdAt: Long = 0L,
     val updatedAt: Long = 0L,
     val pinnedNoteIds: List<String> = emptyList(),
-    /** Conversation-level instructions (conversation-instructions.v1); a key missing in older backups = empty string. */
-    val instructions: String = "",
+    /**
+     * Conversation-level instructions (conversation-instructions.v1). Null = a key missing in an older backup: a fresh import stores an empty string,
+     * and a merge leaves the local instructions alone; an explicit "" is a real value and clears them as usual when the backup side wins the merge (fixture conversation-backup-merge.v1).
+     */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val instructions: String? = null,
     /**
      * Raw wire value of the conversation input budget cap: taken as a plain JSON element, and reading goes through [parsedContextCap],
-     * which parses leniently: an invalid value (such as "190000", an out-of-range number, a boolean) = follow the global setting instead of failing the whole import; a key missing in older backups = follow the global setting.
+     * which parses leniently: an invalid value (such as "190000", an out-of-range number, a boolean) = follow the global setting instead of failing the whole import;
+     * a key missing in an older backup = follow the global setting.
      * When following the global setting the key is omitted on export (no null is written), consistent with iOS and Web.
      */
     @EncodeDefault(EncodeDefault.Mode.NEVER)

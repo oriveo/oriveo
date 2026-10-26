@@ -47,6 +47,8 @@ import ai.oriveo.community.core.provider.SseParser
 import ai.oriveo.community.core.provider.UnsupportedParamRetry
 import ai.oriveo.community.core.provider.CapabilityEvidenceFacade
 import ai.oriveo.community.core.provider.CapabilityEvidenceProductionAdapter
+import ai.oriveo.community.core.capability.truth.resolveInputCapabilityProjections
+import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.provider.UsageBreakdown
 import ai.oriveo.community.core.provider.isRelayGenerationSuccessResponse
 import ai.oriveo.community.core.provider.relay.RelayHeaderBuilder.applyRelayHeaders
@@ -91,6 +93,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import java.time.Instant
 
 /**
  * Runtime service for relay endpoints.
@@ -318,7 +321,7 @@ internal class RelayTransportCoordinator(
         if (attachments.isEmpty()) throw ProviderServiceError.EmptyResponse
 
         return StreamEvent.Done(
-            ProviderChatResult(text = "", attachments = attachments, servedModelID = modelID),
+            ProviderChatResult(text = "", attachments = attachments, servedModelID = modelID, usageReported = false),
         )
     }
 
@@ -1269,7 +1272,7 @@ internal class RelayTransportCoordinator(
                         cachedInputTokens = parsed.usage?.prompt_tokens_details?.cached_tokens,
                         reasoningTokens = parsed.usage?.completion_tokens_details?.reasoning_tokens,
                     )
-                    val (cost, source) = computeRelayCost(modelID, RelayTransport.OpenAIChatCompletions, breakdown)
+                    val (cost, source) = computeRelayCost(modelID, requestOptions.activeModel?.canonicalModelId, RelayTransport.OpenAIChatCompletions, breakdown, Instant.now())
                     result = StreamEvent.Done(
                         ProviderChatResult(
                             text = text,
@@ -1279,6 +1282,7 @@ internal class RelayTransportCoordinator(
                             estimatedCost = cost,
                             cachedInputTokens = breakdown.reportedCachedInputTokens,
                             costSource = source.name,
+                            usageReported = parsed.usage != null,
                         ),
                     )
                 }
@@ -1391,7 +1395,7 @@ internal class RelayTransportCoordinator(
                                         cachedInputTokens = lastUsage?.prompt_tokens_details?.cached_tokens,
                                         reasoningTokens = lastUsage?.completion_tokens_details?.reasoning_tokens,
                                     )
-                                    val (cost, source) = computeRelayCost(modelID, RelayTransport.OpenAIChatCompletions, breakdown)
+                                    val (cost, source) = computeRelayCost(modelID, requestOptions.activeModel?.canonicalModelId, RelayTransport.OpenAIChatCompletions, breakdown, Instant.now())
                                     StreamEvent.Done(
                                         ProviderChatResult(
                                             text = accumulatedText.trim(),
@@ -1400,6 +1404,7 @@ internal class RelayTransportCoordinator(
                                             estimatedCost = cost,
                                             cachedInputTokens = breakdown.reportedCachedInputTokens,
                                             costSource = source.name,
+                                            usageReported = lastUsage != null,
                                         ),
                                     )
                                 },
@@ -1450,7 +1455,7 @@ internal class RelayTransportCoordinator(
             }
             val content = llamaCppContent(response.bodyAsText(), relayCredentialMaterial(response))
             if (content.isBlank()) throw ProviderServiceError.EmptyResponse
-            result = StreamEvent.Done(ProviderChatResult(text = content.trim(), estimatedCost = 0.0, rawText = content))
+            result = StreamEvent.Done(ProviderChatResult(text = content.trim(), estimatedCost = 0.0, rawText = content, usageReported = false))
         }
         return result ?: throw ProviderServiceError.EmptyResponse
     }
@@ -1502,7 +1507,7 @@ internal class RelayTransportCoordinator(
                 }
                 emit(
                     StreamEvent.Done(
-                        ProviderChatResult(text = accumulated.trim(), estimatedCost = 0.0),
+                        ProviderChatResult(text = accumulated.trim(), estimatedCost = 0.0, usageReported = false),
                         finish = finishTracker.finish(),
                     ),
                 )
@@ -1621,7 +1626,7 @@ internal class RelayTransportCoordinator(
                         cachedInputTokens = parsed.usage?.input_tokens_details?.cached_tokens,
                         reasoningTokens = parsed.usage?.output_tokens_details?.reasoning_tokens,
                     )
-                    val (cost, source) = computeRelayCost(modelID, RelayTransport.OpenAIResponses, breakdown)
+                    val (cost, source) = computeRelayCost(modelID, requestOptions.activeModel?.canonicalModelId, RelayTransport.OpenAIResponses, breakdown, Instant.now())
                     result = StreamEvent.Done(
                         ProviderChatResult(
                             text = text,
@@ -1632,6 +1637,7 @@ internal class RelayTransportCoordinator(
                             attachments = attachments.ifEmpty { null },
                             cachedInputTokens = breakdown.reportedCachedInputTokens,
                             costSource = source.name,
+                            usageReported = parsed.usage != null,
                         ),
                     )
                 }
@@ -1890,7 +1896,7 @@ internal class RelayTransportCoordinator(
                                 cachedInputTokens = lastUsage?.input_tokens_details?.cached_tokens,
                                 reasoningTokens = lastUsage?.output_tokens_details?.reasoning_tokens,
                             )
-                            val (cost, source) = computeRelayCost(modelID, RelayTransport.OpenAIResponses, breakdown)
+                            val (cost, source) = computeRelayCost(modelID, requestOptions.activeModel?.canonicalModelId, RelayTransport.OpenAIResponses, breakdown, Instant.now())
                             emit(
                                 StreamEvent.Done(
                                     ProviderChatResult(
@@ -1900,6 +1906,7 @@ internal class RelayTransportCoordinator(
                                         estimatedCost = cost,
                                         cachedInputTokens = breakdown.reportedCachedInputTokens,
                                         costSource = source.name,
+                                        usageReported = lastUsage != null,
                                     ),
                                     finish = finishTracker.finish(),
                                 ),
@@ -2024,20 +2031,14 @@ internal class RelayTransportCoordinator(
                     throw mapRelayHttpError(response, upstreamUrl, requestOptions, modelID)
                 }
 
-                val parsed = decodeRelaySuccessResponse<AnthropicResponse>(response)
+                val parsed = decodeRelaySuccessResponse<RelayAnthropicResponse>(response)
                 val rawText = parsed.resolvedText
                 val text = rawText.trim()
                 if (text.isEmpty()) throw ProviderServiceError.EmptyResponse
 
-                val breakdown = anthropicUsageBreakdown(
-                    inputTokens = parsed.usage?.input_tokens,
-                    outputTokens = parsed.usage?.output_tokens,
-                    cacheReadInputTokens = parsed.usage?.cache_read_input_tokens,
-                    cacheCreation5mInputTokens = parsed.usage?.cache_creation?.ephemeral_5m_input_tokens
-                        ?: parsed.usage?.cache_creation_input_tokens,
-                    cacheCreation1hInputTokens = parsed.usage?.cache_creation?.ephemeral_1h_input_tokens,
-                )
-                val (cost, source) = computeRelayCost(modelID, RelayTransport.AnthropicMessages, breakdown)
+                val parsedUsage = relayAnthropicUsage(parsed.usage)
+                val breakdown = parsedUsage.breakdown
+                val (cost, source) = computeRelayCost(modelID, requestOptions.activeModel?.canonicalModelId, RelayTransport.AnthropicMessages, breakdown, Instant.now())
                 // promptTokens, the total input shown in the UI, is input + cache_read + cache_create.
                 val totalPrompt = breakdown.promptTokens + breakdown.cachedInputTokens +
                     breakdown.cacheCreation5mTokens + breakdown.cacheCreation1hTokens
@@ -2052,6 +2053,7 @@ internal class RelayTransportCoordinator(
                         cacheCreation5mTokens = breakdown.reportedCacheCreation5mTokens,
                         cacheCreation1hTokens = breakdown.reportedCacheCreation1hTokens,
                         costSource = source.name,
+                        usageReported = parsedUsage.usageReported,
                     ),
                 )
             }
@@ -2110,6 +2112,8 @@ internal class RelayTransportCoordinator(
                 var accumulatedText = ""
                 var inputTokens = 0
                 var outputTokens = 0
+                // Whether the upstream returned a usage object: if not, the price is unknown; if it did, all zeros are real zeros.
+                var anthropicUsageReported = false
                 // Nullable on purpose: we have to preserve whether the upstream reported the field
                 // at all. Collapse it to 0 and an explicitly reported 0 becomes indistinguishable
                 // from never having been reported.
@@ -2140,6 +2144,7 @@ internal class RelayTransportCoordinator(
                         when (eventType) {
                             "message_start" -> {
                                 val usage = json.decodeFromString<MessageStartEvent>(data).message?.usage
+                                if (usage != null) anthropicUsageReported = true
                                 inputTokens = usage?.input_tokens ?: 0
                                 cacheReadTokens = usage?.cache_read_input_tokens
                                 cacheCreation5m = usage?.cache_creation?.ephemeral_5m_input_tokens
@@ -2170,6 +2175,7 @@ internal class RelayTransportCoordinator(
                             }
                             "message_delta" -> {
                                 val deltaUsage = json.decodeFromString<MessageDeltaEvent>(data).usage
+                                if (deltaUsage != null) anthropicUsageReported = true
                                 outputTokens = deltaUsage?.output_tokens ?: outputTokens
                                 deltaUsage?.cache_read_input_tokens?.let { cacheReadTokens = it }
                                 deltaUsage?.cache_creation?.ephemeral_5m_input_tokens?.let { cacheCreation5m = it }
@@ -2187,7 +2193,7 @@ internal class RelayTransportCoordinator(
                             cacheCreation5mInputTokens = cacheCreation5m,
                             cacheCreation1hInputTokens = cacheCreation1h,
                         )
-                        val (cost, source) = computeRelayCost(modelID, RelayTransport.AnthropicMessages, breakdown)
+                        val (cost, source) = computeRelayCost(modelID, requestOptions.activeModel?.canonicalModelId, RelayTransport.AnthropicMessages, breakdown, Instant.now())
                         StreamEvent.Done(
                             ProviderChatResult(
                                 text = accumulatedText.trim(),
@@ -2200,6 +2206,7 @@ internal class RelayTransportCoordinator(
                                 cacheCreation5mTokens = breakdown.reportedCacheCreation5mTokens,
                                 cacheCreation1hTokens = breakdown.reportedCacheCreation1hTokens,
                                 costSource = source.name,
+                                usageReported = anthropicUsageReported,
                             ),
                         )
                     },
@@ -2302,7 +2309,7 @@ internal class RelayTransportCoordinator(
                     thoughtsTokenCount = parsed.usageMetadata?.thoughtsTokenCount,
                     cachedContentTokenCount = parsed.usageMetadata?.cachedContentTokenCount,
                 )
-                val (cost, source) = computeRelayCost(modelID, RelayTransport.GeminiGenerateContent, breakdown)
+                val (cost, source) = computeRelayCost(modelID, requestOptions.activeModel?.canonicalModelId, RelayTransport.GeminiGenerateContent, breakdown, Instant.now())
                 result = StreamEvent.Done(
                     ProviderChatResult(
                         text = text,
@@ -2313,6 +2320,7 @@ internal class RelayTransportCoordinator(
                         attachments = attachments.ifEmpty { null },
                         cachedInputTokens = breakdown.reportedCachedInputTokens,
                         costSource = source.name,
+                        usageReported = parsed.usageMetadata != null,
                     ),
                 )
             }
@@ -2422,7 +2430,7 @@ internal class RelayTransportCoordinator(
                             thoughtsTokenCount = lastUsage?.thoughtsTokenCount,
                             cachedContentTokenCount = lastUsage?.cachedContentTokenCount,
                         )
-                        val (cost, source) = computeRelayCost(modelID, RelayTransport.GeminiGenerateContent, breakdown)
+                        val (cost, source) = computeRelayCost(modelID, requestOptions.activeModel?.canonicalModelId, RelayTransport.GeminiGenerateContent, breakdown, Instant.now())
                         StreamEvent.Done(
                             ProviderChatResult(
                                 text = accumulatedText.trim(),
@@ -2432,6 +2440,7 @@ internal class RelayTransportCoordinator(
                                 attachments = attachments.ifEmpty { null },
                                 cachedInputTokens = breakdown.reportedCachedInputTokens,
                                 costSource = source.name,
+                                usageReported = lastUsage != null,
                             ),
                         )
                     },
@@ -2668,7 +2677,7 @@ internal class RelayTransportCoordinator(
             add("generation_parameter/max_output_tokens")
             add("generation_parameter/n_predict")
             add("web_search")
-            add("vision_input")
+            add(CapabilityEvidenceFacade.VISION_INPUT)
             add("tool_call")
             if (effectiveReasoning != ReasoningMode.Automatic) add("reasoning_level/${effectiveReasoning.rawValue}")
         }
@@ -2690,7 +2699,7 @@ internal class RelayTransportCoordinator(
                 if (messages.any { message ->
                         message.attachments.orEmpty().any { attachment -> attachment.kind == AttachmentKind.Image }
                     }
-                ) add("vision_input")
+                ) add(CapabilityEvidenceFacade.VISION_INPUT)
                 if (toolCallRequested) add("tool_call")
             }
         val projection = CapabilityEvidenceProductionAdapter.dispatchCapabilityProjection(
@@ -2700,30 +2709,54 @@ internal class RelayTransportCoordinator(
             keys = keys,
             explicitKeys = explicitKeys,
         )
-        return withRelayUnknownVision(projection, requestOptions, model, modelId, effectiveTransport)
+        return withRelayInputOutbound(
+            projection,
+            requestOptions,
+            model,
+            effectiveTransport,
+            identity,
+        )
     }
 
     /**
-     * When relay image input is unknown, the image is sent anyway; if the upstream really rejects it, an image negative cache entry is recorded and a hint card is shown, the same rule as the album entry.
-     * It is let through only when there is no negative evidence (declared unsupported, or the protocol envelope does not accept images), there is a connection identity, and the image negative cache for the key is not hit
-     * (an override of true outranks the negative cache); otherwise the projection's original decision stands.
+     * Input capability gate on outbound: image / video follow the three-key projection outbound; anything
+     * other than native_part becomes a placeholder line in the body builder.
+     * Image reads only the projection: connection evidence, the image negative cache and user overrides are already in it.
+     * Native files are not gated here: they stay on the envelope + RelayNegativeCache + probe fallback chain.
+     * Without a dispatch identity, image / video are hard-blocked (wire_not_implemented): placeholder, never a silent send.
      */
-    private fun withRelayUnknownVision(
+    private fun withRelayInputOutbound(
         projection: CapabilityEvidenceProductionAdapter.Projection,
         requestOptions: ChatRequestOptions,
         model: AIModel,
-        modelId: String,
         effectiveTransport: RelayTransport,
+        identity: CapabilityEvidenceFacade.QueryIdentity?,
     ): CapabilityEvidenceProductionAdapter.Projection {
-        val decision = projection.decision("vision_input") ?: return projection
-        if (decision.permitsOutbound || decision.resolution.support == "unsupported") return projection
-        val connectionId = requestOptions.capabilityEvidenceIdentity?.connectionInstanceId ?: return projection
-        if (MetadataClient.relayRuntimeConfig().transportEnvelopes[effectiveTransport.value]?.image != true) return projection
-        val key = RelayNegativeCache.Key(connectionId, modelId, effectiveTransport.value)
-        if (model.relayCapabilityOverrides?.image != true && negativeCache.isRejected(key, RelayNegativeCache.Kind.Image)) {
-            return projection
-        }
-        return projection.copy(decisions = projection.decisions + ("vision_input" to decision.copy(permitsOutbound = true)))
+        val vision = projection.decision(CapabilityEvidenceFacade.VISION_INPUT) ?: return projection
+        val inputs = resolveInputCapabilityProjections(
+            provider = Provider(
+                id = requestOptions.capabilityEvidenceIdentity?.connectionInstanceId
+                    ?: identity?.connectionInstanceId
+                    ?: "runtime-relay",
+                kind = ProviderKind.Relay,
+                relayRequested = requestOptions.relayRequested,
+            ),
+            // No real connection at the request boundary: pin the transport actually dispatched.
+            model = model.copy(relayTransport = effectiveTransport),
+            relayIdentity = identity,
+            relayNegativeCache = negativeCache,
+        ) ?: return projection
+        fun native(key: String) = inputs[key].outbound == CapabilityEvidenceFacade.InputCapabilityOutbound.NATIVE_PART
+        return projection.copy(
+            decisions = projection.decisions + mapOf(
+                CapabilityEvidenceFacade.VISION_INPUT to
+                    vision.copy(permitsOutbound = native(CapabilityEvidenceFacade.VISION_INPUT)),
+                // Files are left to the native-file fallback chain; the decision only marks "gated by three keys".
+                CapabilityEvidenceFacade.FILE_INPUT to vision.copy(permitsOutbound = true),
+                CapabilityEvidenceFacade.VIDEO_INPUT to
+                    vision.copy(permitsOutbound = native(CapabilityEvidenceFacade.VIDEO_INPUT)),
+            ),
+        )
     }
 
     /**
@@ -3011,39 +3044,6 @@ internal class RelayTransportCoordinator(
     private data class ResponsesCompletedResponse(val usage: ResponsesUsage? = null)
 
     @Serializable
-    private data class AnthropicResponse(
-        val content: List<AnthropicContent>? = null,
-        val usage: AnthropicUsage? = null,
-    ) {
-        val resolvedText: String
-            get() = content.orEmpty()
-                .filter { it.type == "text" }
-                .mapNotNull { it.text }
-                .joinToString("")
-    }
-
-    @Serializable
-    private data class AnthropicContent(
-        val type: String? = null,
-        val text: String? = null,
-    )
-
-    @Serializable
-    private data class AnthropicUsage(
-        val input_tokens: Int? = null,
-        val output_tokens: Int? = null,
-        val cache_read_input_tokens: Int? = null,
-        val cache_creation_input_tokens: Int? = null,
-        val cache_creation: AnthropicCacheCreation? = null,
-    )
-
-    @Serializable
-    private data class AnthropicCacheCreation(
-        val ephemeral_5m_input_tokens: Int? = null,
-        val ephemeral_1h_input_tokens: Int? = null,
-    )
-
-    @Serializable
     private data class MessageStartEvent(val message: MessageStart? = null)
 
     @Serializable
@@ -3054,7 +3054,7 @@ internal class RelayTransportCoordinator(
         val input_tokens: Int = 0,
         val cache_read_input_tokens: Int? = null,
         val cache_creation_input_tokens: Int? = null,
-        val cache_creation: AnthropicCacheCreation? = null,
+        val cache_creation: RelayAnthropicCacheCreation? = null,
     )
 
     @Serializable
@@ -3082,7 +3082,7 @@ internal class RelayTransportCoordinator(
         val output_tokens: Int = 0,
         val cache_read_input_tokens: Int? = null,
         val cache_creation_input_tokens: Int? = null,
-        val cache_creation: AnthropicCacheCreation? = null,
+        val cache_creation: RelayAnthropicCacheCreation? = null,
     )
 
     @Serializable

@@ -199,7 +199,7 @@ class ToolCallLoop(
                 onProgress = onProgress,
             )
             legTexts += leg.text
-            usage = ToolLoopUsage.merge(usage, leg.usage)
+            usage = ToolLoopUsage.merge(usage, leg.usage, priorLegs = legIndex)
             usage?.let { onProgress(ProgressEvent.Usage(it)) }
 
             if (leg.toolCalls.isEmpty()) {
@@ -380,8 +380,8 @@ class ToolCallLoop(
             receivedStructuredToolCalls = receivedStructuredToolCalls,
             onProgress = onProgress,
         )
+        usage = ToolLoopUsage.merge(usage, finalLeg.usage, priorLegs = legTexts.size)
         legTexts += finalLeg.text
-        usage = ToolLoopUsage.merge(usage, finalLeg.usage)
         usage?.let { onProgress(ProgressEvent.Usage(it)) }
         // With toolChoice = none there should be no more proposals; if one arrives anyway there is nowhere to run it, so hand it over rather than swallow it.
         if (finalLeg.toolCalls.isNotEmpty()) onUnhandledToolCalls(finalLeg.toolCalls)
@@ -459,7 +459,7 @@ class ToolCallLoop(
                         onProgress(ProgressEvent.ReasoningDelta(event.text))
                     }
                     is ToolLoopLegEvent.ToolCallDeltas -> mergeToolCallDeltas(accumulated, event.deltas)
-                    is ToolLoopLegEvent.Usage -> usage = event.usage
+                    is ToolLoopLegEvent.Usage -> usage = ToolLoopUsage.mergeWithinLeg(usage, event.usage)
                     is ToolLoopLegEvent.Finish -> finish = event.finish
                     is ToolLoopLegEvent.ProviderContinuation -> {
                         providerContinuation = buildJsonObject {

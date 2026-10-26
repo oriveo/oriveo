@@ -4,7 +4,6 @@ import ai.oriveo.community.core.attachments.ExtractionDeadline
 import ai.oriveo.community.core.attachments.ExtractionException
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
-import java.nio.charset.CharacterCodingException
 import java.nio.charset.Charset
 import java.nio.charset.CodingErrorAction
 
@@ -346,12 +345,12 @@ private class RtfParser(private val data: ByteArray, private val deadline: Extra
 
     /** Double-byte code page: strictly decode the whole run; on failure decode character unit by character unit, each failed unit yielding one U+FFFD. */
     private fun decodeDoubleByte(raw: ByteArray, codepage: Int, charset: Charset): String {
-        strictDecode(charset, raw, 0, raw.size)?.let { return it }
+        PlainTextExtractor.strictDecode(charset, raw)?.let { return it }
         val result = StringBuilder()
         var index = 0
         while (index < raw.size) {
             val unit = unitLength(raw, index, codepage)
-            result.append(strictDecode(charset, raw, index, unit) ?: "\uFFFD")
+            result.append(PlainTextExtractor.strictDecode(charset, raw, index, unit) ?: "\uFFFD")
             index += unit
         }
         return result.toString()
@@ -364,17 +363,6 @@ private class RtfParser(private val data: ByteArray, private val deadline: Extra
         val length = if (codepage == 936 && second in 0x30..0x39) 4 else 2
         return minOf(length, raw.size - index)
     }
-
-    private fun strictDecode(charset: Charset, raw: ByteArray, offset: Int, length: Int): String? =
-        try {
-            charset.newDecoder()
-                .onMalformedInput(CodingErrorAction.REPORT)
-                .onUnmappableCharacter(CodingErrorAction.REPORT)
-                .decode(ByteBuffer.wrap(raw, offset, length))
-                .toString()
-        } catch (_: CharacterCodingException) {
-            null
-        }
 
     private fun singleByte(raw: ByteArray, high: CharArray): String =
         String(CharArray(raw.size) { index -> (raw[index].toInt() and 0xFF).let { if (it < 0x80) it.toChar() else high[it - 0x80] } })

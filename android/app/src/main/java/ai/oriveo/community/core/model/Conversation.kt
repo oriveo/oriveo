@@ -2,6 +2,8 @@ package ai.oriveo.community.core.model
 
 import androidx.compose.runtime.Immutable
 import ai.oriveo.community.core.context.ContextBudgetCap
+import ai.oriveo.community.core.usage.CostPart
+import ai.oriveo.community.core.usage.CostParts
 import kotlinx.serialization.Serializable
 
 /** A conversation, as the rest of the app sees it. */
@@ -40,9 +42,16 @@ data class Conversation(
     /** Conversation input budget cap; null = follow the global default. A conflict copy inherits the whole value. Backups use a dedicated encoding and this class's serialization does not carry it. */
     @kotlinx.serialization.Transient
     val contextCap: ContextBudgetCap? = null,
+    /** Totals in non-USD currencies (currency code to total); [estimatedCost] is still the USD total. Stored in a dedicated local column encoding and not part of this class's serialization. */
+    @kotlinx.serialization.Transient
+    val nonUsdCostTotals: Map<String, Double> = emptyMap(),
+    /** This device's "thread complete" marker: kept only locally and never part of backup serialization; decides whether the conversation totals are recomputed in full or incrementally. */
+    @kotlinx.serialization.Transient
+    val localThreadComplete: Boolean = false,
 ) {
-    val estimatedCostText: String
-        get() = CostFormatter.format(estimatedCost)
+    /** Cost parts for display, per currency: the USD total first, then other currencies by ascending code; zero amounts are omitted. */
+    val costParts: List<CostPart>
+        get() = CostParts.conversationParts(estimatedCost, nonUsdCostTotals)
 
     /**
      * Whether two copies of a conversation carry the same user-authored settings.

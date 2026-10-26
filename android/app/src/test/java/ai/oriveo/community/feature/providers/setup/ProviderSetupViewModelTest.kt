@@ -58,6 +58,8 @@ class ProviderSetupViewModelTest {
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+        // Some cases install fixtures into the global MetadataClient.instance.
+        MetadataTestFixtures.clear()
     }
 
     private fun createViewModel(

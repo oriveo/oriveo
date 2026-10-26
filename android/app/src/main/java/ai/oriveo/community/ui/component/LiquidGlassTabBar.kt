@@ -54,6 +54,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalViewConfiguration
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
@@ -363,6 +364,8 @@ private fun LiquidGlassTabItem(
         modifier = modifier
             .width(LiquidGlassTabBarMetrics.itemWidth)
             .fillMaxHeight()
+            // Smoke E2E finds the settings tab by tag (same name as iOS)
+            .then(if (item.glyph == OriveoTabGlyph.Settings) Modifier.testTag("settings_tab") else Modifier)
             // Touch is handled by the capsule as a whole (drag to select); this only exposes one activatable Tab node to TalkBack, named by the visible label
             .semantics(mergeDescendants = true) {
                 role = Role.Tab

@@ -28,7 +28,9 @@ import io.ktor.http.headersOf
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -219,6 +221,8 @@ class RelaySetupModelsBoardTest {
         val target = vm.completionTarget as RelaySetupCompletionTarget.ProviderDetail
         assertEquals(stored.id, target.providerId)
         assertEquals(3, target.addedModelCount)
+        // Quick add records only the first verified selection as the last-used model.
+        assertEquals(stored.id to "claude-sonnet-4.5", harness.remembered)
         // One-shot notice: appears only at the providers entry and is cleared once taken.
         target.postAddedNotice(ProviderSetupEntryPoint.Onboarding)
         assertNull(ProviderDetailNotice.take(stored.id))
@@ -273,6 +277,7 @@ class RelaySetupModelsBoardTest {
         assertTrue(harness.posts.isNotEmpty())
         assertTrue(harness.posts.all { it.first == "claude-sonnet-4.5" })
         assertNull("Failed verification is not persisted", harness.stored)
+        assertNull("Failed verification does not record a last-used model", harness.remembered)
         assertNull(vm.completionTarget)
         assertEquals(RelaySetupStep.Models, vm.step)
         assertNotNull(vm.modelsBoard.saveFailure)
@@ -457,6 +462,8 @@ class RelaySetupModelsBoardTest {
         var apiKey = ""
         val secrets: MutableMap<String, String> = mutableMapOf()
         var stored: ProviderEntity? = null
+        /** The (connection, model) written as last used; null = nothing written. */
+        @Volatile var remembered: Pair<String, String>? = null
         /** Each generation request: (model, Authorization). */
         val posts: MutableList<Pair<String, String?>> = Collections.synchronizedList(mutableListOf())
 
@@ -500,7 +507,6 @@ class RelaySetupModelsBoardTest {
             }
             ProviderRepository(
                 dao = dao,
-                conversationDao = mockk(relaxed = true),
                 secureKeyStore = keys,
                 openRouterService = mockk(relaxed = true),
                 openAIService = mockk(relaxed = true),
@@ -534,6 +540,8 @@ class RelaySetupModelsBoardTest {
                 discoveryService = RelayDiscoveryService(HttpClient(engine), json, retryBackoffMs = emptyList()),
                 modelFamily = { null },
                 cachedModelFamily = { null },
+                backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined),
+                rememberLastUsedModel = { providerId, modelId -> remembered = providerId to modelId },
             ).apply {
                 updateEndpoint("https://relay.example.com")
                 updateApiKey(KEY_A)

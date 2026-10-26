@@ -443,7 +443,6 @@ class RelayWebSendContractTest {
             every { keys.getRelayKeySecret(any(), any(), any()) } answers { "sk-test" }
             ProviderRepository(
                 dao = dao,
-                conversationDao = mockk(relaxed = true),
                 secureKeyStore = keys,
                 openRouterService = mockk(relaxed = true),
                 openAIService = mockk(relaxed = true),

@@ -15,8 +15,10 @@ import ai.oriveo.community.core.model.RelayTransport
 import ai.oriveo.community.core.model.RelayTransportSource
 import ai.oriveo.community.core.model.ReasoningMode
 import ai.oriveo.community.core.provider.GenerationParameterResolver
+import ai.oriveo.community.core.provider.MaxOutputTokensPolicy
 import ai.oriveo.community.core.provider.CapabilityEvidenceProductionAdapter
 import ai.oriveo.community.core.provider.MessageBuilder
+import ai.oriveo.community.core.provider.messagesForCapabilityProjection
 import ai.oriveo.community.core.provider.RelayRuntimeSupport
 import ai.oriveo.community.core.provider.allowsTemperature
 import ai.oriveo.community.core.provider.applyClientTools
@@ -63,7 +65,7 @@ internal fun buildResponsesBody(
 ): String {
     val options = MessageBuilder.normalizeRequestOptions(requestOptions)
     val effectiveReasoning = reasoningMode
-    val resolved = MetadataClient.resolveCatalogModelAcrossProviders(modelID)
+    val resolved = relayRequestCatalog(modelID, RelayTransport.OpenAIResponses, requestOptions)
     // Relay upstreams normally speak the OpenAI protocol, so the router model is resolved against
     // the OpenAI side of the catalog.
     val activeModel = relayRouterModel(modelID, ProviderKind.OpenAI, requestOptions.activeModel)
@@ -166,7 +168,7 @@ internal fun buildOpenAIChatBody(
 ): String {
     val options = MessageBuilder.normalizeRequestOptions(requestOptions)
     val effectiveReasoning = reasoningMode
-    val resolved = MetadataClient.resolveCatalogModelAcrossProviders(modelID)
+    val resolved = relayRequestCatalog(modelID, RelayTransport.OpenAIChatCompletions, requestOptions)
     val sections = mutableListOf<String>()
     sections += """"model":"$modelID""""
     sections += """"stream":$stream"""
@@ -283,7 +285,7 @@ internal fun buildAnthropicBody(
     buildExtras: RelayChatBuildExtras = RelayChatBuildExtras.None,
 ): String {
     val options = MessageBuilder.normalizeRequestOptions(requestOptions)
-    val resolved = MetadataClient.resolveCatalogModelAcrossProviders(modelID)
+    val resolved = relayRequestCatalog(modelID, RelayTransport.AnthropicMessages, requestOptions)
     val extras = mutableListOf<String>()
     relayAnthropicThinkingFields(modelID, reasoningMode, requestOptions, capabilityProjection)?.let { extras += it }
     if (resolved.allowsTemperature() && permitsGeneration(capabilityProjection, "temperature")) {
@@ -296,11 +298,14 @@ internal fun buildAnthropicBody(
     val extrasJson = if (extras.isNotEmpty()) "," + extras.joinToString(",") else ""
     val maxTokens = if (buildExtras.maxOutputTokens != null) {
         MessageBuilder.maxTokensJson(buildExtras.maxOutputTokens, key = "max_tokens")!!
-    } else if (permitsGeneration(capabilityProjection, "max_tokens", "max_output_tokens")) {
-        MessageBuilder.maxTokensJson(options.maxTokens ?: options.outputTokenBudget, key = "max_tokens") ?: """"max_tokens":8192"""
     } else {
-        // Main chat path base value = plan.budget.oWire; non-chat paths keep 8192.
-        MessageBuilder.maxTokensJson(options.outputTokenBudget, key = "max_tokens") ?: """"max_tokens":8192"""
+        // Explicit value (including the main chat path base value plan.budget.oWire) > catalog model maxOutputTokens > protocol default 8192 (when the catalog has no value).
+        val explicit = if (permitsGeneration(capabilityProjection, "max_tokens", "max_output_tokens")) {
+            options.maxTokens ?: options.outputTokenBudget
+        } else {
+            options.outputTokenBudget
+        }
+        """"max_tokens":${MaxOutputTokensPolicy.anthropicMessages(explicit, resolved?.maxOutputTokens)}"""
     }
     // Resolving the router model on the Anthropic side turns on native PDF handling for this request.
     // Cache breakpoints: the relay sends no top-level cache_control, only one breakpoint on the last
@@ -329,7 +334,7 @@ internal fun buildGeminiBody(
 ): String {
     val options = MessageBuilder.normalizeRequestOptions(requestOptions)
     val effectiveReasoning = reasoningMode
-    val resolved = MetadataClient.resolveCatalogModelAcrossProviders(modelID)
+    val resolved = relayRequestCatalog(modelID, RelayTransport.GeminiGenerateContent, requestOptions)
     // Resolving the router model on the Gemini side is what makes every PDF take the native path
     // when the catalog entry sets pdfNativeDefault.
     val activeModel = relayRouterModel(modelID, ProviderKind.Gemini, requestOptions.activeModel)
@@ -384,15 +389,19 @@ private fun permitsGeneration(
     ids.any { id -> current.permitsOutbound("generation_parameter/$id") }
 } ?: false
 
-/** Final request boundary: only image input is governed by vision_input; files/text stay intact. */
+/**
+ * Final request boundary input gate: images with outbound=placeholder are replaced by route
+ * placeholder lines; files keep the native-file fallback chain. The vision probe
+ * ([RelayChatBuildExtras.keepImageAttachments]) is sent as-is. A missing projection fails closed on images.
+ */
 private fun messagesForProjection(
     messages: List<ChatMessage>,
     projection: CapabilityEvidenceProductionAdapter.Projection?,
     extras: RelayChatBuildExtras = RelayChatBuildExtras.None,
-): List<ChatMessage> = if (extras.keepImageAttachments || permits(projection, "vision_input")) {
-    messages
-} else {
-    messages.map { message ->
+): List<ChatMessage> = when {
+    extras.keepImageAttachments -> messages
+    projection != null -> messagesForCapabilityProjection(messages, projection)
+    else -> messages.map { message ->
         message.copy(attachments = message.attachments?.filter { it.kind != AttachmentKind.Image })
     }
 }
@@ -415,7 +424,10 @@ internal fun relayAttachmentTransport(
 internal fun relayRouterModel(modelID: String, catalogKind: ProviderKind, relayModel: AIModel?): AIModel? {
     val fileOverride = relayModel?.relayCapabilityOverrides?.file
     // The override acts on the model itself: when the catalog has no model of that name, file On uses the local model as the base.
-    val official = MetadataClient.resolveAIModelForRouter(modelID, catalogKind)
+    // Match by the canonicalModelId the model already inherited first (same match as pricing / capability inheritance), then by the literal id.
+    val canonical = relayModel?.canonicalModelId?.trim()?.takeIf { it.isNotEmpty() }
+    val official = canonical?.let { MetadataClient.resolveAIModelForRouter(it, catalogKind) }
+        ?: MetadataClient.resolveAIModelForRouter(modelID, catalogKind)
         ?: relayModel?.takeIf { fileOverride == true }
         ?: return null
     if (relayEnvelopeRejectsNativeFile(catalogKind)) {
@@ -436,6 +448,18 @@ internal fun relayRouterModel(modelID: String, catalogKind: ProviderKind, relayM
 }
 
 private const val PDF_MIME = "application/pdf"
+
+/**
+ * The official catalog entry used for request building: the same match as pricing and capability inheritance
+ * ([relayCatalogMatch]: the canonicalModelId already inherited by the active model first, then the literal id,
+ * preferring the transport's family), instead of a cross-family lookup by literal id only.
+ */
+private fun relayRequestCatalog(
+    modelID: String,
+    transport: RelayTransport,
+    requestOptions: ChatRequestOptions,
+): MetadataClient.ResolvedModelMetadata? =
+    relayCatalogMatch(modelID, requestOptions.activeModel?.canonicalModelId, transport)?.metadata
 
 /**
  * Whether a relay dispatches image generation: the model-level imageGeneration override wins, otherwise it depends on whether the model's

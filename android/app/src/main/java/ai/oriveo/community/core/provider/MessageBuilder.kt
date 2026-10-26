@@ -10,7 +10,7 @@ import ai.oriveo.community.core.model.AttachmentKind
 import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.ChatRole
 import ai.oriveo.community.core.model.ChatRequestOptions
-import ai.oriveo.community.core.model.ModelCapability
+import ai.oriveo.community.core.model.AttachmentSupportInfo
 import ai.oriveo.community.core.model.ProviderKind
 
 /**
@@ -85,8 +85,8 @@ object MessageBuilder {
 
     /**
      * Builds the message-array JSON in DeepSeek Chat Completions format.
-     * DeepSeek currently accepts a string content only, so attachments have to be folded into
-     * plain text.
+     * Files are folded into the body; images / videos the outbound gate lets through are sent as
+     * image_url / video_url parts, and a message without media parts still sends a string content.
      */
     fun buildDeepSeekMessages(
         messages: List<ChatMessage>,
@@ -100,8 +100,15 @@ object MessageBuilder {
         val currentTurnIndex = AttachmentDelivery.currentTurnIndex(messages)
         payloads += messages.mapIndexed { index, msg ->
             val role = msg.role.name.lowercase()
-            val content = buildDeepSeekContent(msg, activeModel, isCurrentTurn = index == currentTurnIndex)
-            """{"role":"$role","content":${escapeJsonString(content)}}"""
+            val (content, carried) = deepSeekContentAndPlaceholders(msg, activeModel, isCurrentTurn = index == currentTurnIndex)
+            val media = openAIChatMediaParts(msg.attachments.orEmpty(), sendImages = true)
+            if (media.isEmpty()) {
+                """{"role":"$role","content":${escapeJsonString(withOutboundPlaceholderLines(content, carried))}}"""
+            } else {
+                val textPart = content.takeIf { it.isNotBlank() }?.let { """{"type":"text","text":${escapeJsonString(it)}}""" }
+                val placeholderPart = outboundPlaceholderText(carried)?.let { """{"type":"text","text":${escapeJsonString(it)}}""" }
+                """{"role":"$role","content":[${(listOfNotNull(textPart) + media + listOfNotNull(placeholderPart)).joinToString(",")}]}"""
+            }
         }
         return payloads.joinToString(",")
     }
@@ -190,6 +197,12 @@ object MessageBuilder {
         else -> null
     }
 
+    /** The only policyRef value in the catalog's promptCache that lets official Anthropic place an explicit cache_control breakpoint. */
+    const val ANTHROPIC_EXPLICIT_PROMPT_CACHE = "anthropic.explicit"
+
+    /** Whether official Anthropic places a breakpoint: only the catalog verdict `anthropic.explicit` counts; a missing policyRef or unloaded metadata means no breakpoint. */
+    fun usesAnthropicExplicitPromptCache(policyRef: String?): Boolean = policyRef == ANTHROPIC_EXPLICIT_PROMPT_CACHE
+
     /** Appends `cache_control: ephemeral` to one Anthropic content block (a JSON object string). */
     private fun withAnthropicCacheControl(block: String): String =
         block.removeSuffix("}") + ""","cache_control":{"type":"ephemeral"}}"""
@@ -221,37 +234,21 @@ object MessageBuilder {
         activeModel: AIModel? = null,
         isCurrentTurn: Boolean = false,
     ): String? {
-        val attachments = msg.attachments
-        if (attachments.isNullOrEmpty()) return null
+        val attachments = msg.attachments.orEmpty()
+        val (ownText, carried) = splitOutboundPlaceholders(msg)
+        // When the outbound gate removed all media and only placeholder lines remain, the parts array is still emitted, with the placeholders as a separate text part.
+        if (attachments.isEmpty() && carried.isEmpty()) return null
 
-        val parts = mutableListOf<String>()
         val transport = AttachmentTransportResolver.chatCompletions(providerKind)
         // Text-only wire (MiniMax Chat): one placeholder line per image, no image blocks.
-        val imagePlaceholder = transport.imagePlaceholderText
-
-        for (att in attachments) {
-            when (att.kind) {
-                AttachmentKind.Image -> {
-                    if (imagePlaceholder != null) continue
-                    val base64 = att.base64Data ?: att.thumbnailBase64 ?: continue
-                    val dataUri = if (base64.startsWith("data:")) base64 else "data:${ImageMediaType.resolve(base64, att.mimeType)};base64,$base64"
-                    // detail=auto is sent explicitly; OpenAI-compatible upstreams consume the field
-                    // and everyone else ignores it.
-                    parts.add("""{"type":"image_url","image_url":{"url":"$dataUri","detail":"auto"}}""")
-                }
-                AttachmentKind.Video -> {
-                    val base64 = att.base64Data ?: continue
-                    val dataUri = if (base64.startsWith("data:")) base64 else "data:${att.mimeType};base64,$base64"
-                    parts.add("""{"type":"video_url","video_url":{"url":"$dataUri"}}""")
-                }
-                AttachmentKind.File -> Unit  // handled through the delivery plan below
-            }
-        }
+        // On official wires the outbound gate has already decided which images stay, based on the vision projection.
+        val imagePlaceholder = transport.imagePlaceholderText.takeUnless { transport.sendsImages }
+        val parts = openAIChatMediaParts(attachments, sendImages = imagePlaceholder == null).toMutableList()
 
         // The transport decides whether an original file may enter the content parts. Only OpenRouter can; every
         // other Chat Completions upstream receives files as text.
         val plan = AttachmentDelivery.plan(
-            baseText = withImagePlaceholders(msg.text, attachments, imagePlaceholder),
+            baseText = withImagePlaceholders(ownText, attachments, imagePlaceholder),
             attachments = attachments,
             model = activeModel,
             transport = transport,
@@ -270,8 +267,63 @@ object MessageBuilder {
         if (plan.text.isNotBlank()) {
             parts.add(0, """{"type":"text","text":${escapeJsonString(plan.text)}}""")
         }
+        outboundPlaceholderText(carried)?.let { parts.add("""{"type":"text","text":${escapeJsonString(it)}}""") }
         return if (parts.isNotEmpty()) parts.joinToString(",") else null
     }
+
+    /** Image / video parts of Chat Completions (image_url / video_url data URLs); no images are emitted when [sendImages] is false. */
+    private fun openAIChatMediaParts(attachments: List<Attachment>, sendImages: Boolean): List<String> =
+        attachments.mapNotNull { att ->
+            when (att.kind) {
+                AttachmentKind.Image -> {
+                    if (!sendImages) return@mapNotNull null
+                    val base64 = att.base64Data ?: att.thumbnailBase64 ?: return@mapNotNull null
+                    val dataUri = if (base64.startsWith("data:")) base64 else "data:${ImageMediaType.resolve(base64, att.mimeType)};base64,$base64"
+                    // detail=auto is sent explicitly; OpenAI-compatible upstreams consume the field
+                    // and everyone else ignores it.
+                    """{"type":"image_url","image_url":{"url":"$dataUri","detail":"auto"}}"""
+                }
+                AttachmentKind.Video -> {
+                    val base64 = att.base64Data ?: return@mapNotNull null
+                    val dataUri = if (base64.startsWith("data:")) base64 else "data:${att.mimeType};base64,$base64"
+                    """{"type":"video_url","video_url":{"url":"$dataUri"}}"""
+                }
+                AttachmentKind.File -> null // handled through the delivery plan
+            }
+        }
+
+    /**
+     * Splits off the placeholder lines the outbound gate appended to the end of the body ([ChatMessage.outboundPlaceholders]): returns "body, placeholder lines".
+     * When the body was rewritten as a whole (no longer ends with those lines) nothing is split or added, same as Web `splitOmittedImagePlaceholders`.
+     */
+    internal fun splitOutboundPlaceholders(msg: ChatMessage): Pair<String, List<String>> {
+        val lines = msg.outboundPlaceholders.orEmpty()
+        if (lines.isEmpty()) return msg.text to emptyList()
+        val block = lines.joinToString(PLACEHOLDER_SEPARATOR)
+        return when {
+            msg.text == block -> "" to lines
+            msg.text.endsWith("$PLACEHOLDER_SEPARATOR$block") -> msg.text.removeSuffix("$PLACEHOLDER_SEPARATOR$block") to lines
+            else -> msg.text to emptyList()
+        }
+    }
+
+    /**
+     * For wires that can split into parts: the placeholder lines are merged into one standalone text part appended after all parts of the turn (body, file blocks, images),
+     * with multiple lines separated by "\n\n" (same as iOS AttachmentDelivery, desktop delivery and Web `buildChatHistory`). Returns null when there are no placeholder lines.
+     */
+    internal fun outboundPlaceholderText(lines: List<String>): String? =
+        lines.takeIf { it.isNotEmpty() }?.joinToString(PLACEHOLDER_SEPARATOR)
+
+    /** For wires that only take a string content: the placeholder lines go after all of the message's text (body, file blocks), separated from the body and from each other by "\n\n". */
+    internal fun withOutboundPlaceholderLines(text: String, lines: List<String>): String =
+        appendPlaceholderLines(text, lines)
+
+    /** A blank line between the body and every placeholder (image / video / outbound gate placeholder), the same shape on all platforms; an empty body leaves only the placeholders. */
+    internal const val PLACEHOLDER_SEPARATOR = "\n\n"
+
+    internal fun appendPlaceholderLines(text: String, lines: List<String>): String =
+        if (lines.isEmpty()) text
+        else listOfNotNull(text.takeIf { it.isNotBlank() }, *lines.toTypedArray()).joinToString(PLACEHOLDER_SEPARATOR)
 
     private fun buildOpenAIResponsesParts(
         msg: ChatMessage,
@@ -279,8 +331,9 @@ object MessageBuilder {
         isCurrentTurn: Boolean = false,
         transport: AttachmentTransportProfile = AttachmentTransportProfile.OpenAIResponses,
     ): String? {
-        val attachments = msg.attachments
-        if (attachments.isNullOrEmpty()) return null
+        val attachments = msg.attachments.orEmpty()
+        val (ownText, carried) = splitOutboundPlaceholders(msg)
+        if (attachments.isEmpty() && carried.isEmpty()) return null
 
         // In the Responses protocol images and files are user input only. Assistant and system
         // history replays text alone, and assistant text must use output_text, so old attachments
@@ -294,7 +347,7 @@ object MessageBuilder {
         // The AttachmentRouter decides native versus client extraction, replacing the older
         // hardcoded capabilities.nativePdf check.
         val plan = AttachmentDelivery.plan(
-            baseText = msg.text,
+            baseText = ownText,
             attachments = attachments,
             model = activeModel,
             transport = transport,
@@ -329,36 +382,36 @@ object MessageBuilder {
         if (plan.text.isNotBlank()) {
             parts.add(0, """{"type":"input_text","text":${escapeJsonString(plan.text)}}""")
         }
+        outboundPlaceholderText(carried)?.let { parts.add("""{"type":"input_text","text":${escapeJsonString(it)}}""") }
 
         return if (parts.isNotEmpty()) parts.joinToString(",") else null
     }
 
     private fun buildDeepSeekContent(msg: ChatMessage, activeModel: AIModel? = null, isCurrentTurn: Boolean = false): String {
+        val (text, carried) = deepSeekContentAndPlaceholders(msg, activeModel, isCurrentTurn)
+        return withOutboundPlaceholderLines(text, carried)
+    }
+
+    /** One DeepSeek message's "body + file injection" and the placeholder lines from the outbound gate, handed to the caller separately to assemble depending on whether there are media parts. */
+    private fun deepSeekContentAndPlaceholders(
+        msg: ChatMessage,
+        activeModel: AIModel?,
+        isCurrentTurn: Boolean,
+    ): Pair<String, List<String>> {
         val attachments = msg.attachments.orEmpty()
-
-        // DeepSeek is not multimodal, so images and videos are replaced with a placeholder line.
-        val imagePlaceholders = attachments
-            .filter { it.kind == AttachmentKind.Image }
-            .mapNotNull { AttachmentTransportProfile.DeepSeekChat.imagePlaceholderText }
-        val videoPlaceholders = attachments
-            .filter { it.kind == AttachmentKind.Video }
-            .map { "[Video omitted: ${it.fileName}]" }
-
-        val baseText = listOfNotNull(
-            msg.text.takeIf { it.isNotBlank() },
-            *imagePlaceholders.toTypedArray(),
-            *videoPlaceholders.toTypedArray(),
-        ).joinToString("\n\n")
+        // Images / videos no longer get a hardcoded placeholder: media the outbound gate removed per the projection has been replaced by placeholder lines
+        // (carried in outboundPlaceholders), and the media that remain are sent as parts by [buildDeepSeekMessages].
+        val (ownText, carried) = splitOutboundPlaceholders(msg)
 
         // File attachments always go through AttachmentInjector; DeepSeek uses the markdown wrapper.
         val plan = AttachmentDelivery.plan(
-            baseText = baseText,
+            baseText = ownText,
             attachments = attachments,
             model = activeModel,
             transport = AttachmentTransportProfile.DeepSeekChat,
         )
         AttachmentDelivery.requireDeliverable(plan, isCurrentTurn)
-        return plan.text
+        return plan.text to carried
     }
 
     /** Test-visible entry point, so tests do not have to reach the private method by reflection. */
@@ -372,20 +425,19 @@ object MessageBuilder {
         isCurrentTurn: Boolean = false,
         transport: AttachmentTransportProfile = AttachmentTransportProfile.AnthropicMessages,
     ): List<String> {
-        val attachments = msg.attachments
-        if (attachments.isNullOrEmpty()) return emptyList()
+        val attachments = msg.attachments.orEmpty()
+        val (ownText, carried) = splitOutboundPlaceholders(msg)
+        if (attachments.isEmpty() && carried.isEmpty()) return emptyList()
 
         val parts = mutableListOf<String>()
         // Video placeholders are folded into the text; the delivery plan decides whether each file goes up as a
         // document block or is injected as text.
         val videoPlaceholders = attachments.filter { it.kind == AttachmentKind.Video }
-            .map { "[Video omitted: ${it.fileName}]" }
+            .map { videoPlaceholder(transport.imagePlaceholderText ?: AttachmentTransportProfile.TEXT_ONLY_IMAGE_PLACEHOLDER) }
         // Text-only wire (MiniMax's Anthropic-compatible web search endpoint): one placeholder line per image, no image blocks.
-        val imagePlaceholder = transport.imagePlaceholderText
-        val baseText = listOfNotNull(
-            withImagePlaceholders(msg.text, attachments, imagePlaceholder).takeIf { it.isNotBlank() },
-            *videoPlaceholders.toTypedArray(),
-        ).joinToString("\n\n")
+        // On the MiniMax web search endpoint the outbound gate has already decided which images stay, based on the vision projection.
+        val imagePlaceholder = transport.imagePlaceholderText.takeUnless { transport.sendsImages }
+        val baseText = appendPlaceholderLines(withImagePlaceholders(ownText, attachments, imagePlaceholder), videoPlaceholders)
         val plan = AttachmentDelivery.plan(
             baseText = baseText,
             attachments = attachments,
@@ -414,6 +466,7 @@ object MessageBuilder {
         if (plan.text.isNotBlank()) {
             parts.add(0, """{"type":"text","text":${escapeJsonString(plan.text)}}""")
         }
+        outboundPlaceholderText(carried)?.let { parts.add("""{"type":"text","text":${escapeJsonString(it)}}""") }
         return parts
     }
 
@@ -422,7 +475,7 @@ object MessageBuilder {
         if (placeholder == null) return text
         val lines = attachments.filter { it.kind == AttachmentKind.Image }.map { placeholder }
         if (lines.isEmpty()) return text
-        return listOfNotNull(text.takeIf { it.isNotBlank() }, *lines.toTypedArray()).joinToString("\n\n")
+        return appendPlaceholderLines(text, lines)
     }
 
     // ── Gemini Format ──
@@ -449,10 +502,11 @@ object MessageBuilder {
     ): String {
         val parts = mutableListOf<String>()
         val attachments = msg.attachments.orEmpty()
+        val (ownText, carried) = splitOutboundPlaceholders(msg)
 
         // The delivery plan decides the route; with Gemini's pdfNativeDefault set, every PDF goes up natively.
         val plan = AttachmentDelivery.plan(
-            baseText = msg.text,
+            baseText = ownText,
             attachments = attachments,
             model = activeModel,
             transport = transport,
@@ -470,6 +524,7 @@ object MessageBuilder {
         if (plan.text.isNotBlank()) {
             parts.add(0, """{"text":${escapeJsonString(plan.text)}}""")
         }
+        outboundPlaceholderText(carried)?.let { parts.add("""{"text":${escapeJsonString(it)}}""") }
         return parts.joinToString(",")
     }
 
@@ -507,50 +562,22 @@ object MessageBuilder {
         )
     }
 
-    fun supportsImageAttachments(
-        providerKind: ProviderKind?,
-        capabilities: List<ModelCapability>,
-    ): Boolean {
-        val support = providerKind?.attachmentSupport ?: return false
-        return support.image && capabilities.contains(ModelCapability.Image)
-    }
-
-    fun supportsFileAttachments(
-        providerKind: ProviderKind?,
-        capabilities: List<ModelCapability>,
-    ): Boolean {
-        val support = providerKind?.attachmentSupport ?: return false
-        // Deliberately does not consult model capabilities.contains(File); only the provider-level
-        // textFileInline / nativeFile flags matter. Once the text has been extracted locally any
-        // text model can consume the file content, so capability.File is only meaningful on the
-        // native upload path.
-        return support.nativeFile || support.textFileInline
-    }
-
-    fun supportsVideoAttachments(
-        providerKind: ProviderKind?,
-        capabilities: List<ModelCapability>,
-    ): Boolean {
-        val support = providerKind?.attachmentSupport ?: return false
-        return support.video && capabilities.contains(ModelCapability.Video)
-    }
+    /** Provider-level attachment envelope (from metadata only, all false when missing); only read by the text-inline decision for official connections. */
+    fun providerAttachmentEnvelope(providerKind: ProviderKind): AttachmentSupportInfo = providerKind.attachmentSupport // capability-lint-allow R1: official text inlining reads the provider envelope; the three input keys are not involved
 
     fun canAttachVideo(
-        providerKind: ProviderKind?,
+        gate: AttachmentInputGate,
         mimeType: String,
-    ): Boolean {
-        val support = providerKind?.attachmentSupport ?: return false
-        return support.video && mimeType.lowercase().startsWith("video/")
-    }
+    ): Boolean = gate.video && mimeType.lowercase().startsWith("video/")
 
+    /** Native files follow the file_input projection; text inlining only accepts text files decodable as UTF-8 and is not gated by file_input. */
     fun canAttachFile(
-        providerKind: ProviderKind?,
+        gate: AttachmentInputGate,
         mimeType: String,
         base64Data: String,
     ): Boolean {
-        val support = providerKind?.attachmentSupport ?: return false
-        if (support.nativeFile) return true
-        if (!support.textFileInline) return false
+        if (gate.nativeFile) return true
+        if (!gate.textFileInline) return false
         return isTextMimeType(mimeType) && AttachmentDelivery.tryDecodeBase64Text(base64Data) != null
     }
 

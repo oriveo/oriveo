@@ -576,6 +576,7 @@ class OpenAISubscriptionOAuthClientTest {
                 defaultReasoningLevel = "low",
                 supportsImageInput = true,
                 contextWindow = 272000,
+                inputModalities = listOf("text", "image"),
             ),
             sol,
         )

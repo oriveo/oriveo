@@ -1,7 +1,9 @@
 package ai.oriveo.community.core.model
 
+import ai.oriveo.community.core.usage.CostPart
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.util.Locale
 
 class CostFormatterTest {
 
@@ -67,49 +69,43 @@ class CostFormatterTest {
         assertEquals("$99.99", CostFormatter.format(99.99))
     }
 
+    // ── per-currency parts ────────────────────────────────
+
     @Test
-    fun `parse handles formatted string with tilde`() {
-        assertEquals(1.50, CostFormatter.parse("~$1.50"), 0.001)
+    fun `non-USD part uses its own digit tier`() {
+        assertEquals("¥0.00002", CostFormatter.formatPart(CostPart("CNY", 0.00002), Locale.forLanguageTag("zh-Hans")))
+        assertEquals("¥0.0039", CostFormatter.formatPart(CostPart("CNY", 0.0039), Locale.forLanguageTag("zh-Hans")))
+        assertEquals("€2.00", CostFormatter.formatPart(CostPart("EUR", 2.0), Locale.US))
     }
 
     @Test
-    fun `parse handles plain number`() {
-        assertEquals(0.0023, CostFormatter.parse("0.0023"), 0.00001)
+    fun `USD part keeps dollar rendering regardless of locale`() {
+        assertEquals("$1.20", CostFormatter.formatPart(CostPart("usd", 1.2), Locale.GERMANY))
     }
 
     @Test
-    fun `parse returns 0 for invalid string`() {
-        assertEquals(0.0, CostFormatter.parse("abc"), 0.001)
+    fun `parts joined with plus and not available text appended`() {
+        val text = CostFormatter.formatParts(
+            parts = listOf(CostPart("USD", 0.25)),
+            locale = Locale.US,
+            notAvailableCodes = listOf("CNY"),
+            notAvailableText = "Not available",
+        )
+        assertEquals("$0.25 + Not available", text)
     }
 
     @Test
-    fun `parse returns 0 for empty string`() {
-        assertEquals(0.0, CostFormatter.parse(""), 0.001)
+    fun `no parts yields empty text`() {
+        assertEquals("", CostFormatter.formatParts(emptyList(), Locale.US))
     }
 
     @Test
-    fun `parse strips tilde and dollar sign`() {
-        assertEquals(5.0, CostFormatter.parse("~$5.00"), 0.001)
-    }
-
-    @Test
-    fun `parse handles less than format with tilde`() {
-        assertEquals(0.0001, CostFormatter.parse("~<$0.0001"), 0.00001)
-    }
-
-    @Test
-    fun `parse handles new format without tilde`() {
-        assertEquals(1.50, CostFormatter.parse("$1.50"), 0.001)
-        assertEquals(0.0001, CostFormatter.parse("<$0.0001"), 0.00001)
-    }
-
-    // ── round-trip ───────────────────────────────────────────────
-
-    @Test
-    fun `format then parse round-trips correctly`() {
-        val original = 1.50
-        val formatted = CostFormatter.format(original)
-        val parsed = CostFormatter.parse(formatted)
-        assertEquals(original, parsed, 0.01)
+    fun `usd part transform leaves non-USD ICU text untouched`() {
+        val text = CostFormatter.formatParts(
+            parts = listOf(CostPart("USD", 1.5), CostPart("CNY", 3.5)),
+            locale = Locale.forLanguageTag("zh-Hans"),
+            usdPartTransform = { it.trimEnd('0') },
+        )
+        assertEquals("$1.5 + ¥3.50", text)
     }
 }

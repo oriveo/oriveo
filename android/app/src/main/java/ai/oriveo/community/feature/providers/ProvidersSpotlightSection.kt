@@ -36,12 +36,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.oriveo.community.R
 import ai.oriveo.community.core.model.Provider
+import ai.oriveo.community.core.usage.CostPart
 import ai.oriveo.community.ui.theme.OriveoTheme
 
 @Composable
 fun ProvidersSpotlightSection(
     providers: List<Provider>,
-    costForProvider: (Provider) -> Double,
+    costForProvider: (Provider) -> List<CostPart>,
     dailyCostsForProvider: (Provider) -> List<Double>,
 
     availableModelCountForProvider: (Provider) -> Int,
@@ -61,7 +62,7 @@ fun ProvidersSpotlightSection(
             val p = providers[0]
             ProviderHeroCard(
                 provider = p,
-                monthlyEstimatedCost = costForProvider(p),
+                monthlyCostParts = costForProvider(p),
                 availableModelCount = availableModelCountForProvider(p),
                 dailyCostsLast7Days = dailyCostsForProvider(p),
                 onClick = { onProviderTap(p) },
@@ -135,7 +136,7 @@ fun ProvidersSectionHeader(
 @Composable
 private fun SpotlightCarousel(
     providers: List<Provider>,
-    costForProvider: (Provider) -> Double,
+    costForProvider: (Provider) -> List<CostPart>,
     dailyCostsForProvider: (Provider) -> List<Double>,
     availableModelCountForProvider: (Provider) -> Int,
     onProviderTap: (Provider) -> Unit,
@@ -146,7 +147,7 @@ private fun SpotlightCarousel(
             val p = providers[page]
             ProviderHeroCard(
                 provider = p,
-                monthlyEstimatedCost = costForProvider(p),
+                monthlyCostParts = costForProvider(p),
                 availableModelCount = availableModelCountForProvider(p),
                 dailyCostsLast7Days = dailyCostsForProvider(p),
                 onClick = { onProviderTap(p) },

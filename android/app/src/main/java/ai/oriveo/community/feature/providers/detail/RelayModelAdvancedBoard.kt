@@ -2,10 +2,18 @@ package ai.oriveo.community.feature.providers.detail
 
 import androidx.annotation.StringRes
 import ai.oriveo.community.R
+import ai.oriveo.community.core.capability.CapabilityOverrideEntry
+import ai.oriveo.community.core.capability.CapabilityOverrideOp
+import ai.oriveo.community.core.capability.CapabilityOverrides
+import ai.oriveo.community.core.capability.truth.relayInputIdentity
+import ai.oriveo.community.core.capability.truth.relayInputServerVerdict
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.model.AIModel
+import ai.oriveo.community.core.model.CapabilityEvidenceIdentity
 import ai.oriveo.community.core.model.ModelCapability
 import ai.oriveo.community.core.model.Provider
+import ai.oriveo.community.core.provider.CapabilityEvidenceProductionAdapter
+import ai.oriveo.community.core.provider.CapabilityEvidenceFacade
 import ai.oriveo.community.core.model.ReasoningMode
 import ai.oriveo.community.core.model.RelayCapabilityOverrides
 import ai.oriveo.community.core.model.RelayTransport
@@ -20,6 +28,11 @@ import ai.oriveo.community.core.provider.relay.RelayNegativeCache
 import ai.oriveo.community.core.provider.relay.RelayProbeCandidates
 import ai.oriveo.community.feature.providers.relay.RelayBoardProtocol
 import ai.oriveo.community.feature.providers.relay.relayTransportMenuValueRes
+import java.time.Instant
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 
 /** Page section order: five sections for Relay; for local engines the first section is the read-only channel and there is no thinking section. */
 enum class RelayAdvancedSection { Protocol, Key, Channel, Capabilities, Thinking, Legend, Footer }
@@ -188,6 +201,7 @@ data class RelayModelAdvancedBoard(
             toolMemory: Boolean?,
             automaticReasoning: List<ReasoningMode>,
             readOnly: Boolean = false,
+            identity: CapabilityEvidenceIdentity? = null,
             family: (String) -> String? = RelayKeyBinding::cachedFamily,
             webFragments: ai.oriveo.community.core.provider.relay.RelayWebFragmentStore =
                 ai.oriveo.community.core.provider.relay.RelayWebFragmentStore.shared,
@@ -202,10 +216,17 @@ data class RelayModelAdvancedBoard(
             val capabilities = RelayAdvancedCapability.entries.map { capability ->
                 if (capability == RelayAdvancedCapability.Web) return@map webRow(provider, model, webFragments, webRecords)
                 val override = overrides.valueOf(capability)
-                val state = when (override) {
-                    true -> RelayCatalogCapabilityState.Supported
-                    false -> RelayCatalogCapabilityState.Unsupported
-                    null -> when (capability) {
+                // Same precedence as the entry points: user > negative cache > tested. Only a user override is used as is; a tested override rejected by the negative cache counts as unsupported.
+                val testedRejected = override == true &&
+                    overrides!!.sourceOf(capability.key) == RelayCapabilityOverrides.SOURCE_TESTED &&
+                    capability.negativeKind?.let { kind ->
+                        RelayNegativeCache.keyFor(provider, model)?.let { negativeCache.isRejected(it, kind, nowSeconds) }
+                    } == true
+                val state = when {
+                    testedRejected -> RelayCatalogCapabilityState.Unsupported
+                    override == true -> RelayCatalogCapabilityState.Supported
+                    override == false -> RelayCatalogCapabilityState.Unsupported
+                    else -> when (capability) {
                         RelayAdvancedCapability.Image -> automatic(RelayCatalogCapability.Image)
                         RelayAdvancedCapability.File -> automatic(RelayCatalogCapability.File)
                         RelayAdvancedCapability.ToolCall -> automatic(RelayCatalogCapability.Tool)
@@ -221,7 +242,7 @@ data class RelayModelAdvancedBoard(
                 RelayAdvancedCapabilityRow(
                     capability = capability,
                     state = state,
-                    source = source(provider, model, capability, local, nowSeconds, negativeCache, toolMemory),
+                    source = source(provider, model, capability, local, nowSeconds, negativeCache, toolMemory, identity),
                     control = when (override) {
                         true -> RelayAdvancedControl.On
                         false -> RelayAdvancedControl.Off
@@ -417,7 +438,10 @@ data class RelayModelAdvancedBoard(
             )
         }
 
-        /** Takes the first hit in the fixed order: user > tested > engine declaration > negative cache / tool memory > official catalog > none (local engines stop at the engine declaration). */
+        /**
+         * Takes the first hit in the fixed order: user > tested > engine declaration > negative cache / tool memory > official catalog > none (local engines stop at the engine declaration).
+         * Exception: a tested override that is On but rejected by the negative cache is already drawn as unsupported, so its source is Detected.
+         */
         private fun source(
             provider: Provider,
             model: AIModel,
@@ -426,11 +450,16 @@ data class RelayModelAdvancedBoard(
             nowSeconds: Long,
             negativeCache: RelayNegativeCache,
             toolMemory: Boolean?,
+            identity: CapabilityEvidenceIdentity?,
         ): RelayAdvancedSource? {
             val overrides = model.relayCapabilityOverrides
-            if (overrides.valueOf(capability) != null) {
+            val rejected = capability.negativeKind?.let { kind ->
+                RelayNegativeCache.keyFor(provider, model)?.let { negativeCache.isRejected(it, kind, nowSeconds) }
+            } == true
+            val override = overrides.valueOf(capability)
+            if (override != null) {
                 return if (overrides!!.sourceOf(capability.key) == RelayCapabilityOverrides.SOURCE_TESTED) {
-                    RelayAdvancedSource.Tested
+                    if (override && rejected) RelayAdvancedSource.Detected else RelayAdvancedSource.Tested
                 } else {
                     RelayAdvancedSource.User
                 }
@@ -444,17 +473,28 @@ data class RelayModelAdvancedBoard(
             if (engineDeclared != null) return RelayAdvancedSource.Engine
             // Local connections draw only Set by you / Tested / Engine declared (same scope as the local legend).
             if (local) return null
-            val rejected = capability.negativeKind?.let { kind ->
-                RelayNegativeCache.keyFor(provider, model)?.let { negativeCache.isRejected(it, kind, nowSeconds) }
-            } == true
             if (rejected || (capability == RelayAdvancedCapability.ToolCall && toolMemory == true)) {
                 return RelayAdvancedSource.Detected
             }
+            // The catalog source for vision / tools reads the capability facade: a Relay declaration for that key (decision visible) counts as the catalog having provided it.
+            fun declaredByFacade(key: String) = CapabilityEvidenceProductionAdapter.capabilityProjection(
+                provider = provider,
+                model = model,
+                // Same lookup as [RelayCatalogCapabilityFacts]: auto / no config takes identity from the first-send transport.
+                identity = identity?.let {
+                    CapabilityEvidenceProductionAdapter.uiDispatchIdentity(
+                        provider,
+                        model.copy(relayTransport = RelayFirstSendTransport.resolve(provider, model)),
+                        it,
+                    )
+                },
+                keys = setOf(key),
+            ).decision(key)?.visible == true
             val catalog = when (capability) {
-                RelayAdvancedCapability.Image -> ModelCapability.Image in model.capabilities
+                RelayAdvancedCapability.Image -> declaredByFacade(CapabilityEvidenceFacade.VISION_INPUT)
                 RelayAdvancedCapability.File -> model.nativeFileMimes.isNotEmpty()
                 RelayAdvancedCapability.ImageGeneration -> ModelCapability.ImageGen in model.capabilities
-                RelayAdvancedCapability.ToolCall -> model.toolCall != null
+                RelayAdvancedCapability.ToolCall -> declaredByFacade("tool_call")
                 RelayAdvancedCapability.Web -> false
             }
             return if (catalog) RelayAdvancedSource.Catalog else null
@@ -494,6 +534,8 @@ object RelayModelAdvancedEdits {
     /**
      * On / Off writes that key as `{value, source: user}` and clears the same-tier negative cache of the model's current effective protocol (image generation has no tiers);
      * null (Auto) deletes the key, whether user or tested.
+     * Image / file additionally write the delta [AIModel.capabilityOverrides] (`{op, setAt, baseVerdict}`, where baseVerdict is the Relay verdict at that moment);
+     * Auto deletes that key from the delta. The legacy field is still written, never deleted (reversible).
      */
     fun settingCapabilityOverride(
         provider: Provider,
@@ -501,6 +543,9 @@ object RelayModelAdvancedEdits {
         capability: RelayAdvancedCapability,
         value: Boolean?,
         negativeCache: RelayNegativeCache = RelayNegativeCache.shared,
+        now: Instant = Instant.now(),
+        /** Local connection identity: baseVerdict is the same connection-evidenced verdict as the projection; with null, vision without evidence counts as unknown. */
+        localIdentity: ai.oriveo.community.core.model.CapabilityEvidenceIdentity? = null,
     ): Provider {
         if (value != null) {
             val kind = capability.negativeKind
@@ -518,9 +563,65 @@ object RelayModelAdvancedEdits {
                 RelayAdvancedCapability.ToolCall -> current.copy(toolCall = value)
                 RelayAdvancedCapability.Web -> current.copy(web = value)
             }.let { it.copy(testedKeys = it.testedKeys - capability.key) }
-            model.copy(relayCapabilityOverrides = next.takeUnless { it.isEmpty })
+            model.copy(
+                relayCapabilityOverrides = next.takeUnless { it.isEmpty },
+                capabilityOverrides = capability.inputKey.let { inputKey ->
+                    if (inputKey == null) {
+                        model.capabilityOverrides
+                    } else {
+                        val baseVerdict = relayInputServerVerdict(
+                            provider, model, inputKey, relayInputIdentity(provider, model, localIdentity),
+                        )
+                        settingInputOverride(model.capabilityOverrides, inputKey, value, now, baseVerdict)
+                    }
+                },
+            )
         }
     }
+
+    /** Edits one input key on the stored delta (bad entries are dropped); null when nothing is left. */
+    private fun settingInputOverride(
+        stored: JsonElement?,
+        inputKey: String,
+        value: Boolean?,
+        now: Instant,
+        baseVerdict: String,
+    ): JsonElement? {
+        val entries = CapabilityOverrides.normalize(
+            connection = "relay",
+            legacy = null,
+            stored = stored,
+            serverVerdict = null,
+            now = now.toString(),
+        ).capabilityOverrides.toMutableMap()
+        if (value == null) {
+            entries.remove(inputKey)
+        } else {
+            entries[inputKey] = CapabilityOverrideEntry(
+                op = if (value) CapabilityOverrideOp.Add else CapabilityOverrideOp.Remove,
+                setAt = now.toString(),
+                baseVerdict = baseVerdict,
+            )
+        }
+        if (entries.isEmpty()) return null
+        return buildJsonObject {
+            for (key in CapabilityOverrides.INPUT_KEYS) {
+                val entry = entries[key] ?: continue
+                putJsonObject(key) {
+                    put("op", entry.op.value)
+                    put("setAt", entry.setAt)
+                    put("baseVerdict", entry.baseVerdict)
+                }
+            }
+        }
+    }
+
+    private val RelayAdvancedCapability.inputKey: String?
+        get() = when (this) {
+            RelayAdvancedCapability.Image -> CapabilityEvidenceFacade.VISION_INPUT
+            RelayAdvancedCapability.File -> CapabilityEvidenceFacade.FILE_INPUT
+            else -> null
+        }
 
     /** Writes the thinking-tier override (raw contract value); null deletes the key. The caller first narrows and normalizes via [toggledReasoningLevels]. */
     fun settingReasoningLevels(provider: Provider, modelID: String, levels: List<String>?): Provider {
@@ -561,6 +662,7 @@ object RelayModelAdvancedEdits {
             val userTransport = model.relayTransportSource == RelayTransportSource.User
             model.copy(
                 relayCapabilityOverrides = null,
+                capabilityOverrides = null,
                 relayTransport = model.relayTransport.takeUnless { userTransport },
                 relayTransportSource = model.relayTransportSource.takeUnless { userTransport },
             )

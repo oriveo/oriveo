@@ -3,16 +3,81 @@ package ai.oriveo.community.feature.modelpicker
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
+import ai.oriveo.community.core.provider.MetadataTestFixtures
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ModelPickerSheetTest {
+
+    @After
+    fun tearDown() {
+        MetadataTestFixtures.clear()
+    }
+
+    @Test
+    fun `retired models are hidden while missing and unloaded catalog models stay visible`() {
+        MetadataTestFixtures.applyRaw(RETIREMENT_CATALOG)
+        val provider = retirementProvider()
+
+        val homeIds = buildProviderSections(ModelPickerContext.Home, listOf(provider), null, null, "")
+            .single().models.map { it.id }
+        assertEquals(setOf("gpt-next", "gpt-vanished"), homeIds.toSet())
+
+        val chatIds = buildProviderSections(ModelPickerContext.Chat, listOf(provider), "provider-openai", null, "")
+            .single().models.map { it.id }
+        assertEquals(setOf("gpt-next", "gpt-vanished"), chatIds.toSet())
+
+        MetadataTestFixtures.clear()
+        val unloadedIds = buildProviderSections(ModelPickerContext.Home, listOf(provider), null, null, "")
+            .single().models.map { it.id }
+        assertEquals(setOf("gpt-legacy", "gpt-old", "gpt-next", "gpt-vanished"), unloadedIds.toSet())
+    }
+
+    @Test
+    fun `chat keeps the current conversation model even when retired`() {
+        MetadataTestFixtures.applyRaw(RETIREMENT_CATALOG)
+        val provider = retirementProvider()
+        val current = provider.models.first { it.id == "gpt-legacy" }
+
+        val chatIds = buildProviderSections(ModelPickerContext.Chat, listOf(provider), "provider-openai", current, "")
+            .single().models.map { it.id }
+
+        assertTrue("gpt-legacy" in chatIds)
+        assertFalse("gpt-old" in chatIds)
+    }
+
+    private fun retirementProvider(): Provider {
+        val models = listOf("gpt-legacy", "gpt-old", "gpt-next", "gpt-vanished")
+            .map { AIModel(id = it, name = it, isAvailable = true) }
+        return Provider(id = "provider-openai", kind = ProviderKind.OpenAI, models = models, catalogModels = models)
+    }
+
+    private val RETIREMENT_CATALOG = """
+        {
+          "version": 1,
+          "contractVersion": 1,
+          "providers": {
+            "openAI": {
+              "defaultModelId": "gpt-next",
+              "retiredModels": [
+                { "id": "gpt-legacy", "displayName": "GPT Legacy", "retiredAt": "2026-07-24T00:00:00Z", "routedTo": "gpt-next" }
+              ],
+              "resolveMap": { "gpt-next": "gpt-next", "gpt-old": "gpt-old" },
+              "models": {
+                "gpt-next": { "canonicalModelId": "gpt-next", "displayName": "GPT Next" },
+                "gpt-old": { "canonicalModelId": "gpt-old", "displayName": "GPT Old", "lifecycle": { "state": "deprecated", "shutdownAt": "2026-01-01" } }
+              }
+            }
+          }
+        }
+    """.trimIndent()
 
     /**
      * Moving the chain to a background thread only works because it is a pure function whose output is

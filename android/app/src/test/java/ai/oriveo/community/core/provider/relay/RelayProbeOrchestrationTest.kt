@@ -505,7 +505,6 @@ class RelayProbeOrchestrationTest {
             every { keys.saveRelayKeySecrets(any(), any(), any()) } returns Unit
             ProviderRepository(
                 dao = dao,
-                conversationDao = mockk(relaxed = true),
                 secureKeyStore = keys,
                 openRouterService = mockk(relaxed = true),
                 openAIService = mockk(relaxed = true),
@@ -790,7 +789,7 @@ class RelayProbeOrchestrationTest {
         // One existing negative-cache entry of each kind for this connection.
         val provider = harness.current()
         val toolModel = provider.models.single { it.id == "gpt-4o-mini" }
-        harness.toolCallMemory.record(accountID, provider, toolModel, toolCall = false, reason = "upstream_rejected")
+        harness.toolCallMemory.record(accountID, provider, toolModel, observedToolCall = false, reason = "upstream_rejected")
         assertEquals(false, harness.toolCallMemory.lookup(accountID, provider, toolModel))
         val rejection = ai.oriveo.community.core.provider.ModelControlRuntimeIdentity(
             connectionId = connectionID,

@@ -64,6 +64,7 @@ import ai.oriveo.community.core.usage.MonthlyCostProviderEntry
 import ai.oriveo.community.core.usage.MonthlyCostSummary
 import ai.oriveo.community.ui.component.OriveoFadeHairline
 import ai.oriveo.community.ui.component.OriveoIconPlate
+import ai.oriveo.community.ui.component.costPartsText
 import ai.oriveo.community.ui.component.oriveoGradientPanel
 import ai.oriveo.community.ui.theme.OriveoTheme
 import java.text.SimpleDateFormat
@@ -154,8 +155,7 @@ fun ProvidersCostSummaryCard(
             HeroBlock(summary = summary, isCompact = isCompact)
 
             if (summary.providers.isNotEmpty()) {
-
-                if (summary.providers.size + summary.hiddenProviderCount >= 2) {
+                if (shouldShowSegmentedCostBar(summary)) {
                     SegmentedCostBar(
                         providers = summary.providers,
                         totalCost = summary.totalCost,
@@ -233,7 +233,9 @@ private fun HeroBlock(summary: MonthlyCostSummary, isCompact: Boolean) {
     val isDark = OriveoTheme.isDark
     val subtitleRes = R.string.based_on_usage_on_this_device
 
-    val fullText = CostFormatter.format(summary.totalCost).ifEmpty { "$0" }
+    // Per-currency totals (USD first, joined with " + "); a month with only non-USD cost shows that
+    // currency's amount, never "$0".
+    val fullText = costPartsText(summary.totals).ifEmpty { "$0" }
     val hasDollarPrefix = fullText.startsWith("$")
     val dollarBody = if (hasDollarPrefix) fullText.substring(1) else fullText
 
@@ -538,7 +540,7 @@ private fun ProviderBreakdownRow(
             overflow = TextOverflow.Ellipsis,
         )
         Text(
-            text = CostFormatter.format(entry.cost),
+            text = costPartsText(entry.costs),
             style = compactTextStyle(
                 TextStyle(
                     fontWeight = FontWeight.Bold,
@@ -552,7 +554,8 @@ private fun ProviderBreakdownRow(
             maxLines = 1,
         )
         Text(
-            text = formatProviderShare(entry.cost, totalCost),
+            // A non-USD-only row has no share (no cross-currency share, and no "0%"); the column width is kept so rows stay aligned.
+            text = formatProviderShare(entry.cost, totalCost).orEmpty(),
             modifier = Modifier.widthIn(min = 36.dp),
             style = compactTextStyle(
                 TextStyle(
@@ -739,8 +742,17 @@ private object ChartColorResolver {
 
 // region Helpers
 
-private fun formatProviderShare(cost: Double, totalCost: Double): String {
-    if (!cost.isFinite() || cost <= 0.0 || !totalCost.isFinite() || totalCost <= 0.0) return "0%"
+/**
+ * The segmented bar is hidden when a single provider with no hidden entries would draw one decorative
+ * 100% segment, and when no provider has USD cost (shares are computed over USD only).
+ */
+internal fun shouldShowSegmentedCostBar(summary: MonthlyCostSummary): Boolean =
+    summary.providers.size + summary.hiddenProviderCount >= 2 &&
+        summary.totalCost.isFinite() && summary.totalCost > CostFormatter.COST_EPSILON
+
+/** USD share (denominator is the USD total); null when the row or the total has no USD cost. */
+internal fun formatProviderShare(cost: Double, totalCost: Double): String? {
+    if (!cost.isFinite() || cost <= CostFormatter.COST_EPSILON || !totalCost.isFinite() || totalCost <= CostFormatter.COST_EPSILON) return null
     val sharePercent = (cost / totalCost) * 100.0
     if (sharePercent >= 10.0) return "${sharePercent.roundToInt().coerceAtLeast(1)}%"
     val rounded = ((sharePercent * 10.0).roundToInt() / 10.0).coerceAtLeast(0.1)

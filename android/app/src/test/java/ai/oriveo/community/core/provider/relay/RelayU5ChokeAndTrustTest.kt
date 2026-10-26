@@ -101,7 +101,6 @@ class RelayU5ChokeAndTrustTest {
         MetadataTestFixtures.clear()
         repository = ProviderRepository(
             dao = mockk(relaxed = true),
-            conversationDao = mockk(relaxed = true),
             secureKeyStore = mockk(relaxed = true),
             openRouterService = OpenRouterService(client, json, transportRegistry),
             openAIService = OpenAIService(client, json, transportRegistry),

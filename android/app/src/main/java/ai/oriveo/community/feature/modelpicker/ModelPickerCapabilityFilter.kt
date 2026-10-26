@@ -18,6 +18,12 @@ enum class ModelPickerCapabilityFilterKind(
     Tool("tool_call", R.string.capability_tool_call),
 }
 
+/**
+ * The set of capabilities a model can really use right now. The ruling still comes from the one
+ * chat-page control function, but badges and filters only accept `state == auto_available`:
+ * managed_only / custom_only / unknown / unavailable never light up and never match
+ * (same answer as the outbound request).
+ */
 fun modelPickerCapabilityBadges(
     provider: Provider,
     model: AIModel,
@@ -33,7 +39,8 @@ fun modelPickerCapabilityBadges(
                 metadataClient = metadata,
             ) == true
         } else {
-            CapabilityControlResolution.resolve(provider, model, kind.owner, metadata).isAvailable
+            CapabilityControlResolution.resolve(provider, model, kind.owner, metadata).state ==
+                CapabilityControlResolution.STATE_AUTO_AVAILABLE
         }
     }
 

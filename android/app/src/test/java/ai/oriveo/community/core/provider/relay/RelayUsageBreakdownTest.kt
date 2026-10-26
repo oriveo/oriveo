@@ -78,13 +78,6 @@ class RelayUsageBreakdownTest {
     }
 
     @Test
-    fun `relay transport priority maps to official provider family`() {
-        assertEquals("openAI", relayCostPriorityBackendKey(RelayTransport.OpenAIResponses))
-        assertEquals("anthropic", relayCostPriorityBackendKey(RelayTransport.AnthropicMessages))
-        assertEquals("gemini", relayCostPriorityBackendKey(RelayTransport.GeminiGenerateContent))
-    }
-
-    @Test
     fun `relay body builders live outside relay service god class`() {
         val bodyBuilders = java.io.File("src/main/java/ai/oriveo/community/core/provider/relay/RelayBodyBuilders.kt").readText()
         val relayService = java.io.File("src/main/java/ai/oriveo/community/core/provider/RelayService.kt").readText()

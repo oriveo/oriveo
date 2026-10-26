@@ -3,6 +3,8 @@ package ai.oriveo.community.core.provider
 import ai.oriveo.community.core.capability.truth.CapabilityTruthAdapter
 import ai.oriveo.community.core.capability.truth.CapabilityTruthRegistry
 import ai.oriveo.community.core.capability.truth.ProviderForm
+import ai.oriveo.community.core.capability.truth.SubscriptionTruthAdapter
+import ai.oriveo.community.core.capability.truth.resolveInputCapabilityProjections
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.CapabilityEvidenceIdentity
@@ -50,6 +52,16 @@ internal object CapabilityEvidenceProductionAdapter {
     ) {
         fun decision(key: String): Decision? = decisions[key]
         fun permitsOutbound(key: String): Boolean = decisions[key]?.permitsOutbound == true
+    }
+
+    /**
+     * Support level of an input key: supported / unsupported as is, a user-accepted but unverified declaration is accepted, anything else null.
+     * The grade literal stays inside the evidence boundary so read sites do not judge it themselves.
+     */
+    fun inputSupportLevel(resolution: CapabilityEvidenceFacade.Resolution): String? = when {
+        resolution.support == "supported" || resolution.support == "unsupported" -> resolution.support
+        resolution.grade == "accepted_unverified" -> "accepted"
+        else -> null
     }
 
     /**
@@ -429,12 +441,19 @@ internal object CapabilityEvidenceProductionAdapter {
         if (relay && base.identity == null) return base
         // The negative cache and toolCallVerdict make the same decision: a branch that already declared toolCall is vetoed by it too.
         val rejected = relay && relayToolCallRejected(provider, model, negativeCache)
-        if (current.resolution.support != "unknown" && !rejected) return base
-        val firstParty = if (rejected) false else toolCallVerdict(provider, model, memoryVerdict = null, negativeCache = negativeCache)
-        val effectiveVerdict = firstParty ?: memoryVerdict?.takeUnless { relay && !it }
+        // Official / subscription: the memory goes into the same decision (a rejection memory comes before modelFacts), and base is kept only when it agrees.
+        // Relay: declaration / negative cache decide first, and the memory only falls back to true.
+        val verdict = when {
+            rejected -> false
+            relay -> toolCallVerdict(provider, model, memoryVerdict = null, negativeCache = negativeCache)
+            else -> toolCallVerdict(provider, model, memoryVerdict = memoryVerdict, negativeCache = negativeCache)
+        }
+        val baseSupport = current.resolution.support
+        if (!rejected && baseSupport != "unknown" && (relay || verdict == (baseSupport == "supported"))) return base
+        val effectiveVerdict = if (relay) verdict ?: memoryVerdict?.takeIf { it } else verdict
         val adapterReady = ToolCallTransportResolver.hasNativeAdapter(provider, model)
         if (effectiveVerdict == null) {
-            // D2: unknown is allowed only for an explicit feature intent and a concrete local adapter.
+            // Unknown is allowed only for an explicit feature intent and a concrete local adapter.
             if (!adapterReady) return base
             return base.copy(
                 decisions = base.decisions + (
@@ -445,7 +464,8 @@ internal object CapabilityEvidenceProductionAdapter {
                 ),
             )
         }
-        val source = if (firstParty != null && !rejected) "relay_declaration" else "connection_memory"
+        val fromMemory = if (relay) rejected || verdict == null else memoryVerdict != null && verdict == memoryVerdict
+        val source = if (fromMemory) "connection_memory" else "relay_declaration"
         val memoryResolution = CapabilityEvidenceFacade.Resolution(
             key = "tool_call",
             support = if (effectiveVerdict) "supported" else "unsupported",
@@ -472,7 +492,11 @@ internal object CapabilityEvidenceProductionAdapter {
         )
     }
 
-    /** Badge / telemetry share the same first-party > catalog > modelFacts tri-state. */
+    /**
+     * Badge / telemetry share one tri-state: first-party / catalog evidence > rejection memory (false)
+     * > modelFacts > hand-entered declaration > memory true > unknown. [memoryVerdict] comes from
+     * [ToolCallMemoryStore.lookup], which already drops entries recorded under another modelFactsRevision.
+     */
     fun toolCallVerdict(
         provider: Provider,
         model: AIModel,
@@ -480,6 +504,7 @@ internal object CapabilityEvidenceProductionAdapter {
         metadataClient: MetadataClient = MetadataClient.instance,
         negativeCache: ai.oriveo.community.core.provider.relay.RelayNegativeCache =
             ai.oriveo.community.core.provider.relay.RelayNegativeCache.shared,
+        now: Long = System.currentTimeMillis(),
     ): Boolean? {
         if (ProviderForm.of(provider) == ProviderForm.Relay) {
             // Same order on all three platforms: override value > toolCall negative cache > engine declaration > model.toolCall > tool memory (only true counts).
@@ -492,10 +517,43 @@ internal object CapabilityEvidenceProductionAdapter {
             // A relay's "tools unsupported" is recorded only in the negative cache; a false in the old tool memory no longer counts.
             return model.toolCall ?: memoryVerdict?.takeIf { it }
         }
-        val current = metadataClient.currentCapabilityEvidenceModel(model.id, provider.kind)
-        if (current != null) return current.metadata.toolCall
-        model.toolCall?.let { return it }
+        // The subscription route is not covered by the official catalog's typed evidence (a recipe only describes the official API route):
+        // modelFacts (model.id > canonical id) > connection memory.
+        val current = if (ProviderForm.of(provider) == ProviderForm.Subscription) {
+            null
+        } else {
+            metadataClient.currentCapabilityEvidenceModel(model.id, provider.kind)
+        }
+        if (current != null) {
+            // In the catalog only typed evidence counts: once the namespace exists it is authoritative, and a malformed / empty / expired view is unknown,
+            // never falling back to the top-level toolCall, model.toolCall or modelFacts. When the namespace is absent: a server with capability contract >= 2
+            // omits the view key for a model without evidence, meaning unknown; only an older server with a missing / v1 version reads the legacy field.
+            // When evidence is absent a rejection memory (false only) still applies, in the same order as the other platforms.
+            val metadata = current.metadata
+            val evidence = when {
+                metadata.capabilityEvidenceViewMalformed == true -> null
+                metadata.capabilityEvidenceCandidates == null ->
+                    metadata.toolCall.takeIf { metadata.capabilityContractVersion < 2 }
+                else -> metadata.capabilityEvidenceCandidates
+                    .filter { it.key == "tool_call" && (it.expiresAt == null || it.expiresAt > now) }
+                    .map { it.support }
+                    .filter { it == "supported" || it == "unsupported" }
+                    .distinct()
+                    .singleOrNull()?.let { it == "supported" }
+            }
+            return evidence ?: memoryVerdict?.takeIf { !it }
+        }
+        // Subscription: the Codex / Grok subscription /models does not send a tool field, so the first-party layer is always empty; model.toolCall is the
+        // server catalog bit carried in by buildCatalogModel and is not first-party. Only modelFacts > connection memory counts, and without either it is unknown.
+        // A rejection memory (false only) comes before modelFacts and the local declaration, in the same order for subscription.
+        if (memoryVerdict == false) return false
+        if (ProviderForm.of(provider) == ProviderForm.Subscription) {
+            SubscriptionTruthAdapter.modelFacts(metadataClient, provider.kind, model)?.toolCall?.let { return it }
+            return memoryVerdict
+        }
+        // Outside the catalog: rejection memory > modelFacts > the hand-entered model's local declaration > memory true.
         metadataClient.modelFacts(provider.kind, model.id)?.toolCall?.let { return it }
+        model.toolCall?.let { return it }
         return memoryVerdict
     }
 
@@ -529,6 +587,34 @@ internal object CapabilityEvidenceProductionAdapter {
             .filter { mode -> projection.decision(reasoningKey(mode))?.editable == true }
     }
 
+    /**
+     * Badge verdict for a single input key (vision_input / file_input / video_input): the same rule as [governedMetadataCapabilities]
+     * for that key, but without resolving the web search / reasoning controls. The subscription form has no input projection and keeps the raw capabilities.
+     * Use this on per-model hot paths such as catalog sorting when only one key is needed.
+     */
+    fun governedInputVisible(
+        provider: Provider,
+        model: AIModel,
+        key: String,
+        identity: CapabilityEvidenceFacade.QueryIdentity? = null,
+        metadataClient: MetadataClient = MetadataClient.instance,
+    ): Boolean {
+        val inputs = resolveInputCapabilityProjections(
+            provider = provider,
+            model = model,
+            relayIdentity = identity,
+            metadataClient = metadataClient,
+        ) ?: return inputCapabilityOf(key) in model.capabilities
+        return inputs[key].visible
+    }
+
+    private fun inputCapabilityOf(key: String): ModelCapability = when (key) {
+        CapabilityEvidenceFacade.VISION_INPUT -> ModelCapability.Image
+        CapabilityEvidenceFacade.FILE_INPUT -> ModelCapability.File
+        CapabilityEvidenceFacade.VIDEO_INPUT -> ModelCapability.Video
+        else -> throw IllegalArgumentException("not an input capability key: $key")
+    }
+
     /** Single core mapping from governed evidence to metadata badges. */
     fun governedMetadataCapabilities(
         provider: Provider,
@@ -540,12 +626,20 @@ internal object CapabilityEvidenceProductionAdapter {
             provider = provider,
             model = model,
             identity = identity,
-            keys = setOf("vision_input", "web_search") + reasoningKeys(),
+            keys = setOf("web_search") + reasoningKeys(),
             metadataClient = metadataClient,
         )
-        // The badge has to share its source with the control on the chat screen: when the
+        // The image / file / video badges only trust the input capability projection's visible flag (auto_available and implemented on this platform);
+        // unknown does not light the badge (the entry stays open). The subscription form has no projection and keeps the raw capabilities.
+        val inputs = resolveInputCapabilityProjections(
+            provider = provider,
+            model = model,
+            relayIdentity = identity,
+            metadataClient = metadataClient,
+        )
+        // The web search / reasoning badges have to share their source with the control on the chat screen: when the
         // capability contract says this transport and model cannot do it, the badge must not
-        // stay lit. Vision has no such control, so it keeps its original test.
+        // stay lit.
         val webControlAvailable = CapabilityControlResolution
             .resolve(provider, model, "web", metadataClient).isAvailable
         val reasoningControlAvailable = CapabilityControlResolution
@@ -553,8 +647,13 @@ internal object CapabilityEvidenceProductionAdapter {
         val subscription = CapabilityControlResolution.isSubscriptionLink(provider)
         val governedAllowed = setOfNotNull(
             ModelCapability.Image.takeIf {
-                if (subscription) ModelCapability.Image in model.capabilities
-                else projection.decision("vision_input")?.editable == true
+                if (inputs == null) ModelCapability.Image in model.capabilities else inputs.vision.visible
+            },
+            ModelCapability.File.takeIf {
+                if (inputs == null) ModelCapability.File in model.capabilities else inputs.file.visible
+            },
+            ModelCapability.Video.takeIf {
+                if (inputs == null) ModelCapability.Video in model.capabilities else inputs.video.visible
             },
             ModelCapability.Web.takeIf {
                 webControlAvailable && if (subscription) ModelCapability.Web in model.capabilities
@@ -568,11 +667,17 @@ internal object CapabilityEvidenceProductionAdapter {
         )
         // Keep allowed persisted badges in their existing priority order. Typed evidence may add a
         // capability absent from stale model metadata, appended in a stable canonical order.
-        val governed = setOf(ModelCapability.Image, ModelCapability.Web, ModelCapability.Reasoning)
+        val governed = listOf(
+            ModelCapability.Image,
+            ModelCapability.File,
+            ModelCapability.Video,
+            ModelCapability.Web,
+            ModelCapability.Reasoning,
+        )
         val result = model.capabilities.filterTo(linkedSetOf()) { capability ->
             capability !in governed || capability in governedAllowed
         }
-        listOf(ModelCapability.Image, ModelCapability.Web, ModelCapability.Reasoning).forEach { capability ->
+        governed.forEach { capability ->
             if (capability in governedAllowed) result += capability
         }
         return result
@@ -580,7 +685,7 @@ internal object CapabilityEvidenceProductionAdapter {
 
     /** The keys the subscription catalog snapshot owns: image input, web search, reasoning tiers; tool_call and generation parameters are not the catalog's. */
     private fun catalogOwnedKey(key: String): Boolean =
-        key == "vision_input" || key == "web_search" || key.startsWith("reasoning_level/")
+        key == CapabilityEvidenceFacade.VISION_INPUT || key == "web_search" || key.startsWith("reasoning_level/")
 
     private fun reasoningKeys(): Set<String> = ReasoningMode.entries
         .filter { it != ReasoningMode.Automatic }

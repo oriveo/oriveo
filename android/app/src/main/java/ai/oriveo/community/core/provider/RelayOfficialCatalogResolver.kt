@@ -5,13 +5,14 @@ import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.ModelCapability
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
+import ai.oriveo.community.core.provider.relay.relayOfficialMatch
 
 /**
  * Enriches a relay's locally discovered models from the published model catalog.
  *
  * The rules:
  *   - every entry in `provider.catalogModels` is looked up across the known providers
- *     (`resolveCatalogModelAcrossProvidersWithProvider`)
+ *     ([relayOfficialMatch]: canonicalModelId first, then id)
  *   - on a hit, merge displayName / canonicalModelId / capabilities / profiles / uiHints
  *   - the resulting capabilities are the intersection of the catalog's capabilities with
  *     `relayRuntimeConfig.transportEnvelopes[transport]`, because a relay can only really do what
@@ -21,7 +22,7 @@ import ai.oriveo.community.core.model.ProviderKind
  */
 object RelayOfficialCatalogResolver {
 
-    fun enrich(
+    internal fun enrich(
         localModel: AIModel,
         provider: Provider,
         runtimeConfig: MetadataClient.RelayRuntimeConfig,
@@ -35,9 +36,12 @@ object RelayOfficialCatalogResolver {
         val isRelayManualModel = localModel.isManual ||
             localModel.id.trim().startsWith("relay-manual-")
         val priority = RelayRuntimeSupport.transportProviderKind(provider, localModel)
-        val match = metadata.resolveCatalogModelAcrossProvidersWithProvider(
+        // Same match entry as pricing and unit-price labels: canonicalModelId first, then id.
+        val match = relayOfficialMatch(
             modelID = resolvedRelayModelId(localModel.id),
+            canonicalModelId = localModel.canonicalModelId,
             transportPriority = priority,
+            metadata = metadata,
         ) ?: return localModel
 
         val inherited = inheritCapabilities(localModel, provider, runtimeConfig, match)
@@ -133,7 +137,7 @@ object RelayOfficialCatalogResolver {
         )
     }
 
-    fun enrichCatalog(
+    internal fun enrichCatalog(
         provider: Provider,
         runtimeConfig: MetadataClient.RelayRuntimeConfig,
         metadata: MetadataClient = MetadataClient.instance,
