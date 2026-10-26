@@ -5,13 +5,26 @@
  * 2. When a leg accumulates tool_calls, the assistant echo fed back in has to carry
  *    reasoning_content (the Kimi contract returns 400 without it while thinking is on) and the
  *    tool message has to return arguments verbatim;
- * 3. usage is intercepted per leg rather than forwarded, and a single accumulated value is sent
- *    at the end; reasoning gets a "\n\n" joiner between legs.
+ * 3. usage is intercepted per leg rather than forwarded, and at the end one accumulated value is
+ *    sent together with each leg's raw usage (the client prices per leg); reasoning gets a
+ *    "\n\n" joiner between legs.
  */
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { adaptMoonshotToolLoopResponse } from "../response-adapters/moonshot-tool-loop";
 import type { ProviderRequest } from "../request-builders/types";
+import { createProxyChunkParser } from "@oriveo/core/providers/proxy-chunk-parser";
+import type { StreamEvent } from "@oriveo/core/providers/types";
+
+/** The usage reported by the closing usage frame once the production client parser (Moonshot) has parsed it. */
+function parsedUsage(usageChunk: unknown) {
+  const parsed = createProxyChunkParser("moonshot")(null, JSON.stringify(usageChunk));
+  const events = (Array.isArray(parsed) ? parsed : [parsed]) as StreamEvent[];
+  const usage = events.find((event) => event?.type === "usage");
+  return usage?.type === "usage" ? usage.usage : undefined;
+}
 
 function sseResponse(payloads: string[]): Response {
   const body = payloads.map((payload) => `data: ${payload}\n\n`).join("") + "data: [DONE]\n\n";
@@ -28,6 +41,15 @@ async function readSSEPayloads(response: Response): Promise<string[]> {
     .map((line) => line.trim())
     .filter((line) => line.startsWith("data: "))
     .map((line) => line.slice(6));
+}
+
+/** A recorded Kimi stream (usage sits in choices[0].usage, in the same frame as finish_reason). */
+function recordedResponse(name: string): Response {
+  const body = readFileSync(
+    resolve(__dirname, "../../../../../../../../", "shared/test-fixtures/provider-toolcall/recorded", name),
+    "utf8",
+  );
+  return new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } });
 }
 
 function buildRequest(): ProviderRequest {
@@ -51,6 +73,49 @@ afterEach(() => {
 });
 
 describe("adaptMoonshotToolLoopResponse streaming leg by leg", () => {
+  it("does not drop a leg that reported no usage: the client parses it as not fully reported", async () => {
+    const leg1 = [
+      '{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"t-1","type":"builtin_function","function":{"name":"$web_search","arguments":"{}"}}]}}],"usage":null}',
+      '{"choices":[{"delta":{},"finish_reason":"tool_calls"}],"usage":null}',
+    ];
+    const leg2 = [
+      '{"choices":[{"delta":{"content":"the answer"}}],"usage":null}',
+      '{"choices":[{"delta":{}}],"usage":{"prompt_tokens":20,"completion_tokens":7,"cached_tokens":3}}',
+    ];
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(sseResponse(leg2)));
+
+    const response = await adaptMoonshotToolLoopResponse(sseResponse(leg1), buildRequest());
+    const usageChunk = (await readSSEPayloads(response))
+      .filter((payload) => payload !== "[DONE]")
+      .map((payload) => JSON.parse(payload))
+      .find((chunk) => chunk.type === "usage");
+    const usage = parsedUsage(usageChunk);
+    expect(usage?.allLegsReported).toBe(false);
+    expect(usage?.prompt_tokens).toBe(20);
+  });
+
+  it("recorded stream with usage in choices[0]: still intercepted per leg, finish_reason in the same frame still forwarded", async () => {
+    const leg2 = [
+      '{"choices":[{"index":0,"delta":{"content":"the answer"},"finish_reason":null}]}',
+      '{"choices":[{"index":0,"delta":{},"finish_reason":"stop","usage":{"prompt_tokens":30,"completion_tokens":4,"total_tokens":34}}]}',
+    ];
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(sseResponse(leg2)));
+
+    const response = await adaptMoonshotToolLoopResponse(recordedResponse("moonshot_web_search.leg1.sse"), buildRequest());
+    const chunks = (await readSSEPayloads(response))
+      .filter((payload) => payload !== "[DONE]")
+      .map((payload) => JSON.parse(payload));
+
+    expect(chunks.map((chunk) => chunk.choices?.[0]?.finish_reason).filter(Boolean)).toEqual(["tool_calls", "stop"]);
+    expect(chunks.filter((chunk) => chunk.choices?.[0]?.usage)).toHaveLength(0);
+    const usageChunks = chunks.filter((chunk) => chunk.type === "usage");
+    expect(usageChunks).toHaveLength(1);
+    expect(usageChunks[0].usage.prompt_tokens).toBe(50);
+    const usage = parsedUsage(usageChunks[0]);
+    expect(usage?.legs?.map((leg) => leg.prompt_tokens)).toEqual([20, 30]);
+    expect(usage?.allLegsReported).toBeUndefined();
+  });
+
   it("forwards reasoning and delta, feeds back reasoning_content, and sums usage at the end", async () => {
     const leg1 = [
       '{"choices":[{"delta":{"role":"assistant","content":""}}],"usage":null}',
@@ -103,6 +168,10 @@ describe("adaptMoonshotToolLoopResponse streaming leg by leg", () => {
     expect(usageChunks[0].usage.prompt_tokens).toBe(30);
     expect(usageChunks[0].usage.completion_tokens).toBe(12);
     expect(chunks.filter((chunk) => chunk.usage && chunk.type !== "usage")).toHaveLength(0);
+    // Per leg: the client parses a breakdown for each leg (top-level cached_tokens goes into the cache bucket) and does not re-estimate from the total
+    const usage = parsedUsage(usageChunks[0]);
+    expect(usage?.legs?.map((leg) => leg.breakdown?.cachedInputTokens)).toEqual([2, 3]);
+    expect(usage?.allLegsReported).toBeUndefined();
 
     const continuation = chunks.find((chunk) => chunk.type === "continuation")?.continuation;
     expect(continuation).toEqual({

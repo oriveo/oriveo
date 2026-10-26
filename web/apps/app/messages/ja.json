@@ -175,7 +175,7 @@
     "capabilityRiskCost": "この項目はプロバイダーの料金を増やすことがあります。",
     "customRequestFieldsDocs": "公式ドキュメントを開く",
     "customRequestFieldsPreview": "マスク済みリクエスト差分プレビュー",
-    "resendWithoutSetting": "この設定を外して再送信",
+    "resendWithoutSetting": "この設定なしで再試行",
     "generationBasicSettings": "基本設定",
     "saveConnectionDefaults": "接続の既定値に設定",
     "generationDiagnosticsHistory": "診断履歴",
@@ -726,7 +726,11 @@
         "confirmAlsoPriceLine": "さらに {model} の割増ライン {line} も超えるため、リクエスト全体がロングコンテキスト料金になります。",
         "confirmDontAsk": "この会話では今後確認しない",
         "confirmSend": "それでも送信"
-      }
+      },
+      "connectionRemovedBanner": "この会話で使っていた接続は削除されました。",
+      "modelRetiredBanner": "{model} は提供終了しました。",
+      "modelRetiredSwitchTo": "{model} に切り替える",
+      "lastUsedModelRetiredHint": "前回使っていたモデルは提供終了となったため、{model} に切り替えました。"
     },
     "providerSetup": {
       "title": "プロバイダーを追加",
@@ -1694,8 +1698,6 @@
       "errorHydrateTitle": "最近の会話を読み込めませんでした",
       "errorHydrateMessage": "後でもう一度試すか、手動で書いてください。",
       "errorGenericTitle": "生成に失敗しました。手動で書いてください",
-      "errorAggregated": "{count} 個のプロバイダーを試しましたが、すべて失敗しました。",
-      "errorAggregatedWithDetail": "{count} 個のプロバイダーを試しましたが、すべて失敗しました。最後のエラー: {error}",
       "backToSettings": "設定に戻る",
       "used": {
         "chip": "メモリー",
@@ -1708,9 +1710,17 @@
       "groupPreferences": "好み",
       "groupInstructions": "常に守る指示",
       "groupProjects": "取り組んでいること",
+      "groupConflicts": "残すほうを選んでください",
+      "conflictThisDevice": "この端末のバージョン",
+      "conflictOtherDevice": "別の端末のバージョン",
+      "conflictKeep": "これを残す",
       "itemPausedBadge": "オフ",
       "itemPinnedA11y": "ピン留め済み",
       "groupEpisodic": "出来事と決定事項",
+      "episodicLocalOnly": "この端末にのみ保存され、同期されることはありません。",
+      "conflictNewer": "新しいほう",
+      "conflictOlder": "古いほう",
+      "conflictKeepBoth": "両方残す",
       "showAll": "すべて表示（{count}）",
       "kindDecision": "決定事項",
       "kindEvent": "出来事",
@@ -1764,7 +1774,47 @@
     "file": "ファイル",
     "web": "ウェブ",
     "imageGeneration": "画像生成",
-    "toolCall": "ツール"
+    "toolCall": "ツール",
+    "input": {
+      "hintFirstAttach": {
+        "image": "このモデルが画像を認識できるかはまだ確認できていません。失敗した場合はお知らせします",
+        "file": "このモデルがファイルを読めるかはまだ確認できていません。失敗した場合はお知らせします",
+        "video": "このモデルが動画を理解できるかはまだ確認できていません。失敗した場合はお知らせします"
+      },
+      "disabled": {
+        "modelAbsent": {
+          "image": "このモデルは画像入力に対応していません",
+          "file": "このモデルはファイル入力に対応していません",
+          "video": "このモデルは動画入力に対応していません"
+        },
+        "wireNotImplemented": {
+          "image": "現在の接続ではまだ画像を送信できません",
+          "file": "現在の接続ではまだファイルを送信できません",
+          "video": "現在の接続ではまだ動画を送信できません"
+        },
+        "killSwitch": {
+          "image": "このプロバイダーの画像入力は一時的に停止しています",
+          "file": "このプロバイダーのファイル入力は一時的に停止しています",
+          "video": "このプロバイダーの動画入力は一時的に停止しています"
+        },
+        "rejectedRecently": {
+          "image": "このモデルは先ほど画像を受け付けませんでした",
+          "file": "このモデルは先ほどファイルを受け付けませんでした",
+          "video": "このモデルは先ほど動画を受け付けませんでした"
+        },
+        "userRemoved": {
+          "image": "このモデルの画像入力はオフに設定されています",
+          "file": "このモデルのファイル入力はオフに設定されています",
+          "video": "このモデルの動画入力はオフに設定されています"
+        }
+      },
+      "resendWithout": {
+        "image": "画像を外して再送信",
+        "file": "ファイルを外して再送信",
+        "video": "動画を外して再送信"
+      },
+      "bubbleNotSentToModel": "このモデルには送信されていません"
+    }
   },
   "modelPricing": {
     "unknown": "価格不明",

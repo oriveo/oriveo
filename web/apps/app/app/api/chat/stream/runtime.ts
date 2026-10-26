@@ -12,11 +12,21 @@ import { PUBLIC_METADATA_BASE_URL } from '@oriveo/shared';
 import {
   assembleLeanFromSplit,
   expandMetadataCatalog,
+  retiredSnapshotForCatalog,
   indexCatalogRevision,
   isMetadataIndexPayload,
   type ExpandedMetadataCatalog,
   type MetadataIndexPayload,
 } from '../../../../lib/core/metadata/metadata-split';
+import { METADATA_REQUEST_SCHEMA, metadataSchemaQuery } from '../../../../lib/core/metadata/metadata-request-schema';
+import {
+  compareMetadataRevision,
+  decodeMetadataFullOrIndexV2,
+  isMetadataSchema2,
+  metadataRevisionOf,
+  metadataSchemaOf,
+  comparableHeldRevision,
+} from '../../../../lib/core/metadata/metadata-payload-v2';
 
 type SnapshotEntry =
   | { kind: 'split'; index: MetadataIndexPayload; etag: string | null; expiresAt: number }
@@ -26,6 +36,8 @@ type SnapshotEntry =
 interface CatalogEntry {
   catalog: ExpandedMetadataCatalog;
   etag: string | null;
+  /** metadataRevision of this provider's catalog body (null for schema 1); it only moves forward. */
+  metadataRevision: number | null;
 }
 
 const METADATA_TTL = 5 * 60 * 1000;
@@ -106,7 +118,7 @@ async function fetchSnapshot(): Promise<SnapshotEntry | null> {
       : null;
   if (validator) headers['If-None-Match'] = validator;
 
-  const res = await fetch(`${resolveMetadataBackendURL()}/api/metadata?view=index`, {
+  const res = await fetch(`${resolveMetadataBackendURL()}/api/metadata?view=index${metadataSchemaQuery(METADATA_REQUEST_SCHEMA)}`, {
     headers,
     cache: 'no-store',
   });
@@ -120,7 +132,20 @@ async function fetchSnapshot(): Promise<SnapshotEntry | null> {
   if (!res.ok) return snapshot;
 
   const payload = await res.json() as { data?: unknown } | unknown;
-  const data = unwrapRuntimeMetadata(payload);
+  let data = unwrapRuntimeMetadata(payload);
+  // The revision only moves forward (same rule as the client): equal counts as a 304 and renews the TTL, a regression is rejected and the previous copy kept.
+  const revisionVerdict = compareMetadataRevision(heldIndexMetadataRevision(data), metadataRevisionOf(data));
+  if (revisionVerdict === 'unchanged' && snapshot) {
+    snapshot = { ...snapshot, etag: res.headers.get('ETag') ?? snapshot.etag, expiresAt: Date.now() + METADATA_TTL };
+    return snapshot;
+  }
+  if (revisionVerdict === 'reject') return snapshot;
+  // schema 2 full / index: a broken envelope discards the whole payload (the previous copy stays); a broken provider or model only drops that entry.
+  if (isMetadataSchema2(data) && data.view !== 'lean') {
+    const decoded = decodeMetadataFullOrIndexV2(data);
+    if (decoded.envelope === 'reject') return snapshot;
+    data = decoded.data;
+  }
   if (isMetadataIndexPayload(data)) {
     snapshot = { kind: 'split', index: data, etag: res.headers.get('ETag'), expiresAt: Date.now() + METADATA_TTL };
     return snapshot;
@@ -133,6 +158,16 @@ async function fetchSnapshot(): Promise<SnapshotEntry | null> {
     expiresAt: Date.now() + METADATA_TTL,
   };
   return snapshot;
+}
+
+/** Revision of the index held (or of a full snapshot fetched from the index URL); a snapshot from the lean-view fallback is not compared. */
+function heldIndexMetadataRevision(incoming: unknown): number | null {
+  const held = snapshot?.kind === 'split'
+    ? snapshot.index
+    : snapshot?.kind === 'lean' && snapshot.etagView === 'index' ? snapshot.data : null;
+  if (!held) return null;
+  // Across schemas (cached schema 2, new body schema 3) revisions are not compared; the new data is accepted and replaces the old.
+  return comparableHeldRevision(metadataRevisionOf(held), metadataSchemaOf(held), incoming) ?? null;
 }
 
 /** Fallback for older servers: the full lean view, exactly as before the split view existed. */
@@ -170,7 +205,7 @@ async function ensureCatalog(kind: string): Promise<void> {
       if (!expected) return;
       const stored = catalogs.get(kind);
       if (stored?.catalog.revision === expected) return;
-      const outcome = await fetchCatalog(kind, expected, stored);
+      const outcome = await fetchCatalog(kind, expected, stored, snapshot.index);
       if (outcome !== 'revision_mismatch') return;
       // The revision disagrees with the index (most likely a snapshot activation landed in between):
       // refetch the index once and retry; if it still disagrees, keep the last-good copy.
@@ -187,11 +222,12 @@ async function fetchCatalog(
   kind: string,
   expectedRevision: string,
   stored: CatalogEntry | undefined,
+  index: MetadataIndexPayload,
 ): Promise<'accepted' | 'revision_mismatch' | 'kept'> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (stored?.etag) headers['If-None-Match'] = stored.etag;
   const res = await fetch(
-    `${resolveMetadataBackendURL()}/api/metadata?view=catalog&provider=${encodeURIComponent(kind)}`,
+    `${resolveMetadataBackendURL()}/api/metadata?view=catalog&provider=${encodeURIComponent(kind)}${metadataSchemaQuery(METADATA_REQUEST_SCHEMA)}`,
     { headers, cache: 'no-store' },
   );
   if (res.status === 304 && stored?.etag) {
@@ -200,7 +236,20 @@ async function fetchCatalog(
   // A 404 is not an empty catalog; like any other failure it keeps the last-good copy.
   if (!res.ok) return 'kept';
   const payload = await res.json() as { data?: unknown } | unknown;
-  const expanded = expandMetadataCatalog(unwrapRuntimeMetadata(payload), {
+  const data = unwrapRuntimeMetadata(payload);
+  // Compare against the revision recorded for this provider: equal counts as a 304, a regression is rejected and last-good kept.
+  const incomingRevision = metadataRevisionOf(data);
+  const revisionVerdict = compareMetadataRevision(
+    comparableHeldRevision(stored?.metadataRevision, stored?.catalog.metadataSchema ?? 2, data),
+    incomingRevision,
+  );
+  if (revisionVerdict === 'unchanged' && stored) {
+    const etag = res.headers.get('ETag');
+    if (etag && etag !== stored.etag) catalogs.set(kind, { ...stored, etag });
+    return stored.catalog.revision === expectedRevision ? 'kept' : 'revision_mismatch';
+  }
+  if (revisionVerdict === 'reject') return 'kept';
+  const expanded = expandMetadataCatalog(data, {
     provider: kind,
     revision: expectedRevision,
   });
@@ -208,7 +257,15 @@ async function fetchCatalog(
     // Unresolved ref or malformed shape: reject the whole catalog and keep the last-good copy.
     return expanded.reason === 'revision_mismatch' ? 'revision_mismatch' : 'kept';
   }
-  catalogs.set(kind, { catalog: expanded.catalog, etag: res.headers.get('ETag') });
+  // Tombstone snapshot: schema 3 takes the one the catalog carries, schema 1 / 2 take this provider's
+  // entry in the index at that moment; if the index later becomes schema 3 and a refetch of this
+  // provider fails, assembly keeps using this snapshot.
+  const retiredModels = retiredSnapshotForCatalog(expanded.catalog, index, kind);
+  catalogs.set(kind, {
+    catalog: { ...expanded.catalog, retiredModels },
+    etag: res.headers.get('ETag'),
+    metadataRevision: incomingRevision,
+  });
   return 'accepted';
 }
 

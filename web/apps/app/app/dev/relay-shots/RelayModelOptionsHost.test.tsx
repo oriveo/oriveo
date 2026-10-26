@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Provider } from '@oriveo/shared';
 
 const mocks = vi.hoisted(() => ({ providers: [] as Provider[] }));
@@ -33,6 +33,14 @@ const fakeStore = () => ({ getState: () => ({ setProviders: vi.fn() }), setState
 
 describe('relay shots model options host (production ModelOptionsPopover)', () => {
   let uninstall: (() => void) | null = null;
+  // Cold transpile of the host plus the production ModelOptionsPopover takes 6-7s under full-suite concurrency: load once first (timed separately) so it does not eat the 5s case budget;
+  // otherwise a timed-out case keeps rendering in the background and leaks into the next case's DOM.
+  beforeAll(async () => {
+    await import('./relay-shots-fence');
+    await import('./relay-shots-data');
+    await import('../../../lib/infra/storage/web-storage');
+    await import('./RelayModelOptionsHost');
+  }, 60_000);
   afterEach(() => {
     cleanup();
     uninstall?.();

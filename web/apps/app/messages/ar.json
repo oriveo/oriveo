@@ -175,7 +175,7 @@
     "capabilityRiskCost": "قد يزيد هذا الحقل الرسوم التي يفرضها المزود.",
     "customRequestFieldsDocs": "فتح الوثائق الرسمية",
     "customRequestFieldsPreview": "معاينة فرق الطلب المنقّح",
-    "resendWithoutSetting": "إعادة الإرسال بدون هذا الإعداد",
+    "resendWithoutSetting": "إعادة المحاولة دون هذا الإعداد",
     "generationBasicSettings": "الإعدادات الأساسية",
     "saveConnectionDefaults": "استخدام كإعدادات اتصال افتراضية",
     "generationDiagnosticsHistory": "سجل التشخيص",
@@ -726,7 +726,11 @@
         "confirmAlsoPriceLine": "ويتجاوز الطلب أيضًا عتبة السعر لدى {model} عند {line}، لذا يُحتسب الطلب كاملًا بسعر السياق الطويل.",
         "confirmDontAsk": "عدم السؤال مجددًا في هذه المحادثة",
         "confirmSend": "إرسال على أي حال"
-      }
+      },
+      "connectionRemovedBanner": "تم حذف الاتصال الذي كانت تستخدمه هذه المحادثة.",
+      "modelRetiredBanner": "تم إيقاف {model} نهائيًا.",
+      "modelRetiredSwitchTo": "التبديل إلى {model}",
+      "lastUsedModelRetiredHint": "النموذج الذي استخدمته آخر مرة أُوقف نهائيًا. يُستخدم الآن {model}."
     },
     "providerSetup": {
       "title": "إضافة مزود",
@@ -1694,8 +1698,6 @@
       "errorHydrateTitle": "تعذّر تحميل المحادثات الأخيرة",
       "errorHydrateMessage": "حاول لاحقًا أو اكتب يدويًا.",
       "errorGenericTitle": "فشل التوليد، يرجى الكتابة يدويًا",
-      "errorAggregated": "تمت تجربة {count} مزوّدين، فشلوا جميعًا.",
-      "errorAggregatedWithDetail": "تمت تجربة {count} مزوّدين، فشلوا جميعًا. آخر خطأ: {error}",
       "backToSettings": "العودة إلى الإعدادات",
       "used": {
         "chip": "الذاكرة",
@@ -1708,9 +1710,17 @@
       "groupPreferences": "التفضيلات",
       "groupInstructions": "تعليمات دائمة",
       "groupProjects": "ما أعمل عليه",
+      "groupConflicts": "يلزم اختيار نسخة واحدة",
+      "conflictThisDevice": "نسخة هذا الجهاز",
+      "conflictOtherDevice": "نسخة جهاز آخر",
+      "conflictKeep": "الإبقاء على هذه",
       "itemPausedBadge": "معطّل",
       "itemPinnedA11y": "مثبّت",
       "groupEpisodic": "الأحداث والقرارات",
+      "episodicLocalOnly": "محفوظة على هذا الجهاز فقط، ولا تتم مزامنتها أبدًا.",
+      "conflictNewer": "الأحدث",
+      "conflictOlder": "الأقدم",
+      "conflictKeepBoth": "الإبقاء على الاثنتين",
       "showAll": "عرض الكل ({count})",
       "kindDecision": "قرار",
       "kindEvent": "حدث",
@@ -1764,7 +1774,47 @@
     "file": "ملفات",
     "web": "ويب",
     "imageGeneration": "توليد صور",
-    "toolCall": "أدوات"
+    "toolCall": "أدوات",
+    "input": {
+      "hintFirstAttach": {
+        "image": "لم يُتحقَّق بعد من قدرة هذا النموذج على فهم الصور، وسيظهر تنبيه عند الفشل",
+        "file": "لم يُتحقَّق بعد من قدرة هذا النموذج على قراءة الملفات، وسيظهر تنبيه عند الفشل",
+        "video": "لم يُتحقَّق بعد من قدرة هذا النموذج على فهم الفيديو، وسيظهر تنبيه عند الفشل"
+      },
+      "disabled": {
+        "modelAbsent": {
+          "image": "هذا النموذج لا يدعم إدخال الصور",
+          "file": "هذا النموذج لا يدعم إدخال الملفات",
+          "video": "هذا النموذج لا يدعم إدخال الفيديو"
+        },
+        "wireNotImplemented": {
+          "image": "إرسال الصور غير متاح بعد عبر هذا الاتصال",
+          "file": "إرسال الملفات غير متاح بعد عبر هذا الاتصال",
+          "video": "إرسال الفيديو غير متاح بعد عبر هذا الاتصال"
+        },
+        "killSwitch": {
+          "image": "إدخال الصور متوقف مؤقتًا لدى هذا المزوّد",
+          "file": "إدخال الملفات متوقف مؤقتًا لدى هذا المزوّد",
+          "video": "إدخال الفيديو متوقف مؤقتًا لدى هذا المزوّد"
+        },
+        "rejectedRecently": {
+          "image": "رفض هذا النموذج صورة للتو",
+          "file": "رفض هذا النموذج ملفًا للتو",
+          "video": "رفض هذا النموذج مقطع فيديو للتو"
+        },
+        "userRemoved": {
+          "image": "إدخال الصور مُعطَّل لهذا النموذج حسب إعداداتك",
+          "file": "إدخال الملفات مُعطَّل لهذا النموذج حسب إعداداتك",
+          "video": "إدخال الفيديو مُعطَّل لهذا النموذج حسب إعداداتك"
+        }
+      },
+      "resendWithout": {
+        "image": "إعادة الإرسال دون الصور",
+        "file": "إعادة الإرسال دون الملفات",
+        "video": "إعادة الإرسال دون الفيديو"
+      },
+      "bubbleNotSentToModel": "لم يُرسَل إلى هذا النموذج"
+    }
   },
   "modelPricing": {
     "unknown": "السعر غير معروف",

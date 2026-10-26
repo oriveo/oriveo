@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
-import { ChevronRight, CirclePause, CirclePlay, MoreHorizontal, Pencil, Pin, PinOff, Plus, Smartphone, Sparkles, Trash2 } from 'lucide-react';
+import { ChevronRight, CirclePause, CirclePlay, MoreHorizontal, Pencil, Pin, PinOff, Plus, Smartphone, Trash2 } from 'lucide-react';
 import { MemoryItems, type MemoryItem } from '@oriveo/core/context/memory-items';
 import type { MemoryRecallResolution } from '@oriveo/core/context/memory-recall';
 import {
@@ -103,19 +103,25 @@ export function groupMemoryItems(items: readonly MemoryItem[]): MemoryItemGroups
   for (const item of ordered) {
     if (item.status === 'conflicted') {
       const key = item.conflictGroupId ?? item.id;
-      conflictMap.set(key, [...(conflictMap.get(key) ?? []), item]);
+      const bucket = conflictMap.get(key);
+      if (bucket) bucket.push(item);
+      else conflictMap.set(key, [item]);
       continue;
     }
     const category = categoryOfKind(item.kind);
     if (!category) continue;
-    byCategory.set(category, [...(byCategory.get(category) ?? []), item]);
+    const bucket = byCategory.get(category);
+    if (bucket) bucket.push(item);
+    else byCategory.set(category, [item]);
   }
 
   const episodicItems = visible.filter(isEpisodic);
   const episodicConflictMap = new Map<string, MemoryItem[]>();
   for (const item of episodicItems) {
     if (item.status !== 'conflicted' || item.conflictGroupId === null) continue;
-    episodicConflictMap.set(item.conflictGroupId, [...(episodicConflictMap.get(item.conflictGroupId) ?? []), item]);
+    const bucket = episodicConflictMap.get(item.conflictGroupId);
+    if (bucket) bucket.push(item);
+    else episodicConflictMap.set(item.conflictGroupId, [item]);
   }
   const episodicConflicts: MemoryL3ConflictPair[] = [];
   for (const pair of episodicConflictMap.values()) {
@@ -145,9 +151,9 @@ function splitEpisodicDate(date: string): { day: string; year: string } | null {
 /* ───────── Composition spectrum (sidebar) ───────── */
 
 /** Segmented bar of the four groups' counts, a legend, and the events total under a dashed rule. */
-export function MemorySpectrum({ items }: { items: readonly MemoryItem[] }) {
+export function MemorySpectrum({ groups: memoryGroups }: { groups: MemoryItemGroups }) {
   const t = useTranslations('pages.memory');
-  const { groups, episodic } = groupMemoryItems(items);
+  const { groups, episodic } = memoryGroups;
   return (
     <section className={styles.spectrumCard} data-testid="memory-spectrum">
       {groups.length > 0 && (
@@ -186,7 +192,8 @@ export function MemorySpectrum({ items }: { items: readonly MemoryItem[] }) {
 /* ───────── Item list ───────── */
 
 interface MemoryItemListProps {
-  items: readonly MemoryItem[];
+  /** groupMemoryItems output, computed once by the page and shared with MemorySpectrum. */
+  groups: MemoryItemGroups;
   localDeviceId: string;
   /** Folder id → name, for the episodic scope line. */
   folderNames?: ReadonlyMap<string, string>;
@@ -228,7 +235,7 @@ function GroupHeader({
 }
 
 export function MemoryItemList({
-  items,
+  groups: memoryGroups,
   localDeviceId,
   folderNames,
   onAdd,
@@ -242,7 +249,7 @@ export function MemoryItemList({
   onOrganize,
 }: MemoryItemListProps) {
   const t = useTranslations('pages.memory');
-  const { conflicts, episodicConflicts, groups, episodic } = groupMemoryItems(items);
+  const { conflicts, episodicConflicts, groups, episodic } = memoryGroups;
   const [showAllEpisodic, setShowAllEpisodic] = useState(false);
   const collapsed = !showAllEpisodic && episodic.length > EPISODIC_COLLAPSED_LIMIT;
   const shownEpisodic = collapsed ? episodic.slice(0, EPISODIC_COLLAPSED_LIMIT) : episodic;
@@ -530,7 +537,7 @@ function MemoryItemRow({ item, episodic, onEdit, onTogglePinned, onToggleStatus,
             </button>
             {!episodic && (
               <button type="button" role="menuitem" className={styles.itemMenuItem} onClick={() => choose(onOrganize)}>
-                <Sparkles size={15} strokeWidth={1.9} aria-hidden />
+                <MemorySparkleGlyph size={15} />
                 {t('actionOrganize')}
               </button>
             )}

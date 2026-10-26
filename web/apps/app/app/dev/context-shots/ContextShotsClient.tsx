@@ -6,6 +6,7 @@ import { getVanillaStore } from '../../../providers/StoreProvider';
 import { ChatView } from '../../../components/chat/ChatView';
 import { ContextSettingsPage } from '../../settings/context/ContextSettingsPage';
 import { relayShotsFenceInstalled } from '../relay-shots/relay-shots-fence';
+import { waitForElement } from '../../../lib/dev/shots-driver';
 import {
   applyContextShotPlan,
   contextShotPlan,
@@ -17,33 +18,6 @@ import {
 import type { ContextShotPage } from './context-shots-pages';
 
 type ShotState = { kind: 'preparing' } | { kind: 'refused' } | { kind: 'ready'; plan: ContextShotPlan };
-
-const DRIVE_TIMEOUT_MS = 10_000;
-
-/**
- * Wait until an element appears (data-testid / aria-label of the production page); returns null on timeout.
- * match is an optional second filter (for example by button text).
- */
-function waitForElement<T extends Element>(
-  selector: string,
-  signal: { cancelled: boolean },
-  match?: (element: T) => boolean,
-): Promise<T | null> {
-  const startedAt = Date.now();
-  return new Promise((resolve) => {
-    const tick = () => {
-      if (signal.cancelled) return resolve(null);
-      const element = [...document.querySelectorAll<T>(selector)].find((candidate) => !match || match(candidate));
-      if (element) return resolve(element);
-      if (Date.now() - startedAt > DRIVE_TIMEOUT_MS) {
-        console.warn(`[context-shots] timed out waiting for ${selector}`);
-        return resolve(null);
-      }
-      window.setTimeout(tick, 50);
-    };
-    tick();
-  });
-}
 
 /** Fixed clock: Date.now runs from the manifest moment (only inside the sample page, restored on unmount). */
 function pinClock(clockMs: number): () => void {
@@ -109,7 +83,7 @@ export function ContextShotsClient({ page, manifest }: { page: ContextShotPage; 
     const signal = { cancelled: false };
     const abort = new AbortController();
     const click = async <T extends HTMLElement>(selector: string, match?: (element: T) => boolean) => {
-      const element = await waitForElement<T>(selector, signal, match);
+      const element = await waitForElement<T>(selector, signal, { label: 'context-shots', match });
       element?.click();
       return element !== null;
     };

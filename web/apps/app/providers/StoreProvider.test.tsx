@@ -61,6 +61,22 @@ describe('StoreProvider', () => {
     expect(getVanillaStore().getState().hydrationPhase).toBe('ready');
   });
 
+  it('timeout fallback releases rendering without marking providers as loaded', async () => {
+    getVanillaStore().setState({ providersHydrated: false });
+    render(
+      <StoreProvider>
+        <div data-testid="app-ready" />
+      </StoreProvider>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(8000);
+    });
+
+    expect(getVanillaStore().getState().hydrationPhase).toBe('ready');
+    expect(getVanillaStore().getState().providersHydrated).toBe(false);
+  });
+
   it('timeout path triggers bootstrap_timed_out telemetry', async () => {
     render(
       <StoreProvider>

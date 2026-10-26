@@ -381,7 +381,7 @@ function catalogPriorityScore(
     score += 18;
   }
 
-  if (model.capabilities.includes("file")) {
+  if (provider && modelSupportsCapabilityFilter(provider, model, "file", capabilityPresentation)) {
     score += 12;
   }
 

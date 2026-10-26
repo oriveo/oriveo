@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTranslator } from 'use-intl/core';
 import { createStore, type StoreApi } from 'zustand/vanilla';
 import type { AIModel, AppPreference, Conversation, Provider } from '@oriveo/shared';
@@ -10,7 +10,9 @@ import type { BudgetCapOption, WindowKind } from '@oriveo/core/context/budget';
 import { ContextSettingsPage } from '../ContextSettingsPage';
 import { ContextUsagePanel } from '../../../../components/chat/ContextUsagePanel';
 import {
+  __resetMetadataClientForTest,
   __seedMetadataCacheForTest,
+  __settleMetadataBackgroundWorkForTest,
   initMetadata,
 } from '../../../../lib/core/metadata/metadata-client';
 import {
@@ -160,6 +162,11 @@ async function seedGrokMetadata() {
 }
 
 describe('ContextCapSettings', () => {
+  afterEach(async () => {
+    await __settleMetadataBackgroundWorkForTest();
+    __resetMetadataClientForTest();
+  });
+
   beforeEach(() => {
     mocks.messages = null;
     mockState = {

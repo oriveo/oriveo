@@ -175,7 +175,7 @@
     "capabilityRiskCost": "Bu alan sağlayıcının aldığı ücreti artırabilir.",
     "customRequestFieldsDocs": "Resmi belgeleri aç",
     "customRequestFieldsPreview": "Düzenlenmiş istek delta önizlemesi",
-    "resendWithoutSetting": "Bu ayar olmadan yeniden gönder",
+    "resendWithoutSetting": "Bu ayar olmadan yeniden dene",
     "generationBasicSettings": "Temel Ayarlar",
     "saveConnectionDefaults": "Bağlantı varsayılanı olarak kullan",
     "generationDiagnosticsHistory": "Tanılama geçmişi",
@@ -726,7 +726,11 @@
         "confirmAlsoPriceLine": "Ayrıca {model} için {line} fiyat eşiğini de aşıyor; bu yüzden isteğin tamamı uzun bağlam fiyatından ücretlendirilir.",
         "confirmDontAsk": "Bu sohbette bir daha sorma",
         "confirmSend": "Yine de gönder"
-      }
+      },
+      "connectionRemovedBanner": "Bu sohbetin kullandığı bağlantı silindi.",
+      "modelRetiredBanner": "{model} kullanımdan kaldırıldı.",
+      "modelRetiredSwitchTo": "{model} modeline geç",
+      "lastUsedModelRetiredHint": "Son kullandığınız model kullanımdan kaldırıldı. Artık {model} kullanılıyor."
     },
     "providerSetup": {
       "title": "Sağlayıcı Ekle",
@@ -1694,8 +1698,6 @@
       "errorHydrateTitle": "Son sohbetler yüklenemedi",
       "errorHydrateMessage": "Daha sonra tekrar deneyin veya elle yazın.",
       "errorGenericTitle": "Oluşturma başarısız oldu, lütfen manuel olarak yazın",
-      "errorAggregated": "{count} sağlayıcı denendi, hepsi başarısız.",
-      "errorAggregatedWithDetail": "{count} sağlayıcı denendi, hepsi başarısız. Son hata: {error}",
       "backToSettings": "Ayarlara dön",
       "used": {
         "chip": "Bellek",
@@ -1708,9 +1710,17 @@
       "groupPreferences": "Tercihler",
       "groupInstructions": "Kalıcı talimatlar",
       "groupProjects": "Üzerinde çalıştıklarım",
+      "groupConflicts": "Saklanacak sürümü seçin",
+      "conflictThisDevice": "Bu cihazdaki sürüm",
+      "conflictOtherDevice": "Diğer cihazdaki sürüm",
+      "conflictKeep": "Bunu sakla",
       "itemPausedBadge": "Kapalı",
       "itemPinnedA11y": "Sabitlenmiş",
       "groupEpisodic": "Olaylar ve kararlar",
+      "episodicLocalOnly": "Yalnızca bu cihazda saklanır. Hiçbir zaman eşzamanlanmaz.",
+      "conflictNewer": "Daha yeni",
+      "conflictOlder": "Daha eski",
+      "conflictKeepBoth": "İkisini de sakla",
       "showAll": "Tümünü göster ({count})",
       "kindDecision": "Karar",
       "kindEvent": "Olay",
@@ -1764,7 +1774,47 @@
     "file": "Dosyalar",
     "web": "Web",
     "imageGeneration": "Görsel oluşturma",
-    "toolCall": "Araçlar"
+    "toolCall": "Araçlar",
+    "input": {
+      "hintFirstAttach": {
+        "image": "Bu modelin görselleri tanıyıp tanıyamadığı henüz doğrulanmadı. Başarısız olursa size bildireceğiz",
+        "file": "Bu modelin dosyaları okuyup okuyamadığı henüz doğrulanmadı. Başarısız olursa size bildireceğiz",
+        "video": "Bu modelin videoları anlayıp anlayamadığı henüz doğrulanmadı. Başarısız olursa size bildireceğiz"
+      },
+      "disabled": {
+        "modelAbsent": {
+          "image": "Bu model görselleri desteklemiyor",
+          "file": "Bu model dosyaları desteklemiyor",
+          "video": "Bu model videoları desteklemiyor"
+        },
+        "wireNotImplemented": {
+          "image": "Bu bağlantı henüz görsel gönderemiyor",
+          "file": "Bu bağlantı henüz dosya gönderemiyor",
+          "video": "Bu bağlantı henüz video gönderemiyor"
+        },
+        "killSwitch": {
+          "image": "Bu sağlayıcıya görsel gönderimi geçici olarak kapalı",
+          "file": "Bu sağlayıcıya dosya gönderimi geçici olarak kapalı",
+          "video": "Bu sağlayıcıya video gönderimi geçici olarak kapalı"
+        },
+        "rejectedRecently": {
+          "image": "Bu model az önce bir görseli reddetti",
+          "file": "Bu model az önce bir dosyayı reddetti",
+          "video": "Bu model az önce bir videoyu reddetti"
+        },
+        "userRemoved": {
+          "image": "Bu model için görsel gönderimini kapattınız",
+          "file": "Bu model için dosya gönderimini kapattınız",
+          "video": "Bu model için video gönderimini kapattınız"
+        }
+      },
+      "resendWithout": {
+        "image": "Görsel olmadan yeniden gönder",
+        "file": "Dosya olmadan yeniden gönder",
+        "video": "Video olmadan yeniden gönder"
+      },
+      "bubbleNotSentToModel": "Bu modele gönderilmedi"
+    }
   },
   "modelPricing": {
     "unknown": "Fiyat bilinmiyor",

@@ -4,6 +4,7 @@ import type { MonthlyCostSummary } from '../../lib/core/cost/cost-summary';
 import { ProviderCostSummaryCard } from './ProviderCostSummaryCard';
 
 vi.mock('next-intl', () => ({
+  useLocale: () => 'en-US',
   useTranslations: () => (key: string, values?: Record<string, unknown>) => {
     switch (key) {
       case 'byProvider':
@@ -50,6 +51,43 @@ const singleProviderSummary: MonthlyCostSummary = {
 };
 
 describe('ProviderCostSummaryCard', () => {
+  it('mixed currencies: total and legend show USD and CNY separately; a CNY-only row shows no $0 and no 0% share', () => {
+    const summary: MonthlyCostSummary = {
+      totalCost: 1.2,
+      nonUsdTotals: { CNY: 3.5 },
+      providers: [
+        { providerKind: 'openAI', providerID: 'openai-1', displayName: 'OpenAI', cost: 1.2 },
+        { providerKind: 'deepseek', providerID: 'deepseek-1', displayName: 'DeepSeek', cost: 0, nonUsdTotals: { CNY: 3.5 } },
+      ],
+      hiddenProviderCount: 0,
+      isVisible: true,
+      source: 'local_device',
+    };
+    const { container } = render(<ProviderCostSummaryCard summary={summary} />);
+
+    expect(container.textContent).toContain('1.20 + CN¥3.50');
+    const cnyRow = screen.getByTestId('provider-breakdown-row-deepseek|deepseek-1');
+    expect(cnyRow.textContent).toContain('CN¥3.50');
+    expect(cnyRow.textContent).not.toContain('$0');
+    expect(cnyRow.textContent).not.toContain('0%');
+  });
+
+  it('a CNY-only month does not show $0 as the total', () => {
+    const summary: MonthlyCostSummary = {
+      totalCost: 0,
+      nonUsdTotals: { CNY: 3.5 },
+      providers: [
+        { providerKind: 'deepseek', providerID: 'deepseek-1', displayName: 'DeepSeek', cost: 0, nonUsdTotals: { CNY: 3.5 } },
+      ],
+      hiddenProviderCount: 0,
+      isVisible: true,
+      source: 'local_device',
+    };
+    const { container } = render(<ProviderCostSummaryCard summary={summary} />);
+    expect(container.textContent).toContain('CN¥3.50');
+    expect(container.textContent).not.toContain('$0');
+  });
+
   it('renders the iOS-aligned cost card with By Provider eyebrow, segmented bar, and Capsule chip legend', () => {
     const onOpenDetails = vi.fn();
 

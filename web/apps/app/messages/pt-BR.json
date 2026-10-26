@@ -175,7 +175,7 @@
     "capabilityRiskCost": "Este campo pode aumentar o valor cobrado pelo provedor.",
     "customRequestFieldsDocs": "Abrir documentação oficial",
     "customRequestFieldsPreview": "Prévia de delta de solicitação com dados ocultos",
-    "resendWithoutSetting": "Reenviar sem esta configuração",
+    "resendWithoutSetting": "Tentar novamente sem esta configuração",
     "generationBasicSettings": "Configurações básicas",
     "saveConnectionDefaults": "Usar como padrão da conexão",
     "generationDiagnosticsHistory": "Histórico de diagnóstico",
@@ -726,7 +726,11 @@
         "confirmAlsoPriceLine": "Além disso, passa do patamar de preço de {model}, que é de {line}, então a solicitação inteira é cobrada pelo preço de contexto longo.",
         "confirmDontAsk": "Não perguntar de novo nesta conversa",
         "confirmSend": "Enviar mesmo assim"
-      }
+      },
+      "connectionRemovedBanner": "A conexão usada nesta conversa foi excluída.",
+      "modelRetiredBanner": "{model} foi descontinuado.",
+      "modelRetiredSwitchTo": "Mudar para {model}",
+      "lastUsedModelRetiredHint": "O modelo que você usou por último foi descontinuado. Agora você está usando {model}."
     },
     "providerSetup": {
       "title": "Adicionar provedor",
@@ -1694,8 +1698,6 @@
       "errorHydrateTitle": "Não foi possível carregar conversas recentes",
       "errorHydrateMessage": "Tente novamente mais tarde ou escreva manualmente.",
       "errorGenericTitle": "A geração falhou, escreva manualmente",
-      "errorAggregated": "Tentamos {count} provedores, todos falharam.",
-      "errorAggregatedWithDetail": "Tentamos {count} provedores, todos falharam. Último erro: {error}",
       "backToSettings": "Voltar para Configurações",
       "used": {
         "chip": "Memória",
@@ -1708,9 +1710,17 @@
       "groupPreferences": "Preferências",
       "groupInstructions": "Instruções permanentes",
       "groupProjects": "No que estou trabalhando",
+      "groupConflicts": "Escolha qual manter",
+      "conflictThisDevice": "Versão deste dispositivo",
+      "conflictOtherDevice": "Versão de outro dispositivo",
+      "conflictKeep": "Manter esta",
       "itemPausedBadge": "Desativada",
       "itemPinnedA11y": "Fixada",
       "groupEpisodic": "Eventos e decisões",
+      "episodicLocalOnly": "Salvo só neste dispositivo. Nunca é sincronizado.",
+      "conflictNewer": "Mais recente",
+      "conflictOlder": "Mais antiga",
+      "conflictKeepBoth": "Manter ambas",
       "showAll": "Mostrar tudo ({count})",
       "kindDecision": "Decisão",
       "kindEvent": "Evento",
@@ -1764,7 +1774,47 @@
     "file": "Arquivos",
     "web": "Web",
     "imageGeneration": "Gerar imagens",
-    "toolCall": "Ferramentas"
+    "toolCall": "Ferramentas",
+    "input": {
+      "hintFirstAttach": {
+        "image": "Ainda não confirmamos se este modelo consegue ver imagens. Se não conseguir, vamos avisar você",
+        "file": "Ainda não confirmamos se este modelo consegue ler arquivos. Se não conseguir, vamos avisar você",
+        "video": "Ainda não confirmamos se este modelo consegue entender vídeos. Se não conseguir, vamos avisar você"
+      },
+      "disabled": {
+        "modelAbsent": {
+          "image": "Este modelo não aceita imagens",
+          "file": "Este modelo não aceita arquivos",
+          "video": "Este modelo não aceita vídeos"
+        },
+        "wireNotImplemented": {
+          "image": "Esta conexão ainda não consegue enviar imagens",
+          "file": "Esta conexão ainda não consegue enviar arquivos",
+          "video": "Esta conexão ainda não consegue enviar vídeos"
+        },
+        "killSwitch": {
+          "image": "O envio de imagens está temporariamente desativado para este provedor",
+          "file": "O envio de arquivos está temporariamente desativado para este provedor",
+          "video": "O envio de vídeos está temporariamente desativado para este provedor"
+        },
+        "rejectedRecently": {
+          "image": "Este modelo acabou de recusar uma imagem",
+          "file": "Este modelo acabou de recusar um arquivo",
+          "video": "Este modelo acabou de recusar um vídeo"
+        },
+        "userRemoved": {
+          "image": "Você desativou o envio de imagens para este modelo",
+          "file": "Você desativou o envio de arquivos para este modelo",
+          "video": "Você desativou o envio de vídeos para este modelo"
+        }
+      },
+      "resendWithout": {
+        "image": "Reenviar sem imagens",
+        "file": "Reenviar sem arquivos",
+        "video": "Reenviar sem vídeos"
+      },
+      "bubbleNotSentToModel": "Não enviado a este modelo"
+    }
   },
   "modelPricing": {
     "unknown": "Preço desconhecido",

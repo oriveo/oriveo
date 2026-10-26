@@ -2,9 +2,9 @@
 
 import type { CSSProperties } from 'react';
 import { useMemo } from 'react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { CreditCard } from 'lucide-react';
-import { formatCost } from '../../lib/utils/format-utils';
+import { formatCostTotals, hasNonUsdCostTotals } from '../../lib/core/cost/cost-currency';
 import type { MonthlyCostSummary } from '../../lib/core/cost/cost-summary';
 import styles from './ProviderCostSummaryCard.module.css';
 
@@ -70,9 +70,11 @@ function useMonthLabel(): string {
 
 export function ProviderCostSummaryCard({ summary, onOpenDetails }: ProviderCostSummaryCardProps) {
   const t = useTranslations('pages.chat.costSummary');
+  const locale = useLocale();
   const subtitle = t('localSubtitle');
   const monthLabel = useMonthLabel();
-  const totalText = formatCost(summary.totalCost) || '$0';
+  // USD and non-USD amounts are shown separately and never summed; a month with only non-USD spend is not shown as $0
+  const totalText = formatCostTotals(summary.totalCost, summary.nonUsdTotals, locale) || '$0';
   const { dollar, body: amountBody } = splitCostText(totalText);
 
   // With one provider and nothing hidden the bar is a single 100% segment, which is pure decoration, so hide it.
@@ -187,8 +189,11 @@ export function ProviderCostSummaryCard({ summary, onOpenDetails }: ProviderCost
                   >
                     <span className={styles.legendChip} style={chipVars} aria-hidden="true" />
                     <span className={styles.legendName}>{provider.displayName}</span>
-                    <span className={styles.legendCost}>{formatCost(provider.cost)}</span>
-                    <span className={styles.legendShare}>{formatShare(provider.cost, summary.totalCost)}</span>
+                    <span className={styles.legendCost}>{formatCostTotals(provider.cost, provider.nonUsdTotals, locale)}</span>
+                    {/* Share is computed on USD only; a non-USD-only row has no share, so no 0% is shown */}
+                    {provider.cost <= 0 && hasNonUsdCostTotals(provider.nonUsdTotals) ? null : (
+                      <span className={styles.legendShare}>{formatShare(provider.cost, summary.totalCost)}</span>
+                    )}
                   </div>
                 );
               })}

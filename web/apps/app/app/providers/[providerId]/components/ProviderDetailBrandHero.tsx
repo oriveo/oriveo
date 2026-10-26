@@ -15,6 +15,8 @@ import styles from './ProviderDetailBrandHero.module.css';
 interface ProviderDetailBrandHeroProps {
   provider: Provider;
   onStartChat?: () => void;
+  /** Model selection result from the same source as onStartChat (useProviderChatLauncher.startChatModelID); the button is unavailable when null. */
+  startChatModelID?: string | null;
   onVerifyConnection?: () => void;
   resyncLabel?: string;
   onEditApiKey?: () => void;
@@ -85,6 +87,7 @@ function statusLabel(
 export function ProviderDetailBrandHero({
   provider,
   onStartChat,
+  startChatModelID = null,
   onVerifyConnection,
   resyncLabel,
   onEditApiKey,
@@ -136,7 +139,8 @@ export function ProviderDetailBrandHero({
   const watermark = resolveProviderWatermark(provider.kind);
 
   // Chat can only start when at least one model is enabled (aligned with iOS canStartChat).
-  const canStartChat = provider.models.length > 0;
+  // Availability and the click share one source: chat can start only when new-conversation model selection scoped to this connection yields a model
+  const canStartChat = startChatModelID != null;
   const supportsResync = !isRelay; // Relay liveness checks happen on the relay editor page, so the detail page shows no Verify action.
 
   const showsActionSection = (canStartChat && Boolean(onStartChat)) || (supportsResync && Boolean(onVerifyConnection));

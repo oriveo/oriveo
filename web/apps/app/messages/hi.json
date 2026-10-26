@@ -175,7 +175,7 @@
     "capabilityRiskCost": "यह फ़ील्ड प्रोवाइडर के शुल्क को बढ़ा सकता है।",
     "customRequestFieldsDocs": "आधिकारिक दस्तावेज़ खोलें",
     "customRequestFieldsPreview": "संपादित अनुरोध डेल्टा पूर्वावलोकन",
-    "resendWithoutSetting": "इस सेटिंग के बिना फ़िर भेजें",
+    "resendWithoutSetting": "इस सेटिंग के बिना फिर से आज़माएँ",
     "generationBasicSettings": "बुनियादी सेटिंग्स",
     "saveConnectionDefaults": "कनेक्शन डिफ़ॉल्ट के रूप में उपयोग करें",
     "generationDiagnosticsHistory": "डायग्नोस्टिक इतिहास",
@@ -726,7 +726,11 @@
         "confirmAlsoPriceLine": "यह अनुरोध {model} की {line} वाली ऊँची दर की रेखा से भी ऊपर जाता है, इसलिए पूरे अनुरोध का बिल लॉन्ग कॉन्टेक्स्ट की दर से बनेगा।",
         "confirmDontAsk": "इस चैट में दोबारा न पूछें",
         "confirmSend": "फिर भी भेजें"
-      }
+      },
+      "connectionRemovedBanner": "इस चैट का कनेक्शन हटा दिया गया है।",
+      "modelRetiredBanner": "{model} अब बंद हो चुका है।",
+      "modelRetiredSwitchTo": "{model} पर स्विच करें",
+      "lastUsedModelRetiredHint": "पिछली बार इस्तेमाल किया गया मॉडल बंद हो चुका है। अब {model} इस्तेमाल हो रहा है।"
     },
     "providerSetup": {
       "title": "प्रोवाइडर जोड़ें",
@@ -1694,8 +1698,6 @@
       "errorHydrateTitle": "हाल की बातचीत लोड नहीं हो सकी",
       "errorHydrateMessage": "बाद में पुनः प्रयास करें या स्वयं लिखें।",
       "errorGenericTitle": "जनरेशन विफल, कृपया मैन्युअल रूप से लिखें",
-      "errorAggregated": "{count} प्रोवाइडरों को आजमाया, सभी विफल रहे।",
-      "errorAggregatedWithDetail": "{count} प्रोवाइडरों को आजमाया, सभी विफल रहे। अंतिम त्रुटि: {error}",
       "backToSettings": "सेटिंग्स पर वापस जाएं",
       "used": {
         "chip": "मेमोरी",
@@ -1708,9 +1710,17 @@
       "groupPreferences": "पसंद",
       "groupInstructions": "हमेशा लागू निर्देश",
       "groupProjects": "अभी चल रहे काम",
+      "groupConflicts": "रखने के लिए एक चुनें",
+      "conflictThisDevice": "इस डिवाइस का वर्शन",
+      "conflictOtherDevice": "दूसरे डिवाइस का वर्शन",
+      "conflictKeep": "इसे रखें",
       "itemPausedBadge": "बंद",
       "itemPinnedA11y": "पिन किया गया",
       "groupEpisodic": "घटनाएँ और फ़ैसले",
+      "episodicLocalOnly": "सिर्फ़ इस डिवाइस पर सहेजा जाता है। कभी सिंक नहीं होता।",
+      "conflictNewer": "हाल का",
+      "conflictOlder": "पहले का",
+      "conflictKeepBoth": "दोनों रखें",
       "showAll": "सभी दिखाएँ ({count})",
       "kindDecision": "फ़ैसला",
       "kindEvent": "घटनाएँ",
@@ -1764,7 +1774,47 @@
     "file": "फ़ाइलें",
     "web": "वेब",
     "imageGeneration": "इमेज जनरेशन",
-    "toolCall": "टूल्स"
+    "toolCall": "टूल्स",
+    "input": {
+      "hintFirstAttach": {
+        "image": "अभी पुष्टि नहीं हुई है कि यह मॉडल इमेज समझ सकता है या नहीं। विफल होने पर आपको बताया जाएगा",
+        "file": "अभी पुष्टि नहीं हुई है कि यह मॉडल फ़ाइलें पढ़ सकता है या नहीं। विफल होने पर आपको बताया जाएगा",
+        "video": "अभी पुष्टि नहीं हुई है कि यह मॉडल वीडियो समझ सकता है या नहीं। विफल होने पर आपको बताया जाएगा"
+      },
+      "disabled": {
+        "modelAbsent": {
+          "image": "यह मॉडल इमेज इनपुट सपोर्ट नहीं करता",
+          "file": "यह मॉडल फ़ाइल इनपुट सपोर्ट नहीं करता",
+          "video": "यह मॉडल वीडियो इनपुट सपोर्ट नहीं करता"
+        },
+        "wireNotImplemented": {
+          "image": "इस कनेक्शन से अभी इमेज नहीं भेजी जा सकतीं",
+          "file": "इस कनेक्शन से अभी फ़ाइलें नहीं भेजी जा सकतीं",
+          "video": "इस कनेक्शन से अभी वीडियो नहीं भेजे जा सकते"
+        },
+        "killSwitch": {
+          "image": "इस प्रोवाइडर के लिए इमेज इनपुट अस्थायी रूप से बंद है",
+          "file": "इस प्रोवाइडर के लिए फ़ाइल इनपुट अस्थायी रूप से बंद है",
+          "video": "इस प्रोवाइडर के लिए वीडियो इनपुट अस्थायी रूप से बंद है"
+        },
+        "rejectedRecently": {
+          "image": "इस मॉडल ने अभी-अभी एक इमेज अस्वीकार की",
+          "file": "इस मॉडल ने अभी-अभी एक फ़ाइल अस्वीकार की",
+          "video": "इस मॉडल ने अभी-अभी एक वीडियो अस्वीकार किया"
+        },
+        "userRemoved": {
+          "image": "आपने इस मॉडल के लिए इमेज इनपुट बंद किया है",
+          "file": "आपने इस मॉडल के लिए फ़ाइल इनपुट बंद किया है",
+          "video": "आपने इस मॉडल के लिए वीडियो इनपुट बंद किया है"
+        }
+      },
+      "resendWithout": {
+        "image": "इमेज हटाकर फिर से भेजें",
+        "file": "फ़ाइलें हटाकर फिर से भेजें",
+        "video": "वीडियो हटाकर फिर से भेजें"
+      },
+      "bubbleNotSentToModel": "इस मॉडल को नहीं भेजा गया"
+    }
   },
   "modelPricing": {
     "unknown": "कीमत अज्ञात",

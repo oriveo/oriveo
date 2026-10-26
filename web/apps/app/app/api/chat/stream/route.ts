@@ -53,6 +53,7 @@ const ERROR_SOURCE_HEADER = "X-Oriveo-Error-Source";
 const CONTINUATION_KIND_HEADER = 'X-Oriveo-Continuation-Kind';
 const CONTINUATION_PROTOCOL_HEADER = 'X-Oriveo-Continuation-Protocol';
 const CONTINUATION_PARSER_HEADER = 'X-Oriveo-Continuation-Parser';
+const CONTINUATION_INSTRUCTIONS_MODE_HEADER = 'X-Oriveo-Continuation-Instructions-Mode';
 const CAPABILITY_RESULT_HEADER = 'X-Oriveo-Capability-Result';
 
 export async function POST(request: NextRequest) {
@@ -276,6 +277,9 @@ export async function POST(request: NextRequest) {
           [CONTINUATION_KIND_HEADER]: activeReq.continuationCapture.kind,
           [CONTINUATION_PROTOCOL_HEADER]: activeReq.continuationCapture.protocol,
           [CONTINUATION_PARSER_HEADER]: activeReq.continuationCapture.responseParserKind,
+          ...(activeReq.continuationCapture.instructionsMode
+            ? { [CONTINUATION_INSTRUCTIONS_MODE_HEADER]: activeReq.continuationCapture.instructionsMode }
+            : {}),
         } : {}),
       },
     });
@@ -342,7 +346,7 @@ function safeCustomFragmentRejectionReason(error: unknown): string | null {
   return matched?.[1] ?? null;
 }
 
-function withExecutionHeaders(response: Response, request: { capabilityExecution?: unknown; continuationCapture?: { kind: string; protocol: string; responseParserKind: string } }): Response {
+function withExecutionHeaders(response: Response, request: { capabilityExecution?: unknown; continuationCapture?: { kind: string; protocol: string; responseParserKind: string; instructionsMode?: 'resend' | 'omit' } }): Response {
   return mergeExecutionResponse(response, capabilityResultHeaders(request as Parameters<typeof capabilityResultHeaders>[0]), request.continuationCapture);
 }
 

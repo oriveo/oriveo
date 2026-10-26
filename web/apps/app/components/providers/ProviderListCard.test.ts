@@ -131,6 +131,19 @@ describe('ProviderListCard rendering', () => {
     });
   });
 
+  it('usage shows USD and non-USD parts separately; a non-USD-only month is not $0', () => {
+    expect(resolveProviderListTrailingAmount('openAI', 1.2, null, 'en-US', { CNY: 3.5 })).toEqual({
+      label: 'usageLabel',
+      text: '$1.20 + CN¥3.50',
+      isZero: false,
+    });
+    expect(resolveProviderListTrailingAmount('openAI', 0, null, 'zh-Hans', { CNY: 3.5 })).toEqual({
+      label: 'usageLabel',
+      text: '¥3.50',
+      isZero: false,
+    });
+  });
+
   // Per-provider spend is local estimatedCost; it is not a hosted usage report.
   it('shows local per-provider spend', () => {
     expect(resolveProviderListTrailingAmount('openAI', 31.2, null, 'en-US')).toEqual({

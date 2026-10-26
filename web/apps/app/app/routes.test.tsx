@@ -241,6 +241,48 @@ describe('app routes', () => {
     expect(screen.getByText('folder-detail-folder-9')).toBeTruthy();
   });
 
+  it('folder detail rows show conversation cost per currency; a CNY-only conversation is not $0', async () => {
+    const { FolderDetailView: RealFolderDetailView } = await vi.importActual<
+      typeof import('../components/sidebar/FolderDetailView')
+    >('../components/sidebar/FolderDetailView');
+    const { NextIntlClientProvider } = await import('next-intl');
+    const conversation = (id: string, title: string, estimatedCost: number, nonUsdCostTotals?: Record<string, number>) => ({
+      id,
+      title,
+      hasCustomTitle: true,
+      providerID: 'provider-1',
+      modelID: 'model-1',
+      previewText: '',
+      estimatedCost,
+      ...(nonUsdCostTotals ? { nonUsdCostTotals } : {}),
+      isDraft: false,
+      messages: [],
+      draftText: '',
+      folderID: 'folder-1',
+      updatedAt: '2026-03-01T00:00:00Z',
+      createdAt: '2026-03-01T00:00:00Z',
+    });
+    Object.assign(mocks.mockState, {
+      folders: [{ id: 'folder-1', name: 'Work' }],
+      conversations: [
+        conversation('c-mixed', 'Mixed', 1.2, { CNY: 3.5 }),
+        conversation('c-cny', 'Yuan only', 0, { CNY: 0.0039 }),
+      ],
+    });
+    try {
+      const { container } = render(
+        <NextIntlClientProvider locale="en" messages={{ sidebar: { untitled: 'Untitled', back: 'Back' } }} onError={() => {}}>
+          <RealFolderDetailView folderId="folder-1" />
+        </NextIntlClientProvider>,
+      );
+      expect(screen.getByText('$1.20 + CN¥3.50')).toBeTruthy();
+      expect(screen.getByText('CN¥0.0039')).toBeTruthy();
+      expect(container.textContent).not.toContain('$0');
+    } finally {
+      Object.assign(mocks.mockState, { folders: undefined, conversations: undefined });
+    }
+  });
+
   it('renders the relay setup route', () => {
     render(<RelayNewPage />);
     expect(screen.getByText('relay-setup-screen')).toBeTruthy();

@@ -17,6 +17,7 @@ import type { Provider } from '@oriveo/shared';
 import type { RelayKeyOp } from '@oriveo/shared/relay/relay-keys';
 import { BackButton, Button } from '@oriveo/ui';
 import { applyRelayKeyOperation } from '../../../../lib/core/relay-model-probe-ops';
+import { relayProviderRequiresCredential } from '../../../../lib/core/providers/relay-runtime-support';
 import { getVanillaStore } from '../../../../providers/StoreProvider';
 import { relayShotSeed } from '../../../../lib/dev/relay-shots-mode';
 import { formatCompactRelativeTime } from '../../../../lib/utils/format-utils';
@@ -523,6 +524,7 @@ export function RelayKeysPage({
 
       {sheet?.type === 'add' && (
         <AddKeyDialog
+          requiresCredential={relayProviderRequiresCredential(provider)}
           validateKey={validateKey}
           onClose={() => setSheet(null)}
           onSave={(name, apiKey) => {
@@ -642,10 +644,12 @@ function RenameKeyDialog({
 }
 
 function AddKeyDialog({
+  requiresCredential,
   validateKey,
   onClose,
   onSave,
 }: {
+  requiresCredential: boolean;
   validateKey: (raw: string) => RelayKeyCheck;
   onClose: () => void;
   onSave: (name: string, apiKey: string) => void;
@@ -662,8 +666,9 @@ function AddKeyDialog({
   const [error, setError] = useState<string | null>(null);
   const save = () => {
     const apiKey = secret.trim();
-    if (!apiKey) {
-      setError(tRoot('pages.relayDetail.apiKeyRequired'));
+    // Required-ness depends only on requiresCredential; a blank auth=none connection is not flagged as required and no empty key is added to the pool.
+    if (apiKey.length === 0) {
+      if (requiresCredential) setError(tRoot('pages.relayDetail.apiKeyRequired'));
       return;
     }
     const check = validateKey(apiKey);

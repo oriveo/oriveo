@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getVanillaStore } from '../../../providers/StoreProvider';
 import { setRelayShotSeed } from '../../../lib/dev/relay-shots-mode';
+import { waitForElement } from '../../../lib/dev/shots-driver';
 import { safeLocalStorage } from '../../../lib/infra/storage/web-storage';
 import { ProviderDetailRouter } from '../../providers/[providerId]/ProviderDetailRouter';
 import { RelaySetup } from '../../providers/relay/new/RelaySetup';
@@ -13,35 +14,15 @@ import type { RelayShotPage } from './relay-shots-pages';
 
 type ShotState = { kind: 'preparing' } | { kind: 'refused' } | { kind: 'ready'; plan: RelayShotPlan };
 
-const DRIVE_TIMEOUT_MS = 10_000;
-
-/** Wait until an element appears (a data-testid / id the production page already carries); returns null on timeout. */
-function waitForElement<T extends Element>(selector: string, signal: { cancelled: boolean }): Promise<T | null> {
-  const startedAt = Date.now();
-  return new Promise((resolve) => {
-    const tick = () => {
-      if (signal.cancelled) return resolve(null);
-      const element = document.querySelector<T>(selector);
-      if (element && !(element as unknown as HTMLButtonElement).disabled) return resolve(element);
-      if (Date.now() - startedAt > DRIVE_TIMEOUT_MS) {
-        console.warn(`[relay-shots] timed out waiting for ${selector}`);
-        return resolve(null);
-      }
-      window.setTimeout(tick, 50);
-    };
-    tick();
-  });
-}
-
 async function drive(kind: RelayShotDrive, signal: { cancelled: boolean }): Promise<void> {
   if (kind === 'detect') {
     // Step 1 has the address and key filled in -> click Next; the fake relay answers the catalog and step 2 opens automatically.
-    (await waitForElement<HTMLButtonElement>('[data-testid="relay_setup_next_button"]', signal))?.click();
+    (await waitForElement<HTMLButtonElement>('[data-testid="relay_setup_next_button"]', signal, { label: 'relay-shots', match: (button) => !button.disabled }))?.click();
     return;
   }
   if (kind === 'manualSubmit') {
     // Manual setup: click "Verify and save" -> the fake relay answers 401 -> the production page dismisses the keyboard and scrolls to the failure card (same as iOS / Android; shots no longer steal focus).
-    (await waitForElement<HTMLButtonElement>('[data-testid="relay_manual_setup_primary_button"]', signal))?.click();
+    (await waitForElement<HTMLButtonElement>('[data-testid="relay_manual_setup_primary_button"]', signal, { label: 'relay-shots', match: (button) => !button.disabled }))?.click();
   }
 }
 

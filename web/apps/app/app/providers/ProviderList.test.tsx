@@ -32,14 +32,16 @@ vi.mock('../../components/providers/ProvidersClusterHeader', () => ({
 }));
 
 vi.mock('../../components/providers/ProviderListCard', () => ({
-  ProviderListCard: ({ provider, providerBalance, onClick }: {
+  ProviderListCard: ({ provider, monthlyNonUsdTotals, providerBalance, onClick }: {
     provider: Provider;
+    monthlyNonUsdTotals?: Record<string, number>;
     providerBalance?: { total: number } | null;
     onClick: () => void;
   }) => (
     <button
       data-testid={`provider-card-${provider.id}`}
       data-provider-balance={providerBalance?.total ?? ''}
+      data-non-usd={JSON.stringify(monthlyNonUsdTotals ?? null)}
       onClick={onClick}
     >
       {provider.id}
@@ -48,8 +50,18 @@ vi.mock('../../components/providers/ProviderListCard', () => ({
 }));
 
 vi.mock('../../components/providers/ProviderHeroCard', () => ({
-  ProviderHeroCard: ({ provider, onClick }: { provider: Provider; onClick: () => void }) => (
-    <button data-testid={`provider-hero-${provider.id}`} onClick={onClick}>
+  ProviderHeroCard: ({ provider, monthlyNonUsdTotals, dailyNonUsdCostsLast7Days, onClick }: {
+    provider: Provider;
+    monthlyNonUsdTotals?: Record<string, number>;
+    dailyNonUsdCostsLast7Days?: Array<Record<string, number> | undefined>;
+    onClick: () => void;
+  }) => (
+    <button
+      data-testid={`provider-hero-${provider.id}`}
+      data-non-usd={JSON.stringify(monthlyNonUsdTotals ?? null)}
+      data-today-non-usd={JSON.stringify(dailyNonUsdCostsLast7Days?.[6] ?? null)}
+      onClick={onClick}
+    >
       hero
     </button>
   ),
@@ -58,10 +70,11 @@ vi.mock('../../components/providers/ProviderHeroCard', () => ({
 vi.mock('../../components/providers/ProviderCostSummaryCard', () => ({
   ProviderCostSummaryCard: ({
     summary,
-  }: { summary: { totalCost: number; source: string } }) => (
+  }: { summary: { totalCost: number; nonUsdTotals?: Record<string, number>; source: string } }) => (
     <div
       data-testid="cost-card"
       data-total={summary.totalCost}
+      data-non-usd={JSON.stringify(summary.nonUsdTotals ?? null)}
       data-source={summary.source}
     >
       cost card
@@ -232,5 +245,47 @@ describe('ProviderList', () => {
       expect(card.getAttribute('data-total')).toBe('0.42');
       expect(card.getAttribute('data-source')).toBe('local_device');
     });
+  });
+
+  it('passes local non-USD totals to the hero, list row and cost card without adding them to USD', async () => {
+    mockState.conversations = [];
+    const nowIso = new Date().toISOString();
+    getAllConversationsMock.mockResolvedValue([
+      {
+        id: 'conv-mixed',
+        providerID: baseProvider.id,
+        providerKind: 'openAI',
+        title: 'mixed',
+        previewText: 'preview',
+        messages: [
+          {
+            id: 'm1',
+            role: 'assistant',
+            state: 'delivered',
+            providerKind: 'openAI',
+            providerID: baseProvider.id,
+            estimatedCost: 0.42,
+            nonUsdCost: { currencyCode: 'CNY', amount: 3.5, costSource: 'localEstimate' },
+            createdAt: nowIso,
+            text: '...',
+          },
+        ],
+        isDraft: false,
+        updatedAt: nowIso,
+        createdAt: nowIso,
+        remoteMessageCount: 1,
+      },
+    ]);
+
+    render(<ProviderList />);
+
+    await waitFor(() => {
+      const card = screen.getByTestId('cost-card');
+      expect(card.getAttribute('data-total')).toBe('0.42');
+      expect(card.getAttribute('data-non-usd')).toBe('{"CNY":3.5}');
+    });
+    expect(screen.getByTestId(`provider-hero-${baseProvider.id}`).getAttribute('data-non-usd')).toBe('{"CNY":3.5}');
+    expect(screen.getByTestId(`provider-hero-${baseProvider.id}`).getAttribute('data-today-non-usd')).toBe('{"CNY":3.5}');
+    expect(screen.getByTestId(`provider-card-${baseProvider.id}`).getAttribute('data-non-usd')).toBe('{"CNY":3.5}');
   });
 });

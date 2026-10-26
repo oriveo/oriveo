@@ -29,6 +29,8 @@ vi.mock("node:dns/promises", () => ({
 // dropping model entries. Per-kind catalog fetching in the split view is covered by
 // chat/stream/runtime.test.ts.
 const METADATA_URL = "https://api.oriveoai.com/api/metadata?view=index";
+/** The mock route and the assertions ignore `&schema=N` when comparing URLs: the value of the requested schema is locked by runtime.test.ts. */
+const withoutSchema = (url: unknown): string => String(url).replace(/&schema=\d+$/, "");
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -80,7 +82,7 @@ describe("/api/providers/models", () => {
       .mockImplementation(async (input) => {
         const url = String(input);
 
-        if (url === METADATA_URL) {
+        if (withoutSchema(url) === METADATA_URL) {
           return jsonResponse(
             buildMetadata({
               providers: {
@@ -129,7 +131,7 @@ describe("/api/providers/models", () => {
     expect(response.status).toBe(200);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0]?.[0]).toBe(METADATA_URL);
+    expect(withoutSchema(fetchMock.mock.calls[0]?.[0])).toBe(METADATA_URL);
 
     const payload = (await response.json()) as { data: Array<{ id: string }> };
     expect(payload.data.map((model) => model.id)).toEqual([

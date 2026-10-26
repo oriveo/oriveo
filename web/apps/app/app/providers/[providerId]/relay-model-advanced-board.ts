@@ -17,7 +17,9 @@ import {
 import { RELAY_WEB_STATUS_KEYS } from '../../../lib/core/chat/model-options-copy';
 import { canRestoreAllRelayAutomatic, type RelayAdvancedCapabilityKey } from '../../../lib/core/relay-model-advanced-ops';
 import { localChannelDisplayName, setupProtocolForTransport, type SetupProtocol } from '../relay/new/setup-board';
-import { catalogCaps, enabledStatus, type RelayCatalogCapState } from './relay-catalog-board';
+import { catalogCaps, enabledStatus, relayInputNegativeCached, type RelayCatalogCapState } from './relay-catalog-board';
+import { relayInputOverrideValue } from '../../../lib/core/capability/capability-overrides';
+import { buildProviderStreamOptions, buildStreamOptionsFromIntent } from '../../../lib/core/chat/stream-options';
 import { bindRelayKey, relayEffectiveKeyID, relayKeyIDs, relayKeyRows, relayShowsKeyUI } from '@oriveo/shared/relay/relay-keys';
 import { relayBindingFamily } from '../../../lib/core/provider-model-ops';
 import { relayKeyTitle } from './relay-keys-board';
@@ -283,23 +285,21 @@ function localChannelRow(provider: Provider, model: AIModel): RelayAdvancedProto
 function capabilityRows(provider: Provider, model: AIModel, now: number, isLocal: boolean): RelayAdvancedCapabilityRow[] {
   const auto = Object.fromEntries(catalogCaps(provider, model, now).map((cap) => [cap.cap, cap.state]));
   const overrides = model.relayCapabilityOverrides;
-  const overrideState = (key: 'file' | 'imageGeneration'): RelayCatalogCapState | null => {
-    const value = overrides?.[key]?.value;
-    return typeof value === 'boolean' ? (value ? 'supported' : 'unsupported') : null;
-  };
+  const generationOverride = overrides?.imageGeneration?.value;
   // The existing judgments for vision and tools already read the override; file and image generation look at the override value first, then fall back to automatic.
   const states: Record<RelayAdvancedCapabilityKey, RelayCatalogCapState> = {
     image: auto.image as RelayCatalogCapState,
-    file: overrideState('file') ?? auto.file as RelayCatalogCapState,
-    imageGeneration: overrideState('imageGeneration')
-      ?? ((model.capabilities ?? []).includes('imageGeneration') ? 'supported' : 'unknown'),
+    file: auto.file as RelayCatalogCapState,
+    imageGeneration: typeof generationOverride === 'boolean'
+      ? (generationOverride ? 'supported' : 'unsupported')
+      : ((model.capabilities ?? []).includes('imageGeneration') ? 'supported' : 'unknown'),
     toolCall: auto.tool as RelayCatalogCapState,
     web: 'unknown',
   };
   return RELAY_ADVANCED_CAPS.map((cap) => {
     if (cap === 'web') return webRow(provider, model, isLocal);
     const state = states[cap];
-    const value = overrides?.[cap]?.value;
+    const value = overrideOf(model, cap)?.value;
     return {
       cap,
       state,
@@ -348,22 +348,40 @@ function webRow(provider: Provider, model: AIModel, isLocal: boolean): RelayAdva
 function sourceOf(
   provider: Provider,
   model: AIModel,
-  cap: RelayAdvancedCapabilityKey,
+  cap: Exclude<RelayAdvancedCapabilityKey, 'web'>,
   state: RelayCatalogCapState,
   now: number,
   isLocal: boolean,
 ): RelayAdvancedSource | null {
-  const override = model.relayCapabilityOverrides?.[cap];
+  const override = overrideOf(model, cap);
   // Source and status share the same evidence: if the override did not land on the status (e.g. vision / tools without an evidence identity do not read overrides) it cannot carry an override source.
   const overrideState = typeof override?.value === 'boolean' ? (override.value ? 'supported' : 'unsupported') : null;
   if (override && (overrideState === null || overrideState === state)) return override.source === 'user' ? 'user' : 'tested';
+  if (cap === 'image' || cap === 'file') {
+    // Vision / file read the input negative cache v2 (same key as the projection and send side); local connections follow the same order, and the negative cache beats tested and the engine declaration.
+    const streamOptions = buildProviderStreamOptions(provider, buildStreamOptionsFromIntent(model, 'automatic', false), model);
+    if (relayInputNegativeCached(provider, model, streamOptions, cap === 'image' ? 'vision_input' : 'file_input', now)) return 'detected';
+  }
   if (isLocal) {
     const declared = cap === 'image' || cap === 'toolCall' ? model.engineDeclaration?.[cap] : undefined;
     return typeof declared === 'boolean' ? 'engine' : null;
   }
-  const key = relayNegativeCacheModelKey(provider, model);
-  if (key && cap !== 'imageGeneration' && cap !== 'web' && isRelayNegativeCached({ ...key, kind: cap }, now)) return 'detected';
+  // Tool reads v1 (vision / file only honor the v2 above).
+  if (cap === 'toolCall') {
+    const key = relayNegativeCacheModelKey(provider, model);
+    if (key && isRelayNegativeCached({ ...key, kind: cap }, now)) return 'detected';
+  }
   return state === 'supported' ? 'catalog' : null;
+}
+
+/** Overrides after normalizing vision / file reads (user delta > legacy tested field); other keys read the legacy field. */
+function overrideOf(
+  model: AIModel,
+  cap: Exclude<RelayAdvancedCapabilityKey, 'web'>,
+): { value: unknown; source: 'user' | 'tested' } | undefined {
+  if (cap === 'image') return relayInputOverrideValue(model, 'vision_input');
+  if (cap === 'file') return relayInputOverrideValue(model, 'file_input');
+  return model.relayCapabilityOverrides?.[cap];
 }
 
 /** The automatic set is resolved the same way as the thinking card in the model options panel; the override only narrows; if the set is empty the whole card is hidden. */

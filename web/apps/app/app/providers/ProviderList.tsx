@@ -11,11 +11,14 @@ import { ProviderListCard } from '../../components/providers/ProviderListCard';
 import { ProviderHeroCard } from '../../components/providers/ProviderHeroCard';
 import { ProviderCostSummaryCard } from '../../components/providers/ProviderCostSummaryCard';
 import { selectResolvedCatalog } from '../../lib/core/store/selectors';
-import { getEffectiveStatusKind } from '../../lib/core/providers/provider-status';
+import { selectSpotlightProvider } from '../../lib/core/providers/provider-spotlight';
 import { onVersionChange } from '../../lib/core/metadata/metadata-client';
 import {
+  buildDailyNonUsdCostsLast7DaysByProvider,
+  buildMonthlyBilledMessageCountByProvider,
   buildMonthlyCostByProvider,
   buildMonthlyCostSummary,
+  buildMonthlyNonUsdCostByProvider,
 } from '../../lib/core/cost/cost-summary';
 import {
   getCachedFullMonthlyCost,
@@ -28,7 +31,6 @@ import {
   isBalanceCapable,
   type ProviderBalance,
 } from '../../lib/core/providers/balance';
-import { COST_EPSILON } from '../../lib/utils/format-utils';
 import styles from './ProviderList.module.css';
 import { resolveProviderAPIKey } from '@oriveo/core/providers/provider-credential';
 import { requestBaseURLText } from '../../lib/core/providers/endpoint-source';
@@ -58,12 +60,6 @@ function ProviderSectionHeader({
   );
 }
 
-function statusPriority(kind: 'connected' | 'syncing' | 'issue' | 'needsKey'): number {
-  if (kind === 'connected') return 0;
-  if (kind === 'syncing') return 1;
-  return 2;
-}
-
 export function ProviderList() {
   const router = useRouter();
   const t = useTranslations('pages.providerList');
@@ -87,20 +83,24 @@ export function ProviderList() {
   const storeBuiltFallback = useMemo(() => ({
     monthlyCostByProvider: buildMonthlyCostByProvider(conversations),
     localMonthlyCostSummary: buildMonthlyCostSummary(conversations, listedProviders),
+    nonUsdByProvider: buildMonthlyNonUsdCostByProvider(conversations),
+    nonUsdDailyByProvider: buildDailyNonUsdCostsLast7DaysByProvider(conversations),
+    billedMessageCountByProvider: buildMonthlyBilledMessageCountByProvider(conversations),
   }), [conversations, listedProviders]);
   const monthlyCostByProvider = fullLocalCost?.byProvider ?? storeBuiltFallback.monthlyCostByProvider;
   const monthlyCostSummary = fullLocalCost?.summary ?? storeBuiltFallback.localMonthlyCostSummary;
+  // Non-USD amounts live on this device only
+  const nonUsdCostByProvider = fullLocalCost?.nonUsdByProvider ?? storeBuiltFallback.nonUsdByProvider;
+  const nonUsdDailyCostsByProvider = fullLocalCost?.nonUsdDailyByProvider ?? storeBuiltFallback.nonUsdDailyByProvider;
+  // Billed message counts are local only and drive the spotlight ordering
+  const billedMessageCountByProvider = fullLocalCost?.billedMessageCountByProvider
+    ?? storeBuiltFallback.billedMessageCountByProvider;
 
-  const spotlightProvider = useMemo<Provider | null>(() => {
-    if (listedProviders.length === 0) return null;
-    const withCost = listedProviders
-      .map((p) => ({ provider: p, cost: monthlyCostByProvider.get(p.id) ?? 0 }))
-      .filter((x) => x.cost > COST_EPSILON)
-      .sort((a, b) => b.cost - a.cost);
-    if (withCost.length > 0) return withCost[0].provider;
-    const sorted = [...listedProviders].sort((a, b) => statusPriority(getEffectiveStatusKind(a)) - statusPriority(getEffectiveStatusKind(b)));
-    return sorted[0] ?? null;
-  }, [listedProviders, monthlyCostByProvider]);
+  // Spotlight: billed message count this month > USD amount > status > list order; see selectSpotlightProvider
+  const spotlightProvider = useMemo<Provider | null>(
+    () => selectSpotlightProvider(listedProviders, billedMessageCountByProvider, monthlyCostByProvider),
+    [listedProviders, billedMessageCountByProvider, monthlyCostByProvider],
+  );
 
   const listedProvidersIdentityKey = useMemo(
     () => listedProviders
@@ -219,7 +219,9 @@ export function ProviderList() {
                 <ProviderHeroCard
                   provider={spotlightProvider}
                   monthlyCost={monthlyCostByProvider.get(spotlightProvider.id) ?? 0}
+                  monthlyNonUsdTotals={nonUsdCostByProvider.get(spotlightProvider.id)}
                   dailyCostsLast7Days={[]}
+                  dailyNonUsdCostsLast7Days={nonUsdDailyCostsByProvider.get(spotlightProvider.id)}
                   onClick={() => router.push(`/providers/${spotlightProvider.id}`)}
                 />
               </section>
@@ -236,6 +238,7 @@ export function ProviderList() {
                       key={provider.id}
                       provider={provider}
                       monthlyCost={monthlyCostByProvider.get(provider.id) ?? 0}
+                      monthlyNonUsdTotals={nonUsdCostByProvider.get(provider.id)}
                       providerBalance={providerBalancesById.get(provider.id)}
                       onClick={() => router.push(`/providers/${provider.id}`)}
                     />

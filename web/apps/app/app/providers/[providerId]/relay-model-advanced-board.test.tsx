@@ -20,6 +20,8 @@ import {
   setRelayReasoningLevels,
 } from '../../../lib/core/relay-model-advanced-ops';
 import { isRelayNegativeCached, recordRelayNegativeCache } from '../../../lib/core/chat/relay-negative-cache';
+import { readInputNegativeCache, recordInputNegativeCache } from '../../../lib/core/capability/input-negative-cache';
+import { inputNegativeCacheTarget } from '../../../lib/core/capability/truth/input-truth-adapter';
 import { resolveAttachmentLine } from '../../../lib/core/attachments/attachment-transport-resolver';
 import { decideAttachmentRoute } from '../../../lib/core/attachments/attachment-router';
 import { buildProviderStreamOptions, buildStreamOptionsFromIntent } from '../../../lib/core/chat/stream-options';
@@ -30,6 +32,7 @@ import {
 } from '../../../lib/core/providers/capability-evidence-identity';
 import { getActiveUIDSync } from '../../../lib/infra/storage/partition';
 import { rememberRelayCatalogEndpointTypes } from '../../../lib/core/providers/relay-probe-candidates';
+import { relayFirstSendTransport } from '../../../lib/core/providers/relay-first-send-transport';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { RELAY_WEB_FRAGMENT_TEMPLATES } from '@oriveo/shared/relay/web-fragments';
@@ -200,11 +203,42 @@ const stored = (store: ReturnType<typeof createAppStore>, providerID: string, id
   };
 };
 
-const negative = (provider: Provider, item: AIModel, kind: 'image' | 'file' | 'toolCall') =>
-  recordRelayNegativeCache({ connectionId: provider.id, modelId: item.id, transport: effectiveTransport(provider, item), kind }, NOW);
+// Vision / file only honor negative cache v2 (key and verdict revision come from the production write target); tool still uses the v1 toolCall tier.
+const INPUT_KEY = { image: 'vision_input', file: 'file_input' } as const;
+const inputTarget = (provider: Provider, item: AIModel, kind: 'image' | 'file') => {
+  const streamOptions = buildProviderStreamOptions(provider, buildStreamOptionsFromIntent(item, 'automatic', false), item);
+  const target = inputNegativeCacheTarget(provider, item, streamOptions, INPUT_KEY[kind]);
+  expect(target).not.toBeNull();
+  return target!;
+};
 
-const isNegative = (provider: Provider, item: AIModel, kind: 'image' | 'file' | 'toolCall') =>
-  isRelayNegativeCached({ connectionId: provider.id, modelId: item.id, transport: effectiveTransport(provider, item), kind }, NOW);
+const negative = (provider: Provider, item: AIModel, kind: 'image' | 'file' | 'toolCall') => {
+  if (kind === 'toolCall') {
+    recordRelayNegativeCache({ connectionId: provider.id, modelId: item.id, transport: relayFirstSendTransport(provider, item), kind }, NOW);
+    return;
+  }
+  const target = inputTarget(provider, item, kind);
+  recordInputNegativeCache(target.key, { signatureId: 'test.rejected', verdictRevision: target.verdictRevision }, NOW);
+};
+
+const isNegative = (provider: Provider, item: AIModel, kind: 'image' | 'file' | 'toolCall') => {
+  if (kind === 'toolCall') {
+    return isRelayNegativeCached({ connectionId: provider.id, modelId: item.id, transport: effectiveTransport(provider, item), kind }, NOW);
+  }
+  const target = inputTarget(provider, item, kind);
+  return readInputNegativeCache(target.key, target.verdictRevision, NOW) !== null;
+};
+
+/** The projection / route resolution judge negative cache expiry by Date.now(): groups using the negative cache pin the clock at NOW (faking Date only). */
+function pinClockAtNow() {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(NOW);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+}
 
 /**
  * Make the production thinking control resolve to non-empty levels: Relay only allows the fixed verdicts custom_only / relay_user_directory (auto_available is
@@ -378,6 +412,8 @@ describe('BOARD-ADVANCED-03 protocol write and single-protocol probe', () => {
 });
 
 describe('BOARD-ADVANCED-04 four automatic-status rows and source order', () => {
+  pinClockAtNow();
+
   function relayWith(item: AIModel): Provider {
     const provider = relayProvider([item]);
     beginCapabilityEvidenceIdentityIfAbsent(getActiveUIDSync(), provider.id);
@@ -398,7 +434,12 @@ describe('BOARD-ADVANCED-04 four automatic-status rows and source order', () => 
   });
 
   it('BOARD-ADVANCED-04 official catalog inheritance -> Official catalog', () => {
-    const item = model('inherit', { capabilities: ['text', 'image', 'imageGeneration'], nativeFileMimes: ['application/pdf'] });
+    // Vision inherits the official catalog verdict (capabilityControls); a raw capabilities declaration alone is not evidence (treated as unknown).
+    const item = model('inherit', {
+      capabilities: ['text', 'image', 'imageGeneration'],
+      capabilityControls: { vision_input: { state: 'auto_available' } },
+      nativeFileMimes: ['application/pdf'],
+    });
     const b = board(relayWith(item), 'inherit');
     for (const cap of ['image', 'file', 'imageGeneration']) {
       expect([cap, rowOf(b, cap).state, rowOf(b, cap).source]).toEqual([cap, 'supported', 'catalog']);
@@ -417,7 +458,7 @@ describe('BOARD-ADVANCED-04 four automatic-status rows and source order', () => 
     }
   });
 
-  it('BOARD-ADVANCED-04 tested overrides negative cache, user overrides tested; the control shows On / Off', () => {
+  it('BOARD-ADVANCED-04 tested cannot beat the negative cache, user beats tested; the control shows On / Off', () => {
     const item = model('ovr', {
       relayCapabilityOverrides: {
         image: { value: true, source: 'tested' },
@@ -427,10 +468,12 @@ describe('BOARD-ADVANCED-04 four automatic-status rows and source order', () => 
       },
     });
     const provider = relayWith(item);
+    const b0 = board(provider, 'ovr');
+    expect([rowOf(b0, 'image').state, rowOf(b0, 'image').source]).toEqual(['supported', 'tested']);
     negative(provider, item, 'image');
     const b = board(provider, 'ovr');
     expect(b.capabilityRows.map((row) => [row.cap, row.state, row.source, row.control])).toEqual([
-      ['image', 'supported', 'tested', 'on'],
+      ['image', 'unsupported', 'detected', 'on'],
       ['file', 'supported', 'user', 'on'],
       ['imageGeneration', 'unsupported', 'user', 'off'],
       ['toolCall', 'unsupported', 'user', 'off'],
@@ -452,7 +495,9 @@ describe('BOARD-ADVANCED-04 four automatic-status rows and source order', () => 
 });
 
 describe('BOARD-ADVANCED-05 override writes', () => {
-  it('BOARD-ADVANCED-05 On / Off write user (both tables) and clear only the negative cache of the same tier', () => {
+  pinClockAtNow();
+
+  it('BOARD-ADVANCED-05 On / Off: file writes a delta, tool writes user (both tables), and only the negative cache of the same tier is cleared', () => {
     const item = model('m', { relayCapabilityOverrides: { image: { value: false, source: 'tested' } } });
     const provider = relayProvider([item]);
     const store = storeWith(provider);
@@ -463,9 +508,10 @@ describe('BOARD-ADVANCED-05 override writes', () => {
     expect(setRelayCapabilityOverride(store, provider.id, 'm', 'file', true)).toBe(true);
     let state = stored(store, provider.id, 'm');
     for (const entry of [state.model, state.catalog]) {
-      expect(entry.relayCapabilityOverrides).toEqual({
-        image: { value: false, source: 'tested' },
-        file: { value: true, source: 'user' },
+      // tested is not migrated and stays in the legacy field; file writes a delta (setAt = now, baseVerdict = the verdict at that time: Relay file is always unknown).
+      expect(entry.relayCapabilityOverrides).toEqual({ image: { value: false, source: 'tested' } });
+      expect(entry.capabilityOverrides).toEqual({
+        file_input: { op: 'add', setAt: new Date(NOW).toISOString(), baseVerdict: 'unknown' },
       });
     }
     expect([isNegative(provider, item, 'file'), isNegative(provider, item, 'image'), isNegative(provider, item, 'toolCall')])
@@ -478,14 +524,40 @@ describe('BOARD-ADVANCED-05 override writes', () => {
     expect(isNegative(provider, item, 'image')).toBe(true);
   });
 
-  it('BOARD-ADVANCED-05 Auto deletes the key (both tested and user), and if everything is deleted the whole field is omitted', () => {
+  it('BOARD-ADVANCED-05 vision Off writes a delta remove (baseVerdict records the verdict at that time), a legacy user choice is normalized into the delta; the board reads the delta', () => {
+    const item = model('m', {
+      relayCapabilityOverrides: { file: { value: true, source: 'user' }, toolCall: { value: false, source: 'user' } },
+    });
+    const provider = relayProvider([item]);
+    const store = storeWith(provider);
+    negative(provider, item, 'image');
+
+    expect(setRelayCapabilityOverride(store, provider.id, 'm', 'image', false)).toBe(true);
+    const state = stored(store, provider.id, 'm');
+    const at = new Date(NOW).toISOString();
+    for (const entry of [state.model, state.catalog]) {
+      expect(entry.capabilityOverrides).toEqual({
+        vision_input: { op: 'remove', setAt: at, baseVerdict: 'unknown' },
+        file_input: { op: 'add', setAt: at, baseVerdict: 'unknown' },
+      });
+      expect(entry.relayCapabilityOverrides).toEqual({ toolCall: { value: false, source: 'user' } });
+    }
+    expect(isNegative(provider, item, 'image')).toBe(false);
+    const b = board(state.provider, 'm');
+    expect([rowOf(b, 'image').state, rowOf(b, 'image').source, rowOf(b, 'image').control]).toEqual(['unsupported', 'user', 'off']);
+    expect([rowOf(b, 'file').state, rowOf(b, 'file').source, rowOf(b, 'file').control]).toEqual(['supported', 'user', 'on']);
+  });
+
+  it('BOARD-ADVANCED-05 Auto deletes the key (legacy tested / user and the delta), and if everything is deleted the whole field is omitted', () => {
     const item = model('m', {
       relayCapabilityOverrides: { image: { value: false, source: 'tested' }, imageGeneration: { value: true, source: 'user' } },
+      capabilityOverrides: { vision_input: { op: 'add', setAt: '2026-10-01T00:00:00.000Z', baseVerdict: 'unknown' } },
     });
     const provider = relayProvider([item]);
     const store = storeWith(provider);
     setRelayCapabilityOverride(store, provider.id, 'm', 'image', null);
     expect(stored(store, provider.id, 'm').model.relayCapabilityOverrides).toEqual({ imageGeneration: { value: true, source: 'user' } });
+    expect('capabilityOverrides' in stored(store, provider.id, 'm').model).toBe(false);
     setRelayCapabilityOverride(store, provider.id, 'm', 'imageGeneration', null);
     const state = stored(store, provider.id, 'm');
     expect('relayCapabilityOverrides' in state.model).toBe(false);
@@ -547,6 +619,8 @@ describe('BOARD-ADVANCED-06 five thinking cells', () => {
 });
 
 describe('BOARD-ADVANCED-07 restore all to automatic + test capabilities entry', () => {
+  pinClockAtNow();
+
   it('BOARD-ADVANCED-07 clears all overrides and the user protocol, not the negative cache; not tappable when there is nothing to clear', () => {
     const item = model('m', {
       relayTransport: 'openai_responses',
@@ -556,6 +630,7 @@ describe('BOARD-ADVANCED-07 restore all to automatic + test capabilities entry',
         file: { value: false, source: 'user' },
         reasoningLevels: { value: ['deep'], source: 'user' },
       },
+      capabilityOverrides: { vision_input: { op: 'remove', setAt: '2026-10-01T00:00:00.000Z', baseVerdict: 'unknown' } },
     });
     const provider = relayProvider([item]);
     expect(board(provider, 'm').restoreAllEnabled).toBe(true);
@@ -566,6 +641,7 @@ describe('BOARD-ADVANCED-07 restore all to automatic + test capabilities entry',
     const state = stored(store, provider.id, 'm');
     for (const entry of [state.model, state.catalog]) {
       expect(entry.relayCapabilityOverrides).toBeUndefined();
+      expect(entry.capabilityOverrides).toBeUndefined();
       expect(entry.relayTransport).toBeUndefined();
       expect(entry.relayTransportSource).toBeUndefined();
     }
@@ -577,6 +653,18 @@ describe('BOARD-ADVANCED-07 restore all to automatic + test capabilities entry',
   it('BOARD-ADVANCED-07 a reachable protocol does not count as clearable', () => {
     const item = model('m', { relayTransport: 'openai_responses', relayTransportSource: 'reachable' });
     expect(board(relayProvider([item]), 'm').restoreAllEnabled).toBe(false);
+  });
+
+  it('BOARD-ADVANCED-07 a delta alone can also be cleared, and the delta key is omitted afterwards', () => {
+    const item = model('m', {
+      capabilityOverrides: { file_input: { op: 'add', setAt: '2026-10-01T00:00:00.000Z', baseVerdict: 'unknown' } },
+    });
+    const provider = relayProvider([item]);
+    expect(board(provider, 'm').restoreAllEnabled).toBe(true);
+    const store = storeWith(provider);
+    expect(restoreAllRelayAutomatic(store, provider.id, 'm')).toBe(true);
+    const state = stored(store, provider.id, 'm');
+    expect(['capabilityOverrides' in state.model, 'capabilityOverrides' in state.catalog]).toEqual([false, false]);
   });
 
   it('BOARD-ADVANCED-07 production component: test capabilities is on the Advanced page; the model behavior expansion no longer has test / restore', () => {
@@ -591,6 +679,8 @@ describe('BOARD-ADVANCED-07 restore all to automatic + test capabilities entry',
 });
 
 describe('BOARD-ADVANCED-08 file override consumption (production attachment routing)', () => {
+  pinClockAtNow();
+
   const textPDF: Attachment = {
     id: 'pdf-1',
     kind: 'file',
@@ -636,6 +726,12 @@ describe('BOARD-ADVANCED-08 file override consumption (production attachment rou
     expect(await routeOf(provider, withMimes)).toBe('client_extract');
     const on = { ...withMimes, relayCapabilityOverrides: { file: { value: true, source: 'user' as const } } };
     expect(await routeOf(provider, on)).toBe('native');
+    // A delta add also wins (the Advanced board now writes deltas).
+    const added: AIModel = {
+      ...withMimes,
+      capabilityOverrides: { file_input: { op: 'add', setAt: new Date(NOW).toISOString(), baseVerdict: 'unknown' } },
+    };
+    expect(await routeOf(provider, added)).toBe('native');
   });
 });
 
@@ -1033,4 +1129,52 @@ describe('RL2-WEBPROBE-15 Advanced page web row', () => {
     expect(web).toBeTruthy();
     expect(within(web as HTMLElement).getByText(RELAY_ADVANCED_TEXT.capTitle.web)).toBeTruthy();
   });
+});
+
+/* -- Shared fixture relay/negative-cache.v1 advancedBoardCases: the panels on all ends give the same answers -- */
+
+interface AdvancedBoardCase {
+  caseId: string;
+  connection: 'remote' | 'local';
+  transport: 'openai_chat' | 'auto';
+  capability: 'image';
+  override: { value: boolean; source: 'tested' | 'user' } | null;
+  negCacheRejected: boolean;
+  catalogDeclares: boolean;
+  expect: { state: string; source: string | null };
+}
+
+const advancedBoardCases: AdvancedBoardCase[] = (() => {
+  let dir = __dirname;
+  for (;;) {
+    const candidate = path.join(dir, 'shared', 'test-fixtures', 'relay', 'negative-cache.v1.json');
+    if (existsSync(candidate)) return (JSON.parse(readFileSync(candidate, 'utf8')) as { advancedBoardCases: AdvancedBoardCase[] }).advancedBoardCases;
+    const parent = path.dirname(dir);
+    if (parent === dir) throw new Error('negative-cache.v1.json not found');
+    dir = parent;
+  }
+})();
+
+describe('BOARD-ADVANCED-FIXTURE shared fixture advancedBoardCases', () => {
+  pinClockAtNow();
+
+  it('fixture is non-empty', () => {
+    expect(advancedBoardCases.length).toBeGreaterThan(0);
+  });
+
+  for (const c of advancedBoardCases) {
+    it(`BOARD-ADVANCED-FIXTURE ${c.caseId}`, () => {
+      const item = model(`fx-${c.caseId}`, {
+        ...(c.catalogDeclares ? { capabilities: ['text', 'image'], capabilityControls: { vision_input: { state: 'auto_available' } } } : {}),
+        ...(c.override ? { relayCapabilityOverrides: { [c.capability]: { value: c.override.value, source: c.override.source } } } : {}),
+      } as Partial<AIModel>);
+      const provider = c.connection === 'local' ? localProvider([item]) : relayProvider([item]);
+      if (c.transport === 'auto') provider.relayRequested!.transport = 'auto';
+      else provider.relayRequested!.transport = 'openai_chat_completions';
+      beginCapabilityEvidenceIdentityIfAbsent(getActiveUIDSync(), provider.id);
+      if (c.negCacheRejected) negative(provider, item, c.capability);
+      const row = rowOf(board(provider, item.id), c.capability);
+      expect([row.state, row.source]).toEqual([c.expect.state, c.expect.source]);
+    });
+  }
 });

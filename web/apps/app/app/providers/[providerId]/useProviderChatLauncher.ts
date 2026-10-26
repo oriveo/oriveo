@@ -1,10 +1,13 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
 import type { AIModel, Provider } from '@oriveo/shared';
 import { useAppStore } from '../../../providers/StoreProvider';
 import { useMediaQuery } from '../../../lib/hooks/useMediaQuery';
+import { sameNormalizedID } from '../../../lib/utils/id-utils';
+import { isProviderUsableForNewChat } from '../../../lib/core/chat/active-selection';
+import { getCachedMetadataVersion, onVersionChange } from '../../../lib/core/metadata/metadata-client';
 import { createProviderSelectionSnapshot } from '../../../lib/core/providers/provider-selection-snapshot';
 
 /**
@@ -28,6 +31,8 @@ export function useProviderChatLauncher(provider: Provider) {
   const setLastUsedModelRef = useAppStore((s) => s.setLastUsedModelRef);
   const setActiveConversationId = useAppStore((s) => s.setActiveConversationId);
   const lastUsedModelRef = useAppStore((s) => s.lastUsedModelRef);
+  // The catalog (metadata) is not in React state: subscribe to its version so the usable start model is recomputed after the catalog arrives or refreshes.
+  const metadataVersion = useSyncExternalStore(onVersionChange, getCachedMetadataVersion, () => 0);
 
   const openChat = useCallback((modelID: string | null) => {
     setActiveConversationId(null);
@@ -37,20 +42,41 @@ export function useProviderChatLauncher(provider: Provider) {
     router.push(isMobile ? '/chat?compose=1' : '/chat');
   }, [isMobile, provider.id, router, setActiveConversationId, setLastUsedModelRef]);
 
-  /** Added model row: use whichever model was clicked */
+  /** Availability of the model row start-chat button: same criterion as the click; the button is disabled when credentials are missing. */
+  const canStartChatWithModel = isProviderUsableForNewChat(provider);
+
+  /** Added model row: use whichever model was clicked; without credentials on this connection chat cannot start (same criterion as the hero card). */
   const startChatWithModel = useCallback((model: AIModel) => {
+    if (!canStartChatWithModel) return;
     openChat(model.id);
-  }, [openChat]);
+  }, [canStartChatWithModel, openChat]);
 
   /**
-   * Hero card: resolve the provider's authoritative default model (official: isDefault, then the
-   * metadata default, then the first enabled one; relay: the last-used model if it points at this connection,
-   * then the first enabled one).
-   * Takes no argument, so binding it straight to onClick cannot mistake a MouseEvent for a model id.
+   * Hero card: the new-conversation chain scoped to this connection: last used pointing at this connection >
+   * catalog defaultModelId > the first available one; each tier is checked for availability first (not delisted
+   * and enabled), and isDefault is not read; relays have no catalog default.
+   * The button availability and the click share this single result: when it is null (all delisted / none
+   * available) the button is unavailable and a click does not navigate.
+   * A connection without credentials (same criterion as the new-conversation chain, isProviderUsableForNewChat)
+   * cannot start: the result is null and the button is hidden.
+   */
+  const startChatModelID = useMemo(() => {
+    if (!isProviderUsableForNewChat(provider)) return null;
+    const lastUsedHere = lastUsedModelRef && sameNormalizedID(lastUsedModelRef.providerID, provider.id)
+      ? lastUsedModelRef.modelID
+      : null;
+    const snapshot = createProviderSelectionSnapshot(provider, { preferredModelId: lastUsedHere, lastUsedModelRef });
+    return snapshot?.defaultModel?.id ?? null;
+  }, [lastUsedModelRef, provider, metadataVersion]);
+
+  /**
+   * Hero card click: opens the model resolved above. Takes no argument, so binding it straight to onClick
+   * cannot mistake a MouseEvent for a model id.
    */
   const startChatWithDefaultModel = useCallback(() => {
-    openChat(createProviderSelectionSnapshot(provider, { lastUsedModelRef })?.defaultModel?.id ?? null);
-  }, [lastUsedModelRef, openChat, provider]);
+    if (!startChatModelID) return;
+    openChat(startChatModelID);
+  }, [openChat, startChatModelID]);
 
-  return { startChatWithModel, startChatWithDefaultModel };
+  return { startChatWithModel, startChatWithDefaultModel, startChatModelID, canStartChatWithModel };
 }
