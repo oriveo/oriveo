@@ -27,8 +27,10 @@ vi.mock('../providers/relay-official-catalog-match', () => ({
   enrichRelayCatalog: mockEnrichRelayCatalog,
 }));
 
-vi.mock('../metadata/metadata-client', () => ({
+vi.mock('../metadata/metadata-client', async (importOriginal) => (await import('../../__tests__/mocks/metadata-client')).metadataClientMock(importOriginal, {
   getRelayRuntimeConfig: vi.fn(() => ({ transportEnvelopes: {}, officialProviderWhitelist: [] })),
+  peekModelFactsRevision: vi.fn(() => undefined),
+  normalizeModelFactsID: (id: string) => id,
 }));
 
 vi.mock('../providers/provider-selection-snapshot', () => ({
@@ -152,16 +154,26 @@ describe('provider-model-ops', () => {
     expect(store.getState().providers[0].models).toHaveLength(2);
   });
 
-  it('manual model mutations clear the connection tool-call observation', () => {
-    const provider = makeProvider({ models: [makeModel('m1')] });
+  it('only a tool-call declaration edit clears that model\'s rejection memory', () => {
+    const provider = makeProvider({ models: [makeModel('m1'), makeModel('m2')] });
     store.getState().addProvider(provider);
-    const identity = {
+    const identity = (canonicalModelId: string) => ({
       accountId: 'account-a', connectionId: 'p1', authMode: 'apiKey' as const,
-      canonicalModelId: 'm1', finalTransport: 'openai_chat',
-    };
-    recordToolCallSupportFalse(identity);
+      canonicalModelId, finalTransport: 'openai_chat',
+    });
+    recordToolCallSupportFalse(identity('m1'));
+    recordToolCallSupportFalse(identity('m2'));
+    // Enabling / disabling leaves the memory untouched.
     addManualProviderModels(store, provider, ['manual-model']);
-    expect(toolCallSupportIsRememberedFalse(identity)).toBe(false);
+    disableProviderModel(store, provider, 'manual-model');
+    expect(toolCallSupportIsRememberedFalse(identity('m1'))).toBe(true);
+    // Edit m1's manual declaration: only m1 is invalidated.
+    const latest = store.getState().providers[0];
+    replaceProviderModels(store, latest, latest.models.map((model) => (
+      model.id === 'm1' ? { ...model, toolCall: true } : model
+    )));
+    expect(toolCallSupportIsRememberedFalse(identity('m1'))).toBe(false);
+    expect(toolCallSupportIsRememberedFalse(identity('m2'))).toBe(true);
   });
 
   it('addManualProviderModels - runs enrichRelayCatalog on a Relay write and merges the catalog priceTier / promptPrice back into the store', () => {

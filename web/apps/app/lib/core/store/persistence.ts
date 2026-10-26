@@ -192,6 +192,7 @@ export async function hydrateStore(store: StoreApi<AppStore>, expectedUID?: stri
 
     store.setState({
       providers: hydratedProviders,
+      providersHydrated: true,
       conversations,
       folders,
       notes,

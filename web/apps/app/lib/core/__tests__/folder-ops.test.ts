@@ -21,6 +21,22 @@ vi.mock('../sync-port', () => ({
   getSyncAdapter: () => null,
 }));
 
+// Catalog slice of the new-chat chain: not loaded by default; cases supply the catalog default / tombstones as needed.
+const catalogMock = vi.hoisted(() => ({
+  status: 'pending' as 'pending' | 'loaded',
+  defaultModelId: undefined as string | undefined,
+  modelIds: [] as string[],
+  retired: [] as Array<{ id: string; routedTo?: string | null }>,
+}));
+vi.mock('../metadata/metadata-client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../metadata/metadata-client')>()),
+  getProviderCatalogStatus: () => catalogMock.status,
+  getProviderDefaultModelId: () => catalogMock.defaultModelId,
+  listProviderModelIds: () => catalogMock.modelIds,
+  getProviderRetiredModels: () => catalogMock.retired,
+  resolveCatalogModel: () => null,
+}));
+
 function makeConversation(overrides: Partial<Conversation> = {}): Conversation {
   return {
     id: crypto.randomUUID(),
@@ -63,6 +79,10 @@ describe('folder-ops', () => {
   beforeEach(() => {
     store = createAppStore();
     seedDefaultProvider(store);
+    catalogMock.status = 'pending';
+    catalogMock.defaultModelId = undefined;
+    catalogMock.modelIds = [];
+    catalogMock.retired = [];
   });
 
   // ── createFolder ────────────────────────────────────────
@@ -341,6 +361,56 @@ describe('folder-ops', () => {
       expect(convs).toHaveLength(1);
       expect(convs[0].folderID).toBe(folder.id);
       expect(convs[0].isDraft).toBe(true);
+    });
+
+    function seedProvider(id: string, models: Array<{ id: string; isDefault?: boolean }>): void {
+      store.getState().addProvider({
+        id,
+        kind: 'openAI',
+        status: { kind: 'connected' },
+        models: models.map((m) => ({
+          id: m.id, name: m.id, capabilities: ['text'], reasoningModeAvailable: false,
+          isAvailable: true, isDefault: m.isDefault ?? false, priceTier: 'standard',
+        })),
+        catalogModels: [],
+        apiKey: 'sk-test',
+        apiKeyPreview: 'sk-...test',
+      });
+    }
+
+    it('without a last-used model, takes the catalog defaultModelId and ignores the connection isDefault', () => {
+      store.getState().removeProvider('p1');
+      seedProvider('p2', [{ id: 'gpt-old', isDefault: true }, { id: 'gpt-new' }]);
+      catalogMock.defaultModelId = 'gpt-new';
+      const id = createConversationInFolder(store, createFolder(store, 'F')!.id)!;
+
+      const conv = store.getState().conversations.find((c) => c.id === id)!;
+      expect(conv.providerID).toBe('p2');
+      expect(conv.modelID).toBe('gpt-new');
+    });
+
+    it('a retired last-used model is not adopted, falls back to the catalog default', () => {
+      store.getState().removeProvider('p1');
+      seedProvider('p2', [{ id: 'gpt-old' }, { id: 'gpt-new' }, { id: 'gpt-mid', isDefault: true }]);
+      catalogMock.status = 'loaded';
+      catalogMock.modelIds = ['gpt-new', 'gpt-mid'];
+      catalogMock.retired = [{ id: 'gpt-old', routedTo: null }];
+      catalogMock.defaultModelId = 'gpt-new';
+      store.getState().setLastUsedModelRef({ providerID: 'p2', modelID: 'gpt-old' });
+      const id = createConversationInFolder(store, createFolder(store, 'F')!.id)!;
+
+      const conv = store.getState().conversations.find((c) => c.id === id)!;
+      expect(conv.modelID).toBe('gpt-new');
+    });
+
+    it('a usable last-used model wins over the catalog default', () => {
+      store.getState().removeProvider('p1');
+      seedProvider('p2', [{ id: 'gpt-new' }, { id: 'gpt-mid' }]);
+      catalogMock.defaultModelId = 'gpt-new';
+      store.getState().setLastUsedModelRef({ providerID: 'p2', modelID: 'gpt-mid' });
+      const id = createConversationInFolder(store, createFolder(store, 'F')!.id)!;
+
+      expect(store.getState().conversations.find((c) => c.id === id)!.modelID).toBe('gpt-mid');
     });
   });
 

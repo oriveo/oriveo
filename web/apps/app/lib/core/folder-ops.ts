@@ -11,7 +11,7 @@ import { FOLDER_COLOR_ORDER, getNextFolderColor } from '@oriveo/shared';
 import { getSyncAdapter } from './sync-port';
 import { createCanonicalUUID } from '../utils/id-utils';
 import { trackEvent } from './telemetry';
-import { getEffectiveStatusKind, isEffectiveWarning } from './providers/provider-status';
+import { isProviderUsableForNewChat, resolveNewChatSelection } from './chat/active-selection';
 
 export function createFolder(store: StoreApi<AppStore>, name: string): Folder | null {
   const trimmed = name.trim().slice(0, 30);
@@ -150,8 +150,8 @@ export function handleFolderReorder(
  *
  * Conversation.providerKind is a required contract, so the draft binds the kind, id and
  * model of the default provider at creation time:
- *  - lastUsedModelRef when available
- *  - otherwise the default model of the first active provider
+ *  - goes through the new-chat chain: last used > catalog default > first usable (each tier is
+ *    checked for usability first, isDefault is not read)
  *  - callers must ensure the store holds at least one usable provider
  *
  * Returns null when no active provider is found, in which case the UI should disable the
@@ -177,6 +177,8 @@ export function createConversationInFolder(
     modelID: defaults.modelId,
     previewText: '',
     estimatedCost: 0,
+    // Created locally: the whole thread lives on this device
+    localThreadComplete: true,
     isDraft: true,
     messages: [],
     draftText: '',
@@ -190,27 +192,21 @@ export function createConversationInFolder(
   return conv.id;
 }
 
+/**
+ * The new-chat chain: the same resolveNewChatSelection as a new chat in /chat (last used > catalog
+ * defaultModelId > first usable > next provider). Each tier is checked for usability first and the
+ * provider's isDefault is not read. Only active providers are considered.
+ */
 function resolveDefaultProviderModel(
   store: StoreApi<AppStore>,
 ): { provider: AppStore['providers'][number]; modelId: string } | null {
   const { providers, lastUsedModelRef } = store.getState();
-  // A provider with no key on this device cannot actually be used and must be excluded from the active set; the effective status matches needsKey.
-  const active = providers.filter((p) => !isEffectiveWarning(getEffectiveStatusKind(p)) && p.models.length > 0);
-  if (active.length === 0) return null;
-
-  if (lastUsedModelRef) {
-    const provider = active.find((p) => p.id === lastUsedModelRef.providerID);
-    const model = provider?.models.find((m) => m.id === lastUsedModelRef.modelID);
-    if (provider && model) return { provider, modelId: model.id };
-  }
-
-  for (const provider of active) {
-    // Relay has no default model: the legacy isDefault is ignored and the first enabled model is taken.
-    const model = (provider.kind !== 'relay' ? provider.models.find((m) => m.isDefault) : undefined)
-      ?? provider.models[0];
-    if (model) return { provider, modelId: model.id };
-  }
-  return null;
+  // A provider is unusable only when it lacks credentials (errored providers stay); this is the
+  // same criterion as a new chat in /chat.
+  const active = providers.filter((p) => isProviderUsableForNewChat(p) && p.models.length > 0);
+  const picked = resolveNewChatSelection(active, lastUsedModelRef);
+  if (!picked?.provider || !picked.model) return null;
+  return { provider: picked.provider, modelId: picked.model.id };
 }
 
 /** Updates a folder's color. */

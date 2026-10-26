@@ -32,7 +32,7 @@ import { saveImage, deleteImage } from '../infra/storage/image-store';
 import { type ContextCheckpointRow, putContextCheckpoint } from '../infra/storage/context-checkpoint-store';
 import { sha256hex, decrypt, base64ToUint8 } from './backup-crypto';
 import { canonicalJSON } from './backup-format';
-import { resetProviderStatus } from './backup-export';
+import { resetProviderStatus, stripBackupLocalOnlyMessageFields } from './backup-export';
 import { getPreference, setPreference } from '../infra/storage/preferences';
 import { trackEvent } from '../core/telemetry';
 import { tryGetVanillaStore } from '../../providers/StoreProvider';
@@ -40,6 +40,7 @@ import { loadCachedUserSkills, saveUserSkills } from '../core/skills/cache';
 import { buildOfficialEnabledModels } from '../core/providers/official-model-sync';
 import { ensureProviderCatalogs, getMetadataSnapshot } from '../core/metadata/metadata-client';
 import { normalizeConversationInstructions } from '@oriveo/core/context/conversation-instructions';
+import { hasNonUsdCostTotals, normalizeCostCurrency, type NonUsdCostTotals } from '../core/cost/cost-currency';
 import { normalizeNoteFolderIDs, normalizeNoteIDs, normalizeUUID } from '../utils/id-utils';
 import type { CatalogMetadataInput } from '../core/providers/catalog-resolver';
 import { getActiveUIDSync } from '../infra/storage/partition';
@@ -475,22 +476,36 @@ function normalizeImportedNote(note: Note, activeFolderIds: Set<string>): Note {
 }
 
 /**
+ * Keep only valid non-USD currency codes with finite amounts; a missing key, a non-object or
+ * nothing displayable gives undefined.
+ */
+function sanitizeNonUsdCostTotals(raw: unknown): NonUsdCostTotals | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const totals: NonUsdCostTotals = {};
+  for (const [key, amount] of Object.entries(raw as Record<string, unknown>)) {
+    const code = normalizeCostCurrency(key);
+    if (code === null || code === 'USD' || typeof amount !== 'number' || !Number.isFinite(amount)) continue;
+    totals[code] = amount;
+  }
+  return hasNonUsdCostTotals(totals) ? totals : undefined;
+}
+
+/**
  * Normalizes a backup conversation: an older backup with a missing or non-string instructions key reads as ''.
  * contextCap is decoded leniently: a missing or invalid value ("190000", 31999, true, ...) drops the field,
  * which means "follow the global setting", so one bad value never fails the whole import.
  */
 function normalizeImportedConversation(conv: Conversation): Conversation {
   const raw = typeof conv.instructions === 'string' ? conv.instructions : '';
-  // memoryItemIds stay on this device: a backup exported elsewhere may carry them, so drop them rather than point at local items.
+  // Device-local fields (memoryItemIds) stay on this device: a backup exported elsewhere may carry them, so drop them rather than point at local state.
   const messages = Array.isArray(conv.messages)
-    ? conv.messages.map((msg) => {
-      if (msg.memoryItemIds === undefined) return msg;
-      const stripped = { ...msg };
-      delete stripped.memoryItemIds;
-      return stripped;
-    })
+    ? conv.messages.map((msg) => stripBackupLocalOnlyMessageFields(msg))
     : conv.messages;
   const normalized: Conversation = { ...conv, messages, instructions: normalizeConversationInstructions(raw) };
+  // A non-USD total of {} means "no non-USD part": leave no key locally.
+  const nonUsdCostTotals = sanitizeNonUsdCostTotals(conv.nonUsdCostTotals);
+  if (nonUsdCostTotals) normalized.nonUsdCostTotals = nonUsdCostTotals;
+  else delete normalized.nonUsdCostTotals;
   const cap = parseBudgetCap((conv as { contextCap?: unknown }).contextCap);
   if (cap === null) {
     delete normalized.contextCap;
@@ -656,7 +671,12 @@ async function executeMerge(
   // Merge conversations; image restore (image-store is a separate DB) is compensated after the main transaction.
   const conversationsToPut: Conversation[] = [];
   const convsForImageRestore: Conversation[] = [];
-  for (const backupConv of backupFile.data.conversations.map(normalizeImportedConversation)) {
+  for (const rawBackupConv of backupFile.data.conversations) {
+    // Record whether the backup really carries instructions before normalizing: an old-format missing key reads as '' afterwards and cannot be told from an explicit "".
+    const backupHasInstructions = typeof rawBackupConv.instructions === 'string';
+    // Likewise record whether the backup carries the non-USD totals key: after normalizing, {} and a missing key (old backup) both leave no key, but {} must clear the local value.
+    const backupHasNonUsdTotals = 'nonUsdCostTotals' in rawBackupConv;
+    const backupConv = normalizeImportedConversation(rawBackupConv);
     const local = existingConvMap.get(normalizeUUID(backupConv.id));
     if (!local) {
       // New conversation, add it directly
@@ -668,23 +688,38 @@ async function executeMerge(
 
     // Existing conversation, merge the messages
     const mergedMessages = mergeMessages(local.messages, backupConv.messages);
-    const newerUpdatedAt =
-      local.updatedAt > backupConv.updatedAt ? local.updatedAt : backupConv.updatedAt;
+    // Compare instants, not strings: one client writes `...00Z` and another `...00.000Z`, and lexicographic order would call the same instant "backup is newer".
+    // The backup wins only when strictly later; at the same instant the local copy is kept.
+    const localWins =
+      parseEntityUpdatedAt(local.updatedAt) >= parseEntityUpdatedAt(backupConv.updatedAt);
+    const newerUpdatedAt = localWins ? local.updatedAt : backupConv.updatedAt;
 
     const merged: Conversation = {
       ...local,
       messages: mergedMessages,
       updatedAt: newerUpdatedAt,
       // Metadata comes from whichever side has the later updatedAt
-      title: local.updatedAt >= backupConv.updatedAt ? local.title : backupConv.title,
-      // instructions follow the same side as title
+      title: localWins ? local.title : backupConv.title,
+      // instructions follow the same side as title; a backup without the key (old format) leaves
+      // the local value alone, while an explicit "" clears it as usual
       instructions:
-        local.updatedAt >= backupConv.updatedAt ? (local.instructions ?? '') : backupConv.instructions,
+        localWins || !backupHasInstructions
+          ? (local.instructions ?? '')
+          : backupConv.instructions,
       previewText:
-        local.updatedAt >= backupConv.updatedAt ? local.previewText : backupConv.previewText,
+        localWins ? local.previewText : backupConv.previewText,
     };
+    // Conversation totals follow the same side as title: when the backup is newer take its USD
+    // total; for the non-USD totals a backup {} clears and a missing key keeps the local value.
+    if (!localWins) {
+      if (typeof backupConv.estimatedCost === 'number') merged.estimatedCost = backupConv.estimatedCost;
+      if (backupHasNonUsdTotals) {
+        if (backupConv.nonUsdCostTotals) merged.nonUsdCostTotals = backupConv.nonUsdCostTotals;
+        else delete merged.nonUsdCostTotals;
+      }
+    }
     // contextCap follows the same side as title; if that side has none (follow global), delete the field so the other side's value does not linger
-    const mergedCap = local.updatedAt >= backupConv.updatedAt ? local.contextCap : backupConv.contextCap;
+    const mergedCap = localWins ? local.contextCap : backupConv.contextCap;
     if (mergedCap === undefined) {
       delete merged.contextCap;
     } else {
@@ -1018,10 +1053,10 @@ export function mergeMessages(local: ChatMessage[], backup: ChatMessage[]): Chat
   const mergedIndexes = new Map<string, number>();
   const merged: ChatMessage[] = [];
 
-  // Merge both sources and sort by createdAt; ties break on UUID lexicographic order
+  // Merge both sources and sort by createdAt instant (not by string: precision differs across clients); ties break on UUID lexicographic order
   const all = [...local, ...backup].sort((a, b) => {
-    const timeA = normalizeCreatedAt(a, local, backup);
-    const timeB = normalizeCreatedAt(b, local, backup);
+    const timeA = parseEntityUpdatedAt(normalizeCreatedAt(a, local, backup));
+    const timeB = parseEntityUpdatedAt(normalizeCreatedAt(b, local, backup));
     if (timeA !== timeB) return timeA < timeB ? -1 : 1;
     return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
   });

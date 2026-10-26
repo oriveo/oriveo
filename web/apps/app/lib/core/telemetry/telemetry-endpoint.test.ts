@@ -60,6 +60,19 @@ describe('provider setup telemetry constants', () => {
     expect(TELEMETRY_KIND_UNSPECIFIED).not.toBe(telemetryProviderKind(null));
   });
 
+  // provider_kind follows the mobile clients' historical values: one table for every client
+  it('maps every provider kind to the cross-platform provider_kind value', () => {
+    const table: Record<string, string> = {
+      openRouter: 'openrouter', openAI: 'openai', anthropic: 'anthropic', gemini: 'gemini',
+      groq: 'groq', deepseek: 'deepseek', siliconFlow: 'siliconflow', togetherAI: 'together',
+      fireworksAI: 'fireworks', miniMax: 'minimax', zhipu: 'zhipu', qwen: 'qwen', grok: 'grok',
+      moonshot: 'moonshot', mistral: 'mistral', relay: 'relay',
+    };
+    for (const [kind, expected] of Object.entries(table)) {
+      expect(telemetryProviderKind(kind)).toBe(expected);
+    }
+  });
+
   // This vocabulary is shared across clients, so a change here has to be made on the other clients too
   it('pins the cross-platform step_reached vocabulary', () => {
     expect(Object.values(ProviderSetupStep)).toEqual([

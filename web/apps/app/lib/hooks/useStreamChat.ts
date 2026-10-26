@@ -19,7 +19,7 @@ import { stopStream } from "../core/chat/stop-stream";
 import { pendingCapConfirmationOf, resolveCapConfirmation } from "../core/chat/context-visibility/cap-confirm-gate";
 import { reportSendBlocked } from "../core/chat/send-failure";
 import type { AppStore } from "../core/store/app-store";
-import { createProviderSelectionSnapshot } from "../core/providers/provider-selection-snapshot";
+import { createProviderSelectionSnapshot, resolveProviderModelRetirement } from "../core/providers/provider-selection-snapshot";
 import { resolveConversationModelRemoval } from "../core/chat/conversation-model-status";
 import { sameNormalizedID } from "../utils/id-utils";
 import {
@@ -198,6 +198,10 @@ function resolveLatestSendSelection(
       : undefined);
   // The relay conversation's model has been removed: do not substitute the fallback model, let the caller return with zero requests.
   if (resolveConversationModelRemoval(latestProvider, latestConversation.modelID)) {
+    return { conversation: latestConversation, provider: fallbackProvider, model: null };
+  }
+  // The conversation's model of an official connection has been retired or is missing: likewise do not substitute the fallback model, return with zero requests.
+  if (resolveProviderModelRetirement(latestProvider, latestConversation.modelID)?.sendBlocked) {
     return { conversation: latestConversation, provider: fallbackProvider, model: null };
   }
   const latestSnapshot = createProviderSelectionSnapshot(latestProvider, {

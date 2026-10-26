@@ -346,4 +346,12 @@ describe('message merge algorithm', () => {
     expect(convs[0].id).toBe(upperConv);
     expect(convs[0].messages.map((m) => m.id)).toEqual(['M1', 'M2']);
   });
+
+  it('orders by instant when createdAt precision differs across clients (iOS `...00Z` vs local `...00.500Z`)', async () => {
+    const messages = await mergeAndGetMessages(
+      makeConv('c-precision', [msg('MA', '2026-03-01T10:00:00.500Z')]),
+      makeConv('c-precision', [msg('MB', '2026-03-01T10:00:00Z')]),
+    );
+    expect(messages.map((m) => m.id)).toEqual(['MB', 'MA']);
+  });
 });

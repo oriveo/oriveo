@@ -10,6 +10,7 @@ import { sanitizeProviderRelayKeys } from '@oriveo/shared/relay/relay-keys';
 import { getActiveUID, getActiveUIDSync, getDBName } from './partition';
 import { reportIDBUpgradeBlocked } from './idb-lifecycle';
 import { normalizeUUID } from '../../utils/id-utils';
+import { collectAttachmentKeys } from './attachment-keys';
 
 /* ── DB Schema ───────────────────────────────────────── */
 
@@ -387,6 +388,45 @@ export async function getAllConversations(expectedUID?: string): Promise<Convers
   );
 }
 
+/** Maximum number of conversations per chunk when reading conversations by primary-key cursor. */
+export const CONVERSATION_SCAN_CHUNK_SIZE = 50;
+
+/**
+ * Read the raw records of every conversation in this partition in chunks by primary-key cursor
+ * (no quote sanitising) and hand each chunk to visit. Each chunk holds at most chunkSize
+ * conversations and uses its own read-only transaction, with a setTimeout 0 between chunks to
+ * yield the main thread; if the active partition changed after any chunk was read it throws
+ * (a half-read result cannot be trusted, so the caller abandons the whole round).
+ * An error thrown by visit propagates unchanged and stops reading. Used to read the image reference set.
+ */
+export async function scanConversationsInChunks(
+  expectedUID: string,
+  visit: (conversations: Conversation[]) => void,
+  chunkSize: number = CONVERSATION_SCAN_CHUNK_SIZE,
+): Promise<void> {
+  const size = Math.max(1, Math.floor(chunkSize));
+  let lastKey: string | undefined;
+  for (let first = true; ; first = false) {
+    if (!first) await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    const db = await getDB(expectedUID);
+    const tx = db.transaction('conversations', 'readonly');
+    const range = lastKey === undefined ? undefined : IDBKeyRange.lowerBound(lastKey, true);
+    const chunk: Conversation[] = [];
+    let cursor = await tx.store.openCursor(range);
+    while (cursor && chunk.length < size) {
+      chunk.push(cursor.value);
+      lastKey = cursor.key;
+      if (chunk.length < size) cursor = await cursor.continue();
+    }
+    await tx.done;
+    if (getActiveUIDSync() !== expectedUID) {
+      throw new Error(`Active storage partition changed from ${expectedUID} during conversation scan`);
+    }
+    if (chunk.length > 0) visit(chunk);
+    if (chunk.length < size) return;
+  }
+}
+
 export async function getConversationById(
   id: string,
   expectedUID?: string,
@@ -428,6 +468,26 @@ export async function putConversationPreservingHydratedMessages(
   conversation: Conversation,
   expectedUID?: string,
 ): Promise<boolean> {
+  return (await putConversationPreservingHydratedMessagesReportingDroppedKeys(conversation, expectedUID)).written;
+}
+
+export interface ConversationRewriteResult {
+  /** The write completed and the partition is still the one from before the write. */
+  written: boolean;
+  /** Attachment keys present in the old record but no longer referenced by the new one (purge candidates); empty when nothing was written. */
+  droppedImageKeys: string[];
+}
+
+/**
+ * Same as putConversationPreservingHydratedMessages, additionally reporting the attachment keys
+ * a whole-conversation rewrite dropped. This module does not call purge (image-orphan-sweeper
+ * depends back on this module); conversation-rewrite-image-purge composes the two.
+ */
+export async function putConversationPreservingHydratedMessagesReportingDroppedKeys(
+  conversation: Conversation,
+  expectedUID?: string,
+): Promise<ConversationRewriteResult> {
+  const notWritten: ConversationRewriteResult = { written: false, droppedImageKeys: [] };
   const shouldPreserveHydratedMessages =
     conversation.messages.length === 0 &&
     (conversation.remoteMessageCount ?? 0) > 0;
@@ -435,27 +495,33 @@ export async function putConversationPreservingHydratedMessages(
   const partitionIsCurrent = () =>
     expectedUID === undefined || getActiveUIDSync() === expectedUID;
   const db = await getDB(expectedUID);
-  if (!partitionIsCurrent()) return false;
+  if (!partitionIsCurrent()) return notWritten;
 
   if (!shouldPreserveHydratedMessages) {
+    // A whole-conversation rewrite may delete messages (delete message / edit truncation): read the
+    // old record before writing and, once the write transaction completes, report the attachment
+    // keys no longer present in the new record so the caller can purge them.
+    const previous = await db.get('conversations', conversation.id);
+    if (!partitionIsCurrent()) return notWritten;
     await writeConversationWithQuotaFallback(
       sanitizeConversationQuoteContexts(conversation),
       (value) => db.put('conversations', value),
     );
-    return partitionIsCurrent();
+    if (!partitionIsCurrent()) return notWritten;
+    return { written: true, droppedImageKeys: droppedImageKeys(previous, conversation) };
   }
 
   const direct = await db.get('conversations', conversation.id);
-  if (!partitionIsCurrent()) return false;
+  if (!partitionIsCurrent()) return notWritten;
   const normalized = normalizeUUID(conversation.id);
   const normalizedMatch = !direct && normalized !== conversation.id
     ? await db.get('conversations', normalized)
     : undefined;
-  if (!partitionIsCurrent()) return false;
+  if (!partitionIsCurrent()) return notWritten;
   let existing = direct ?? normalizedMatch;
   if (!existing) {
     const conversations = await db.getAll('conversations');
-    if (!partitionIsCurrent()) return false;
+    if (!partitionIsCurrent()) return notWritten;
     existing = conversations.find((item) => normalizeUUID(item.id) === normalized);
   }
   if (!existing || existing.messages.length === 0) {
@@ -463,7 +529,7 @@ export async function putConversationPreservingHydratedMessages(
       sanitizeConversationQuoteContexts(conversation),
       (value) => db.put('conversations', value),
     );
-    return partitionIsCurrent();
+    return { written: partitionIsCurrent(), droppedImageKeys: [] };
   }
 
   await writeConversationWithQuotaFallback(
@@ -478,7 +544,14 @@ export async function putConversationPreservingHydratedMessages(
     }),
     (value) => db.put('conversations', value),
   );
-  return partitionIsCurrent();
+  return { written: partitionIsCurrent(), droppedImageKeys: [] };
+}
+
+/** Attachment keys present in the old record but no longer referenced by the new one; attachments an edited message keeps do not count. */
+function droppedImageKeys(previous: Conversation | undefined, next: Conversation): string[] {
+  if (!previous || previous.messages.length === 0) return [];
+  const kept = collectAttachmentKeys(next.messages);
+  return [...collectAttachmentKeys(previous.messages)].filter((key) => !kept.has(key));
 }
 
 /**

@@ -81,6 +81,20 @@ describe('formatPerMillionPrice', () => {
   it('shows the actual amount for a tiny unit price, without a less-than sign', () => {
     expect(formatPerMillionPrice(0.000000001)).toBe('$0.001/M');
   });
+
+  it('non-USD and USD share the same digit rules (3 significant digits, no decimals for integers); symbol placement and separators follow the UI locale', () => {
+    expect(formatPerMillionPrice(0.000_004)).toBe('$4/M');
+    expect(formatPerMillionPrice(0.000_004, 'CNY', 'en')).toBe('CN¥4/M');
+    expect(formatPerMillionPrice(0.000_004, 'CNY', 'zh-CN')).toBe('¥4/M');
+    expect(formatPerMillionPrice(0.000_004, 'CNY', 'de')).toBe('4\u00a0CN¥/M');
+    expect(formatPerMillionPrice(0.000_000_6, 'CNY', 'en')).toBe('CN¥0.6/M');
+    expect(formatPerMillionPrice(0.000_000_6, 'CNY', 'de')).toBe('0,6\u00a0CN¥/M');
+    expect(formatPerMillionPrice(0.001_234_5)).toBe('$1230/M');
+    expect(formatPerMillionPrice(0.001_234_5, 'CNY', 'en')).toBe('CN¥1,230/M');
+    expect(formatPerMillionPrice(0.001_234_5, 'CNY', 'zh-CN')).toBe('¥1,230/M');
+    expect(formatPerMillionPrice(0.001_234_5, 'CNY', 'de')).toBe('1.230\u00a0CN¥/M');
+    expect(formatPerMillionPrice(0.000_000_001_234_5, 'CNY', 'zh-CN')).toBe('¥0.00123/M');
+  });
 });
 
 describe('evaluateExpensiveModelMultiplier', () => {

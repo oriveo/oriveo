@@ -67,6 +67,10 @@ export interface MemoryCandidateProposeContext {
   conversationId: string;
   folderId: string | null;
   nowMs?: number;
+  /** Earlier calls of this turn that yielded instruct (memory-propose.v3 rule 4). */
+  priorInstructInTurn?: number;
+  /** scope conversation (v3): the call yields a sentence for the conversation-instruction bar, no candidate. */
+  onInstruct?: (sentence: string) => void;
 }
 
 export type MemoryCandidateAcceptOutcome = { item: MemoryItem } | { error: MemoryCandidateTransitionError };
@@ -265,7 +269,12 @@ export function createMemoryCandidateRepository(options: MemoryCandidateReposito
             records,
           },
           priorInTurn,
+          context.priorInstructInTurn ?? 0,
         );
+        if (outcome.action === 'instruct') {
+          context.onInstruct?.(outcome.sentence);
+          return null;
+        }
         if (outcome.action !== 'create') return null;
         await putMemoryCandidateRows([rowOf(outcome.candidate)], uid);
         return outcome.candidate;

@@ -5,8 +5,8 @@ import {
   putProvider,
   putProviderKeepingStoredCredential,
   deleteProvider,
-  putConversationPreservingHydratedMessages,
   deleteConversation,
+  getConversationById,
   putFolder,
   deleteFolder as idbDeleteFolder,
   putNote,
@@ -15,7 +15,9 @@ import {
   deleteNoteFolder as idbDeleteNoteFolder,
   setSessionValue,
 } from '../../infra/storage/idb';
-import { deleteImage } from '../../infra/storage/image-store';
+import { purgeUnreferencedImages } from '../../infra/storage/image-orphan-sweeper';
+import { collectAttachmentKeys } from '../../infra/storage/attachment-keys';
+import { putConversationAndPurgeDroppedImages } from '../../infra/storage/conversation-rewrite-image-purge';
 import { setPreference, removePreference } from '../../infra/storage/preferences';
 import { getActiveUIDSync } from '../../infra/storage/partition';
 import { normalizeUUID } from '../../utils/id-utils';
@@ -89,8 +91,9 @@ export function subscribeConversations(store: StoreApi<AppStore>): () => void {
     const deleted = prev.filter((c) => !current.has(c.id));
     if (deleted.length > 0) {
       for (const c of deleted) {
-        deleteConversation(c.id);
-        cleanupConversationImages(c);
+        // Delete and image cleanup form one background chain: read the full messages from IDB to collect
+        // candidate keys, then purge after the delete commits.
+        deleteConversationAndCleanupImages(c);
         // A conversation's MCP switches and step payloads are kept on this device only, so they go
         // with its local copy. This layer, not the delete entry points, is the one place every way
         // a conversation can leave the store passes through.
@@ -114,7 +117,7 @@ export function subscribeConversations(store: StoreApi<AppStore>): () => void {
         const old = prevMap.get(c.id);
         if (old && old !== c) forgetMcpStepPayloadsOfRemovedMessages(old, c);
         if (!old || old !== c) {
-          void putConversationPreservingHydratedMessages(c)
+          void putConversationAndPurgeDroppedImages(c)
             .catch(withErrorReporting('storage.conversation.persist'));
         }
       }
@@ -363,13 +366,25 @@ export function subscribeNoteFolders(store: StoreApi<AppStore>): () => void {
 
 /* ── Orphaned image cleanup ─────────────────────────────────────── */
 
-function cleanupConversationImages(conv: Conversation) {
-  for (const msg of conv.messages) {
-    if (!msg.attachments) continue;
-    for (const att of msg.attachments) {
-      if (att.kind === 'image' && att.localImageID) {
-        deleteImage(att.localImageID);
-      }
+/**
+ * Clean up images after a conversation is deleted. Candidate keys are collected from the full
+ * messages read from IDB before the delete: the store may only hold the summary form (empty
+ * messages), and the keys of in-memory messages count too. After the delete commits,
+ * purgeUnreferencedImages decides by the reference set, so a conflict copy or any other
+ * conversation still referencing the same key is not wiped by mistake.
+ */
+function deleteConversationAndCleanupImages(conv: Conversation) {
+  const uid = getActiveUIDSync();
+  void (async () => {
+    const candidates = collectAttachmentKeys(conv.messages);
+    try {
+      const stored = await getConversationById(conv.id, uid);
+      collectAttachmentKeys(stored?.messages, candidates);
+    } catch {
+      // Failing to read the full messages only means fewer candidate keys; the delete goes ahead,
+      // and anything left over is picked up by the startup orphan sweep.
     }
-  }
+    await deleteConversation(conv.id);
+    if (candidates.size > 0) await purgeUnreferencedImages(candidates, uid);
+  })().catch(withErrorReporting('storage.conversation.delete'));
 }

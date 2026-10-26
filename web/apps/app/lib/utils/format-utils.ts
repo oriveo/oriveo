@@ -94,22 +94,45 @@ export function getRelativeTimeFormatter(
  * - value ≥ 0.01 → "$X.XX" (2 decimals)
  */
 export function formatCost(value: number): string {
-  if (!value || !Number.isFinite(value) || value <= COST_EPSILON) return '';
-  if (value < 0.0001) return `$${value.toFixed(5)}`;
-  if (value < 0.01) return `$${value.toFixed(4)}`;
-  return `$${value.toFixed(2)}`;
+  const digits = costFractionDigits(value);
+  return digits === null ? '' : `$${value.toFixed(digits)}`;
 }
 
 /**
- * Convert a per-token USD price into a readable per-million-token label.
+ * Fraction-digit rule for cost display, shared by formatCost and multi-currency display (taken from each amount itself):
+ * ≤ COST_EPSILON → null (not shown); < 0.0001 → 5; < 0.01 → 4; otherwise → 2.
+ */
+export function costFractionDigits(value: number): number | null {
+  if (!value || !Number.isFinite(value) || value <= COST_EPSILON) return null;
+  if (value < 0.0001) return 5;
+  if (value < 0.01) return 4;
+  return 2;
+}
+
+/**
+ * Convert a per-token price into a readable per-million-token label (shown in the selected price's currency, no conversion).
  * - 0 becomes an empty string
  * - very small unit prices keep 3 significant digits rather than using a less-than sign
- * - otherwise "$X.XX/M" with 3 significant digits
+ * - USD (default) → "$X.XX/M" with 3 significant digits
+ * - other currencies → platform currency format (symbol position and separators follow the UI locale), the same digit rule as USD (3 significant digits, no decimals for integers), plus "/M"
  */
-export function formatPerMillionPrice(perTokenPrice: number): string {
+export function formatPerMillionPrice(
+  perTokenPrice: number,
+  currencyCode: string = 'USD',
+  locale?: string,
+): string {
   if (!Number.isFinite(perTokenPrice) || perTokenPrice <= 0) return '';
-  const perMillion = perTokenPrice * 1_000_000;
-  return `$${Number(perMillion.toPrecision(3))}/M`;
+  // Non-USD uses the same digit rule as USD (3 significant digits of its own amount, no decimals for integers);
+  // symbol position and separators follow the platform currency format (UI locale). Formatters are cached per locale|currency.
+  const perMillion = Number((perTokenPrice * 1_000_000).toPrecision(3));
+  if (currencyCode === 'USD') return `$${perMillion}/M`;
+  const formatter = getNumberFormatter(locale, {
+    style: 'currency',
+    currency: currencyCode,
+    currencyDisplay: 'symbol',
+    maximumSignificantDigits: 3,
+  });
+  return `${formatter.format(perMillion)}/M`;
 }
 
 /**
@@ -120,6 +143,8 @@ export function formatPerMillionPrice(perTokenPrice: number): string {
 export function formatModelPriceTier(
   promptPerToken: number | null | undefined,
   completionPerToken: number | null | undefined,
+  currencyCode: string = 'USD',
+  locale?: string,
 ): string {
   const prompt = Number.isFinite(promptPerToken) ? promptPerToken : undefined;
   const completion = Number.isFinite(completionPerToken) ? completionPerToken : undefined;
@@ -129,7 +154,7 @@ export function formatModelPriceTier(
       ? completion
       : undefined;
 
-  return effectivePrice != null ? formatPerMillionPrice(effectivePrice) : '';
+  return effectivePrice != null ? formatPerMillionPrice(effectivePrice, currencyCode, locale) : '';
 }
 
 /** Copy for compact relative time (obtained by the caller via next-intl; the utility layer hardcodes nothing). */

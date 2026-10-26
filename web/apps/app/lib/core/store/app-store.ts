@@ -141,6 +141,13 @@ export interface AppState {
   hydrationPhase: 'booting' | 'metadata-pending' | 'ready';
 
   /**
+   * Whether a trusted providers list has been written into the store (local hydration).
+   * Goes back to false when providers are cleared; the startup timeout fallback does not set it
+   * to true, so "still loading" can be told apart from "really no connections".
+   */
+  providersHydrated: boolean;
+
+  /**
    * Browser persistence health, probed once at startup.
    * null means the probe has not finished; `persistent: false` means nothing can be
    * stored on this machine, which the UI must state plainly, or users will assume
@@ -332,6 +339,7 @@ export const defaultState: AppState = {
   locallyDeletedConversationIds: [],
   syncState: 'disabled',
   hydrationPhase: 'booting',
+  providersHydrated: false,
   storageHealth: null,
   catalogSkills: [],
   userSkills: [],

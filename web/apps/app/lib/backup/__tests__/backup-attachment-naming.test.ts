@@ -59,6 +59,17 @@ vi.mock('../../infra/storage/memory-item-store', () => ({
   putMemoryItemRows: vi.fn(),
 }));
 
+vi.mock('../../infra/storage/context-checkpoint-store', () => ({
+  getAllContextCheckpoints: vi.fn(async () => []),
+  putContextCheckpoint: vi.fn(),
+}));
+
+vi.mock('../../infra/storage/memory-item-store', () => ({
+  getAllMemoryItemRows: vi.fn(async () => []),
+  getMemoryItemRow: vi.fn(async () => undefined),
+  putMemoryItemRows: vi.fn(),
+}));
+
 vi.mock('../../infra/storage/image-store', () => ({
   loadImageData: (...args: unknown[]) => mocks.loadImageData(...args),
   loadThumbnailData: (...args: unknown[]) => mocks.loadThumbnailData(...args),
@@ -80,7 +91,7 @@ vi.mock('../../../providers/StoreProvider', () => ({
   tryGetVanillaStore: () => null,
 }));
 
-vi.mock('../../core/metadata/metadata-client', () => ({ getMetadataSnapshot: () => null }));
+vi.mock('../../core/metadata/metadata-client', async (importOriginal) => (await import('../../__tests__/mocks/metadata-client')).metadataClientMock(importOriginal, { getMetadataSnapshot: () => null }));
 vi.mock('../../core/providers/official-model-sync', () => ({
   buildOfficialEnabledModels: () => ({ models: [] }),
 }));

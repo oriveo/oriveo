@@ -1,10 +1,11 @@
 import type { StoreApi } from 'zustand';
 import type { Skill, Provider, AIModel } from '@oriveo/shared';
 import type { AppStore } from '../store/app-store';
-import { getEffectiveStatusKind, isEffectiveWarning } from '../providers/provider-status';
 import { modelSupportsCapabilityFilter } from '../chat/model-capability-presentation';
 import { resolveModelCapabilityEvidence } from '../chat/capability-evidence';
 import { sameNormalizedID } from '../../utils/id-utils';
+import { createRetirementJudge } from '../providers/provider-selection-snapshot';
+import { isProviderUsableForNewChat, resolveNewChatSelection } from '../chat/active-selection';
 
 const DEFAULT_ONBOARDING_SKILL_KEYS = [
   'translation_expert',
@@ -83,6 +84,11 @@ export interface ResolvedModel {
   model: AIModel;
 }
 
+function selectableModels(provider: Provider): AIModel[] {
+  const judge = createRetirementJudge(provider);
+  return provider.models.filter((model) => judge.isSelectableForNewChat(model));
+}
+
 export function resolveModelForSkill(
   store: StoreApi<AppStore>,
   skill: Skill,
@@ -90,7 +96,7 @@ export function resolveModelForSkill(
   const { providers, lastUsedModelRef } = store.getState();
   // A provider with no key on this client cannot actually be used, so it has to be excluded from the active set; the effective state matches needsKey
   const activeProviders = providers.filter(
-    (provider) => !isEffectiveWarning(getEffectiveStatusKind(provider)) && provider.models.length > 0,
+    (provider) => isProviderUsableForNewChat(provider) && provider.models.length > 0,
   );
 
   if (activeProviders.length === 0) return null;
@@ -101,32 +107,26 @@ export function resolveModelForSkill(
       candidate.kind === skill.suggestedProviderId
     ));
     if (provider) {
-      const model = provider.models.find((candidate) => candidate.id === skill.suggestedModelId);
+      const model = selectableModels(provider).find((candidate) => candidate.id === skill.suggestedModelId);
       if (model) return { provider, model };
     }
   }
 
   if (skill.modelCapabilityHint !== 'any') {
-    const fallback = findByCapabilityHint(activeProviders, skill.modelCapabilityHint);
+    // Try the connection of the last use first, so a capability hint does not jump to an unrelated connection.
+    const current = lastUsedModelRef
+      ? activeProviders.find((candidate) => sameNormalizedID(candidate.id, lastUsedModelRef.providerID))
+      : undefined;
+    const ordered = current
+      ? [current, ...activeProviders.filter((candidate) => candidate !== current)]
+      : activeProviders;
+    const fallback = findByCapabilityHint(ordered, skill.modelCapabilityHint);
     if (fallback) return fallback;
   }
 
-  if (lastUsedModelRef) {
-    const provider = activeProviders.find((candidate) => candidate.id === lastUsedModelRef.providerID);
-    if (provider) {
-      const model = provider.models.find((candidate) => candidate.id === lastUsedModelRef.modelID);
-      if (model) return { provider, model };
-    }
-  }
-
-  for (const provider of activeProviders) {
-    // A relay has no default model: ignore the legacy isDefault and take the first enabled model.
-    const model = (provider.kind !== 'relay' ? provider.models.find((candidate) => candidate.isDefault) : undefined)
-      ?? provider.models[0];
-    if (model) return { provider, model };
-  }
-
-  return null;
+  // The last tier uses the connection-agnostic new-chat chain: last used > catalog default > first usable > next connection; isDefault is not read.
+  const picked = resolveNewChatSelection(activeProviders, lastUsedModelRef);
+  return picked?.provider && picked.model ? { provider: picked.provider, model: picked.model } : null;
 }
 
 /**
@@ -192,7 +192,7 @@ function findByCapabilityHint(
   const matcher = capabilityMap[hint] ?? capabilityMap.any;
 
   for (const provider of providers) {
-    const model = provider.models.find((candidate) => matcher(provider, candidate));
+    const model = selectableModels(provider).find((candidate) => matcher(provider, candidate));
     if (model) return { provider, model };
   }
 
