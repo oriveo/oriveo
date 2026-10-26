@@ -375,6 +375,8 @@
     <string name="chat_issue_model_missing_message">El modelo usado en esta conversación ya no está disponible. Elige otro modelo para continuar.</string>
     <string name="chat_model_removed_banner">El modelo de este chat ya no está en %1$s.</string>
     <string name="chat_model_removed_choose">Elegir modelo</string>
+    <string name="chat_model_retired_banner">%1$s fue retirado.</string>
+    <string name="chat_model_retired_switch_to">Cambiar a %1$s</string>
     <string name="chat_issue_model_missing_title">Modelo no disponible</string>
     <string name="chat_issue_no_provider_message">Esta conversación es de solo lectura hasta que agregues o reconectes un proveedor.</string>
     <string name="chat_issue_no_provider_title">Sin proveedor disponible</string>
@@ -395,6 +397,7 @@
     <string name="hide_details">Ocultar detalles</string>
     <string name="image_not_available">Imagen no disponible</string>
     <string name="loading_full_image">Cargando imagen completa…</string>
+    <string name="composer_restored_image_unavailable">La imagen todavía no se ha descargado. Conéctate a internet y vuelve a intentarlo.</string>
     <string name="manual_model_save_failed_title">Error al guardar</string>
     <string name="manual_model_sync_not_supported_message">Este proveedor no admite sincronización automática de modelos. Ingresa un ID de modelo manualmente.</string>
     <string name="manual_model_sync_not_supported_title">Sincronización no compatible</string>
@@ -1192,7 +1195,7 @@
     <string name="chat_token_usage_cache_write">Escritura de caché</string>
     <string name="chat_token_usage_total">Total</string>
     <string name="chat_token_usage_unavailable">Sin datos</string>
-    <string name="generation_conversation_scope_hint">Solo se aplica al usar este modelo en esta conversación. Los valores no se copian al cambiar de modelo y se restauran al volver.</string>
+    <string name="generation_conversation_scope_hint">Solo se aplica mientras se use este modelo en esta conversación. Cambiar de modelo no copia los valores; al volver se restauran.</string>
     <string name="generation_parameter_self_healed">Este modelo rechazó %1$s. Se reintentó con la configuración predeterminada.</string>
     <string name="relay_transport_llamacpp_native">Completion nativo de llama.cpp</string>
     <string name="relay_catalog_loading">Cargando lista de modelos…</string>
@@ -2332,4 +2335,6 @@
     <string name="context_confirm_also_price_line">Además, supera el umbral de precio de %1$s, fijado en %2$s, así que toda la solicitud se cobra al precio de contexto largo.</string>
     <string name="context_confirm_dont_ask">No volver a preguntar en este chat</string>
     <string name="context_confirm_send">Enviar de todos modos</string>
+    <string name="chat_last_used_model_retired_hint">El último modelo que usaste fue retirado. Ahora se usa %1$s.</string>
+    <string name="model_options_shows_thinking_fixed">Muestra su razonamiento · no se puede ajustar</string>
 </resources>

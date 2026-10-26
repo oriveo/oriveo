@@ -18,6 +18,7 @@ import ai.oriveo.community.feature.settings.MemoryInboxViewModel
 import ai.oriveo.community.feature.settings.MemoryViewModel
 import ai.oriveo.community.feature.settings.ContextSettingsViewModel
 import ai.oriveo.community.feature.settings.SettingsViewModel
+import ai.oriveo.community.feature.settings.VoiceSettingsViewModel
 import ai.oriveo.community.core.model.GenerationParameterSettingsStore
 import ai.oriveo.community.core.model.GenerationParameterPresetStore
 import kotlinx.coroutines.Dispatchers
@@ -99,6 +100,7 @@ val viewModelModule = module {
             ),
             memoryCandidates = get(),
             memoryAccountId = { ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID },
+            readAloudController = get(),
         )
     }
     viewModel {
@@ -138,6 +140,10 @@ val viewModelModule = module {
             generationParameterSettingsStore = GenerationParameterSettingsStore.from(androidContext()),
             capabilityPreferenceStore = ai.oriveo.community.core.model.CapabilityPreferenceStore.from(androidContext()),
             localCustomFragmentStore = ai.oriveo.community.core.model.LocalCapabilityCustomFragmentStore.from(androidContext()),
+            modelRetiredHintStore = ai.oriveo.community.core.provider.ModelRetiredHintStore.from(androidContext()),
+            voiceDisclosure = ai.oriveo.community.feature.chat.voice.PreferencesVoiceEntryDisclosure(
+                preferences = get(),
+            ),
         )
     }
     viewModel {
@@ -205,6 +211,7 @@ val viewModelModule = module {
         )
     }
     viewModelOf(::ContextSettingsViewModel)
+    viewModelOf(::VoiceSettingsViewModel)
     viewModel { (conversationId: String) ->
         val generationParameters = GenerationParameterSettingsStore.from(androidContext())
         ai.oriveo.community.feature.chat.ContextCapViewModel.forConversation(

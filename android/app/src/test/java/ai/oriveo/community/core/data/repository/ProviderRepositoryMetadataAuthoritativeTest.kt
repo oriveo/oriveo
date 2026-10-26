@@ -3,7 +3,6 @@ package ai.oriveo.community.core.data.repository
 import ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID
 import ai.oriveo.community.core.data.EntityMapper.toDomain
 import ai.oriveo.community.core.data.EntityMapper.toEntity
-import ai.oriveo.community.core.data.dao.ConversationDao
 import ai.oriveo.community.core.data.dao.ProviderDao
 import ai.oriveo.community.core.data.entity.ProviderEntity
 import ai.oriveo.community.core.model.AIModel
@@ -74,7 +73,6 @@ import org.junit.Test
 class ProviderRepositoryMetadataAuthoritativeTest {
 
     private val dao = mockk<ProviderDao>()
-    private val conversationDao = mockk<ConversationDao>()
     private val secureKeyStore = mockk<SecureKeyStore>()
     private val openRouterService = mockk<OpenRouterService>()
     private val openAIService = mockk<OpenAIService>()
@@ -101,7 +99,6 @@ class ProviderRepositoryMetadataAuthoritativeTest {
     fun setUp() {
         accountIdFlow = MutableStateFlow(accountId)
         coEvery { dao.getAll(any()) } returns emptyList()
-        coEvery { conversationDao.getAll(any()) } returns emptyList()
         coEvery { secureKeyStore.getApiKey(any(), any()) } returns ""
         // Writing the key state for a single key materializes a list and persists non-primary key values as usual: with a one-entry list there is no value to store.
         every { secureKeyStore.saveRelayKeySecrets(any(), any(), any()) } returns Unit
@@ -115,7 +112,6 @@ class ProviderRepositoryMetadataAuthoritativeTest {
         coEvery { ai.oriveo.community.core.data.remote.MetadataClient.refresh() } returns Unit
         repository = ProviderRepository(
             dao = dao,
-            conversationDao = conversationDao,
             secureKeyStore = secureKeyStore,
             openRouterService = openRouterService,
             openAIService = openAIService,

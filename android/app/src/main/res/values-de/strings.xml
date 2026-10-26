@@ -68,16 +68,16 @@
     <string name="max_tokens">Max. Token</string>
 
     <!-- Home -->
-    <string name="conversations">Gespräche</string>
-    <string name="no_conversations">Noch keine Gespräche</string>
+    <string name="conversations">Unterhaltungen</string>
+    <string name="no_conversations">Noch keine Unterhaltungen</string>
     <string name="today">Heute</string>
     <string name="yesterday">Gestern</string>
     <string name="past_7_days">Letzte 7 Tage</string>
     <string name="earlier">Früher</string>
     <string name="show_more">Mehr anzeigen (%d)</string>
     <string name="rename">Umbenennen</string>
-    <string name="rename_conversation">Gespräch umbenennen</string>
-    <string name="delete_conversation">Konversation löschen</string>
+    <string name="rename_conversation">Unterhaltung umbenennen</string>
+    <string name="delete_conversation">Unterhaltung löschen</string>
     <string name="delete_conversation_confirm">Möchtest du diese Unterhaltung wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.</string>
     <string name="providers_title">Anbieter</string>
     <string name="models_count">%d Modelle</string>
@@ -221,8 +221,8 @@
     <string name="relay_image_unsupported_hint">Dieses Modell unterstützt keine Bilder. Wechsle zu einem anderen Modell, um Bilder zu senden.</string>
     <string name="relay_file_unsupported_hint">Dieses Modell unterstützt diese Dateien nicht. Wechsle zu einem anderen Modell, um sie zu senden.</string>
     <string name="draft">Entwurf</string>
-    <string name="export_conversation">Konversation exportieren</string>
-    <string name="search_conversation_titles_or_content">Gesprächstitel oder Inhalte durchsuchen</string>
+    <string name="export_conversation">Unterhaltung exportieren</string>
+    <string name="search_conversation_titles_or_content">Titel oder Inhalte von Unterhaltungen durchsuchen</string>
     <string name="greeting_morning">Guten Morgen</string>
     <string name="greeting_afternoon">Guten Tag</string>
     <string name="greeting_evening">Guten Abend</string>
@@ -322,7 +322,7 @@
     <string name="messages">Nachrichten</string>
     <string name="images">Bilder</string>
     <string name="import_section_title">Importieren und Wiederherstellen</string>
-    <string name="import_description">Stellen Sie Konversationen, Anbieter und Einstellungen aus einer Sicherungsdatei wieder her.</string>
+    <string name="import_description">Stellen Sie Unterhaltungen, Anbieter und Einstellungen aus einer Sicherungsdatei wieder her.</string>
     <string name="import_failed">Import fehlgeschlagen</string>
     <string name="choose_another_backup">Anderes Backup wählen</string>
     <string name="import_preview_title">Vorschau importieren</string>
@@ -338,9 +338,9 @@
     <string name="checksum_warning">Die Sicherungsdatei wurde möglicherweise geändert oder beschädigt. Gehen Sie vorsichtig vor.</string>
     <string name="import_mode">Importmodus</string>
     <string name="import_mode_new_only">Nur neu importieren</string>
-    <string name="import_mode_new_only_desc">Überspringen Sie bestehende Gespräche und Anbieter; nur neue hinzufügen.</string>
+    <string name="import_mode_new_only_desc">Überspringen Sie bestehende Unterhaltungen und Anbieter; nur neue hinzufügen.</string>
     <string name="import_mode_merge">Verschmelzen</string>
-    <string name="import_mode_merge_desc">Fügen Sie Nachrichten in bestehende Konversationen ein und fügen Sie neue hinzu.</string>
+    <string name="import_mode_merge_desc">Fügen Sie Nachrichten in bestehende Unterhaltungen ein und fügen Sie neue hinzu.</string>
     <string name="import_mode_replace_all">Alle ersetzen</string>
     <string name="import_mode_replace_all_desc">Löschen Sie alle lokalen Daten und ersetzen Sie sie durch Sicherungsinhalte.</string>
     <string name="recommended">Empfohlen</string>
@@ -354,9 +354,9 @@
     <string name="unlock_and_import">Entsperren und importieren</string>
     <string name="skip_api_keys">API-Schlüssel überspringen</string>
     <string name="import_complete">Import abgeschlossen</string>
-    <string name="result_new_conversations">%d neue Konversationen hinzugefügt</string>
-    <string name="result_merged_conversations">%d Konversationen wurden zusammengeführt</string>
-    <string name="result_skipped_conversations">%d Konversationen wurden übersprungen</string>
+    <string name="result_new_conversations">%d neue Unterhaltungen hinzugefügt</string>
+    <string name="result_merged_conversations">%d Unterhaltungen wurden zusammengeführt</string>
+    <string name="result_skipped_conversations">%d Unterhaltungen wurden übersprungen</string>
     <string name="result_new_providers">%d neue Anbieter hinzugefügt</string>
     <string name="result_skipped_providers">%d Anbieter übersprungen</string>
     <string name="result_restored_keys">%d API-Schlüssel wiederhergestellt</string>
@@ -375,6 +375,8 @@
     <string name="chat_issue_model_missing_message">Das in dieser Unterhaltung verwendete Modell ist nicht mehr aktiv. Wähle ein anderes Modell, um fortzufahren.</string>
     <string name="chat_model_removed_banner">Das Modell dieses Chats ist in %1$s nicht mehr verfügbar.</string>
     <string name="chat_model_removed_choose">Modell wählen</string>
+    <string name="chat_model_retired_banner">%1$s wurde eingestellt.</string>
+    <string name="chat_model_retired_switch_to">Zu %1$s wechseln</string>
     <string name="chat_issue_model_missing_title">Modell nicht verfügbar</string>
     <string name="chat_issue_no_provider_message">Diese Unterhaltung ist schreibgeschützt, bis du einen Anbieter hinzufügst oder erneut verbindest.</string>
     <string name="chat_issue_no_provider_title">Kein Anbieter verfügbar</string>
@@ -395,6 +397,7 @@
     <string name="hide_details">Details ausblenden</string>
     <string name="image_not_available">Bild nicht verfügbar</string>
     <string name="loading_full_image">Vollbild wird geladen…</string>
+    <string name="composer_restored_image_unavailable">Das Bild wurde noch nicht heruntergeladen. Verbinde dich mit dem Internet und versuche es erneut.</string>
     <string name="manual_model_save_failed_title">Speichern fehlgeschlagen</string>
     <string name="manual_model_sync_not_supported_message">Dieser Anbieter unterstützt keine automatische Modellsynchronisierung. Bitte gib eine Modell-ID manuell ein.</string>
     <string name="manual_model_sync_not_supported_title">Synchronisierung nicht unterstützt</string>
@@ -455,15 +458,15 @@
     <string name="memory_title">Gedächtnis</string>
     <string name="memory_not_set">Nicht festgelegt</string>
     <string name="memory_empty_title">Lass die KI dich ab der ersten Nachricht kennen</string>
-    <string name="memory_empty_description">Beschreibe deinen Hintergrund und deine Vorlieben. Die KI wird dies in jedem Gespräch automatisch wissen — kein Wiederholen nötig.</string>
+    <string name="memory_empty_description">Beschreibe deinen Hintergrund und deine Vorlieben. Die KI wird dies in jeder Unterhaltung automatisch wissen — kein Wiederholen nötig.</string>
     <string name="memory_placeholder">Z.B.: Ich bin Backend-Ingenieur, nutze hauptsächlich Go. Kurze Antworten, auf Deutsch, Code statt langer Erklärungen.</string>
     <string name="memory_generate_draft">Entwurf aus letzten Chats generieren</string>
-    <string name="memory_edit_description">Erzähl der KI von dir. Sie wird es automatisch am Anfang jedes Gesprächs wissen.</string>
+    <string name="memory_edit_description">Erzähl der KI von dir. Sie wird es automatisch am Anfang jeder Unterhaltung wissen.</string>
     <string name="memory_privacy_warning">Der Gedächtnisinhalt wird mit jeder KI-Anfrage an den gewählten Anbieter gesendet. Gib keine Passwörter oder sensiblen Informationen ein.</string>
-    <string name="memory_indicator">Diese Konversation verwendet das Gedächtnis</string>
-    <string name="memory_indicator_title">Diese Konversation verwendet das Gedächtnis</string>
+    <string name="memory_indicator">Diese Unterhaltung verwendet das Gedächtnis</string>
+    <string name="memory_indicator_title">Diese Unterhaltung verwendet das Gedächtnis</string>
     <string name="memory_indicator_view_edit">Vollständiges Gedächtnis anzeigen/bearbeiten</string>
-    <string name="memory_indicator_disable">Gedächtnis für diese Konversation nicht verwenden</string>
+    <string name="memory_indicator_disable">Gedächtnis für diese Unterhaltung nicht verwenden</string>
     <string name="memory_use_toggle">Gedächtnis verwenden</string>
     <string name="memory_draft_ready_title">Der generierte Entwurf ist fertig</string>
     <string name="memory_draft_ready_message">Du hast den aktuellen Text bearbeitet. Generierten Entwurf anwenden und den aktuellen Inhalt ersetzen?</string>
@@ -473,9 +476,9 @@
     <string name="memory_error_no_model_message">Dieser Anbieter hat keine Modelle konfiguriert. Füge zuerst mindestens ein Modell hinzu.</string>
     <string name="memory_error_no_provider_title">Kein Anbieter konfiguriert</string>
     <string name="memory_error_no_provider_message">Füge zuerst einen Anbieter mit API-Schlüssel hinzu und erstelle dann den Entwurf.</string>
-    <string name="memory_error_not_enough_title">Nicht genug Gesprächsinhalt</string>
-    <string name="memory_error_not_enough_message">Führe zuerst einige Gespräche, dann erstelle daraus den Entwurf.</string>
-    <string name="memory_error_hydrate_title">Kürzliche Gespräche konnten nicht geladen werden</string>
+    <string name="memory_error_not_enough_title">Nicht genug Inhalt aus Unterhaltungen</string>
+    <string name="memory_error_not_enough_message">Führe zuerst einige Unterhaltungen, dann erstelle daraus den Entwurf.</string>
+    <string name="memory_error_hydrate_title">Kürzliche Unterhaltungen konnten nicht geladen werden</string>
     <string name="memory_error_hydrate_message">Versuche es später erneut oder schreibe es manuell.</string>
     <string name="memory_error_generic_title">Generierung fehlgeschlagen, bitte manuell schreiben</string>
     <string name="memory_error_generic_message">Versuche es später erneut oder schreibe es manuell.</string>
@@ -688,7 +691,7 @@
     <string name="skills_noCustomSkills">Noch keine eigenen Fähigkeiten</string>
     <string name="skills_deleteConfirmTitle">%s löschen?</string>
     <string name="skills_discardChanges">Änderungen verwerfen?</string>
-    <string name="skills_needProviderMessage">Du benötigst mindestens einen KI-Anbieter, um eine Konversation zu starten.</string>
+    <string name="skills_needProviderMessage">Du benötigst mindestens einen KI-Anbieter, um eine Unterhaltung zu starten.</string>
     <string name="skills_addProvider">Anbieter hinzufügen</string>
     <string name="skills_providerRequiredMessage">Dieser Skill benötigt einen verfügbaren KI-Anbieter, bevor eine Unterhaltung gestartet werden kann.</string>
     <string name="skills_providerRequiredTitle">Füge einen Anbieter hinzu, um diesen Skill zu nutzen</string>
@@ -702,7 +705,7 @@
     <string name="skills_capabilityLargeContext">Großer Kontext</string>
     <string name="skills_addFile">Datei hinzufügen</string>
     <string name="skills_noKnowledgeFiles">Noch kein Referenzmaterial</string>
-    <string name="skills_useMemoryDescription">Persönliche Einstellungen in Gespräche einbeziehen</string>
+    <string name="skills_useMemoryDescription">Persönliche Einstellungen in Unterhaltungen einbeziehen</string>
     <string name="skills_tipInstructions">Definiert das Verhalten der KI — Persönlichkeit, Expertise und Antwortstil. Nur die KI sieht dies, Benutzer nicht.</string>
     <string name="skills_tipKnowledgeFiles">Die KI liest diese Dateien bei jeder Antwort vollständig — wie Notizen, die immer auf ihrem Schreibtisch liegen. Ideal für kurze, wichtige Dokumente (Stilrichtlinien, Glossare, Schlüsselregeln). Größere Dateien erhöhen die Antwortkosten.</string>
     <string name="skills_tipAdvanced">Modellpräferenzen und Speicherinjektion konfigurieren.</string>
@@ -981,7 +984,7 @@
     <string name="provider_balance_error_check_key">Überprüfe deinen Schlüssel</string>
     <string name="provider_api_key_illegal_chars_title">Prüfe deinen API-Schlüssel</string>
     <string name="provider_api_key_illegal_chars">Der API-Schlüssel enthält nicht unterstützte Zeichen. Bitte erneut einfügen — wahrscheinlich ist ein Vollbreitezeichen, ein Zero-Width-Space oder ein Nicht-ASCII-Zeichen mit hineingerutscht.</string>
-    <string name="outline_nav_label">Gesprächsübersicht</string>
+    <string name="outline_nav_label">Übersicht der Unterhaltung</string>
     <string name="outline_jump_to">Springe zu: %1$s</string>
     <string name="outline_attachment_only">(Anhang)</string>
     <string name="notes_title">Notizen</string>
@@ -1192,7 +1195,7 @@
     <string name="chat_token_usage_cache_write">Cache-Schreiben</string>
     <string name="chat_token_usage_total">Gesamt</string>
     <string name="chat_token_usage_unavailable">Keine Daten</string>
-    <string name="generation_conversation_scope_hint">Gilt nur für dieses Modell in dieser Unterhaltung. Beim Modellwechsel werden Werte nicht kopiert; beim Zurückwechsel werden sie wiederhergestellt.</string>
+    <string name="generation_conversation_scope_hint">Gilt nur, solange dieses Modell in dieser Unterhaltung verwendet wird. Beim Modellwechsel werden die Werte nicht kopiert; beim Zurückwechseln werden sie wiederhergestellt.</string>
     <string name="generation_parameter_self_healed">Dieses Modell hat %1$s abgelehnt. Der Versuch wurde mit der Standardeinstellung wiederholt.</string>
     <string name="relay_transport_llamacpp_native">Native llama.cpp-Completion</string>
     <string name="relay_catalog_loading">Modellliste wird geladen…</string>
@@ -1636,7 +1639,7 @@
     <string name="additional_body_attachments_filled">Anhänge fügt Oriveo selbst ein.</string>
     <string name="additional_body_cannot_change">Nicht änderbar</string>
     <string name="additional_body_check">Zusätzliche Anfragedaten prüfen</string>
-    <string name="additional_body_conversation_filled">Den Gesprächsverlauf fügt Oriveo selbst ein.</string>
+    <string name="additional_body_conversation_filled">Den Verlauf der Unterhaltung fügt Oriveo selbst ein.</string>
     <string name="additional_body_device_only">Nur auf diesem Gerät gespeichert, nicht synchronisiert</string>
     <string name="additional_body_docs_link">Welche Felder %1$s unterstützt</string>
     <string name="additional_body_field_filled">Dieses Feld füllt Oriveo selbst aus.</string>
@@ -2124,7 +2127,7 @@
     <string name="context_usage_measured">Gemessen · letzte Antwort</string>
     <string name="context_usage_estimated">Geschätzt</string>
     <string name="context_usage_about_percent">ca. %1$d %%</string>
-    <string name="context_usage_segment_conversation">Konversation</string>
+    <string name="context_usage_segment_conversation">Unterhaltung</string>
     <string name="context_usage_segment_library">Bibliothek</string>
     <string name="context_usage_segment_summary">Verdichtete Zusammenfassung</string>
     <string name="context_usage_segment_instructions">Anweisungen &amp; Fähigkeiten</string>
@@ -2237,7 +2240,7 @@
     <string name="memory_inbox_title">Vorschläge fürs Gedächtnis</string>
     <string name="memory_inbox_empty">Keine offenen Vorschläge</string>
     <string name="memory_inbox_footnote">Vorschläge bleiben nur auf diesem Gerät und werden nach 30 Tagen automatisch gelöscht. Ins Gedächtnis kommen sie erst, wenn du sie speicherst.</string>
-    <string name="memory_inbox_auto_suggest">Aus Gesprächen vorschlagen</string>
+    <string name="memory_inbox_auto_suggest">Aus Unterhaltungen vorschlagen</string>
     <string name="memory_inbox_auto_suggest_footnote">Ist die Option an, werden dauerhafte Vorgaben wie „Antworte ab jetzt immer auf Deutsch“ zu Vorschlägen, die du vor dem Speichern prüfst.</string>
     <string name="reply_incomplete_output_limit">Antwort unvollständig · Ausgabelimit erreicht</string>
     <string name="reply_incomplete_connection">Antwort unvollständig · Verbindung unterbrochen</string>
@@ -2313,4 +2316,6 @@
     <string name="context_confirm_also_price_line">Außerdem liegt sie über der Preisschwelle von %2$s bei %1$s. Daher wird die gesamte Anfrage zum Langkontext-Preis abgerechnet.</string>
     <string name="context_confirm_dont_ask">In diesem Chat nicht mehr fragen</string>
     <string name="context_confirm_send">Trotzdem senden</string>
+    <string name="chat_last_used_model_retired_hint">Dein zuletzt genutztes Modell wurde eingestellt. Jetzt wird %1$s verwendet.</string>
+    <string name="model_options_shows_thinking_fixed">Zeigt sein Nachdenken · nicht einstellbar</string>
 </resources>

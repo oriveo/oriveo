@@ -319,6 +319,8 @@
     <string name="chat_issue_model_missing_message">النموذج المستخدم في هذه المحادثة لم يعد مفعّلاً. اختر نموذجاً آخر للمتابعة.</string>
     <string name="chat_model_removed_banner">لم يعد نموذج هذه المحادثة متاحًا في %1$s.</string>
     <string name="chat_model_removed_choose">اختيار نموذج</string>
+    <string name="chat_model_retired_banner">تم إيقاف %1$s نهائيًا.</string>
+    <string name="chat_model_retired_switch_to">التبديل إلى %1$s</string>
     <string name="chat_issue_model_missing_title">النموذج غير متاح</string>
     <string name="chat_issue_no_provider_message">هذه المحادثة للقراءة فقط حتى تضيف مزوداً أو تعيد الاتصال به.</string>
     <string name="chat_issue_no_provider_title">لا يوجد مزود متاح</string>
@@ -339,6 +341,7 @@
     <string name="hide_details">إخفاء التفاصيل</string>
     <string name="image_not_available">الصورة غير متاحة</string>
     <string name="loading_full_image">جارٍ تحميل الصورة الكاملة…</string>
+    <string name="composer_restored_image_unavailable">لم يتم تنزيل الصورة بعد. اتصل بالإنترنت ثم حاول مرة أخرى.</string>
     <string name="manual_model_save_failed_title">فشل الحفظ</string>
     <string name="manual_model_sync_not_supported_message">هذا المزود لا يدعم مزامنة النماذج التلقائية. يرجى إدخال معرّف النموذج يدوياً.</string>
     <string name="manual_model_sync_not_supported_title">المزامنة غير مدعومة</string>
@@ -1200,7 +1203,7 @@
     <string name="chat_token_usage_cache_write">كتابة التخزين المؤقت</string>
     <string name="chat_token_usage_total">الإجمالي</string>
     <string name="chat_token_usage_unavailable">لا توجد بيانات</string>
-    <string name="generation_conversation_scope_hint">ينطبق فقط عند استخدام هذا النموذج في هذه المحادثة. لا تُنسخ القيم عند تبديل النموذج، وتعود عند الرجوع إليه.</string>
+    <string name="generation_conversation_scope_hint">ينطبق فقط أثناء استخدام هذا النموذج في هذه المحادثة. تبديل النماذج لا ينسخ القيم، والعودة تستعيدها.</string>
     <string name="generation_parameter_self_healed">رفض هذا النموذج %1$s. تمت إعادة المحاولة بالإعداد الافتراضي.</string>
     <string name="relay_transport_llamacpp_native">completion الأصلي في llama.cpp</string>
     <string name="relay_catalog_loading">جارٍ تحميل قائمة النماذج…</string>
@@ -1379,7 +1382,7 @@
     <string name="model_control_identity_model_not_in_catalog">هذا النموذج غير موجود في الفهرس، لذا يتعذّر تحديد الإعدادات التي يدعمها.</string>
     <string name="model_control_supported_models_header">هذه النماذج في هذا الاتصال تدعمها تلقائيًا. اختيار أحدها ينقل هذه المحادثة إليه.</string>
     <string name="model_control_switch_to_model">تبديل</string>
-    <string name="skill_capability_confirm_note">تطبيق تفضيلات الويب والاستدلال المحفوظة لهذه الـ Skill في محادثات Skill الجديدة.</string>
+    <string name="skill_capability_confirm_note">تطبيق تفضيلات الويب والاستدلال المحفوظة لهذه المهارة في المحادثات الجديدة التي تستخدمها.</string>
     <string name="model_control_custom_request_fields">حقول طلب مخصصة</string>
     <string name="model_control_custom_fields_need_schema">تتطلب الحقول المخصصة مخطط حقول رسميًا لهذا النموذج وطريقة النقل تحديدًا.</string>
     <string name="model_control_custom_fields_no_schema_for_control">لا يعلن هذا الاتصال عن أي حقول مخصصة لهذا العنصر.</string>
@@ -2465,4 +2468,6 @@
     <string name="context_confirm_also_price_line">ويتجاوز الطلب أيضًا عتبة السعر لدى %1$s عند %2$s، لذا يُحتسب الطلب كاملًا بسعر السياق الطويل.</string>
     <string name="context_confirm_dont_ask">عدم السؤال مجددًا في هذه المحادثة</string>
     <string name="context_confirm_send">إرسال على أي حال</string>
+    <string name="chat_last_used_model_retired_hint">النموذج الذي استخدمته آخر مرة أُوقف نهائيًا. يُستخدم الآن %1$s.</string>
+    <string name="model_options_shows_thinking_fixed">يعرض تفكيره · لا يمكن تعديله</string>
 </resources>

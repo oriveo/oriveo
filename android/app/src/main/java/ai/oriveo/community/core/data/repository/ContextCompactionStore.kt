@@ -19,7 +19,7 @@ enum class ContextCheckpointKind(val wire: String) {
     }
 }
 
-/** A stored checkpoint (contract P3·U2 rule 1); the account partition is passed separately. */
+/** A stored checkpoint; the account partition is passed separately. */
 data class ContextCheckpointRecord(
     val conversationId: String,
     val checkpointId: String,
@@ -39,12 +39,12 @@ data class ContextCheckpointRecord(
     val cost: Double?,
 )
 
-/** Local checkpoint storage (contract P3·U2 rules 1–3). */
+/** Local checkpoint storage. */
 class ContextCompactionStore(private val dao: ContextCheckpointDao) {
 
     private val _changes = MutableSharedFlow<String>(extraBufferCapacity = CHANGES_BUFFER)
 
-    /** Emits the conversation id once after every [save], [deleteAll], [delete] and [invalidate] (contract P3·U4). */
+    /** Emits the conversation id once after every [save], [deleteAll], [delete] and [invalidate]. */
     val changes: SharedFlow<String> = _changes.asSharedFlow()
 
     /** Overwrites by checkpointId and trims the conversation to [MAX_PER_CONVERSATION] in one transaction. */
@@ -53,14 +53,14 @@ class ContextCompactionStore(private val dao: ContextCheckpointDao) {
         _changes.emit(record.conversationId)
     }
 
-    /** Deletes every checkpoint of the conversation (contract P3·U4 rule 3). Returns the deleted checkpoint ids. */
+    /** Deletes every checkpoint of the conversation. Returns the deleted checkpoint ids. */
     suspend fun deleteAll(accountId: String, conversationId: String): List<String> {
         val ids = dao.deleteAll(accountId, conversationId)
         _changes.emit(conversationId)
         return ids
     }
 
-    /** Deletes the given rows (contract P3·U4 rule 4: recompact drops the latestValid row). */
+    /** Deletes the given rows. */
     suspend fun delete(accountId: String, conversationId: String, checkpointIds: List<String>) {
         if (checkpointIds.isNotEmpty()) dao.delete(accountId, conversationId, checkpointIds)
         _changes.emit(conversationId)
@@ -111,7 +111,7 @@ class ContextCompactionStore(private val dao: ContextCheckpointDao) {
 
     /**
      * Shared by the local edit hooks (edit-resend / regenerate): [invalidate], then hand the dropped ids to
-     * [deleteRemote] so the remote copies go too (contract P3·U2 rule 4). Not called when nothing dropped.
+     * [deleteRemote] so the remote copies go too. Not called when nothing dropped.
      */
     suspend fun invalidateAndDeleteRemote(
         accountId: String,

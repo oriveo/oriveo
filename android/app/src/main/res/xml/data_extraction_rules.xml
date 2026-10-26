@@ -19,6 +19,8 @@
         <exclude domain="database" path="message_continuations.db" />
         <exclude domain="database" path="message_continuations.db-wal" />
         <exclude domain="database" path="message_continuations.db-shm" />
+        <!-- Recordings waiting for transcription and the recycle area: kept on this device only and deleted once transcribed or discarded, so they are not carried over by backup or device transfer. -->
+        <exclude domain="file" path="voice/" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="oriveo_secure_keys.xml" />
@@ -34,5 +36,7 @@
         <exclude domain="database" path="message_continuations.db" />
         <exclude domain="database" path="message_continuations.db-wal" />
         <exclude domain="database" path="message_continuations.db-shm" />
+        <!-- Recordings waiting for transcription and the recycle area: kept on this device only and deleted once transcribed or discarded, so they are not carried over by backup or device transfer. -->
+        <exclude domain="file" path="voice/" />
     </device-transfer>
 </data-extraction-rules>

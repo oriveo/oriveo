@@ -15,6 +15,9 @@ import kotlinx.coroutines.withContext
 /** Result of storing an image: an attachment's localImageId and mimeType both come from here, so the mimeType always describes the bytes on disk. */
 data class StoredImage(val id: String, val mimeType: String)
 
+/** A file key in the attachment directories (an id from images / thumbnails / blobs with the suffix removed) and its latest modification time (the maximum across the directories). */
+data class StoredAttachmentKey(val key: String, val lastModifiedMillis: Long)
+
 class AttachmentStore(private val context: Context) {
 
     private val imageDir: File by lazy(LazyThreadSafetyMode.NONE) {
@@ -208,6 +211,12 @@ class AttachmentStore(private val context: Context) {
         return if (file.exists()) file.length() else 0L
     }
 
+    /** Size of the thumbnail file in bytes (0 when missing); attachment cleanup counts it towards the freed total. */
+    fun thumbnailSizeBytes(localImageId: String): Long {
+        val file = thumbnailFile(localImageId)
+        return if (file.exists()) file.length() else 0L
+    }
+
     fun loadBase64(localImageId: String): String? {
         val file = imageFile(localImageId)
         if (!file.exists()) return null
@@ -223,6 +232,32 @@ class AttachmentStore(private val context: Context) {
     fun delete(localImageId: String) {
         imageFile(localImageId).delete()
         thumbnailFile(localImageId).delete()
+    }
+
+    /**
+     * Lists every file key in the images / thumbnails / blobs directories with its modification time (the latest one when a key appears in several).
+     * File names that fail [isSafeImageId] are skipped. **Not main-thread safe**; call it on an IO dispatcher.
+     */
+    fun listStoredKeys(): List<StoredAttachmentKey> {
+        val latest = LinkedHashMap<String, Long>()
+        fun collect(dir: File, suffix: String?) {
+            dir.listFiles()?.forEach { file ->
+                if (!file.isFile) return@forEach
+                val name = file.name
+                val key = when {
+                    suffix == null -> name
+                    name.endsWith(suffix) -> name.removeSuffix(suffix)
+                    else -> return@forEach
+                }
+                if (!isSafeImageId(key)) return@forEach
+                val modified = file.lastModified()
+                latest[key] = max(latest[key] ?: Long.MIN_VALUE, modified)
+            }
+        }
+        collect(imageDir, ".jpg")
+        collect(thumbnailDir, ".jpg")
+        collect(blobDir, null)
+        return latest.map { (key, modified) -> StoredAttachmentKey(key, modified) }
     }
 
     fun saveBlob(data: ByteArray, id: String = generateUuidString()): String {

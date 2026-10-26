@@ -11,7 +11,6 @@ import ai.oriveo.community.core.model.LanguageOption
 import ai.oriveo.community.core.model.LastUsedModelRef
 import ai.oriveo.community.core.model.ThemeOption
 import ai.oriveo.community.core.model.resolveActiveModel
-import ai.oriveo.community.core.model.resolveLastUsedModelRef
 import ai.oriveo.community.core.provider.ModelSelectionUtils
 import ai.oriveo.community.core.provider.ProviderSelectionSnapshot
 import ai.oriveo.community.core.provider.UnsupportedParamNoticeBus
@@ -23,7 +22,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -90,31 +89,15 @@ class AppViewModel(
                 )
             }
         }
-
-        viewModelScope.launch {
-            combine(providers, lastUsedModelRef, ::resolveLastUsedModelRef)
-                .distinctUntilChanged()
-                .collect { resolvedRef ->
-                    val currentRef = lastUsedModelRef.value
-                    when {
-                        resolvedRef == null && currentRef != null -> {
-                            appPreferencesRepository.clearLastUsedModel()
-                        }
-                        resolvedRef != null && resolvedRef != currentRef -> {
-                            appPreferencesRepository.setLastUsedModel(
-                                providerId = resolvedRef.providerID,
-                                modelId = resolvedRef.modelID,
-                            )
-                        }
-                    }
-                }
-        }
     }
 
     fun setActiveModel(providerId: String, modelId: String) {
         appPreferencesRepository.primeLastUsedModel(providerId, modelId)
         viewModelScope.launch {
+            // providers is WhileSubscribed: with no subscriber its value is empty, so read the repository once
+            // as a fallback; otherwise the raw id would be stored.
             val provider = providers.value.firstOrNull { it.id == providerId }
+                ?: providerRepository.observeAll().first().firstOrNull { it.id == providerId }
             val selection = ProviderSelectionSnapshot.persistedSelection(provider, modelId)
             if (selection?.model != null) {
                 appPreferencesRepository.setLastUsedModel(providerId, selection.model, provider?.kind)

@@ -108,6 +108,8 @@ class BackupService(
     private val contextCompactionStore: ai.oriveo.community.core.data.repository.ContextCompactionStore? = null,
     /** Memory items are exported and imported with the backup (memory-items.v2 backup rules); when null the backup has no item section and an import restores only the legacy memory preferences. */
     private val memoryItemRepository: MemoryItemRepository? = null,
+    /** When an import restores the last-used model, it is written through this repository so its in-memory override is refreshed too; otherwise an older explicit choice would mask the imported value. */
+    private val appPreferencesRepository: AppPreferencesRepository? = null,
 ) {
     private val accountId: String get() = LOCAL_PARTITION_ID
 
@@ -338,6 +340,8 @@ class BackupService(
                     useMemory = conversation.useMemory,
                     previewText = conversation.previewText,
                     estimatedCost = conversation.estimatedCost,
+                    // An empty map is written explicitly when there is no non-USD cost: reading {} clears the totals, a missing key only means an older backup
+                    nonUsdCostTotals = conversation.nonUsdCostTotals,
                     messages = hydratedMessages,
                     folderID = conversation.folderID,
                     skillId = conversation.skillId,
@@ -911,10 +915,18 @@ class BackupService(
                         useMemory = bc.useMemory,
                         previewText = bc.previewText,
                         estimatedCost = bc.estimatedCost,
+                        // When the backup is newer its totals win: {} clears them; a missing key (older format) leaves the local non-USD totals alone
+                        nonUsdCostTotals = if (bc.nonUsdCostTotals != null) {
+                            ai.oriveo.community.core.data.mapper.ConversationMapper.encodeNonUsdCostTotals(bc.nonUsdCostTotals)
+                        } else {
+                            localConv.nonUsdCostTotals
+                        },
                         folderID = bc.folderID,
                         skillId = bc.skillId,
-                        // Instructions follow the same side as the title: the backup overwrites only when it is newer
-                        instructions = ConversationInstructions.normalize(bc.instructions),
+                        // Instructions follow the same side as the title: the backup overwrites only when it is newer;
+                        // a missing key (older format) leaves the local value alone, an explicit "" clears it as usual
+                        instructions = bc.instructions?.let(ConversationInstructions::normalize)
+                            ?: localConv.instructions,
                         // contextCap follows the same side: the backup overwrites only when it is newer (invalid or missing means follow the global default)
                         contextCap = bc.parsedContextCap?.toStorageText(),
                         // Pinned notes follow the same side: the backup overwrites only when it is newer (same encoding as a fresh import: normalized, de-duplicated, empty = null)
@@ -1391,6 +1403,8 @@ class BackupService(
             useMemory = bc.useMemory,
             previewText = bc.previewText,
             estimatedCost = bc.estimatedCost,
+            nonUsdCostTotals = bc.nonUsdCostTotals
+                ?.let(ai.oriveo.community.core.data.mapper.ConversationMapper::encodeNonUsdCostTotals),
             isDraft = false,
             draftText = "",
             createdAt = bc.createdAt.takeIf { createdAt -> createdAt > 0L } ?: bc.updatedAt,
@@ -1402,7 +1416,7 @@ class BackupService(
             pinnedNoteIdsJson = bc.pinnedNoteIds.map(::normalizeUuid).distinct()
                 .takeIf { it.isNotEmpty() }
                 ?.let { json.encodeToString(ListSerializer(String.serializer()), it) },
-            instructions = ConversationInstructions.normalize(bc.instructions),
+            instructions = ConversationInstructions.normalize(bc.instructions.orEmpty()),
             contextCap = bc.parsedContextCap?.toStorageText(),
         )
 
@@ -1588,8 +1602,13 @@ class BackupService(
         }
 
         backupData.lastUsedModelRef?.let { lastUsed ->
-            setUserStatePreference(AppPreferenceKeys.LAST_USED_PROVIDER_ID, lastUsed.providerID)
-            setUserStatePreference(AppPreferenceKeys.LAST_USED_MODEL_ID, lastUsed.modelID)
+            val repository = appPreferencesRepository
+            if (repository != null) {
+                repository.setLastUsedModel(lastUsed.providerID, lastUsed.modelID)
+            } else {
+                setUserStatePreference(AppPreferenceKeys.LAST_USED_PROVIDER_ID, lastUsed.providerID)
+                setUserStatePreference(AppPreferenceKeys.LAST_USED_MODEL_ID, lastUsed.modelID)
+            }
             result = result.copy(restoredLastUsedModel = true)
         }
 
@@ -1744,7 +1763,10 @@ class BackupService(
     }
 
     private suspend fun clearUserStatePreferences() {
-        AppPreferenceKeys.USER_STATE_KEYS.forEach { key -> preferenceDao.delete(key) }
+        // The last-used model is not cleared by a full replace: a backup without a value keeps the old one (same as iOS / Web),
+        // and a backup with a value overwrites it in applyImportedPreferences.
+        val preservedKeys = setOf(AppPreferenceKeys.LAST_USED_PROVIDER_ID, AppPreferenceKeys.LAST_USED_MODEL_ID)
+        (AppPreferenceKeys.USER_STATE_KEYS - preservedKeys).forEach { key -> preferenceDao.delete(key) }
     }
 
     private fun BackupProvider.toProvider(): ai.oriveo.community.core.model.Provider {

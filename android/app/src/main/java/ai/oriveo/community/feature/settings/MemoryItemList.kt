@@ -78,7 +78,7 @@ import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeParseException
 
-/** List groups in display order (P5·U6 contract rule 3). */
+/** List groups in display order. */
 enum class MemoryItemGroup {
     About,
     Preferences,
@@ -113,7 +113,7 @@ data class MemoryConflictEntry(val item: MemoryItem, val isThisDevice: Boolean)
 /** One conflict group: this device's version first. */
 data class MemoryConflictPair(val groupId: String, val entries: List<MemoryConflictEntry>)
 
-/** Scope shown on an episodic row's second line (P7·U3 card rule 2). */
+/** Scope shown on an episodic row's second line. */
 sealed interface MemoryEpisodicScope {
     data object AllChats : MemoryEpisodicScope
 
@@ -265,7 +265,7 @@ data class MemoryItemListActions(
     val onRawView: (() -> Unit)? = null,
 )
 
-// ── Memory atlas kit (P11): glyphs, hues, cards shared by the memory pages ──
+// ── Memory atlas kit: glyphs, hues, cards shared by the memory pages ──
 
 private fun circlePath(cx: Float, cy: Float, r: Float): String =
     "M${cx - r} ${cy}a$r $r 0 1 0 ${2 * r} 0a$r $r 0 1 0 ${-2 * r} 0"

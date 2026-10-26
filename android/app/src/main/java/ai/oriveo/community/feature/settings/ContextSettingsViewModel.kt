@@ -12,10 +12,10 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
- * Settings › Context (contract P3·U4 rule 8): what happens when the context limit is reached.
+ * Settings › Context: what happens when the context limit is reached.
  * false (default) = keep only the user's own messages; true = AI summary. Stored on this device only.
- * Also the global default input cap (contract P9·U7 rule 4): auto (default), unlimited or a custom count,
- * and the price-line crossing reminder (contract P9·U8): on by default.
+ * Also the global default input cap: auto (default), unlimited or a custom count,
+ * and the price-line crossing reminder: on by default.
  */
 class ContextSettingsViewModel(
     private val appPreferencesRepository: AppPreferencesRepository,

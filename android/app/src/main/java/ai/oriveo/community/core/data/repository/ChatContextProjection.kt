@@ -355,7 +355,23 @@ internal object ChatContextProjector {
                         name = attachment.fileName,
                     )
                 },
+                carriesMedia = carriesMedia(message),
             )
+        }
+
+    /**
+     * Criterion for where manual compaction stops (same as iOS compactionStopsAtMedia and Web carriesMedia):
+     * images and videos count as media; a file counts only when its original bytes are kept (it can go out as a native
+     * file block), while a file already extracted to text can go into the summary.
+     */
+    private fun carriesMedia(message: ChatMessage): Boolean =
+        message.attachments.orEmpty().any { attachment ->
+            when (attachment.kind) {
+                ai.oriveo.community.core.model.AttachmentKind.Image,
+                ai.oriveo.community.core.model.AttachmentKind.Video -> true
+                ai.oriveo.community.core.model.AttachmentKind.File ->
+                    !attachment.originalBase64Data.isNullOrEmpty() || attachment.rawContentRef != null
+            }
         }
 
     /**
@@ -511,6 +527,6 @@ internal object ChatContextProjector {
         return CheckpointCut(tail + mergedIntoCurrent, tail.firstOrNull()?.id ?: current.id, checkpoint)
     }
 
-    private fun ChatMessage.toContextMessage(): ContextMessage =
+    internal fun ChatMessage.toContextMessage(): ContextMessage =
         ContextMessage(id = id, role = role, text = text, state = state, attachments = attachments.orEmpty())
 }

@@ -207,7 +207,7 @@ class ChatRepositoryMcpTest {
         assertTrue("usage of both legs is billed", delivered.captured.estimatedCost > 0.0)
         assertEquals("the tool really was called once", 1, mcp.requests("tools/call").size)
         verify(exactly = 0) { providerRepository.serviceFor(any<Provider>(), any()) }
-        verify { memory.record(LOCAL_PARTITION_ID, any(), any(), toolCall = true, reason = "structured_tool_calls_observed") }
+        verify { memory.record(LOCAL_PARTITION_ID, any(), any(), observedToolCall = true, reason = "structured_tool_calls_observed") }
     }
 
     /**
@@ -471,7 +471,7 @@ class ChatRepositoryMcpTest {
         // A false for the Relay shape goes into the negative cache (the same keyFor as the read-side toolCallVerdict); the old tool memory is no longer written.
         val key = RelayNegativeCache.keyFor(provider(), provider().models.single())!!
         assertEquals(listOf(key to RelayNegativeCache.Kind.ToolCall), negativeCache.entries().map { it.key to it.kind })
-        verify(exactly = 0) { memory.record(any(), any(), any(), toolCall = false, reason = any()) }
+        verify(exactly = 0) { memory.record(any(), any(), any(), observedToolCall = false, reason = any()) }
     }
 
     /** An unverified Claude-family model on an auto connection sends via Messages first, so the tools-rejected negative cache is written under Messages. */
@@ -587,7 +587,7 @@ class ChatRepositoryMcpTest {
         coVerify(exactly = 1) { mcpRunner.run(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) }
         verify(exactly = 1) { providerService.sendMessageStream(any(), any(), any(), any(), any(), any(), any(), any()) }
         verify(exactly = 1) {
-            memory.record(LOCAL_PARTITION_ID, official, match { it.id == MANUAL_MODEL }, toolCall = false, reason = "tools_rejected_4xx")
+            memory.record(LOCAL_PARTITION_ID, official, match { it.id == MANUAL_MODEL }, observedToolCall = false, reason = "tools_rejected_4xx")
         }
         assertTrue(negativeCache.entries().isEmpty())
     }
@@ -615,7 +615,7 @@ class ChatRepositoryMcpTest {
         }
         verify(exactly = 0) { providerService.sendMessageStream(any(), any(), any(), any(), any(), any(), any(), any()) }
         assertTrue(negativeCache.entries().isEmpty())
-        verify(exactly = 0) { memory.record(any(), any(), any(), toolCall = false, reason = any()) }
+        verify(exactly = 0) { memory.record(any(), any(), any(), observedToolCall = false, reason = any()) }
     }
 
     // -- propose_memory inside the MCP loop --------------------------------
@@ -811,7 +811,7 @@ class ChatRepositoryMcpTest {
         )
 
         assertTrue(negativeCache.entries().isEmpty())
-        verify(exactly = 0) { memory.record(any(), any(), any(), toolCall = false, reason = any()) }
+        verify(exactly = 0) { memory.record(any(), any(), any(), observedToolCall = false, reason = any()) }
     }
 
     @Test

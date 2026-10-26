@@ -57,7 +57,7 @@
     <string name="reasoning_balanced">Seimbang</string>
     <string name="reasoning_deep">Dalam</string>
     <string name="reasoning_max">Maks</string>
-    <string name="new_chat">Obrolan Baru</string>
+    <string name="new_chat">Percakapan Baru</string>
     <string name="send">Kirim</string>
     <string name="stop">Berhenti</string>
     <string name="type_a_message">Ketik pesan…</string>
@@ -97,8 +97,10 @@
     <string name="chat_issue_provider_missing_message">%1$s tidak lagi tersedia untuk percakapan ini. Pilih model lain untuk melanjutkan.</string>
     <string name="chat_issue_model_missing_title">Model tidak tersedia</string>
     <string name="chat_issue_model_missing_message">Model yang digunakan dalam percakapan ini tidak lagi diaktifkan. Pilih model lain untuk melanjutkan.</string>
-    <string name="chat_model_removed_banner">Model obrolan ini sudah tidak ada di %1$s.</string>
+    <string name="chat_model_removed_banner">Model percakapan ini sudah tidak ada di %1$s.</string>
     <string name="chat_model_removed_choose">Pilih model</string>
+    <string name="chat_model_retired_banner">%1$s sudah dihentikan.</string>
+    <string name="chat_model_retired_switch_to">Beralih ke %1$s</string>
     <string name="conversations">Percakapan</string>
     <string name="no_conversations">Belum ada percakapan</string>
     <string name="search_conversation_titles_or_content">Cari judul atau konten percakapan</string>
@@ -130,7 +132,7 @@
     <string name="ready_to_start_conversation">Siap memulai percakapan baru</string>
     <string name="providers_title">Penyedia</string>
     <string name="no_providers_title">Belum ada penyedia yang ditambahkan</string>
-    <string name="no_providers_description">Hubungkan penyedia terlebih dahulu. Peralihan model, obrolan, dan transparansi biaya semuanya dimulai di sini.</string>
+    <string name="no_providers_description">Hubungkan penyedia terlebih dahulu. Peralihan model, percakapan, dan transparansi biaya semuanya dimulai di sini.</string>
     <string name="models_count">Model yang tersedia: %d</string>
     <string name="never">Tidak pernah</string>
     <string name="provider_list_more_actions">Lebih banyak tindakan</string>
@@ -352,6 +354,7 @@
     <string name="backup_error_unknown">Kesalahan pencadangan tidak diketahui.</string>
     <string name="image_not_available">Gambar tidak tersedia</string>
     <string name="loading_full_image">Memuat gambar penuh…</string>
+    <string name="composer_restored_image_unavailable">Gambar ini belum terunduh. Sambungkan ke internet, lalu coba lagi.</string>
     <string name="save_to_photos">Simpan ke Foto</string>
     <string name="save_failed">Gagal menyimpan gambar</string>
     <string name="share_failed">Gagal membagikan gambar</string>
@@ -396,7 +399,7 @@
     <string name="memory_empty_title">Biarkan AI mengenal Anda dari pesan pertama</string>
     <string name="memory_empty_description">Tulis latar belakang dan preferensi Anda. AI akan secara otomatis mengetahui hal ini dalam setiap percakapan — tidak perlu mengulanginya lagi.</string>
     <string name="memory_placeholder">misalnya: Saya seorang backend engineer, sebagian besar menggunakan Go. Jaga agar balasan tetap ringkas, dalam bahasa Mandarin, berikan kode, bukan penjelasan panjang.</string>
-    <string name="memory_generate_draft">Hasilkan draf dari obrolan terbaru</string>
+    <string name="memory_generate_draft">Hasilkan draf dari percakapan terbaru</string>
     <string name="memory_edit_description">Ceritakan pada AI tentang diri Anda. Secara otomatis akan mengetahui hal ini di awal setiap percakapan.</string>
     <string name="memory_privacy_warning">Konten memori dikirim dengan setiap permintaan AI ke penyedia pilihan Anda. Jangan masukkan kata sandi atau informasi sensitif lainnya.</string>
     <string name="memory_indicator">Percakapan ini menggunakan memori</string>
@@ -807,7 +810,7 @@
     <string name="providers_summary_count">Penyedia %d</string>
     <string name="providers_connect_first_title">Hubungkan penyedia pertama Anda</string>
     <string name="providers_delete_this_question">Hapus penyedia ini?</string>
-    <string name="providers_delete_this_message">Menghapus penyedia ini juga menghapus obrolan terkait dan konfigurasi model defaultnya.</string>
+    <string name="providers_delete_this_message">Menghapus penyedia ini juga menghapus percakapan terkait dan konfigurasi model defaultnya.</string>
     <string name="manual_model_clear">Hapus</string>
     <string name="needs_api_key">Perlu API key</string>
     <string name="tap_to_view">Ketuk untuk lihat</string>
@@ -857,7 +860,7 @@
     <string name="provider_tagline_openai">Model GPT unggulan</string>
     <string name="provider_tagline_anthropic">Model Claude</string>
     <string name="provider_tagline_gemini">Teks, gambar &amp; video</string>
-    <string name="provider_tagline_deepseek">Penalaran &amp; obrolan</string>
+    <string name="provider_tagline_deepseek">Penalaran &amp; percakapan</string>
     <string name="provider_tagline_grok">Model xAI</string>
     <string name="provider_tagline_mistral">Model Mistral AI</string>
     <string name="provider_tagline_minimax">Model multimodal</string>
@@ -894,7 +897,7 @@
     <string name="relay_guidance_web_page_returned">Koneksi ini mengembalikan halaman web, bukan respons model. Periksa URL Permintaan dan protokol yang diatur untuk model ini.</string>
     <string name="relay_guidance_client_gated">Grup key ini hanya menerima Claude CLI resmi. Di konsol akun situs yang menerbitkan key ini, pindahkan key ke grup yang mengizinkan akses API, atau buat key baru lalu tambahkan di Penyedia → koneksi ini → API key. Setelah itu, coba lagi.</string>
     <string name="relay_guidance_image_response_format_rejected">Model gambar ini tidak menerima parameter response_format. Coba ID model gambar lain.</string>
-    <string name="relay_guidance_images_endpoint_unavailable">Koneksi ini tidak menyediakan API terpisah untuk membuat gambar. Buka Penyedia → koneksi ini → Perpustakaan Model → model ini → Lanjutan, lalu ubah protokol ke OpenAI Responses. Oriveo akan membuat gambar langsung di dalam chat.</string>
+    <string name="relay_guidance_images_endpoint_unavailable">Koneksi ini tidak menyediakan API terpisah untuk membuat gambar. Buka Penyedia → koneksi ini → Perpustakaan Model → model ini → Lanjutan, lalu ubah protokol ke OpenAI Responses. Oriveo akan membuat gambar langsung di dalam percakapan.</string>
     <string name="relay_guidance_model_not_offered">Upstream koneksi ini tidak menyediakan model ini. Buka Penyedia → koneksi ini → Perpustakaan Model, lalu aktifkan model yang benar-benar disediakannya. Anda dapat meminta daftar lengkap ID model yang tersedia kepada adminnya.</string>
     <string name="relay_guidance_responses_protocol_required">Koneksi ini memerlukan protokol OpenAI Responses untuk model ini. Buka Penyedia → koneksi ini → Perpustakaan Model → model ini → Lanjutan, ubah protokol ke OpenAI Responses, lalu coba lagi.</string>
     <string name="relay_guidance_store_param_rejected">Koneksi ini menolak kolom store/disable_response_storage. Buka Penyedia → koneksi ini → Edit koneksi → Kompatibilitas, nonaktifkan “Jangan simpan respons di cloud”, lalu coba lagi.</string>
@@ -938,7 +941,7 @@
     <string name="outline_jump_to">Lompat ke: %1$s</string>
     <string name="outline_attachment_only">(Lampiran)</string>
     <string name="notes_title">Catatan</string>
-    <string name="notes_subtitle">Simpan isi chat sebagai catatan</string>
+    <string name="notes_subtitle">Simpan isi percakapan sebagai catatan</string>
     <string name="notes_untitled">Catatan tanpa judul</string>
 <!-- Tabs -->
     <string name="notes_tab_notes">Catatan</string>
@@ -960,7 +963,7 @@
     <string name="notes_show_more">Tampilkan lebih banyak</string>
     <!-- Empty states -->
     <string name="notes_empty_title">Belum ada catatan</string>
-    <string name="notes_empty_description">Simpan isi chat sebagai catatan</string>
+    <string name="notes_empty_description">Simpan isi percakapan sebagai catatan</string>
     <!-- Folders -->
     <string name="notes_folders_all">Semua catatan</string>
     <string name="notes_folders_uncategorized">Tanpa kategori</string>
@@ -1010,8 +1013,8 @@
     <string name="notes_chat_saved_as_note">Tersimpan sebagai catatan</string>
     <string name="notes_chat_note_replaced">Catatan diperbarui</string>
     <string name="notes_chat_note_capture_hint">Simpan jawaban bagus sebagai catatan lewat tombol ini.</string>
-    <string name="notes_chat_related_notes_title">Catatan yang bisa dibawa ke chat ini</string>
-    <string name="notes_chat_attach_note">Bawa ke chat</string>
+    <string name="notes_chat_related_notes_title">Catatan yang bisa dibawa ke percakapan ini</string>
+    <string name="notes_chat_attach_note">Bawa ke percakapan</string>
     <string name="notes_chat_dismiss_note_suggestion">Abaikan</string>
     <string name="notes_chat_remove_note_context">Hapus konteks: %1$s</string>
     <string name="notes_chat_crosscheck_action">Periksa dengan model lain</string>
@@ -1061,7 +1064,7 @@
     <string name="relay_quick_title">Pengaturan Cepat</string>
     <string name="relay_quick_subtitle">Masukkan URL permintaan dan API key. Oriveo akan mendeteksi pengaturan koneksi untuk Anda.</string>
     <string name="relay_models_found">Menemukan model %1$d di katalog.</string>
-    <string name="relay_quick_verified_protocol">%1$s terverifikasi melalui jalur obrolan sebenarnya.</string>
+    <string name="relay_quick_verified_protocol">%1$s terverifikasi melalui jalur chat sebenarnya.</string>
     <string name="relay_quick_empty_catalog">Katalog ditemukan, namun tidak mengembalikan ID model. Masukkan model di atas untuk melanjutkan.</string>
     <string name="relay_manual_setup">Penyiapan manual</string>
     <string name="relay_manual_setup_subtitle">Gunakan hanya jika deteksi otomatis gagal.</string>
@@ -1110,7 +1113,7 @@
     <string name="generation_parameter_source">Sumber</string>
     <string name="provider_detail_connection_settings">Pengaturan Koneksi</string>
     <string name="generation_connection_defaults">Default %1$s</string>
-    <string name="generation_current_conversation">Percakapan Saat Ini</string>
+    <string name="generation_current_conversation">Percakapan saat ini</string>
     <string name="generation_basic_settings">Pengaturan Dasar</string>
     <string name="generation_group_budget">Batas Output</string>
     <string name="generation_group_reasoning">Penalaran</string>
@@ -1145,7 +1148,7 @@
     <string name="chat_token_usage_cache_write">Tulis cache</string>
     <string name="chat_token_usage_total">Total</string>
     <string name="chat_token_usage_unavailable">Tidak ada data</string>
-    <string name="generation_conversation_scope_hint">Hanya berlaku saat model ini digunakan dalam percakapan ini. Nilai tidak disalin saat berganti model dan dipulihkan saat kembali.</string>
+    <string name="generation_conversation_scope_hint">Hanya berlaku selama model ini dipakai dalam percakapan ini. Mengganti model tidak menyalin nilainya; kembali lagi akan memulihkannya.</string>
     <string name="generation_parameter_self_healed">Model ini menolak %1$s. Dicoba lagi dengan pengaturan default.</string>
     <string name="relay_transport_llamacpp_native">Completion native llama.cpp</string>
     <string name="relay_catalog_loading">Memuat daftar model…</string>
@@ -1173,7 +1176,7 @@
     <string name="relay_model_advanced_source_detected">Terdeteksi</string>
     <string name="relay_model_advanced_source_tested">Sudah diuji</string>
     <string name="relay_model_advanced_source_engine">Dinyatakan mesin</string>
-    <string name="relay_model_advanced_thinking_levels">Tingkat berpikir yang bisa dipilih di chat</string>
+    <string name="relay_model_advanced_thinking_levels">Tingkat berpikir yang bisa dipilih di percakapan</string>
     <string name="relay_model_advanced_channel_hint">Saluran diubah di pengaturan koneksi.</string>
     <string name="relay_model_advanced_local_only">Hanya disimpan di perangkat ini</string>
     <string name="relay_model_advanced_image_generation">Buat gambar</string>
@@ -1324,7 +1327,7 @@
     <string name="model_control_identity_model_not_in_catalog">Model ini tidak ada di katalog, jadi tidak bisa dipastikan pengaturan apa yang didukungnya.</string>
     <string name="model_control_supported_models_header">Model-model di koneksi ini mendukungnya secara otomatis. Memilih salah satu akan memindahkan percakapan ini ke model tersebut.</string>
     <string name="model_control_switch_to_model">Ganti</string>
-    <string name="skill_capability_confirm_note">Terapkan preferensi web dan penalaran tersimpan dari Skill ini di obrolan Skill baru.</string>
+    <string name="skill_capability_confirm_note">Terapkan preferensi web dan penalaran tersimpan dari Skill ini di percakapan Skill baru.</string>
     <string name="model_control_custom_request_fields">Kolom permintaan kustom</string>
     <string name="model_control_custom_fields_need_schema">Bidang kustom memerlukan skema bidang resmi untuk model dan transport ini.</string>
     <string name="model_control_custom_fields_no_schema_for_control">Koneksi ini tidak mendeklarasikan bidang kustom untuk kontrol ini.</string>
@@ -1345,7 +1348,7 @@
     <string name="tool_call_arguments_truncated">Dipotong pada 2 KB</string>
     <string name="tool_fallback_library_not_searched">Koneksi ini tidak mendukung alat, sehingga pustaka tidak ditelusuri.</string>
     <string name="storage_blocked_title">Penyimpanan Penuh</string>
-    <string name="storage_blocked_message">Perangkat Anda tidak punya sisa ruang kosong, sehingga Oriveo tidak dapat membuka data lokalnya. Kosongkan sebagian ruang lalu coba lagi — obrolan Anda tetap tersimpan di perangkat ini dan tidak hilang.</string>
+    <string name="storage_blocked_message">Perangkat Anda tidak punya sisa ruang kosong, sehingga Oriveo tidak dapat membuka data lokalnya. Kosongkan sebagian ruang lalu coba lagi — percakapan Anda tetap tersimpan di perangkat ini dan tidak hilang.</string>
     <string name="storage_blocked_action_free_space">Kosongkan Ruang</string>
     <string name="database_unavailable_title">Tidak Bisa Membuka Data Lokal</string>
     <string name="database_unavailable_message">Oriveo tidak dapat membuka data lokalnya di perangkat ini. Coba lagi, atau hubungi dukungan jika terus terjadi.</string>
@@ -1370,7 +1373,7 @@
     <string name="mcp_tools_chip_state_off">Nonaktif</string>
     <string name="mcp_tools_chip_state_unavailable">Tidak tersedia untuk model ini</string>
     <string name="stream_activity_mcp_tool">Menggunakan %1$s · %2$s</string>
-    <string name="mcp_panel_title">Alat untuk chat ini</string>
+    <string name="mcp_panel_title">Alat untuk percakapan ini</string>
     <string name="mcp_panel_subtitle">Jika diaktifkan, model bisa memakai alat dari layanan-layanan ini saat menjawab.</string>
     <plurals name="mcp_panel_tool_count">
         <item quantity="other">%d alat</item>
@@ -1386,7 +1389,7 @@
     <string name="mcp_panel_footer_truncated">Lebih dari %1$d alat aktif. Hanya %2$d yang akan dikirim, diambil bergiliran dari setiap server.</string>
     <string name="mcp_panel_manage">Kelola server MCP</string>
     <string name="mcp_panel_empty_title">Belum ada alat</string>
-    <string name="mcp_panel_empty_body">Hubungkan server MCP, lalu model bisa mencari di Linear, menulis ke Notion, atau memakai alat yang Anda kelola sendiri, langsung dari chat.</string>
+    <string name="mcp_panel_empty_body">Hubungkan server MCP, lalu model bisa mencari di Linear, menulis ke Notion, atau memakai alat yang Anda kelola sendiri, langsung dari percakapan.</string>
     <string name="mcp_panel_add_server">Tambah server MCP</string>
     <string name="mcp_panel_unavailable_title">Model ini tidak bisa memakai alat</string>
     <string name="mcp_panel_unavailable_model">Model ini tidak mendukung pemanggilan alat. Beralihlah ke model lain untuk memakai alat.</string>
@@ -1428,7 +1431,7 @@
     <string name="mcp_confirm_about_characters">Sekitar %d karakter</string>
     <string name="mcp_confirm_view_all">Lihat semua</string>
     <string name="mcp_confirm_allow_once">Izinkan sekali</string>
-    <string name="mcp_confirm_allow_conversation">Selalu izinkan di chat ini</string>
+    <string name="mcp_confirm_allow_conversation">Selalu izinkan di percakapan ini</string>
     <string name="mcp_confirm_decline">Tolak</string>
     <string name="mcp_confirm_full_title">Yang akan dikirim</string>
     <string name="mcp_confirm_full_note">Ini ditulis oleh model dan akan dikirim ke %s persis seperti yang tampil.</string>
@@ -1449,10 +1452,10 @@
         <item quantity="other">%d perlu ditangani</item>
     </plurals>
     <string name="mcp_servers_empty_title">Biarkan model memakai layanan Anda</string>
-    <string name="mcp_servers_empty_body">Server MCP membuat layanan seperti Linear dan Notion, atau alat yang Anda kelola sendiri, bisa dipakai model langsung di dalam chat.</string>
+    <string name="mcp_servers_empty_body">Server MCP membuat layanan seperti Linear dan Notion, atau alat yang Anda kelola sendiri, bisa dipakai model langsung di dalam percakapan.</string>
     <string name="mcp_promise_credentials">Kredensial login tetap tersimpan di perangkat ini</string>
     <string name="mcp_promise_confirm">Apa pun yang mengubah data Anda selalu minta izin dulu</string>
-    <string name="mcp_promise_per_chat">Bisa dinyalakan atau dimatikan per chat</string>
+    <string name="mcp_promise_per_chat">Bisa dinyalakan atau dimatikan per percakapan</string>
     <string name="mcp_add_server">Tambah server</string>
     <string name="mcp_add_subtitle">Tempel alamat server MCP</string>
     <string name="mcp_add_address">Alamat server</string>
@@ -1722,7 +1725,7 @@
     <string name="relay_keys_add_more_hint">Bisa menambah kunci lain</string>
     <string name="relay_detail_library_summary">Aktif: %1$d · Bisa ditambahkan: %2$d</string>
     <string name="relay_detail_library_summary_local">Aktif: %1$d · Masih ada %2$d di mesin</string>
-    <string name="relay_detail_thinking_template">Mengikuti templat chat. Atur di “Opsi Model” pada chat.</string>
+    <string name="relay_detail_thinking_template">Mengikuti templat chat. Atur di “Opsi Model” pada percakapan.</string>
     <string name="relay_detail_thinking_model">Saluran mesin ini saat ini tidak bisa mengatur mode berpikir. Model yang menentukan.</string>
     <string name="relay_detail_thinking_unsupported">Menurut mesin, model bawaan tidak mendukung mode berpikir.</string>
     <string name="relay_detail_read_only">Hanya baca</string>
@@ -1853,7 +1856,7 @@
     <string name="relay_cap_test_progress">%1$d / %2$d</string>
     <string name="relay_cap_test_done_badge">Selesai</string>
     <string name="relay_cap_test_stopped_badge">Dihentikan</string>
-    <string name="relay_cap_test_item_text">Obrolan teks</string>
+    <string name="relay_cap_test_item_text">Chat teks</string>
     <string name="relay_cap_test_item_image">Baca gambar</string>
     <string name="relay_cap_test_item_tool">Pemanggilan alat</string>
     <string name="relay_cap_test_running_text">Mengirim “Hi”</string>
@@ -1882,16 +1885,16 @@
     <string name="relay_cap_test_reason_http">HTTP %1$d</string>
     <string name="relay_cap_test_not_run">Belum diuji: uji teks tidak lolos</string>
     <plurals name="relay_cap_test_info_named_key">
-        <item quantity="other">Mengirim hingga %1$d permintaan kecil dengan kunci “%2$s”, lewat jalur yang sama dengan obrolan. Maksimal 30 detik per item.</item>
+        <item quantity="other">Mengirim hingga %1$d permintaan kecil dengan kunci “%2$s”, lewat jalur yang sama dengan percakapan. Maksimal 30 detik per item.</item>
     </plurals>
     <plurals name="relay_cap_test_info">
-        <item quantity="other">Mengirim hingga %1$d permintaan kecil dengan kunci Anda, lewat jalur yang sama dengan obrolan. Maksimal 30 detik per item.</item>
+        <item quantity="other">Mengirim hingga %1$d permintaan kecil dengan kunci Anda, lewat jalur yang sama dengan percakapan. Maksimal 30 detik per item.</item>
     </plurals>
     <plurals name="relay_cap_test_info_web">
-        <item quantity="other">Mengirim hingga %1$d permintaan kecil dengan kunci Anda, lewat jalur yang sama dengan obrolan. Salah satunya melakukan pencarian web, yang mungkin dikenai biaya pencarian. Maksimal 30 detik per item.</item>
+        <item quantity="other">Mengirim hingga %1$d permintaan kecil dengan kunci Anda, lewat jalur yang sama dengan percakapan. Salah satunya melakukan pencarian web, yang mungkin dikenai biaya pencarian. Maksimal 30 detik per item.</item>
     </plurals>
     <plurals name="relay_cap_test_info_web_named_key">
-        <item quantity="other">Mengirim hingga %1$d permintaan kecil dengan kunci “%2$s”, lewat jalur yang sama dengan obrolan. Salah satunya melakukan pencarian web, yang mungkin dikenai biaya pencarian. Maksimal 30 detik per item.</item>
+        <item quantity="other">Mengirim hingga %1$d permintaan kecil dengan kunci “%2$s”, lewat jalur yang sama dengan percakapan. Salah satunya melakukan pencarian web, yang mungkin dikenai biaya pencarian. Maksimal 30 detik per item.</item>
     </plurals>
     <string name="relay_cap_test_footer_saved">Hasil disimpan ke kemampuan model ini. Anda bisa mengubahnya di “Lanjutan”.</string>
     <string name="relay_cap_test_footer_nothing">Tidak ada yang disimpan.</string>
@@ -1906,7 +1909,7 @@
     <string name="relay_web_row_subtitle">Opsional: ganti pengaturan pencarian web bawaan</string>
     <string name="relay_web_status_not_set">Bawaan</string>
     <string name="relay_web_status_set">Kustom</string>
-    <string name="relay_web_page_intro">Opsional. Setiap protokol sudah punya pengaturan pencarian web bawaan; isian di sini menggantikannya. Apa pun yang dipakai, pengaturan hanya dikirim saat pencarian web diaktifkan di obrolan.</string>
+    <string name="relay_web_page_intro">Opsional. Setiap protokol sudah punya pengaturan pencarian web bawaan; isian di sini menggantikannya. Apa pun yang dipakai, pengaturan hanya dikirim saat pencarian web diaktifkan di percakapan.</string>
     <string name="relay_web_search_probe_disclosure">Setelah disimpan, hingga 5 model yang aktif masing-masing menerima satu permintaan pencarian web dengan kunci Anda untuk memastikan pencarian berfungsi. Pencarian mungkin dikenai biaya.</string>
     <string name="relay_web_search_rejected_title">Model yang menolak pengaturan ini</string>
     <string name="relay_web_search_retest">Uji lagi</string>
@@ -2028,7 +2031,7 @@
     <plurals name="context_compaction_detail_kept">
         <item quantity="other">%d pesan Anda disimpan apa adanya</item>
     </plurals>
-    <string name="context_compaction_detail_fallback_note">Balasan AI sebelumnya tidak lagi dikirim ke model; pesan Anda sendiri tetap disertakan. Semua pesan di atas tetap ada di chat ini dan tetap bisa dibaca serta disalin.</string>
+    <string name="context_compaction_detail_fallback_note">Balasan AI sebelumnya tidak lagi dikirim ke model; pesan Anda sendiri tetap disertakan. Semua pesan di atas tetap ada di percakapan ini dan tetap bisa dibaca serta disalin.</string>
     <string name="context_compaction_detail_model">Model</string>
     <string name="context_compaction_detail_cost">Biaya</string>
     <string name="context_compaction_detail_cost_unavailable">Tidak tersedia</string>
@@ -2037,8 +2040,8 @@
     <string name="context_compaction_action_compact">Padatkan konteks</string>
     <string name="context_compaction_action_recompact">Padatkan lagi</string>
     <string name="context_compaction_action_clear">Batalkan pemadatan</string>
-    <string name="context_compaction_action_new_chat_with_summary">Chat baru dengan ringkasan</string>
-    <string name="context_compaction_toast_noop">Chat ini masih cukup pendek. Belum ada yang perlu dipadatkan.</string>
+    <string name="context_compaction_action_new_chat_with_summary">Percakapan baru dengan ringkasan</string>
+    <string name="context_compaction_toast_noop">Percakapan ini masih cukup pendek. Belum ada yang perlu dipadatkan.</string>
     <string name="context_usage_ring_a11y">Konteks terpakai %1$d%%, batas %2$s token</string>
     <string name="context_usage_ring_over_a11y">Konteks melebihi batas</string>
     <string name="context_usage_title">Konteks</string>
@@ -2073,10 +2076,10 @@
     <string name="context_compaction_toast_cleared">Pemadatan dibatalkan. Mulai sekarang, seluruh riwayat akan dikirim.</string>
     <string name="context_compaction_in_progress">Memadatkan konteks…</string>
     <string name="context_compaction_cancel">Batal</string>
-    <string name="context_compaction_third_hint">Chat ini sudah dipadatkan 3 kali, jadi detail awal yang terlihat oleh model makin sedikit. Anda bisa memulai chat baru dan membawa ringkasannya.</string>
-    <string name="context_compaction_third_hint_new_chat">Chat baru</string>
+    <string name="context_compaction_third_hint">Percakapan ini sudah dipadatkan 3 kali, jadi detail awal yang terlihat oleh model makin sedikit. Anda bisa memulai percakapan baru dan membawa ringkasannya.</string>
+    <string name="context_compaction_third_hint_new_chat">Percakapan baru</string>
     <string name="context_compaction_third_hint_dismiss">Mengerti</string>
-    <string name="context_compaction_quote_label">Ringkasan chat sebelumnya</string>
+    <string name="context_compaction_quote_label">Ringkasan percakapan sebelumnya</string>
     <string name="settings_context_title">Konteks</string>
     <string name="settings_context_overflow_header">Saat batas tercapai</string>
     <string name="settings_context_mode_fallback">Simpan pesan Anda saja</string>
@@ -2183,10 +2186,10 @@
     <string name="memory_kind_decision">Keputusan</string>
     <string name="memory_kind_event">Peristiwa</string>
     <string name="memory_item_date">Tanggal</string>
-    <string name="memory_scope_all">Semua obrolan</string>
+    <string name="memory_scope_all">Semua percakapan</string>
     <string name="memory_scope_folder_named">Folder “%s”</string>
     <string name="memory_scope_folder">Folder</string>
-    <string name="memory_scope_conversation">Satu obrolan</string>
+    <string name="memory_scope_conversation">Satu percakapan</string>
     <string name="memory_item_pinned_a11y">Disematkan</string>
     <string name="memory_action_edit">Edit</string>
     <string name="memory_action_pin">Sematkan</string>
@@ -2215,7 +2218,7 @@
     <string name="memory_extraction_title_draft">Buat draf memori dengan AI?</string>
     <string name="memory_extraction_title_organize">Pecah menjadi entri dengan AI?</string>
     <string name="memory_extraction_model">Dikirim ke: %1$s · %2$s</string>
-    <string name="memory_extraction_scope_draft">Yang dikirim: pesan Anda sendiri ke penyedia ini dari maksimal 5 obrolan terbaru, 500 karakter pertama dari tiap obrolan. Balasan AI tidak disertakan.</string>
+    <string name="memory_extraction_scope_draft">Yang dikirim: pesan Anda sendiri ke penyedia ini dari maksimal 5 percakapan terbaru, 500 karakter pertama dari tiap percakapan. Balasan AI tidak disertakan.</string>
     <string name="memory_extraction_scope_organize">Yang dikirim: seluruh teks memori ini.</string>
     <string name="memory_extraction_no_fallback">Jika permintaan gagal, penyedia lain tidak akan digunakan.</string>
     <string name="memory_extraction_send">Kirim</string>
@@ -2230,4 +2233,6 @@
     <string name="context_confirm_also_price_line">Permintaan ini juga melewati ambang harga %1$s di %2$s, sehingga seluruh permintaan dikenai harga konteks panjang.</string>
     <string name="context_confirm_dont_ask">Jangan tanya lagi di percakapan ini</string>
     <string name="context_confirm_send">Tetap kirim</string>
+    <string name="chat_last_used_model_retired_hint">Model yang terakhir Anda pakai sudah dihentikan. Sekarang memakai %1$s.</string>
+    <string name="model_options_shows_thinking_fixed">Menampilkan proses berpikir · tidak bisa diatur</string>
 </resources>

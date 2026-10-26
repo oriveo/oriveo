@@ -49,6 +49,8 @@ data class ConversationEntity(
     /** Since v40: conversation-level instructions (normalized, at most 8000 code points); an empty string means none. */
     @ColumnInfo(defaultValue = "")
     val instructions: String = "",
-    /** Since v44: stored text of the conversation input budget cap ("auto", "unlimited" or a decimal token count); null follows the global default. */
+    /** Since v5: stored text of the conversation input budget cap ("auto", "unlimited" or a decimal token count); null follows the global default. */
     val contextCap: String? = null,
+    /** Since v6: JSON totals per non-USD currency ({"CNY": 3.5}); null means no non-USD cost. [estimatedCost] stays the USD total. */
+    val nonUsdCostTotals: String? = null,
 )

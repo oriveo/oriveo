@@ -1,7 +1,6 @@
 package ai.oriveo.community.core.data.repository
 
 import ai.oriveo.community.core.data.EntityMapper.toEntity
-import ai.oriveo.community.core.data.dao.ConversationDao
 import ai.oriveo.community.core.data.dao.PreferenceDao
 import ai.oriveo.community.core.data.dao.ProviderDao
 import ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID
@@ -37,8 +36,6 @@ class ProviderRepositoryLlamaCppMigrationTest {
     fun `llama cpp native connections move to chat once through the guarded write`() = runTest {
         val dao = mockk<ProviderDao>()
         val secureKeyStore = mockk<SecureKeyStore>()
-        val conversationDao = mockk<ConversationDao>()
-        coEvery { conversationDao.getAll(any()) } returns emptyList()
         val llama = provider(
             id = "11111111-1111-1111-1111-111111111111",
             transport = RelayTransport.LlamaCppNative,
@@ -64,7 +61,6 @@ class ProviderRepositoryLlamaCppMigrationTest {
         coEvery { preferenceDao.set(any()) } coAnswers { flags[firstArg<PreferenceEntity>().key] = "1" }
         val repository = ProviderRepository(
             dao = dao,
-            conversationDao = conversationDao,
             secureKeyStore = secureKeyStore,
             openRouterService = mockk(),
             openAIService = mockk(),

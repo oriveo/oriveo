@@ -42,6 +42,9 @@ object ConversationMapper {
             }?.map(::normalizeUuid) ?: emptyList(),
             instructions = instructions,
             contextCap = contextCap.toContextBudgetCapOrNull(),
+            nonUsdCostTotals = nonUsdCostTotals?.let {
+                runCatching { json.decodeFromString<Map<String, Double>>(it) }.getOrNull()
+            }.orEmpty(),
         ))
 
     fun Conversation.toEntity(accountId: String = LOCAL_PARTITION_ID): ConversationEntity = ConversationEntity(
@@ -66,7 +69,12 @@ object ConversationMapper {
             ?.let { json.encodeToString(it) },
         instructions = instructions,
         contextCap = contextCap?.toStorageText(),
+        nonUsdCostTotals = encodeNonUsdCostTotals(nonUsdCostTotals),
     )
+
+    /** Non-USD totals to the `conversations.nonUsdCostTotals` column text (empty becomes null); shared by the DAO updates that write only the cost columns. */
+    fun encodeNonUsdCostTotals(totals: Map<String, Double>): String? =
+        totals.takeIf { it.isNotEmpty() }?.let { json.encodeToString(it) }
 
     /** Text stored in the local column: auto and unlimited as is, a custom cap as a decimal token count. */
     fun ContextBudgetCap.toStorageText(): String = when (this) {

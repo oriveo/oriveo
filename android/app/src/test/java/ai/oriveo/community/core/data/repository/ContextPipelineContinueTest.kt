@@ -135,6 +135,32 @@ class ContextPipelineContinueTest {
         assertEquals("Chapter 1.$CONTINUATION_RAW", harness.lastUpdate(partial.id)?.text)
     }
 
+    @Test
+    fun continue_adds_round_cost_to_previous_cost_parts() = runTest {
+        // The cost of the finishing round and the placeholder's existing cost are merged part by part: USD adds up and the existing CNY part is kept.
+        val done = StreamEvent.Done(
+            ProviderChatResult(
+                text = CONTINUATION_RAW.trim(),
+                rawText = CONTINUATION_RAW,
+                estimatedCost = 0.002,
+                costSource = ai.oriveo.community.core.provider.CostSource.UPSTREAM.name,
+            ),
+        )
+        val service = mockk<ProviderService>(relaxed = true).also {
+            every { it.sendMessageStream(any(), any(), any(), any(), any(), any(), any(), any()) } returns flowOf(done)
+        }
+        val harness = Harness(this, CHAT_MODEL, service = service)
+        val user = message("u-1", ChatRole.User, "Write a story", CHAT_MODEL)
+        val partial = message("a-1", ChatRole.Assistant, "Chapter 1.", CHAT_MODEL, ChatMessageState.Interrupted)
+            .copy(estimatedCost = 0.001, nonUsdCost = ai.oriveo.community.core.model.NonUsdCost("CNY", 0.2, "LOCAL_ESTIMATE"))
+        harness.continueOn(conversation(CHAT_MODEL).copy(messages = listOf(user, partial)), partial.id)
+
+        val delivered = requireNotNull(harness.lastUpdate(partial.id))
+        assertEquals(0.003, delivered.estimatedCost, 1e-12)
+        assertEquals(ai.oriveo.community.core.model.NonUsdCost("CNY", 0.2, "LOCAL_ESTIMATE"), delivered.nonUsdCost)
+        assertEquals(ai.oriveo.community.core.provider.CostSource.UPSTREAM.name, delivered.costSource)
+    }
+
     /** Same rule as the OpenAI / compatible-family services: text is the trimmed body and rawText keeps the original leading newline. */
     private fun doneOnlyService(): ProviderService {
         val done = StreamEvent.Done(ProviderChatResult(text = CONTINUATION_RAW.trim(), rawText = CONTINUATION_RAW))

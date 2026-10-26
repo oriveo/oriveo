@@ -371,7 +371,7 @@ class MemoryInboxViewModelTest {
         val appPreferencesRepository = mockk<AppPreferencesRepository>(relaxed = true)
         val conversationRepository = mockk<ConversationRepository>(relaxed = true)
         coEvery { providerRepository.getById(provider.id) } returns provider
-        // P10 rule 2: the real propose_memory mode decision reads the connection's tool-call verdict.
+        // The real propose_memory mode decision reads the connection's tool-call verdict.
         io.mockk.every { providerRepository.toolCallMemoryVerdict(any(), any()) } returns null
         coEvery { providerRepository.capabilityEvidenceIdentity(any(), any<String>()) } returns null
         coEvery { appPreferencesRepository.hasAcceptedProviderDisclosure(any()) } returns true

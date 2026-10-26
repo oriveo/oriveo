@@ -12,6 +12,8 @@ import ai.oriveo.community.core.context.SummaryRequest
 import ai.oriveo.community.core.context.SummaryRequestShape
 import ai.oriveo.community.core.context.trimWhiteSpace
 import ai.oriveo.community.core.data.database.OriveoDatabase
+import ai.oriveo.community.core.model.Attachment
+import ai.oriveo.community.core.model.AttachmentKind
 import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.ChatMessageState
 import ai.oriveo.community.core.model.ChatRole
@@ -455,6 +457,60 @@ class ContextPipelineCompactionCoordinatorTest {
     private fun assertNotNullRow(row: ContextCheckpointRecord?): ContextCheckpointRecord {
         assertNotNull("fallback row saved", row)
         return row!!
+    }
+
+    /**
+     * Manual compaction only compresses the history before the first media-bearing message. The media flags come
+     * from the production compactionHistory over app messages carrying images / files with original bytes; m6 has an
+     * image, so the row covers up to m5 at most, and m6 onward stay verbatim and count toward fixedTokens.
+     * A file with only extracted text (m3) is not media; pre-send compaction on the same history is not truncated
+     * and still covers up to m7.
+     */
+    @Test
+    fun `coordinator_manual_stops_before_first_media_message`() = runBlocking {
+        remoteOn = false
+        val raw = (0..10).map { i ->
+            ChatMessage(
+                id = "m$i",
+                role = if (i % 2 == 0) ChatRole.User else ChatRole.Assistant,
+                text = "text $i",
+                providerKind = ProviderKind.OpenAI,
+                providerName = "p",
+                modelName = "m",
+                state = ChatMessageState.Delivered,
+                attachments = when (i) {
+                    3 -> listOf(Attachment("a3", AttachmentKind.File, "notes.txt", "text/plain", base64Data = "dGV4dA=="))
+                    6 -> listOf(Attachment("a6", AttachmentKind.Image, "photo.png", "image/png", localImageId = "img"))
+                    8 -> listOf(Attachment("a8", AttachmentKind.File, "scan.pdf", "application/pdf", originalBase64Data = "JVBERg=="))
+                    else -> null
+                },
+            )
+        }
+        val produced = ChatContextProjector.compactionHistory(raw, RHO)
+        assertEquals(listOf("m6", "m8"), produced.filter { it.carriesMedia }.map { it.id })
+        // Estimates are fixed at 1500 so the B / tail relationship matches HISTORY; media flags come from production output.
+        val history = produced.map {
+            ContextCompactionMessage(it.id, it.role, it.text, 1_500, attachments = it.attachments, carriesMedia = it.carriesMedia)
+        }
+        val ctx = ctx().copy(messages = history)
+
+        val manual = coordinator().compact(CONV, ContextCompactionTrigger.MANUAL, ctx)
+
+        val kept = history.take(6)
+        val expected = ContextCheckpoint.fallback(
+            kept.map { CheckpointFallbackMessage(it.id, it.role, it.estTokens, it.text, it.isDirective) },
+            B, RHO, 4 * 1_500, null,
+        )
+        assertEquals(CompactOutcome.FALLBACK, manual.outcome)
+        val row = manual.row
+        assertNotNull(row)
+        assertEquals(expected.checkpointText, row!!.text)
+        val tailStart = expected.tailStartId?.let { id -> kept.indexOfFirst { it.id == id } } ?: kept.size
+        assertEquals(kept[tailStart - 1].id, row.coversTo)
+
+        clearRows()
+        val preSend = coordinator().compact(CONV, ContextCompactionTrigger.PRE_SEND, ctx)
+        assertEquals("m7", preSend.row?.coversTo)
     }
 
     private fun previousRow() = ContextCheckpointRecord(

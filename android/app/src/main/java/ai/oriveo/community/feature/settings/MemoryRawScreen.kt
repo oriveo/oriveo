@@ -59,7 +59,7 @@ import ai.oriveo.community.core.context.MemoryItems
 import ai.oriveo.community.ui.theme.OriveoTheme
 
 /**
- * Raw view state (P5·U6 contract rule 5): [items] is the snapshot the text was rendered from;
+ * Raw view state: [items] is the snapshot the text was rendered from;
  * [tooLongIndex] is the 1-based segment shown in the error line, null when there is no error.
  */
 data class MemoryRawState(

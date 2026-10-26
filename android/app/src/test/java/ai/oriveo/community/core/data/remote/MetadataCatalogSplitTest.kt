@@ -20,6 +20,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
@@ -45,27 +46,36 @@ class MetadataCatalogSplitTest {
 
         client.initialize(context())
 
+        // lean v1 deliberately does not project the fields listed in leanV1DroppedFields: the equivalence check uses a catalog with those keys removed,
+        // and the production-path section below still uses the fixture as is (client).
+        val equivalent = newClient(
+            FakeSplitServer(withoutLeanV1DroppedFields(fixture())),
+            FakeRowDao(),
+            demand(ProviderKind.OpenAI, ProviderKind.Anthropic),
+        )
+        equivalent.initialize(context())
+
         val lean = MetadataClient()
         lean.loadNetworkPayloadForTesting(fixture().getValue("leanEquivalent").toString(), INDEX_ETAG)
         for (kind in listOf(ProviderKind.OpenAI, ProviderKind.Anthropic)) {
             val ids = lean.providerModelIds(kind)
             assertTrue(ids.isNotEmpty())
-            assertEquals(ids, client.providerModelIds(kind))
-            assertEquals(lean.defaultModelId(kind), client.defaultModelId(kind))
-            assertEquals(lean.validation(kind), client.validation(kind))
-            assertEquals(lean.providerAttachmentSupport(kind), client.providerAttachmentSupport(kind))
+            assertEquals(ids, equivalent.providerModelIds(kind))
+            assertEquals(lean.defaultModelId(kind), equivalent.defaultModelId(kind))
+            assertEquals(lean.validation(kind), equivalent.validation(kind))
+            assertEquals(lean.providerAttachmentSupport(kind), equivalent.providerAttachmentSupport(kind))
             for (id in ids) {
                 // Model set, pricing, capabilities, generation parameter refs and evidence projection in one pass.
-                assertEquals(lean.resolveCatalogModel(id, kind), client.resolveCatalogModel(id, kind))
+                assertEquals(lean.resolveCatalogModel(id, kind), equivalent.resolveCatalogModel(id, kind))
                 assertEquals(
                     lean.capabilityActionLookup(kind, id, "generation"),
-                    client.capabilityActionLookup(kind, id, "generation"),
+                    equivalent.capabilityActionLookup(kind, id, "generation"),
                 )
-                assertEquals(lean.capabilityActionLookup(kind, id, "web"), client.capabilityActionLookup(kind, id, "web"))
+                assertEquals(lean.capabilityActionLookup(kind, id, "web"), equivalent.capabilityActionLookup(kind, id, "web"))
             }
         }
-        assertEquals(lean.relayRuntimeConfig(), client.relayRuntimeConfig())
-        assertEquals(lean.listPublicProviderConfigs(), client.listPublicProviderConfigs())
+        assertEquals(lean.relayRuntimeConfig(), equivalent.relayRuntimeConfig())
+        assertEquals(lean.listPublicProviderConfigs(), equivalent.listPublicProviderConfigs())
 
         // The objects the production path produces must be right on their own too (expected values
         // come straight from the fixture tables): parametersRef dereferenced, evidence identity filled in from tree position, capabilityControls expanded.
@@ -216,7 +226,10 @@ class MetadataCatalogSplitTest {
         assertEquals(2, server.indexValidators.size)
         assertEquals(listOf("openAI", "openAI"), server.catalogCalls.map { it.first })
         assertEquals(lastGood, client.resolveCatalogModel(brokenOpenAIModel, ProviderKind.OpenAI)?.contentOnly())
-        assertEquals(listOf("catalog_revision"), reports.map { it["phase"] })
+        // Exactly one revision_mismatch per provider per sync round; no catalog_revision any more.
+        assertEquals(listOf("revision_mismatch"), reports.map { it["reason"] })
+        assertEquals("openai", reports.single()["provider_kind"])
+        assertTrue(reports.none { it["phase"] == "catalog_revision" })
     }
 
     @Test
@@ -441,6 +454,385 @@ class MetadataCatalogSplitTest {
         assertEquals(listOf(null), factsValidators)
     }
 
+    @Test
+    fun `models dev tool call evidence with declared grade reaches the facade verdict`() = runTest {
+        val server = FakeSplitServer(fixture())
+        val client = newClient(server, FakeRowDao(), demand(ProviderKind.OpenAI, ProviderKind.Anthropic))
+        client.initialize(context())
+
+        val cases = listOf("openAI" to ProviderKind.OpenAI, "anthropic" to ProviderKind.Anthropic).flatMap { (key, kind) ->
+            val catalog = catalogData(key)
+            val tables = catalog.getValue("tables").jsonObject
+            catalog.getValue("models").jsonObject.mapNotNull { (id, raw) ->
+                val ref = (raw.jsonObject["capabilityEvidenceRef"] as? JsonPrimitive)?.content ?: return@mapNotNull null
+                val toolCall = (tables.getValue("capabilityEvidence").jsonObject.getValue(ref).jsonObject
+                    .getValue("candidates") as JsonArray).map { it.jsonObject }
+                    .firstOrNull { (it.getValue("key") as JsonPrimitive).content == "tool_call" } ?: return@mapNotNull null
+                Triple(kind, id, toolCall)
+            }
+        }
+        // The corpus must cover both declared + supported and declared + unsupported, otherwise this test runs empty.
+        assertEquals(
+            setOf("supported", "unsupported"),
+            cases.map { (_, _, wire) -> (wire.getValue("support") as JsonPrimitive).content }.toSet(),
+        )
+        for ((kind, id, wire) in cases) {
+            assertEquals("server_typed", (wire.getValue("source") as JsonPrimitive).content)
+            assertEquals("declared", (wire.getValue("grade") as JsonPrimitive).content)
+            val resolved = client.resolveCatalogModel(id, kind)!!
+            val candidate = resolved.capabilityEvidenceCandidates.orEmpty().single { it.key == "tool_call" }
+            assertEquals("declared", candidate.grade)
+            val observedAt = (wire.getValue("observedAt") as JsonPrimitive).content.toLong()
+            val decision = ai.oriveo.community.core.provider.CapabilityEvidenceProductionAdapter.capabilityProjection(
+                provider = Provider(id = "official-$id", kind = kind),
+                model = AIModel(id = id, name = id),
+                keys = setOf("tool_call"),
+                finalTransport = resolved.transport,
+                metadataClient = client,
+                now = observedAt + 1,
+            ).decision("tool_call")!!
+            assertEquals((wire.getValue("support") as JsonPrimitive).content, decision.resolution.support)
+            assertEquals("server_typed", decision.resolution.source)
+            assertEquals("declared", decision.resolution.grade)
+        }
+    }
+
+    @Test
+    fun `server typed evidence with a grade outside the public allowlist is still dropped`() {
+        val polluted = fixture().getValue("leanEquivalent").toString()
+            .replace("\"grade\":\"declared\"", "\"grade\":\"observed\"")
+        val client = MetadataClient()
+        client.loadNetworkPayloadForTesting(polluted, INDEX_ETAG)
+
+        val model = client.resolveCatalogModel(anthropicModel, ProviderKind.Anthropic)!!
+        assertEquals(setOf("tool_call"), model.capabilityEvidenceOwnedKeys)
+        assertTrue(model.capabilityEvidenceCandidates.orEmpty().isEmpty())
+    }
+
+    // -- schema 3 compact catalogs (schema3 section of the shared corpus) --
+
+    @Test
+    fun `schema 3 expansion cases expand to the expanded form`() {
+        val cases = schema3().getValue("expansionCases") as JsonArray
+        assertTrue(cases.isNotEmpty())
+        for (raw in cases) {
+            val case = raw.jsonObject
+            val key = (case.getValue("key") as JsonPrimitive).content
+            val data = JsonObject(
+                mapOf(
+                    "view" to JsonPrimitive("catalog"),
+                    "provider" to JsonPrimitive("openAI"),
+                    "catalogRevision" to JsonPrimitive("sha256:case"),
+                    "metadataSchema" to JsonPrimitive(3),
+                    "modelDefaults" to case.getValue("modelDefaults"),
+                    "tables" to case.getValue("tables"),
+                    "models" to JsonObject(mapOf(key to case.getValue("compact"))),
+                ),
+            )
+            val expanded = MetadataCatalogAssembly.expandCompactCatalog(data)
+                as MetadataCatalogAssembly.CompactExpansion.Expanded
+            assertEquals(key, case.getValue("expanded"), expanded.data.getValue("models").jsonObject[key])
+        }
+    }
+
+    @Test
+    fun `schema 3 catalogs expand to the schema 2 catalogs`() {
+        val v3 = schema3().getValue("catalogResponses").jsonObject
+        val v2 = schema3().getValue("schema2CatalogResponses").jsonObject
+        assertEquals(v2.keys, v3.keys)
+        var checkedModels = 0
+        for ((key, response) in v3) {
+            val compact = response.jsonObject.getValue("data").jsonObject
+            val expected = v2.getValue(key).jsonObject.getValue("data").jsonObject
+            val expanded = (
+                MetadataCatalogAssembly.expandCompactCatalog(compact)
+                    as MetadataCatalogAssembly.CompactExpansion.Expanded
+                ).data
+            val expectedModels = expected.getValue("models").jsonObject
+            val expandedModels = expanded.getValue("models").jsonObject
+            assertEquals(key, expectedModels.keys, expandedModels.keys)
+            for ((id, model) in expectedModels) {
+                assertEquals("$key/$id", model, expandedModels[id])
+                checkedModels += 1
+            }
+            // The remaining fields (tables, resolveMap, keyHelp...) match schema 2; catalogRevision differs per schema, and retiredModels moved into the catalog.
+            assertEquals(
+                key,
+                JsonObject(expected - setOf("models", "catalogRevision")),
+                JsonObject(expanded - setOf("models", "catalogRevision", "retiredModels")),
+            )
+        }
+        assertTrue(checkedModels > 0)
+    }
+
+    @Test
+    fun `schema 3 split decodes identically to schema 2 split including retired models`() = runTest {
+        val kinds = arrayOf(ProviderKind.OpenAI, ProviderKind.Anthropic, ProviderKind.OpenRouter)
+        val compact = newClient(FakeSplitServer(schema3Root()), FakeRowDao(), demand(*kinds), schemaText = payloadSchemaText())
+        compact.initialize(context())
+        val legacy = newClient(FakeSplitServer(schema2Root()), FakeRowDao(), demand(*kinds), schemaText = payloadSchemaText())
+        legacy.initialize(context())
+
+        var checkedModels = 0
+        for (kind in kinds) {
+            assertEquals(MetadataClient.CatalogLoadState.Loaded, compact.catalogLoadState(kind))
+            val ids = legacy.providerModelIds(kind)
+            assertTrue(ids.isNotEmpty())
+            assertEquals(ids, compact.providerModelIds(kind))
+            assertEquals(legacy.defaultModelId(kind), compact.defaultModelId(kind))
+            for (id in ids) {
+                assertEquals(legacy.resolveCatalogModel(id, kind), compact.resolveCatalogModel(id, kind))
+                checkedModels += 1
+            }
+            assertEquals(legacy.retiredModels(kind), compact.retiredModels(kind))
+        }
+        assertTrue(checkedModels > 0)
+        // After production decoding, tombstones match the schema 2 index retiredModels of the same provider (ids come from the corpus).
+        val expectedRetired = schema3().getValue("schema2IndexResponse").jsonObject.getValue("data").jsonObject
+            .getValue("providers").jsonObject.getValue("openAI").jsonObject.getValue("retiredModels") as JsonArray
+        assertTrue(expectedRetired.isNotEmpty())
+        assertEquals(
+            expectedRetired.map { (it.jsonObject.getValue("id") as JsonPrimitive).content },
+            compact.retiredModels(ProviderKind.OpenAI).map { it.id },
+        )
+    }
+
+    @Test
+    fun `schema 3 every negative case rejects the whole catalog and keeps last good`() = runTest {
+        val negatives = schema3().getValue("negativeCases").jsonObject
+        assertTrue(negatives.isNotEmpty())
+        for ((name, raw) in negatives) {
+            val negative = raw.jsonObject
+            assertEquals(name, "reject_whole_catalog_keep_last_good", (negative.getValue("expect") as JsonPrimitive).content)
+            val provider = (negative.getValue("provider") as JsonPrimitive).content
+            val catalog = negative.getValue("catalog").jsonObject
+            assertTrue(
+                name,
+                MetadataCatalogAssembly.expandCatalog(catalog, provider) is MetadataCatalogAssembly.Expansion.Rejected,
+            )
+            assertSchema3CatalogRejectedKeepingLastGood(name, provider, catalog)
+        }
+    }
+
+    @Test
+    fun `retired models snapshot survives a schema 3 index when the catalog refetch fails`() = runTest {
+        val expected = schema3().getValue("schema2IndexResponse").jsonObject.getValue("data").jsonObject
+            .getValue("providers").jsonObject.getValue("openAI").jsonObject.getValue("retiredModels") as JsonArray
+        assertTrue(expected.isNotEmpty())
+        // legacyRow: cache rows written by older versions have no tombstone snapshot; it is backfilled from the schema 2 index being replaced.
+        for (legacyRow in listOf(false, true)) {
+            val dao = FakeRowDao()
+            val old = newClient(FakeSplitServer(schema2Root()), dao, demand(ProviderKind.OpenAI), mutableListOf(), schemaText = payloadSchemaText())
+            old.initialize(context())
+            val retired = old.retiredModels(ProviderKind.OpenAI)
+            assertEquals(expected.size, retired.size)
+            if (legacyRow) {
+                val rowKey = MetadataCacheEntity.CATALOG_KEY_PREFIX + "openAI"
+                val row = dao.rows.getValue(rowKey)
+                val envelope = Json.parseToJsonElement(row.payload).jsonObject
+                val data = envelope.getValue("data").jsonObject
+                assertTrue(data.containsKey("retiredModels"))
+                dao.rows[rowKey] = row.copy(
+                    payload = JsonObject(envelope + ("data" to JsonObject(data - "retiredModels"))).toString(),
+                )
+            }
+
+            val server = FakeSplitServer(schema3Root()).apply { bumpIndexETag() }
+            server.statusOverrides["openAI"] = 500
+            val upgraded = newClient(server, dao, demand(ProviderKind.OpenAI), mutableListOf(), schemaText = payloadSchemaText())
+            upgraded.initialize(context())
+            upgraded.refresh()
+
+            assertEquals("legacyRow=$legacyRow", retired, upgraded.retiredModels(ProviderKind.OpenAI))
+            // A cold-start replay (index already schema 3) must also recover the snapshot from the cache row.
+            val replay = newClient(server, dao, demand(ProviderKind.OpenAI), mutableListOf(), schemaText = payloadSchemaText())
+            replay.initialize(context())
+            assertEquals("legacyRow=$legacyRow replay", retired, replay.retiredModels(ProviderKind.OpenAI))
+        }
+    }
+
+    @Test
+    fun `upgrading from cached schema 2 to schema 3 with the same metadataRevision adopts the new body`() = runTest {
+        // Schema 2 and 3 share metadataRevision (identical in the corpus): revisions are only compared within one schema.
+        val v2Index = schema3().getValue("schema2IndexResponse").jsonObject.getValue("data").jsonObject
+        val v3Index = schema3().getValue("indexResponse").jsonObject.getValue("data").jsonObject
+        assertEquals(v2Index.getValue("metadataRevision"), v3Index.getValue("metadataRevision"))
+        val dao = FakeRowDao()
+        val old = newClient(FakeSplitServer(schema2Root()), dao, demand(ProviderKind.OpenAI), mutableListOf(), schemaText = payloadSchemaText())
+        old.initialize(context())
+        assertEquals(MetadataClient.CatalogLoadState.Loaded, old.catalogLoadState(ProviderKind.OpenAI))
+
+        val reports = mutableListOf<Map<String, String>>()
+        // The schema 3 body differs, so a real server's ETag differs too; the double uses one INDEX_ETAG for both, so bump a generation to avoid a false 304.
+        val server = FakeSplitServer(schema3Root()).apply { bumpIndexETag() }
+        val upgraded = newClient(server, dao, demand(ProviderKind.OpenAI), reports, schemaText = payloadSchemaText())
+        upgraded.initialize(context())
+        upgraded.refresh(setOf(ProviderKind.Anthropic))
+
+        // A provider that was not cached must be able to load (the old schema 2 index catalogRevision must not block it forever).
+        assertEquals(
+            "reports=$reports catalogCalls=${server.catalogCalls}",
+            MetadataClient.CatalogLoadState.Loaded,
+            upgraded.catalogLoadState(ProviderKind.Anthropic),
+        )
+        assertTrue(upgraded.providerModelIds(ProviderKind.Anthropic).isNotEmpty())
+        // The cached openAI moves to the schema 3 generation too (revision matches the schema 3 index) and tombstones remain.
+        assertEquals(MetadataClient.CatalogLoadState.Loaded, upgraded.catalogLoadState(ProviderKind.OpenAI))
+        assertTrue(upgraded.retiredModels(ProviderKind.OpenAI).isNotEmpty())
+        assertTrue("reports=$reports", reports.none { it["reason"] == "revision_mismatch" })
+        val v3OpenAIRevision = (
+            schema3().getValue("catalogResponses").jsonObject.getValue("openAI").jsonObject
+                .getValue("data").jsonObject.getValue("catalogRevision") as JsonPrimitive
+            ).content
+        assertTrue(dao.rows.getValue(MetadataCacheEntity.CATALOG_KEY_PREFIX + "openAI").payload.contains(v3OpenAIRevision))
+    }
+
+    /** Schema 3 negative catalog: with a last good the content is unchanged and one catalog_decode is reported; on a cold start the provider stays Pending. */
+    private suspend fun TestScope.assertSchema3CatalogRejectedKeepingLastGood(name: String, provider: String, catalog: JsonObject) {
+        val kind = ProviderKind.entries.first { it.rawValue == provider }
+        val server = FakeSplitServer(schema3Root())
+        val reports = mutableListOf<Map<String, String>>()
+        val client = newClient(server, FakeRowDao(), demand(kind), reports, schemaText = payloadSchemaText())
+        client.initialize(context())
+        val ids = client.providerModelIds(kind)
+        assertTrue(ids.isNotEmpty())
+        val lastGood = ids.associateWith { client.resolveCatalogModel(it, kind)?.contentOnly() }
+
+        // The negative case shares the good catalog's revision; the server moves to a new generation (catalogRevision and metadataRevision both advance) so the client refetches this provider.
+        val nextRevision = (catalog.getValue("metadataRevision") as JsonPrimitive).content.toLong() + 1
+        server.resetCatalog(
+            provider,
+            JsonObject(
+                catalog + mapOf(
+                    "catalogRevision" to JsonPrimitive("sha256:" + "f".repeat(64)),
+                    "metadataRevision" to JsonPrimitive(nextRevision),
+                ),
+            ),
+        )
+        server.setIndexMetadataRevision(nextRevision)
+        server.catalogCalls.clear()
+        client.refresh()
+        assertEquals(name, listOf(provider), server.catalogCalls.map { it.first })
+
+        assertEquals(name, ids, client.providerModelIds(kind))
+        assertEquals(name, lastGood, ids.associateWith { client.resolveCatalogModel(it, kind)?.contentOnly() })
+        assertEquals(name, "catalog_decode", reports.single()["phase"])
+
+        // Without a last good it is rejected the same way: the provider stays pending.
+        val fresh = FakeSplitServer(schema3Root())
+        fresh.resetCatalog(provider, catalog)
+        val cold = newClient(fresh, FakeRowDao(), demand(kind), mutableListOf(), schemaText = payloadSchemaText())
+        cold.initialize(context())
+        assertEquals(name, MetadataClient.CatalogLoadState.Pending, cold.catalogLoadState(kind))
+    }
+
+    @Test
+    fun `lean fallback keeps its retired models under a schema 3 index`() = runTest {
+        val retiredJson = schema2OpenAIRetired()
+        val root = fixture()
+        val lean = root.getValue("leanEquivalent").jsonObject
+        val leanData = lean.getValue("data").jsonObject
+        val leanProviders = leanData.getValue("providers").jsonObject
+        val leanOpenAI = leanProviders.getValue("openAI").jsonObject
+        val leanWithRetired = JsonObject(
+            lean + (
+                "data" to JsonObject(
+                    leanData + (
+                        "providers" to JsonObject(
+                            leanProviders + ("openAI" to JsonObject(leanOpenAI + ("retiredModels" to retiredJson))),
+                        )
+                        ),
+                )
+                ),
+        )
+        val dao = FakeRowDao()
+        dao.rows[MetadataCacheEntity.SINGLETON_KEY] =
+            legacyLeanRow(JsonObject(root + ("leanEquivalent" to leanWithRetired)), updatedAtMs = 0L)
+        val seed = MetadataClient()
+        seed.loadNetworkPayloadForTesting(leanWithRetired.toString(), "\"seed\"")
+        val expected = seed.retiredModels(ProviderKind.OpenAI)
+        assertEquals(retiredJson.size, expected.size)
+
+        val server = FakeSplitServer(schema3Root())
+        server.statusOverrides["openAI"] = 500
+        val client = newClient(server, dao, demand(ProviderKind.OpenAI), mutableListOf(), now = { STALE_NOW }, schemaText = payloadSchemaText())
+        client.initialize(context())
+
+        // The openAI catalog fetch failed and the lean payload backs it up: tombstones also come from lean, not from the empty value in the schema 3 index.
+        assertEquals(MetadataClient.CatalogLoadState.Loaded, client.catalogLoadState(ProviderKind.OpenAI))
+        assertEquals(expected, client.retiredModels(ProviderKind.OpenAI))
+    }
+
+    @Test
+    fun `retired snapshot backfill and the schema 3 index are written in one transaction`() = runTest {
+        val dao = FakeRowDao()
+        val old = newClient(FakeSplitServer(schema2Root()), dao, demand(ProviderKind.OpenAI), mutableListOf(), schemaText = payloadSchemaText())
+        old.initialize(context())
+        val retired = old.retiredModels(ProviderKind.OpenAI)
+        assertTrue(retired.isNotEmpty())
+        // A cache row written by an older version: no tombstone snapshot.
+        val rowKey = MetadataCacheEntity.CATALOG_KEY_PREFIX + "openAI"
+        val row = dao.rows.getValue(rowKey)
+        val envelope = Json.parseToJsonElement(row.payload).jsonObject
+        dao.rows[rowKey] = row.copy(
+            payload = JsonObject(envelope + ("data" to JsonObject(envelope.getValue("data").jsonObject - "retiredModels"))).toString(),
+        )
+        dao.failUpsertKeys += rowKey
+
+        val server = FakeSplitServer(schema3Root()).apply { bumpIndexETag() }
+        server.statusOverrides["openAI"] = 500
+        val reports = mutableListOf<Map<String, String>>()
+        val upgraded = newClient(server, dao, demand(ProviderKind.OpenAI), reports, schemaText = payloadSchemaText())
+        upgraded.initialize(context())
+        upgraded.refresh()
+
+        // The backfill write fails -> whole transaction rolls back: the persisted index is still the old schema 2.
+        assertTrue(reports.any { it["phase"] == "cache_write" })
+        val indexData = Json.parseToJsonElement(dao.rows.getValue(MetadataCacheEntity.INDEX_KEY).payload).jsonObject
+            .getValue("data").jsonObject
+        assertEquals(JsonPrimitive(2), indexData["metadataSchema"])
+        // In-memory state for this session still uses the backfilled snapshot.
+        assertEquals(retired, upgraded.retiredModels(ProviderKind.OpenAI))
+
+        // Cold start (offline): tombstones come from the old schema 2 index and are still there.
+        dao.failUpsertKeys.clear()
+        val offline = FakeSplitServer(schema3Root()).apply { indexStatusOverride = 500 }
+        val replay = newClient(offline, dao, demand(ProviderKind.OpenAI), mutableListOf(), schemaText = payloadSchemaText())
+        replay.initialize(context())
+        assertEquals(retired, replay.retiredModels(ProviderKind.OpenAI))
+    }
+
+    @Test
+    fun `schema 2 null or empty refs drop only that model`() = runTest {
+        val good = schema3().getValue("schema2CatalogResponses").jsonObject.getValue("openAI").jsonObject
+            .getValue("data").jsonObject
+        val models = good.getValue("models").jsonObject
+        val withControls = models.entries.filter { (_, raw) -> raw.jsonObject.containsKey("capabilityControlsRef") }.map { it.key }
+        val withProfiles = models.entries.filter { (_, raw) -> raw.jsonObject.containsKey("profilesRef") }.map { it.key }
+        val nullRef = withControls.first()
+        val emptyRef = withProfiles.first { it != nullRef }
+        val broken = JsonObject(
+            good + (
+                "models" to JsonObject(
+                    models + mapOf(
+                        nullRef to JsonObject(models.getValue(nullRef).jsonObject + ("capabilityControlsRef" to JsonNull)),
+                        emptyRef to JsonObject(models.getValue(emptyRef).jsonObject + ("profilesRef" to JsonPrimitive(""))),
+                    ),
+                )
+                ),
+        )
+        val server = FakeSplitServer(schema2Root())
+        server.resetCatalog("openAI", broken)
+        val client = newClient(server, FakeRowDao(), demand(ProviderKind.OpenAI), mutableListOf(), schemaText = payloadSchemaText())
+        client.initialize(context())
+
+        assertEquals(MetadataClient.CatalogLoadState.Loaded, client.catalogLoadState(ProviderKind.OpenAI))
+        val ids = client.providerModelIds(ProviderKind.OpenAI)
+        assertFalse(nullRef in ids)
+        assertFalse(emptyRef in ids)
+        assertEquals(models.keys - setOf(nullRef, emptyRef), ids.toSet())
+    }
+
     // ── helpers ──
 
     /** metadataRevision on evidence is the publication identity (the index ETag), not catalog content. */
@@ -454,6 +846,7 @@ class MetadataCatalogSplitTest {
         demand: MetadataClient.CatalogDemand,
         reports: MutableList<Map<String, String>>? = null,
         now: () -> Long = { 1_000L },
+        schemaText: String? = null,
     ): MetadataClient = MetadataClient(
         backgroundScope = this,
         ioDispatcher = StandardTestDispatcher(testScheduler),
@@ -462,6 +855,7 @@ class MetadataCatalogSplitTest {
         metadataSplitTransport = server,
         nowMillis = now,
         failureReporter = { tags -> reports?.add(tags) ?: error("unexpected failure: $tags") },
+        metadataPayloadSchemaText = schemaText,
     ).also { it.catalogDemandSupplier = { demand } }
 
     private fun demand(vararg kinds: ProviderKind) = MetadataClient.CatalogDemand(kinds.toSet(), hasRelay = false)
@@ -487,6 +881,33 @@ class MetadataCatalogSplitTest {
     private fun negativeCase(root: JsonObject, name: String): JsonObject =
         root.getValue("negativeCases").jsonObject.getValue(name).jsonObject
 
+    private fun schema2OpenAIRetired(): JsonArray =
+        schema3().getValue("schema2IndexResponse").jsonObject.getValue("data").jsonObject
+            .getValue("providers").jsonObject.getValue("openAI").jsonObject.getValue("retiredModels") as JsonArray
+
+    private fun schema3(): JsonObject = fixture().getValue("schema3").jsonObject
+
+    /** Schema 3 index + compact catalogs, fed to [FakeSplitServer]. */
+    private fun schema3Root(): JsonObject = JsonObject(
+        mapOf("indexResponse" to schema3().getValue("indexResponse"), "catalogResponses" to schema3().getValue("catalogResponses")),
+    )
+
+    /** The same catalog in schema 2 shape (index carries retiredModels, catalog is uncompressed). */
+    private fun schema2Root(): JsonObject = JsonObject(
+        mapOf(
+            "indexResponse" to schema3().getValue("schema2IndexResponse"),
+            "catalogResponses" to schema3().getValue("schema2CatalogResponses"),
+        ),
+    )
+
+    private fun payloadSchemaText(): String = workspaceFile("shared/model-contracts/metadata_payload.v2.schema.json").readText()
+
+    private fun workspaceFile(path: String): File =
+        generateSequence(File(System.getProperty("user.dir") ?: ".").absoluteFile) { it.parentFile }
+            .map { File(it, path) }
+            .firstOrNull(File::exists)
+            ?: error("$path not found")
+
     /** The shared fixture read as is (generated by the server tests; model entries and global fields match production). */
     private fun fixture(): JsonObject {
         val file = generateSequence(File(System.getProperty("user.dir") ?: ".").absoluteFile) { it.parentFile }
@@ -494,6 +915,34 @@ class MetadataCatalogSplitTest {
             .firstOrNull(File::exists)
             ?: error("metadata_catalog_contract.v1.json not found")
         return Json.parseToJsonElement(file.readText(Charsets.UTF_8)).jsonObject
+    }
+
+    /**
+     * Removes keys per the fixture's top-level leanV1DroppedFields (names come from the fixture, not hard-coded): each model loses the `model` column keys;
+     * the capabilityControls table (shared by models via ref) loses the `capabilityControls` column keys, and an emptied entry is dropped together with the ref on the model.
+     */
+    private fun withoutLeanV1DroppedFields(root: JsonObject): JsonObject {
+        val dropped = root.getValue("leanV1DroppedFields").jsonObject
+        fun names(key: String) = (dropped[key] as? JsonArray).orEmpty().map { (it as JsonPrimitive).content }.toSet()
+        val modelKeys = names("model")
+        val controlKeys = names("capabilityControls")
+        val catalogs = root.getValue("catalogResponses").jsonObject.mapValues { (_, response) ->
+            val data = response.jsonObject.getValue("data").jsonObject
+            val tables = data.getValue("tables").jsonObject
+            val controls = (tables["capabilityControls"] as? JsonObject).orEmpty()
+                .mapValues { (_, entry) -> JsonObject(entry.jsonObject - controlKeys) }
+            val emptyRefs = controls.filterValues { it.isEmpty() }.keys
+            val models = data.getValue("models").jsonObject.mapValues { (_, raw) ->
+                val model = raw.jsonObject - modelKeys
+                val ref = (model["capabilityControlsRef"] as? JsonPrimitive)?.content
+                JsonObject(if (ref in emptyRefs) model - "capabilityControlsRef" else model)
+            }
+            val newTables = JsonObject(tables + ("capabilityControls" to JsonObject(controls - emptyRefs)))
+            JsonObject(
+                response.jsonObject + ("data" to JsonObject(data + mapOf("models" to JsonObject(models), "tables" to newTables))),
+            )
+        }
+        return JsonObject(root + ("catalogResponses" to JsonObject(catalogs)))
     }
 
     private fun catalogData(key: String): JsonObject =
@@ -539,7 +988,7 @@ class MetadataCatalogSplitTest {
         private fun catalogETag(key: String) = "\"catalog-$key-${revisionOf(catalogs.getValue(key))}\""
         private fun revisionOf(data: JsonObject) = (data.getValue("catalogRevision") as JsonPrimitive).content
 
-        override suspend fun fetchIndex(ifNoneMatch: String?): MetadataTransportResponse {
+        override suspend fun fetchIndex(ifNoneMatch: String?, cacheBust: String?): MetadataTransportResponse {
             indexValidators += ifNoneMatch
             indexStatusOverride?.let { return MetadataTransportResponse(it, null, null, 0) }
             if (ifNoneMatch == indexETag()) return MetadataTransportResponse(304, indexETag(), null, 0)
@@ -547,7 +996,7 @@ class MetadataCatalogSplitTest {
             return MetadataTransportResponse(200, indexETag(), body, body.length.toLong())
         }
 
-        override suspend fun fetchCatalog(provider: String, ifNoneMatch: String?): MetadataTransportResponse {
+        override suspend fun fetchCatalog(provider: String, ifNoneMatch: String?, revision: String?): MetadataTransportResponse {
             catalogCalls += provider to ifNoneMatch
             statusOverrides[provider]?.let { return MetadataTransportResponse(it, null, null, 0) }
             val data = catalogs[provider] ?: return MetadataTransportResponse(404, null, null, 0)
@@ -585,6 +1034,12 @@ class MetadataCatalogSplitTest {
             }
         }
 
+        fun bumpIndexETag() = editIndexData { it }
+
+        fun setIndexMetadataRevision(revision: Long) {
+            editIndexData { data -> data + ("metadataRevision" to JsonPrimitive(revision)) }
+        }
+
         fun setWhitelist(keys: List<String>) {
             editIndexData { data ->
                 data + ("relayRuntimeConfig" to JsonObject(mapOf("officialProviderWhitelist" to JsonArray(keys.map(::JsonPrimitive)))))
@@ -617,9 +1072,25 @@ class MetadataCatalogSplitTest {
             )
         }
 
+        /** Writing these keys throws (simulates a disk write failure). */
+        val failUpsertKeys = mutableSetOf<String>()
+
         override suspend fun upsert(entity: MetadataCacheEntity) {
+            if (entity.key in failUpsertKeys) throw java.io.IOException("disk full")
             upsertCount += 1
             rows[entity.key] = entity
+        }
+
+        /** Same semantics as a Room transaction: any row failing rolls everything back. */
+        override suspend fun upsertAllInTransaction(entities: List<MetadataCacheEntity>) {
+            val before = LinkedHashMap(rows)
+            try {
+                entities.forEach { upsert(it) }
+            } catch (error: Exception) {
+                rows.clear()
+                rows.putAll(before)
+                throw error
+            }
         }
 
         override suspend fun updatedAtMs(key: String): Long? = rows[key]?.updatedAtMs

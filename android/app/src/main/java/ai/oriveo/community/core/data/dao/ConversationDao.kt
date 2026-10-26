@@ -229,6 +229,16 @@ interface ConversationDao {
     @Update
     suspend fun update(entity: ConversationEntity)
 
+    /**
+     * Writes only the two conversation total columns, so the cost path never rewrites a whole row from a stale copy.
+     * [nonUsdCostTotals] uses the same encoding as the entity column (empty becomes null).
+     */
+    @Query(
+        "UPDATE conversations SET estimatedCost = :estimatedCost, nonUsdCostTotals = :nonUsdCostTotals " +
+            "WHERE accountId = :accountId AND id = :id"
+    )
+    suspend fun updateCostTotals(accountId: String, id: String, estimatedCost: Double, nonUsdCostTotals: String?)
+
     @Update
     suspend fun updateAll(entities: List<ConversationEntity>)
 
@@ -338,13 +348,21 @@ interface ConversationDao {
     @Query("SELECT * FROM conversations WHERE isDraft = 1 AND accountId = :accountId ORDER BY updatedAt DESC")
     suspend fun getAllDrafts(accountId: String): List<ConversationEntity>
 
+    /**
+     * Finds the newest blank draft the home screen created itself. Skill drafts (skillId), folder drafts (folderID)
+     * and drafts whose title the user changed are never reused, otherwise reopening the empty draft from home
+     * would drop the user into a skill or folder conversation.
+     */
     @Query(
         """
         SELECT * FROM conversations
         WHERE isDraft = 1
           AND accountId = :accountId
           AND draftText = ''
-              AND NOT EXISTS (
+          AND (skillId IS NULL OR skillId = '')
+          AND (folderID IS NULL OR folderID = '')
+          AND hasCustomTitle = 0
+          AND NOT EXISTS (
               SELECT 1 FROM messages
               WHERE messages.accountId = conversations.accountId
                 AND messages.conversationId = conversations.id LIMIT 1

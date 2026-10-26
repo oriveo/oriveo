@@ -11,6 +11,7 @@ import ai.oriveo.community.core.model.Conversation
 import ai.oriveo.community.core.model.ModelCapability
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderConnectionState
+import ai.oriveo.community.core.model.NonUsdCost
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.RelayAuthMode
 import ai.oriveo.community.core.model.RelayImageConfig
@@ -178,6 +179,48 @@ class EntityMapperTest {
         assertEquals(original.draftText, restored.draftText)
         assertEquals(original.createdAt, restored.createdAt)
         assertEquals(original.updatedAt, restored.updatedAt)
+    }
+
+    @Test
+    fun `Conversation nonUsdCostTotals round-trips and empty maps to null column`() = mapper {
+        val base = Conversation(id = "c1", title = "t", providerID = "p1", providerKind = ProviderKind.OpenAI, modelID = "m1")
+        val withTotals = base.copy(estimatedCost = 1.2, nonUsdCostTotals = mapOf("CNY" to 3.5, "EUR" to 1.0))
+
+        val entity = withTotals.toEntity()
+        assertEquals(mapOf("CNY" to 3.5, "EUR" to 1.0), entity.toDomain().nonUsdCostTotals)
+        assertEquals(1.2, entity.toDomain().estimatedCost, 0.0)
+
+        assertNull(base.toEntity().nonUsdCostTotals)
+        assertTrue(base.toEntity().toDomain().nonUsdCostTotals.isEmpty())
+    }
+
+    @Test
+    fun `ChatMessage nonUsdCost round-trips through three columns and null stays null`() = mapper {
+        val usd = ChatMessage(
+            id = "msg1",
+            role = ChatRole.Assistant,
+            text = "hi",
+            providerKind = ProviderKind.OpenAI,
+            providerName = "OpenAI",
+            modelName = "m",
+            estimatedCost = 0.002,
+            costSource = "LOCAL_ESTIMATE",
+            state = ChatMessageState.Delivered,
+        )
+        val mixed = usd.copy(nonUsdCost = NonUsdCost(currencyCode = "CNY", amount = 0.12, costSource = "LOCAL_ESTIMATE"))
+
+        val mixedEntity = mixed.toEntity("local", "c1", sortOrder = 0)
+        assertEquals("CNY", mixedEntity.nonUsdCostCurrency)
+        assertEquals(0.12, mixedEntity.nonUsdCostAmount!!, 0.0)
+        assertEquals("LOCAL_ESTIMATE", mixedEntity.nonUsdCostSource)
+        assertEquals(0.002, mixedEntity.estimatedCost, 0.0)
+        assertEquals(mixed.nonUsdCost, mixedEntity.toDomain().nonUsdCost)
+
+        val usdEntity = usd.toEntity("local", "c1", sortOrder = 0)
+        assertNull(usdEntity.nonUsdCostCurrency)
+        assertNull(usdEntity.nonUsdCostAmount)
+        assertNull(usdEntity.nonUsdCostSource)
+        assertNull(usdEntity.toDomain().nonUsdCost)
     }
 
     @Test

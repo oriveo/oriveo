@@ -50,7 +50,7 @@ class ConversationInstructionsTest {
     fun instructions_persist_roundtrip() = runBlocking {
         createDatabaseFromExportedSchema(dbName, version = 4) { db -> seedConversation(db, CONV_A) }
         val db = Room.databaseBuilder(context, OriveoDatabase::class.java, dbName)
-            .addMigrations(OriveoDatabase.MIGRATION_4_5)
+            .addMigrations(*OriveoDatabase.allMigrations())
             .allowMainThreadQueries()
             .build()
         try {

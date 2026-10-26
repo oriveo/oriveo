@@ -290,7 +290,7 @@ class McpMigrationTest {
 
     private fun openMigrated(): OriveoDatabase =
         Room.databaseBuilder(context, OriveoDatabase::class.java, dbName)
-            .addMigrations(OriveoDatabase.MIGRATION_2_3, OriveoDatabase.MIGRATION_3_4, OriveoDatabase.MIGRATION_4_5)
+            .addMigrations(*OriveoDatabase.allMigrations())
             .allowMainThreadQueries()
             .build()
             // Open the database right away: the migration and Room's per-table validation both happen here, and a failure throws here.

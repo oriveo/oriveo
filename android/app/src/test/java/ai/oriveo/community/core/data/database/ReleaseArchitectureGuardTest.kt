@@ -45,11 +45,16 @@ class ReleaseArchitectureGuardTest {
             .toList()
         assertTrue("No migration was parsed — the regex has drifted from the code, not the other way round.", declared.isNotEmpty())
 
-        // Declared but not registered means Room throws IllegalStateException on upgrade.
-        declared.forEach { (name, _, _) ->
+        // Declared but not registered means Room throws IllegalStateException on upgrade. Production registers only the allMigrations set.
+        assertTrue(
+            "DatabaseModule must register the OriveoDatabase.allMigrations set",
+            moduleSource.contains("*OriveoDatabase.allMigrations"),
+        )
+        val registered = OriveoDatabase.allMigrations().map { it.startVersion to it.endVersion }.toSet()
+        declared.forEach { (name, from, to) ->
             assertTrue(
-                "$name is declared but never registered with DatabaseModule.addMigrations — existing installs would crash on upgrade.",
-                moduleSource.contains("OriveoDatabase.$name"),
+                "$name is declared but missing from OriveoDatabase.allMigrations — existing installs would crash on upgrade.",
+                (from to to) in registered,
             )
         }
 
@@ -89,5 +94,19 @@ class ReleaseArchitectureGuardTest {
         // missing table means nothing is findable and every count reads zero.
         assertTrue(schema.contains("conversation_message_counts"))
         assertTrue(schema.contains("conversation_search_index"))
+    }
+
+    /** The migration set tests open databases with must be the production set: a hand-written subset goes stale (and red) with every new version. */
+    @Test
+    fun `tests open databases with the production migration set`() {
+        val offenders = File("src/test").walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .flatMap { file ->
+                Regex("""\.addMigrations\(([^)]*)""").findAll(file.readText())
+                    .filterNot { it.groupValues[1].trim().startsWith("*OriveoDatabase.allMigrations(") }
+                    .map { "${file.name}: ${it.value}" }
+            }
+            .toList()
+        assertTrue("addMigrations in tests must use *OriveoDatabase.allMigrations(...): $offenders", offenders.isEmpty())
     }
 }

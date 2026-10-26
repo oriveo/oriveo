@@ -2,6 +2,7 @@ package ai.oriveo.community.core.app
 
 import ai.oriveo.community.core.data.dao.PreferenceDao
 import ai.oriveo.community.core.data.entity.PreferenceEntity
+import ai.oriveo.community.core.model.LastUsedModelRef
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ThemeOption
 import ai.oriveo.community.core.model.LanguageOption
@@ -131,6 +132,29 @@ class AppPreferencesRepositoryTest {
         val ref = scopedRepository.lastUsedModelRef.first()
         assertEquals("new-provider", ref?.providerID)
         assertEquals("new-model", ref?.modelID)
+    }
+
+    @Test
+    fun `setLastUsedModel refreshes a live override so a later write is not masked`() = runTest {
+        // After an explicit pick the override is non-null; a later write from send, voice, quick relay add
+        // or "set as default" must be what gets read back, not masked by the stale override.
+        val scopedRepository = AppPreferencesRepository(preferenceDao)
+        scopedRepository.primeLastUsedModel("picked-provider", "picked-model")
+
+        scopedRepository.setLastUsedModel("voice-provider", "voice-model")
+
+        assertEquals(LastUsedModelRef("voice-provider", "voice-model"), scopedRepository.lastUsedModelRefSnapshot)
+        assertEquals(LastUsedModelRef("voice-provider", "voice-model"), scopedRepository.lastUsedModelRef.first())
+    }
+
+    @Test
+    fun `setLastUsedModel without an override leaves it empty and reads the stored value`() = runTest {
+        val scopedRepository = AppPreferencesRepository(preferenceDao)
+
+        scopedRepository.setLastUsedModel("p", "m")
+
+        assertNull(scopedRepository.lastUsedModelRefSnapshot)
+        assertEquals(LastUsedModelRef("p", "m"), scopedRepository.lastUsedModelRef.first())
     }
 
     @Test

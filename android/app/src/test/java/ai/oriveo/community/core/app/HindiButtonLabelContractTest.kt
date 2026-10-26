@@ -21,18 +21,23 @@ class HindiButtonLabelContractTest {
         "नमूना" to "sample (noun)",
         "संरचना" to "composition (noun)",
         "संभावना" to "probability (noun, as in parameter names like XTC संभावना)",
+        "अपना" to "own (reflexive pronoun / adjective)",
+        "पुराना" to "old (adjective)",
+        "घटना" to "event / incident (noun)",
     )
     private val devanagariWord = Regex("[\\u0900-\\u097F]+")
 
     @Test
     fun `hi short labels are not bare infinitives`() {
-        val document = DocumentBuilderFactory.newInstance().newDocumentBuilder()
-            .parse(File("src/main/res/values-hi/strings.xml"))
-        val nodes = document.getElementsByTagName("string")
-        val problems = (0 until nodes.length)
-            .mapNotNull { nodes.item(it) as? Element }
-            .filter { looksLikeInfinitiveLabel(it.textContent) }
-            .map { "${it.getAttribute("name")}: ${it.textContent}" }
+        val problems = listOf("strings.xml", "strings_voice.xml").flatMap { file ->
+            val document = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+                .parse(File("src/main/res/values-hi/$file"))
+            val nodes = document.getElementsByTagName("string")
+            (0 until nodes.length)
+                .mapNotNull { nodes.item(it) as? Element }
+                .filter { looksLikeInfinitiveLabel(it.textContent) }
+                .map { "$file ${it.getAttribute("name")}: ${it.textContent}" }
+        }
         assertTrue("hi short labels read as infinitives (-ना); use an आप-register imperative or a noun:\n" + problems.joinToString("\n"), problems.isEmpty())
     }
 

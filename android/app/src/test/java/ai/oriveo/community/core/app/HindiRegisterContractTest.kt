@@ -19,13 +19,15 @@ class HindiRegisterContractTest {
 
     @Test
     fun `hi does not order the user around with tum imperatives`() {
-        val document = DocumentBuilderFactory.newInstance().newDocumentBuilder()
-            .parse(File("src/main/res/values-hi/strings.xml"))
-        val nodes = document.getElementsByTagName("string")
-        val problems = (0 until nodes.length)
-            .mapNotNull { nodes.item(it) as? Element }
-            .filter { word.containsMatchIn(it.textContent) }
-            .map { "${it.getAttribute("name")}: ${it.textContent}" }
+        val problems = listOf("strings.xml", "strings_voice.xml").flatMap { file ->
+            val document = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+                .parse(File("src/main/res/values-hi/$file"))
+            val nodes = document.getElementsByTagName("string")
+            (0 until nodes.length)
+                .mapNotNull { nodes.item(it) as? Element }
+                .filter { word.containsMatchIn(it.textContent) }
+                .map { "$file ${it.getAttribute("name")}: ${it.textContent}" }
+        }
         assertTrue("hi still has तुम-register imperatives; use the आप register (-एँ / -ें):\n" + problems.joinToString("\n"), problems.isEmpty())
     }
 }

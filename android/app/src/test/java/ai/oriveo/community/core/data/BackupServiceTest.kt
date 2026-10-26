@@ -1,6 +1,7 @@
 package ai.oriveo.community.core.data
 
 import ai.oriveo.community.core.app.AppPreferenceKeys
+import ai.oriveo.community.core.app.AppPreferencesRepository
 import ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID
 import ai.oriveo.community.core.data.EntityMapper.toEntity
 import ai.oriveo.community.core.data.EntityMapper.toDomain
@@ -73,6 +74,10 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -161,6 +166,7 @@ class BackupServiceTest {
     private fun createBackupService(
         metadataRefresh: suspend () -> Unit = { metadataRefreshCallCount.incrementAndGet() },
         runInTransaction: suspend (suspend () -> Unit) -> Unit = { transactionalBlock -> transactionalBlock() },
+        appPreferencesRepository: AppPreferencesRepository? = null,
     ): BackupService {
         return BackupService(
             providerDao = providerDao,
@@ -176,6 +182,7 @@ class BackupServiceTest {
             preferenceDao = preferenceDao,
             metadataRefresh = metadataRefresh,
             runInTransaction = runInTransaction,
+            appPreferencesRepository = appPreferencesRepository,
         )
     }
 
@@ -2495,6 +2502,132 @@ class BackupServiceTest {
         assertEquals(lowerId.uppercase(), upsertedConvs.single().id)
         assertEquals(lowerId.uppercase(), upsertedMessages.single().conversationId)
         assertEquals("1f2e3d4c-5b6a-4798-8123-456789abcdef".uppercase(), upsertedMessages.single().id)
+    }
+
+    @Test
+    fun `import refreshes the last used model override`() = runTest {
+        // The last-used model is written through the preferences repository, so an older in-memory override cannot mask the imported value.
+        every { preferenceDao.observe(any()) } returns kotlinx.coroutines.flow.flowOf(null)
+        val preferences = AppPreferencesRepository(preferenceDao)
+        preferences.primeLastUsedModel("picked-provider", "picked-model")
+        val service = createBackupService(appPreferencesRepository = preferences)
+        val backupFile = BackupFile(
+            version = BackupService.CURRENT_VERSION,
+            createdAt = "2026-03-20T10:00:00Z",
+            appVersion = "1.0.0",
+            platform = "Web",
+            checksum = "",
+            containsKeys = false,
+            data = BackupData(lastUsedModelRef = LastUsedModelRef(providerID = "backup-provider", modelID = "gpt-5")),
+        )
+
+        val result = service.executeImport(mode = ImportMode.ReplaceAll, bytes = json.encodeToString(backupFile).toByteArray())
+
+        assertTrue(result.restoredLastUsedModel)
+        assertEquals(LastUsedModelRef(providerID = "backup-provider", modelID = "gpt-5"), preferences.lastUsedModelRefSnapshot)
+        coVerify {
+            preferenceDao.set(PreferenceEntity(AppPreferenceKeys.LAST_USED_MODEL_ID, "gpt-5"))
+        }
+    }
+
+    @Test
+    fun `replaceAll without last used in backup keeps existing last used`() = runTest {
+        // A backup with no last-used model leaves the stored value alone on a full replace (same as iOS / Web)
+        val backupFile = BackupFile(
+            version = BackupService.CURRENT_VERSION,
+            createdAt = "2026-03-20T10:00:00Z",
+            appVersion = "1.0.0",
+            platform = "Web",
+            checksum = "",
+            containsKeys = false,
+            data = BackupData(preferences = BackupPreferences(theme = "dark", language = "japanese")),
+        )
+
+        val result = backupService.executeImport(
+            mode = ImportMode.ReplaceAll,
+            bytes = json.encodeToString(backupFile).toByteArray(),
+        )
+
+        assertFalse(result.restoredLastUsedModel)
+        listOf(AppPreferenceKeys.LAST_USED_PROVIDER_ID, AppPreferenceKeys.LAST_USED_MODEL_ID).forEach { key ->
+            coVerify(exactly = 0) { preferenceDao.delete(key) }
+            coVerify(exactly = 0) { preferenceDao.set(match { it.key == key }) }
+        }
+        coVerify { preferenceDao.delete(AppPreferenceKeys.MEMORY_TEXT) }
+    }
+
+    private fun rawDataJson(bytes: ByteArray): JsonObject {
+        ZipInputStream(bytes.inputStream()).use { zis ->
+            var entry = zis.nextEntry
+            while (entry != null) {
+                if (entry.name == "data.json") return Json.parseToJsonElement(String(zis.readBytes())).jsonObject
+                entry = zis.nextEntry
+            }
+        }
+        error("data.json missing from backup zip")
+    }
+
+    // nonUsdCost is not a device-only field: backups export and import it as it is, with no currency conversion
+    @Test
+    fun `backup exports and imports message nonUsdCost`() = runTest {
+        val nonUsd = ai.oriveo.community.core.model.NonUsdCost("CNY", 0.12, "LOCAL_ESTIMATE")
+        val message = ChatMessage(
+            id = "1F2E3D4C-5B6A-4798-8123-456789ABCDEF",
+            role = ChatRole.Assistant,
+            text = "answer",
+            providerKind = ProviderKind.OpenAI,
+            providerName = ProviderKind.OpenAI.displayName,
+            modelName = "GPT-4o",
+            state = ChatMessageState.Delivered,
+            createdAt = 20L,
+            estimatedCost = 0.25,
+            costSource = "LOCAL_ESTIMATE",
+            nonUsdCost = nonUsd,
+        )
+        coEvery { conversationDao.getAll(LOCAL_PARTITION_ID) } returns listOf(existingConversationEntity())
+        coEvery { messageDao.getByConversation(any(), "conversation-1") } returns listOf(
+            message.toEntity(LOCAL_PARTITION_ID, "conversation-1", 0),
+        )
+        val exported = backupService.exportBackup()
+        val raw = rawDataJson(exported)["data"]!!.jsonObject["conversations"]!!.jsonArray.single().jsonObject["messages"]!!
+            .jsonArray.single().jsonObject
+        assertEquals("CNY", raw["nonUsdCost"]!!.jsonObject["currencyCode"]!!.jsonPrimitive.content)
+        assertEquals(nonUsd, decodeBackupZip(exported).data.conversations.single().messages.single().nonUsdCost)
+
+        val upsertedMessages = mutableListOf<MessageEntity>()
+        coEvery { conversationDao.upsert(any()) } returns Unit
+        coEvery { messageDao.upsert(capture(upsertedMessages)) } returns Unit
+        val backupFile = BackupFile(
+            version = BackupService.CURRENT_VERSION,
+            createdAt = "2026-10-20T10:00:00Z",
+            appVersion = "1.0.0",
+            platform = "Android",
+            checksum = "",
+            containsKeys = false,
+            data = BackupData(
+                conversations = listOf(
+                    BackupConversation(
+                        id = "0A1B2C3D-4E5F-4A6B-8C7D-9E0F1A2B3C4D",
+                        title = "Non-USD backup",
+                        providerID = "provider-1",
+                        providerKind = ProviderKind.OpenAI,
+                        modelID = "gpt-4o",
+                        messages = listOf(message),
+                        createdAt = 10L,
+                        updatedAt = 20L,
+                    ),
+                ),
+            ),
+        )
+        backupService.executeImport(
+            mode = ImportMode.ImportNewOnly,
+            bytes = json.encodeToString(backupFile).toByteArray(),
+        )
+        val imported = upsertedMessages.single()
+        assertEquals("CNY", imported.nonUsdCostCurrency)
+        assertEquals(0.12, imported.nonUsdCostAmount!!, 1e-12)
+        assertEquals("LOCAL_ESTIMATE", imported.nonUsdCostSource)
+        assertEquals(0.25, imported.estimatedCost, 1e-12)
     }
 
     @Test

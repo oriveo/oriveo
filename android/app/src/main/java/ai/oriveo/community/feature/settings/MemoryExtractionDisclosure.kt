@@ -16,7 +16,7 @@ import ai.oriveo.community.core.provider.RelayModelFallback
 import ai.oriveo.community.core.util.takeGraphemes
 
 /**
- * Pre-send disclosure for AI memory extraction (P6·U5 contract 1–3): the dialog names the single
+ * Pre-send disclosure for AI memory extraction: the dialog names the single
  * provider + model and the scope; nothing is sent before the user confirms, and the request uses
  * exactly this provider + model with no fallback.
  */
@@ -82,7 +82,7 @@ internal object MemoryExtraction {
 
     /**
      * Candidates in the existing order: relays are not excluded for lacking a key (auth=none local / LAN
-     * connections can still send, D-68 ⑦); the last-used connection first, the rest in original order.
+     * connections can still send, ); the last-used connection first, the rest in original order.
      */
     fun candidates(allProviders: List<Provider>, lastUsed: LastUsedModelRef?): List<MemoryExtractionCandidate> =
         allProviders

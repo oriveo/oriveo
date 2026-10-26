@@ -32,7 +32,6 @@ val repositoryModule = module {
         val db = get<OriveoDatabase>()
         ProviderRepository(
             dao = get(),
-            conversationDao = get(),
             secureKeyStore = get(),
             openRouterService = get(),
             openAIService = get(),
@@ -74,6 +73,8 @@ val repositoryModule = module {
             continuationDao = get(),
             searchIndexer = get(),
             contextCompactionStore = get(),
+            attachmentSweeper = get(),
+            attachmentPurgeScope = get<CoroutineScope>(named("applicationScope")),
         )
     }
 
@@ -268,6 +269,7 @@ val repositoryModule = module {
             runInTransaction = { block -> db.withTransaction { block() } },
             contextCompactionStore = get(),
             memoryItemRepository = get(),
+            appPreferencesRepository = get(),
         )
     }
 
@@ -282,6 +284,15 @@ val repositoryModule = module {
         ai.oriveo.community.core.data.repair.MessageAttachmentRepairTask(
             messageDao = get(),
             preferenceDao = get(),
+            attachmentStore = get(),
+        )
+    }
+
+    // The single place that deletes an attachment's local files, plus the startup orphan sweep
+    // (the referenced set spans all partitions); OriveoApplication triggers the sweep in the background.
+    single {
+        ai.oriveo.community.core.data.attachment.AttachmentOrphanSweeper(
+            messageDao = get(),
             attachmentStore = get(),
         )
     }

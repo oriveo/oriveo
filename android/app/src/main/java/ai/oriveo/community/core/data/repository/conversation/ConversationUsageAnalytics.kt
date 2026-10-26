@@ -2,9 +2,12 @@ package ai.oriveo.community.core.data.repository.conversation
 
 import ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID
 import ai.oriveo.community.core.data.dao.MessageDao
+import ai.oriveo.community.core.data.entity.MonthlyBilledMessageCountRow
 import ai.oriveo.community.core.data.entity.ProviderUsageByModelRow
 import ai.oriveo.community.core.model.CostFormatter
 import ai.oriveo.community.core.model.ProviderKind
+import ai.oriveo.community.core.usage.CostPart
+import ai.oriveo.community.core.usage.CostParts
 import ai.oriveo.community.core.usage.CostSummarySource
 import ai.oriveo.community.core.usage.MonthlyCostProviderEntry
 import ai.oriveo.community.core.usage.MonthlyCostSummary
@@ -56,19 +59,25 @@ internal class ConversationUsageAnalytics(
             val aid = LOCAL_PARTITION_ID
             messageDao.observeMonthlyCostByProviderKind(
                 accountId = aid,
-                minimumCostExclusive = CostFormatter.COST_EPSILON,
+                // Rows are summed at face value (only zero / negative amounts are dropped); the epsilon applies only to totals via CostParts.split
+                minimumCostExclusive = 0.0,
                 windowStartMillis = window.startMillis,
                 windowEndMillis = window.endMillis,
             ).map { rows ->
+                // One row per (provider, currency) becomes one entry per provider; costs are split by currency and cost counts USD only
                 val sortedProviders = rows
-                    .mapNotNull { row ->
-                        val kind = runCatching { ProviderKind.valueOf(row.providerKind) }.getOrNull()
+                    .groupBy { it.providerKind to it.providerID }
+                    .mapNotNull { (key, providerRows) ->
+                        val kind = runCatching { ProviderKind.valueOf(key.first) }.getOrNull()
                             ?: return@mapNotNull null
+                        val costs = CostParts.split(providerRows.map { it.currencyCode to it.totalCost })
+                        if (costs.isEmpty()) return@mapNotNull null
                         MonthlyCostProviderEntry(
                             providerKind = kind,
-                            providerID = row.providerID,
+                            providerID = key.second,
                             displayName = kind.displayName,
-                            cost = row.totalCost,
+                            cost = CostParts.usdAmount(costs),
+                            costs = costs,
                         )
                     }
                     .sortedWith(
@@ -78,6 +87,7 @@ internal class ConversationUsageAnalytics(
 
                 MonthlyCostSummary(
                     totalCost = sortedProviders.sumOf { it.cost },
+                    totals = CostParts.split(sortedProviders.flatMap { entry -> entry.costs.map { it.currencyCode to it.amount } }),
                     providers = sortedProviders.take(visibleProviderLimit),
                     hiddenProviderCount = maxOf(0, sortedProviders.size - visibleProviderLimit),
                     source = CostSummarySource.LocalDevice,
@@ -86,32 +96,56 @@ internal class ConversationUsageAnalytics(
         }
     }
 
-    /** Total spend this month, for callers that need a number rather than a stream. */
+    /** Total USD spend this month, for callers that need a number rather than a stream; non-USD parts are not counted. */
     suspend fun currentMonthlyCostTotal(): Double {
         val aid = LOCAL_PARTITION_ID
         val window = monthWindowAt(Instant.now())
         val rows = messageDao.getMonthlyCostByProviderKind(
             accountId = aid,
-            minimumCostExclusive = CostFormatter.COST_EPSILON,
+            // Rows are summed at face value (only zero / negative amounts are dropped); the epsilon applies only to totals via CostParts.split
+            minimumCostExclusive = 0.0,
             windowStartMillis = window.startMillis,
             windowEndMillis = window.endMillis,
         )
-        return rows.sumOf { it.totalCost }
+        return rows.filter { CostParts.isUsd(it.currencyCode) }.sumOf { it.totalCost }
     }
 
-    /** Monthly spend keyed by the provider id each conversation was started with. */
+    /**
+     * Monthly spend per provider split by currency, keyed by the provider id each conversation was started with.
+     * Uses the same query as the monthly summary (one row per (provider, currency)) and merges rows of different kinds
+     * by normalized providerID; USD comes first and currencies are never added together.
+     */
     @OptIn(ExperimentalCoroutinesApi::class)
-    fun observeMonthlyCostByConversationProvider(): Flow<Map<String, Double>> {
+    fun observeMonthlyCostByConversationProvider(): Flow<Map<String, List<CostPart>>> {
         return observeCurrentMonthWindow().flatMapLatest { window ->
             val aid = LOCAL_PARTITION_ID
-            messageDao.observeMonthlyCostByConversationProvider(
+            messageDao.observeMonthlyCostByProviderKind(
                 accountId = aid,
-                minimumCostExclusive = CostFormatter.COST_EPSILON,
+                // Rows are summed at face value (only zero / negative amounts are dropped); the epsilon applies only to totals via CostParts.split
+                minimumCostExclusive = 0.0,
                 windowStartMillis = window.startMillis,
                 windowEndMillis = window.endMillis,
             ).map { rows ->
-                rows.associate { normalizeUuid(it.providerId) to it.totalCost }
+                rows.groupBy { normalizeUuid(it.providerID) }
+                    .mapValues { (_, providerRows) -> CostParts.split(providerRows.map { it.currencyCode to it.totalCost }) }
+                    .filterValues { it.isNotEmpty() }
             }
+        }
+    }
+
+    /**
+     * Number of billed messages per provider this month, used to order the Providers page.
+     * Merged by normalized providerID; providers without billed messages are absent from the result.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun observeMonthlyBilledMessageCountByProvider(): Flow<Map<String, Int>> {
+        return observeCurrentMonthWindow().flatMapLatest { window ->
+            messageDao.observeMonthlyBilledMessageCountByProvider(
+                accountId = LOCAL_PARTITION_ID,
+                minimumCostExclusive = CostFormatter.COST_EPSILON,
+                windowStartMillis = window.startMillis,
+                windowEndMillis = window.endMillis,
+            ).map(::billedMessageCountByProvider)
         }
     }
 
@@ -224,3 +258,9 @@ internal class ConversationUsageAnalytics(
         )
     }
 }
+
+/** Merges billed-message-count rows by normalized providerID (case variants of the same provider add up) and keeps only entries above zero. */
+internal fun billedMessageCountByProvider(rows: List<MonthlyBilledMessageCountRow>): Map<String, Int> =
+    rows.groupBy { normalizeUuid(it.providerID) }
+        .mapValues { (_, providerRows) -> providerRows.sumOf { it.billedCount } }
+        .filterValues { it > 0 }

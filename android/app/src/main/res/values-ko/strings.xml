@@ -376,6 +376,8 @@
     <string name="chat_issue_model_missing_message">이 대화에서 사용한 모델이 더 이상 활성화되어 있지 않습니다. 다른 모델을 선택하여 계속하세요.</string>
     <string name="chat_model_removed_banner">이 대화에서 쓰던 모델이 더 이상 %1$s에 없어요.</string>
     <string name="chat_model_removed_choose">모델 선택</string>
+    <string name="chat_model_retired_banner">%1$s 모델은 지원이 종료됐어요.</string>
+    <string name="chat_model_retired_switch_to">%1$s(으)로 전환</string>
     <string name="chat_issue_model_missing_title">모델을 사용할 수 없음</string>
     <string name="chat_issue_no_provider_message">제공업체를 추가하거나 다시 연결할 때까지 이 대화는 읽기 전용입니다.</string>
     <string name="chat_issue_no_provider_title">사용 가능한 제공업체 없음</string>
@@ -396,6 +398,7 @@
     <string name="hide_details">세부 정보 숨기기</string>
     <string name="image_not_available">이미지를 사용할 수 없음</string>
     <string name="loading_full_image">원본 이미지를 불러오는 중…</string>
+    <string name="composer_restored_image_unavailable">이미지를 아직 내려받지 못했습니다. 인터넷에 연결한 뒤 다시 시도해 주세요.</string>
     <string name="manual_model_save_failed_title">저장 실패</string>
     <string name="manual_model_sync_not_supported_message">이 제공업체는 자동 모델 동기화를 지원하지 않습니다. 모델 ID를 직접 입력해 주세요.</string>
     <string name="manual_model_sync_not_supported_title">동기화 미지원</string>
@@ -1191,7 +1194,7 @@
     <string name="chat_token_usage_cache_write">캐시 쓰기</string>
     <string name="chat_token_usage_total">합계</string>
     <string name="chat_token_usage_unavailable">데이터 없음</string>
-    <string name="generation_conversation_scope_hint">이 대화에서 현재 모델을 사용할 때만 적용됩니다. 모델을 바꿔도 값은 복사되지 않으며, 다시 돌아오면 복원됩니다.</string>
+    <string name="generation_conversation_scope_hint">이 대화에서 이 모델을 사용하는 동안에만 적용됩니다. 모델을 바꿔도 값이 복사되지 않으며, 되돌리면 복원됩니다.</string>
     <string name="generation_parameter_self_healed">이 모델이 %1$s을(를) 거부했습니다. 기본 설정으로 다시 시도했습니다.</string>
     <string name="relay_transport_llamacpp_native">llama.cpp 네이티브 completion</string>
     <string name="relay_catalog_loading">모델 목록을 불러오는 중…</string>
@@ -2276,4 +2279,6 @@
     <string name="context_confirm_also_price_line">%1$s의 %2$s 할증 기준선도 넘어서, 요청 전체에 긴 컨텍스트 요금이 적용돼요.</string>
     <string name="context_confirm_dont_ask">이 대화에서는 다시 묻지 않기</string>
     <string name="context_confirm_send">그래도 보내기</string>
+    <string name="chat_last_used_model_retired_hint">지난번에 쓰던 모델의 지원이 종료되어 이제 %1$s을(를) 사용해요.</string>
+    <string name="model_options_shows_thinking_fixed">사고 과정을 보여줘요 · 조절할 수 없어요</string>
 </resources>

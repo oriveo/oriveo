@@ -93,13 +93,20 @@ data class MessageEntity(
     /** `CostSource` name: how the displayed cost was arrived at. */
     val costSource: String? = null,
     /**
-     * Since v38: wire text of the answer's finish reason [ai.oriveo.community.core.context.StopReason]. Null for older messages and not backfilled;
+     * Since v5: wire text of the answer's finish reason [ai.oriveo.community.core.context.StopReason]. Null for older messages and not backfilled;
      * an extra column only, it plays no part in deciding the message state.
      */
     val stopReason: String? = null,
     /**
-     * Since v42: ids of the memory items actually injected into this answer's request (JSON array TEXT, in injection order). An empty list is stored as null;
+     * Since v5: ids of the memory items actually injected into this answer's request (JSON array TEXT, in injection order). An empty list is stored as null;
      * kept locally only and not part of backups.
      */
     val memoryItemIds: String? = null,
+    /**
+     * Since v6: the non-USD part of the cost; the three columns are all null or all set. [estimatedCost] and [costSource] describe the USD part only.
+     * The currency is an upper-case ISO 4217 code and the source uses the same vocabulary as [costSource].
+     */
+    val nonUsdCostCurrency: String? = null,
+    val nonUsdCostAmount: Double? = null,
+    val nonUsdCostSource: String? = null,
 )

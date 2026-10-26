@@ -82,7 +82,12 @@ fun ContextSettingsScreen(
                             color = colors.textPrimary,
                         )
                     },
-                    navigationIcon = { OriveoBackButton(onClick = onNavigateBack) },
+                    navigationIcon = {
+                        OriveoBackButton(
+                            onClick = onNavigateBack,
+                            modifier = Modifier.testTag("settings_context_back_button"),
+                        )
+                    },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = Color.Transparent,
                         scrolledContainerColor = Color.Transparent,
@@ -137,7 +142,7 @@ fun ContextSettingsScreen(
     }
 }
 
-/** Default cap group (contract P9·U7 rule 4): options, custom input with echo and adjusted hint, footer. */
+/** Default cap group: options, custom input with echo and adjusted hint, footer. */
 @Composable
 private fun DefaultCapGroup(
     cap: ContextBudgetCap,
@@ -191,7 +196,7 @@ private fun DefaultCapGroup(
     )
 }
 
-/** Price-line reminder switch (contract P9·U8) and its footnote. */
+/** Price-line reminder switch and its footnote. */
 @Composable
 private fun PriceLineReminderGroup(
     enabled: Boolean,
@@ -303,14 +308,15 @@ private fun ContextModeOptionRow(
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(vertical = 8.dp, horizontal = 10.dp),
-        verticalAlignment = Alignment.Top,
+        // Vertically center the radio against the whole "title + hint" block, not just the title line.
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         RadioButton(
             selected = selected,
             onClick = onClick,
             modifier = Modifier,
         )
-        Column(modifier = Modifier.weight(1f).padding(top = 3.dp)) {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
                 style = OriveoTheme.typography.body.copy(fontWeight = FontWeight.SemiBold),

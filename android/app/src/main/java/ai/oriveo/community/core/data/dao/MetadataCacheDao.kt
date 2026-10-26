@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import ai.oriveo.community.core.data.entity.MetadataCacheEntity
 
 /**
@@ -26,6 +27,12 @@ interface MetadataCacheDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: MetadataCacheEntity)
+
+    /** Writes several rows in one transaction: if any row fails they all roll back (a new index generation and the backfilled tombstone snapshots must go in together or not at all). */
+    @Transaction
+    suspend fun upsertAllInTransaction(entities: List<MetadataCacheEntity>) {
+        entities.forEach { upsert(it) }
+    }
 
     /** When the row was last written or confirmed; null when the row is absent. */
     @Query("SELECT updatedAtMs FROM metadata_cache WHERE `key` = :key")

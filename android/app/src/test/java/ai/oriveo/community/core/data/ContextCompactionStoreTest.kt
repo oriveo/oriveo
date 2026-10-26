@@ -82,7 +82,7 @@ class ContextCompactionStoreTest {
     fun `migration_creates_checkpoint_table`() = runBlocking {
         createV4Database(MIGRATION_DB) { seedConversation(it, CONV_A) }
         val migrated = Room.databaseBuilder(context, OriveoDatabase::class.java, MIGRATION_DB)
-            .addMigrations(OriveoDatabase.MIGRATION_4_5)
+            .addMigrations(*OriveoDatabase.allMigrations())
             .allowMainThreadQueries()
             .build()
         try {

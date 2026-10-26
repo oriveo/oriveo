@@ -72,7 +72,7 @@ import java.time.ZoneOffset
 
 /**
  * Editor state: [itemId] null = new item; [originalKind] is the edited item's kind (null for new).
- * Episodic items (P7·U3 card rule 4) pick [episodicKind] from [EPISODIC_KINDS] and carry a [date] instead of a group.
+ * Episodic items pick [episodicKind] from [EPISODIC_KINDS] and carry a [date] instead of a group.
  */
 data class MemoryItemEditorState(
     val itemId: String?,

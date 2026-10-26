@@ -17,6 +17,7 @@ import ai.oriveo.community.core.provider.ModelControlRejectionCache
 import ai.oriveo.community.core.provider.ToolCallMemoryStore
 import ai.oriveo.community.core.security.SecureKeyStore
 import ai.oriveo.community.core.streaming.StreamingLifecycleObserver
+import ai.oriveo.community.core.voice.VoiceEngineSettings
 import ai.oriveo.community.di.appModule
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import io.ktor.client.HttpClient
@@ -53,6 +54,8 @@ class OriveoApplication : Application() {
         ModelControlRejectionCache.configure(this)
         ai.oriveo.community.core.model.RelayAvatarChoiceStore.configure(this)
         ai.oriveo.community.core.provider.relay.RelayNegativeCache.configure(this)
+        ai.oriveo.community.core.capability.InputNegativeCache.configure(this)
+        ai.oriveo.community.core.capability.InputRejectionFlow.configure(this)
         ai.oriveo.community.core.provider.relay.RelayWebFragmentStore.configure(this)
         ai.oriveo.community.core.provider.relay.RelayWebProbeRecordStore.configure(this)
         ai.oriveo.community.core.provider.relay.RelayWebProbeAutoHistory.configure(this)
@@ -84,6 +87,7 @@ class OriveoApplication : Application() {
         appScope.launch { koinApp.koin.get<SkillRepository>().prewarm() }
 
         appScope.launch { koinApp.koin.get<ToolCallMemoryStore>().prewarm() }
+        appScope.launch { koinApp.koin.get<VoiceEngineSettings>().prewarm() }
 
         val eventBus = koinApp.koin.get<MetadataRefreshEventBus>()
         appScope.launch {
@@ -109,6 +113,14 @@ class OriveoApplication : Application() {
         appScope.launch {
             if (!databaseHealthProbe.awaitHealthy()) return@launch
             koinApp.koin.get<ai.oriveo.community.core.data.repair.MessageAttachmentRepairTask>().runIfNeeded()
+        }
+        // Attachment orphan sweep: image files no message references any more and untouched for 24 h.
+        // Only deletes files, never writes the database. Safe to run alongside the repair task above:
+        // files it just restored are inside the 24 h grace window. Nothing is deleted if the
+        // reference set cannot be read.
+        appScope.launch {
+            if (!databaseHealthProbe.awaitHealthy()) return@launch
+            koinApp.koin.get<ai.oriveo.community.core.data.attachment.AttachmentOrphanSweeper>().sweepOnLaunch()
         }
         // Remote MCP: an addition the previous process never finished (it died before the user
         // tapped "Done") left a pending record behind; remove it together with its credentials.

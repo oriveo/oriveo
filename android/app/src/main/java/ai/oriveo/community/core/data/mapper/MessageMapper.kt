@@ -7,10 +7,12 @@ import ai.oriveo.community.core.model.CapabilityExecutionResult
 import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.ChatMessageState
 import ai.oriveo.community.core.model.ChatRole
+import ai.oriveo.community.core.model.NonUsdCost
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.QuoteContext
 import ai.oriveo.community.core.model.UnhandledToolCall
 import ai.oriveo.community.core.mcp.McpToolStep
+import ai.oriveo.community.core.provider.CostSource
 import ai.oriveo.community.core.util.normalizeAttachmentIds
 import ai.oriveo.community.core.util.normalizeMessageIds
 import ai.oriveo.community.core.util.normalizeUuid
@@ -81,6 +83,13 @@ object MessageMapper {
         cacheCreation5mTokens = cacheCreation5mTokens,
         cacheCreation1hTokens = cacheCreation1hTokens,
         costSource = costSource,
+        nonUsdCost = nonUsdCostCurrency?.takeIf { it.isNotBlank() }?.let { code ->
+            NonUsdCost(
+                currencyCode = code,
+                amount = nonUsdCostAmount ?: 0.0,
+                costSource = nonUsdCostSource?.takeIf { it.isNotBlank() } ?: CostSource.UNKNOWN.name,
+            )
+        },
     ))
 
     /**
@@ -138,5 +147,8 @@ object MessageMapper {
             cacheCreation5mTokens = cacheCreation5mTokens,
             cacheCreation1hTokens = cacheCreation1hTokens,
             costSource = costSource,
+            nonUsdCostCurrency = nonUsdCost?.currencyCode,
+            nonUsdCostAmount = nonUsdCost?.amount,
+            nonUsdCostSource = nonUsdCost?.costSource,
         )
 }

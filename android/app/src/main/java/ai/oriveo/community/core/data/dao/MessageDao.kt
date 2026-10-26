@@ -6,10 +6,12 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
+import ai.oriveo.community.core.data.entity.AttachmentsJsonPageRow
+import ai.oriveo.community.core.data.entity.CurrencyCostRow
 import ai.oriveo.community.core.data.entity.MessageEntity
+import ai.oriveo.community.core.data.entity.MonthlyBilledMessageCountRow
 import ai.oriveo.community.core.data.entity.MonthlyCostRow
 import ai.oriveo.community.core.data.entity.OversizedAttachmentsJsonRow
-import ai.oriveo.community.core.data.entity.MonthlyProviderCostRow
 import ai.oriveo.community.core.data.entity.ProviderUsageByModelRow
 import kotlinx.coroutines.flow.Flow
 
@@ -28,6 +30,18 @@ interface MessageDao {
 
     @Query("SELECT substr(attachmentsJson, :start, :length) FROM messages WHERE accountId = :accountId AND id = :id")
     suspend fun readAttachmentsJsonChunk(accountId: String, id: String, start: Int, length: Int): String?
+
+    /**
+     * Reads attachmentsJson across all accounts, paged by rowid (used to collect the reference set for attachment file cleanup:
+     * the image directory is shared by the whole device, so the reference set must span accounts).
+     * Only rows no longer than the threshold are returned; longer rows are located with [findOversizedAttachmentsJsonRows] and read in chunks with [readAttachmentsJsonChunk].
+     */
+    @Query(
+        "SELECT rowid AS rowId, attachmentsJson FROM messages WHERE rowid > :afterRowId " +
+            "AND attachmentsJson IS NOT NULL AND attachmentsJson != '' " +
+            "AND length(attachmentsJson) <= :thresholdChars ORDER BY rowid LIMIT :limit",
+    )
+    suspend fun readAttachmentsJsonPageAllAccounts(afterRowId: Long, thresholdChars: Int, limit: Int): List<AttachmentsJsonPageRow>
 
     @Query("UPDATE messages SET attachmentsJson = :attachmentsJson WHERE accountId = :accountId AND id = :id")
     suspend fun updateAttachmentsJson(accountId: String, id: String, attachmentsJson: String?): Int
@@ -368,17 +382,41 @@ interface MessageDao {
     @Query("SELECT COUNT(*) FROM messages WHERE accountId = :accountId AND conversationId = :conversationId")
     suspend fun countByConversation(accountId: String, conversationId: String): Int
 
+    /**
+     * Totals the delivered cost of a conversation per currency; refreshCost writes the conversation's estimatedCost (USD) and nonUsdCostTotals from it.
+     * It is recomputed after every finished answer, so it stays in SQL (the (conversationId, sortOrder) composite index prefix) instead of loading every message.
+     *
+     * The USD row comes from estimatedCost (always the USD part; a message without nonUsdCostCurrency only enters this row).
+     * Non-USD rows are grouped by nonUsdCostCurrency and sum nonUsdCostAmount; an UNKNOWN source is skipped.
+     * A mixed-currency message enters both the USD row and its own currency row, and currencies are never added together.
+     */
     @Query(
         """
-        SELECT COALESCE(SUM(estimatedCost), 0.0)
-        FROM messages
-        WHERE accountId = :accountId AND conversationId = :conversationId
-          AND role = 'Assistant'
-          AND state = 'Delivered'
-          AND estimatedCost > :minimumCostExclusive
+        SELECT currencyCode, SUM(amount) AS totalCost FROM (
+            SELECT 'USD' AS currencyCode, estimatedCost AS amount
+            FROM messages
+            WHERE accountId = :accountId AND conversationId = :conversationId
+              AND role = 'Assistant'
+              AND state = 'Delivered'
+              AND estimatedCost > :minimumCostExclusive
+            UNION ALL
+            SELECT UPPER(TRIM(nonUsdCostCurrency)) AS currencyCode, nonUsdCostAmount AS amount
+            FROM messages
+            WHERE accountId = :accountId AND conversationId = :conversationId
+              AND role = 'Assistant'
+              AND state = 'Delivered'
+              AND TRIM(COALESCE(nonUsdCostCurrency, '')) != ''
+              AND nonUsdCostAmount > :minimumCostExclusive
+              AND COALESCE(nonUsdCostSource, 'UNKNOWN') != 'UNKNOWN'
+        )
+        GROUP BY currencyCode
         """,
     )
-    suspend fun sumDeliveredCost(accountId: String, conversationId: String, minimumCostExclusive: Double): Double
+    suspend fun sumDeliveredCostByCurrency(
+        accountId: String,
+        conversationId: String,
+        minimumCostExclusive: Double,
+    ): List<CurrencyCostRow>
 
     @Query(
         """
@@ -404,21 +442,43 @@ interface MessageDao {
     )
     fun observeCountByProvider(providerId: String, accountId: String): Flow<Int>
 
+    /**
+     * Monthly cost per (provider, currency) row: USD comes from estimatedCost, non-USD is grouped by nonUsdCostCurrency (UNKNOWN sources are skipped); currencies are never added together.
+     */
     @Query(
         """
-        SELECT m.providerKind,
-               COALESCE(m.providerID, c.providerID) AS providerID,
-               SUM(m.estimatedCost) AS totalCost
-        FROM messages m
-        INNER JOIN conversations c ON c.accountId = m.accountId AND c.id = m.conversationId
-        WHERE c.accountId = :accountId
-          AND c.isDraft = 0
-          AND m.role = 'Assistant'
-          AND m.state = 'Delivered'
-          AND m.estimatedCost > :minimumCostExclusive
-          AND COALESCE(m.createdAt, c.updatedAt) >= :windowStartMillis
-          AND COALESCE(m.createdAt, c.updatedAt) < :windowEndMillis
-        GROUP BY m.providerKind, COALESCE(m.providerID, c.providerID)
+        SELECT providerKind, providerID, currencyCode, SUM(amount) AS totalCost FROM (
+            SELECT m.providerKind AS providerKind,
+                   COALESCE(m.providerID, c.providerID) AS providerID,
+                   'USD' AS currencyCode,
+                   m.estimatedCost AS amount
+            FROM messages m
+            INNER JOIN conversations c ON c.accountId = m.accountId AND c.id = m.conversationId
+            WHERE c.accountId = :accountId
+              AND c.isDraft = 0
+              AND m.role = 'Assistant'
+              AND m.state = 'Delivered'
+              AND m.estimatedCost > :minimumCostExclusive
+              AND COALESCE(m.createdAt, c.updatedAt) >= :windowStartMillis
+              AND COALESCE(m.createdAt, c.updatedAt) < :windowEndMillis
+            UNION ALL
+            SELECT m.providerKind AS providerKind,
+                   COALESCE(m.providerID, c.providerID) AS providerID,
+                   UPPER(TRIM(m.nonUsdCostCurrency)) AS currencyCode,
+                   m.nonUsdCostAmount AS amount
+            FROM messages m
+            INNER JOIN conversations c ON c.accountId = m.accountId AND c.id = m.conversationId
+            WHERE c.accountId = :accountId
+              AND c.isDraft = 0
+              AND m.role = 'Assistant'
+              AND m.state = 'Delivered'
+              AND TRIM(COALESCE(m.nonUsdCostCurrency, '')) != ''
+              AND m.nonUsdCostAmount > :minimumCostExclusive
+              AND COALESCE(m.nonUsdCostSource, 'UNKNOWN') != 'UNKNOWN'
+              AND COALESCE(m.createdAt, c.updatedAt) >= :windowStartMillis
+              AND COALESCE(m.createdAt, c.updatedAt) < :windowEndMillis
+        )
+        GROUP BY providerKind, providerID, currencyCode
         """,
     )
     fun observeMonthlyCostByProviderKind(
@@ -429,25 +489,83 @@ interface MessageDao {
     ): Flow<List<MonthlyCostRow>>
 
     /**
-     * One-shot form of [observeMonthlyCostByProviderKind], for callers that only need the current
-     * total. Drafts and undelivered messages are excluded, so the figures match what the user sees
-     * in the conversation.
+     * Billed messages of the month, one row per providerID (message-level first, falling back to the conversation's), used to rank providers on the Providers page.
+     * "Billed" means the USD part (costSource UPSTREAM / LOCAL_ESTIMATE and estimatedCost above the floor) or the non-USD part
+     * (nonUsdCostSource UPSTREAM / LOCAL_ESTIMATE and nonUsdCostAmount above the floor) holds, at least one of them; a mixed-currency message counts once.
+     * A message with only a non-USD cost has a top-level costSource of UNKNOWN, so nonUsdCost has to be checked. A missing USD costSource (older rows) counts as LOCAL_ESTIMATE,
+     * like the other USD sums; a missing non-USD source is treated as UNKNOWN. Drafts and the time window follow [observeMonthlyCostByProviderKind].
+     * Sources are matched by the app's enum names only.
      */
     @Query(
         """
-        SELECT m.providerKind,
-               COALESCE(m.providerID, c.providerID) AS providerID,
-               SUM(m.estimatedCost) AS totalCost
+        SELECT COALESCE(m.providerID, c.providerID) AS providerID,
+               COUNT(*) AS billedCount
         FROM messages m
         INNER JOIN conversations c ON c.accountId = m.accountId AND c.id = m.conversationId
         WHERE c.accountId = :accountId
           AND c.isDraft = 0
           AND m.role = 'Assistant'
           AND m.state = 'Delivered'
-          AND m.estimatedCost > :minimumCostExclusive
           AND COALESCE(m.createdAt, c.updatedAt) >= :windowStartMillis
           AND COALESCE(m.createdAt, c.updatedAt) < :windowEndMillis
-        GROUP BY m.providerKind, COALESCE(m.providerID, c.providerID)
+          AND COALESCE(m.providerID, c.providerID) IS NOT NULL
+          AND (
+            (COALESCE(m.costSource, 'LOCAL_ESTIMATE') IN ('UPSTREAM', 'LOCAL_ESTIMATE') AND m.estimatedCost > :minimumCostExclusive)
+            OR (
+              TRIM(COALESCE(m.nonUsdCostCurrency, '')) != ''
+              AND m.nonUsdCostSource IN ('UPSTREAM', 'LOCAL_ESTIMATE')
+              AND m.nonUsdCostAmount > :minimumCostExclusive
+            )
+          )
+        GROUP BY COALESCE(m.providerID, c.providerID)
+        """,
+    )
+    fun observeMonthlyBilledMessageCountByProvider(
+        accountId: String,
+        minimumCostExclusive: Double,
+        windowStartMillis: Long,
+        windowEndMillis: Long,
+    ): Flow<List<MonthlyBilledMessageCountRow>>
+
+    /**
+     * One-shot form of [observeMonthlyCostByProviderKind], for callers that only need the current
+     * total. Drafts and undelivered messages are excluded, so the figures match what the user sees
+     * in the conversation.
+     */
+    @Query(
+        """
+        SELECT providerKind, providerID, currencyCode, SUM(amount) AS totalCost FROM (
+            SELECT m.providerKind AS providerKind,
+                   COALESCE(m.providerID, c.providerID) AS providerID,
+                   'USD' AS currencyCode,
+                   m.estimatedCost AS amount
+            FROM messages m
+            INNER JOIN conversations c ON c.accountId = m.accountId AND c.id = m.conversationId
+            WHERE c.accountId = :accountId
+              AND c.isDraft = 0
+              AND m.role = 'Assistant'
+              AND m.state = 'Delivered'
+              AND m.estimatedCost > :minimumCostExclusive
+              AND COALESCE(m.createdAt, c.updatedAt) >= :windowStartMillis
+              AND COALESCE(m.createdAt, c.updatedAt) < :windowEndMillis
+            UNION ALL
+            SELECT m.providerKind AS providerKind,
+                   COALESCE(m.providerID, c.providerID) AS providerID,
+                   UPPER(TRIM(m.nonUsdCostCurrency)) AS currencyCode,
+                   m.nonUsdCostAmount AS amount
+            FROM messages m
+            INNER JOIN conversations c ON c.accountId = m.accountId AND c.id = m.conversationId
+            WHERE c.accountId = :accountId
+              AND c.isDraft = 0
+              AND m.role = 'Assistant'
+              AND m.state = 'Delivered'
+              AND TRIM(COALESCE(m.nonUsdCostCurrency, '')) != ''
+              AND m.nonUsdCostAmount > :minimumCostExclusive
+              AND COALESCE(m.nonUsdCostSource, 'UNKNOWN') != 'UNKNOWN'
+              AND COALESCE(m.createdAt, c.updatedAt) >= :windowStartMillis
+              AND COALESCE(m.createdAt, c.updatedAt) < :windowEndMillis
+        )
+        GROUP BY providerKind, providerID, currencyCode
         """,
     )
     suspend fun getMonthlyCostByProviderKind(
@@ -466,28 +584,6 @@ interface MessageDao {
             "WHERE accountId = :accountId AND id = :id AND state = 'Generating'",
     )
     suspend fun updateMcpToolStepsProgress(accountId: String, id: String, stepsJson: String?): Int
-
-    @Query(
-        """
-        SELECT COALESCE(m.providerID, c.providerID) AS providerId, SUM(m.estimatedCost) AS totalCost
-        FROM messages m
-        INNER JOIN conversations c ON c.accountId = m.accountId AND c.id = m.conversationId
-        WHERE c.accountId = :accountId
-          AND c.isDraft = 0
-          AND m.role = 'Assistant'
-          AND m.state = 'Delivered'
-          AND m.estimatedCost > :minimumCostExclusive
-          AND COALESCE(m.createdAt, c.updatedAt) >= :windowStartMillis
-          AND COALESCE(m.createdAt, c.updatedAt) < :windowEndMillis
-        GROUP BY COALESCE(m.providerID, c.providerID)
-        """,
-    )
-    fun observeMonthlyCostByConversationProvider(
-        accountId: String,
-        minimumCostExclusive: Double,
-        windowStartMillis: Long,
-        windowEndMillis: Long,
-    ): Flow<List<MonthlyProviderCostRow>>
 
     @Query(
         """

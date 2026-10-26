@@ -114,6 +114,8 @@
     <string name="chat_issue_model_missing_message">此對話使用的模型已不再啟用。請選擇其他模型以繼續。</string>
     <string name="chat_model_removed_banner">這個對話用的模型已不在 %1$s 裡。</string>
     <string name="chat_model_removed_choose">選擇模型</string>
+    <string name="chat_model_retired_banner">%1$s 已下架。</string>
+    <string name="chat_model_retired_switch_to">切換到 %1$s</string>
 
     <!-- Home -->
     <string name="conversations">對話</string>
@@ -344,6 +346,7 @@
     <!-- Image Viewer -->
     <string name="image_not_available">圖片無法使用</string>
     <string name="loading_full_image">正在載入原圖…</string>
+    <string name="composer_restored_image_unavailable">圖片還沒下載下來，連上網路後再試一次。</string>
     <string name="save_to_photos">儲存到相簿</string>
     <string name="save_failed">儲存圖片失敗</string>
     <string name="share_failed">分享圖片失敗</string>
@@ -2286,4 +2289,6 @@
     <string name="context_confirm_also_price_line">這次還會越過 %1$s 的 %2$s 加價門檻，整筆請求按長上下文價格計費。</string>
     <string name="context_confirm_dont_ask">此對話不再提示</string>
     <string name="context_confirm_send">仍要傳送</string>
+    <string name="chat_last_used_model_retired_hint">上次使用的模型已下架，已改用 %1$s。</string>
+    <string name="model_options_shows_thinking_fixed">會顯示思考過程 · 無法調整</string>
 </resources>

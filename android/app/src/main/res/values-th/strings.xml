@@ -99,6 +99,8 @@
     <string name="chat_issue_model_missing_message">โมเดลที่ใช้ในการสนทนานี้ไม่ได้เปิดใช้งานอีกต่อไป เลือกรุ่นอื่นเพื่อดำเนินการต่อ</string>
     <string name="chat_model_removed_banner">โมเดลของแชตนี้ไม่มีใน %1$s แล้ว</string>
     <string name="chat_model_removed_choose">เลือกโมเดล</string>
+    <string name="chat_model_retired_banner">%1$s ยุติการให้บริการแล้ว</string>
+    <string name="chat_model_retired_switch_to">เปลี่ยนเป็น %1$s</string>
     <string name="conversations">บทสนทนา</string>
     <string name="no_conversations">ยังไม่มีการสนทนา</string>
     <string name="search_conversation_titles_or_content">ค้นหาชื่อหรือเนื้อหาการสนทนา</string>
@@ -352,6 +354,7 @@
     <string name="backup_error_unknown">ข้อผิดพลาดในการสำรองข้อมูลที่ไม่รู้จัก</string>
     <string name="image_not_available">รูปภาพไม่พร้อมใช้งาน</string>
     <string name="loading_full_image">กำลังโหลดภาพเต็ม…</string>
+    <string name="composer_restored_image_unavailable">ยังดาวน์โหลดรูปภาพนี้ไม่ได้ โปรดเชื่อมต่ออินเทอร์เน็ตแล้วลองอีกครั้ง</string>
     <string name="save_to_photos">บันทึกลงในรูปถ่าย</string>
     <string name="save_failed">ไม่สามารถบันทึกภาพได้</string>
     <string name="share_failed">ไม่สามารถแชร์รูปภาพได้</string>
@@ -1145,7 +1148,7 @@
     <string name="chat_token_usage_cache_write">เขียนแคช</string>
     <string name="chat_token_usage_total">รวม</string>
     <string name="chat_token_usage_unavailable">ไม่มีข้อมูล</string>
-    <string name="generation_conversation_scope_hint">มีผลเฉพาะเมื่อใช้โมเดลนี้ในบทสนทนานี้ ค่าจะไม่ถูกคัดลอกเมื่อเปลี่ยนโมเดล และจะกลับมาเมื่อเปลี่ยนกลับ</string>
+    <string name="generation_conversation_scope_hint">ใช้ได้เฉพาะขณะที่ใช้โมเดลนี้ในการสนทนานี้ การสลับโมเดลจะไม่คัดลอกค่า และเมื่อสลับกลับค่าจะถูกกู้คืน</string>
     <string name="generation_parameter_self_healed">โมเดลนี้ปฏิเสธ %1$s จึงลองใหม่ด้วยค่าเริ่มต้น</string>
     <string name="relay_transport_llamacpp_native">completion แบบเนทีฟของ llama.cpp</string>
     <string name="relay_catalog_loading">กำลังโหลดรายการโมเดล…</string>
@@ -2230,4 +2233,6 @@
     <string name="context_confirm_also_price_line">คำขอนี้ยังเกินเกณฑ์ขึ้นราคา %2$s ของ %1$s ด้วย จึงคิดราคาบริบทยาวกับทั้งคำขอ</string>
     <string name="context_confirm_dont_ask">ไม่ต้องถามอีกในแชทนี้</string>
     <string name="context_confirm_send">ส่งเลย</string>
+    <string name="chat_last_used_model_retired_hint">โมเดลที่ใช้ล่าสุดยุติการให้บริการแล้ว ตอนนี้ใช้ %1$s</string>
+    <string name="model_options_shows_thinking_fixed">แสดงกระบวนการคิด · ปรับไม่ได้</string>
 </resources>

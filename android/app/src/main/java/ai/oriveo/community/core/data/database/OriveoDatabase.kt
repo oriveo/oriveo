@@ -85,6 +85,11 @@ const val LOCAL_PARTITION_ID = "local"
  *   item v2, primary key (accountId, id), with a local syncState) and `memory_candidates` (memory candidates,
  *   primary key (accountId, id), status plus the whole candidate as JSON). See [MIGRATION_4_5].
  *
+ * v6: cost in more than one currency. `messages` gains the nullable `nonUsdCostCurrency`, `nonUsdCostAmount` and
+ *   `nonUsdCostSource` columns (the non-USD part of a message's cost; `estimatedCost` / `costSource` keep describing
+ *   the USD part only) and `conversations` gains the nullable `nonUsdCostTotals` (JSON totals per non-USD currency).
+ *   Existing rows are not backfilled: a null currency means the message cost was USD. See [MIGRATION_5_6].
+ *
  * `exportSchema = true` plus the checked-in Room schema JSON serve as an anchor for future diffs.
  */
 @Database(
@@ -114,7 +119,7 @@ const val LOCAL_PARTITION_ID = "local"
         MemoryItemEntity::class,
         MemoryCandidateEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 abstract class OriveoDatabase : RoomDatabase() {
@@ -342,5 +347,28 @@ abstract class OriveoDatabase : RoomDatabase() {
                 )
             }
         }
+
+        /**
+         * v5 to v6: the non-USD part of a message's cost, and the per-currency totals of a conversation.
+         * Four nullable columns without defaults; older rows keep null (the cost was USD) and are not rewritten.
+         * Adding columns is enough: nothing here rebuilds `messages`, so the search triggers stay in place.
+         */
+        val MIGRATION_5_6: Migration = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `messages` ADD COLUMN `nonUsdCostCurrency` TEXT")
+                db.execSQL("ALTER TABLE `messages` ADD COLUMN `nonUsdCostAmount` REAL")
+                db.execSQL("ALTER TABLE `messages` ADD COLUMN `nonUsdCostSource` TEXT")
+                db.execSQL("ALTER TABLE `conversations` ADD COLUMN `nonUsdCostTotals` TEXT")
+            }
+        }
+
+        /** Every registered migration, from v1 up to the current version. Production and tests both open the database through this list, so a new version is added in one place. */
+        fun allMigrations(): Array<Migration> = arrayOf(
+            MIGRATION_1_2,
+            MIGRATION_2_3,
+            MIGRATION_3_4,
+            MIGRATION_4_5,
+            MIGRATION_5_6,
+        )
     }
 }

@@ -162,6 +162,9 @@ class ChatRepository(
     /** Negative cache for upstream rejections on a relay: rejected image input / tools are recorded here, and the read side uses the same one. */
     private val relayNegativeCache: ai.oriveo.community.core.provider.relay.RelayNegativeCache =
         ai.oriveo.community.core.provider.relay.RelayNegativeCache.shared,
+    /** Negative cache v2: when a relay records the v1 `image` key, a `vision_input` entry is written alongside (the verdict still follows v1). */
+    private val inputNegativeCache: ai.oriveo.community.core.capability.InputNegativeCache =
+        ai.oriveo.community.core.capability.InputNegativeCache.shared,
     /** Connection-level web search fragments of a relay: merged under the first-send protocol while the chat web switch is on. */
     private val relayWebFragmentStore: ai.oriveo.community.core.provider.relay.RelayWebFragmentStore =
         ai.oriveo.community.core.provider.relay.RelayWebFragmentStore.shared,
@@ -363,7 +366,10 @@ class ChatRepository(
         }
 
         val preservesGeneratedContent = appendToAssistant?.customRetryWithoutFieldsCode
-            ?.let { it.startsWith("omit_capability_setting_once:") || it.startsWith(OMIT_LOCAL_FIELDS_ONCE_PREFIX) } == true
+            ?.let {
+                it.startsWith("omit_capability_setting_once:") || it.startsWith(OMIT_LOCAL_FIELDS_ONCE_PREFIX) ||
+                    it.startsWith(ai.oriveo.community.feature.chat.OMIT_PARAMETER_ONCE_PREFIX)
+            } == true
 
         val assistantMessageId: String
         val assistantPlaceholder: ChatMessage
@@ -603,6 +609,8 @@ class ChatRepository(
             val rootModel = routeModel?.takeIf { transport != RelayEndpointResolver.effectiveTransport(provider, it) }
                 ?.copy(relayTransport = transport) ?: routeModel
             requestOptions.copy(
+                // Service-level pricing and request construction match the catalog by the canonicalModelId this model already inherited.
+                activeModel = routeModel,
                 relayRequested = provider.relayRequested,
                 relayImage = provider.relayImage,
                 relayWebFragments = sendableFragments,
@@ -979,7 +987,7 @@ class ChatRepository(
                             partitionId = providerRepository.currentCapabilityPartitionId(),
                             provider = provider,
                             model = activeModel,
-                            toolCall = true,
+                            observedToolCall = true,
                             reason = "structured_tool_calls_observed",
                         )
                     }
@@ -988,16 +996,12 @@ class ChatRepository(
                         outputs.streamingReasoning.value = tokenBuffer.accumulatedReasoningText
                         tokenBuffer.markReasoningFlushed(System.currentTimeMillis())
                     }
-                    val hasKnownPrice = (activeModel.promptPrice ?: 0.0) > 0.0 ||
-                        (activeModel.completionPrice ?: 0.0) > 0.0
                     // A tool loop stores the stopReason from the stream finish of its last leg
                     streamFinish = mcpResult.finish
-                    finalResult = ProviderChatResult(
+                    // Each loop leg is priced on its own (cache buckets and the upstream's actual charge follow the leg); if any leg returned no usage the whole result is unknown
+                    finalResult = toolLoopLegResult(mcpResult.usage, activeModel).copy(
                         text = mcpResult.text,
-                        promptTokens = mcpResult.usage?.promptTokens ?: 0,
-                        completionTokens = mcpResult.usage?.completionTokens ?: 0,
                         citations = accumulatedCitations.takeIf { it.isNotEmpty() },
-                        costSource = if (hasKnownPrice) CostSource.LOCAL_ESTIMATE.name else CostSource.UNKNOWN.name,
                     )
                     toolLoopAnswered = true
                 }
@@ -1006,6 +1010,8 @@ class ChatRepository(
                     // The tool loop already produced the final answer; no second provider request.
                 } else if (relayUseImagesEndpoint) {
                     // relay imageRoute = images_endpoint: not the chat protocol, call /images/generations directly
+                    // Judged tool but this exit does not carry propose_memory: this message reruns the fallback (directive suggestion plus v1 memory routing) and no degradation is recorded.
+                    if (proposeTools.isNotEmpty()) memoryPropose?.onToolsNotAttached()
                     val transport = imageGenerationRequest(effectiveRequestOptions)
                     val done = (service as RelayService).generateImageViaImagesEndpoint(
                         apiKey = effectiveApiKey,
@@ -1018,6 +1024,8 @@ class ChatRepository(
                     outputs.streamingText.value = initialText + done.result.appendedText(initialText)
                     done.result.attachments?.let { streamingAttachments.addAll(it) }
                 } else if (supportsImageGen && provider.kind != ProviderKind.Relay) {
+                    // Judged tool but this exit does not carry propose_memory: this message reruns the fallback (directive suggestion plus v1 memory routing) and no degradation is recorded.
+                    if (proposeTools.isNotEmpty()) memoryPropose?.onToolsNotAttached()
                     // Purpose imageGeneration goes to a dedicated image endpoint (route = images_api / dashscope_multimodal /
                     // minimax_image_generation); route = chat_api (conversational image output such as Gemini's image modality) is still a chat request and carries the full chat projection.
                     val dedicatedImageRoute = MetadataClient.imageGenRoute(
@@ -1043,6 +1051,8 @@ class ChatRepository(
                     outputs.streamingText.value = initialText + done.result.appendedText(initialText)
                     done.result.attachments?.let { streamingAttachments.addAll(it) }
                 } else if (useNonStreamingRelayRuntime) {
+                    // Judged tool but this exit does not carry propose_memory: this message reruns the fallback (directive suggestion plus v1 memory routing) and no degradation is recorded.
+                    if (proposeTools.isNotEmpty()) memoryPropose?.onToolsNotAttached()
                     val transport = sendProjection.planned
                         .transportInput(effectiveRequestOptions, providerMessages, withDynamic = !relayImageRawPrompt)
                     val done = service.sendMessage(
@@ -1348,12 +1358,12 @@ class ChatRepository(
                             }
                             val answer = retryResult
                             val answerText = answer?.text?.takeIf { it.isNotBlank() } ?: retryText
-                            // The first leg's tokens are already spent: the usage of both requests is added up, and the stopReason comes from the resend.
-                            finalResult = (answer ?: ProviderChatResult(text = "")).copy(
-                                text = answerText,
-                                promptTokens = (firstLeg?.promptTokens ?: 0) + (answer?.promptTokens ?: 0),
-                                completionTokens = (firstLeg?.completionTokens ?: 0) + (answer?.completionTokens ?: 0),
-                            )
+                            // The first leg's tokens are already spent: both requests are priced per leg and added up, and the stopReason comes from the resend;
+                            // if any leg returned no usage the total is unknown.
+                            finalResult = ai.oriveo.community.core.provider.DeliveredCostResolver.mergeLegs(
+                                listOf(firstLeg, answer),
+                                base = answer ?: ProviderChatResult(text = "", usageReported = false),
+                            ).copy(text = answerText)
                             streamFinish = retryFinish
                             outputs.streamingText.value = initialText + answerText
                         } else if (onlyPropose && !firstLegThought && tailRunner != null && tailModel != null) {
@@ -1408,7 +1418,8 @@ class ChatRepository(
                                     }
                                     is ai.oriveo.community.core.tools.ToolLoopLegEvent.ToolCallDeltas ->
                                         ai.oriveo.community.core.tools.ToolCallLoop.mergeToolCallDeltas(tailDeltas, event.deltas)
-                                    is ai.oriveo.community.core.tools.ToolLoopLegEvent.Usage -> tailUsage = event.usage
+                                    is ai.oriveo.community.core.tools.ToolLoopLegEvent.Usage ->
+                                        tailUsage = ai.oriveo.community.core.tools.ToolLoopUsage.mergeWithinLeg(tailUsage, event.usage)
                                     is ai.oriveo.community.core.tools.ToolLoopLegEvent.Finish -> tailFinish = event.finish
                                     is ai.oriveo.community.core.tools.ToolLoopLegEvent.ProviderContinuation -> Unit
                                 }
@@ -1429,12 +1440,16 @@ class ChatRepository(
                                     )
                                 }
                             }
-                            // The usage of both legs is added up, and the stopReason comes from the tail leg.
-                            finalResult = (firstLeg ?: ProviderChatResult(text = "")).copy(
-                                text = joinProposeLegTexts(firstText, tailText),
-                                promptTokens = (firstLeg?.promptTokens ?: 0) + (tailUsage?.promptTokens ?: 0),
-                                completionTokens = (firstLeg?.completionTokens ?: 0) + (tailUsage?.completionTokens ?: 0),
-                            )
+                            // Both legs are priced per leg and added up (the tail leg only returns prompt / completion, so it is priced by estimate), and the stopReason comes from the tail leg;
+                            // if any leg returned no usage the total is unknown.
+                            finalResult = ai.oriveo.community.core.provider.DeliveredCostResolver.mergeLegs(
+                                listOf(
+                                    firstLeg,
+                                    // A subscription connection is judged as a whole by authMode in the delivery layer, so it is not marked here.
+                                    toolLoopLegResult(tailUsage, tailModel),
+                                ),
+                                base = firstLeg ?: ProviderChatResult(text = "", usageReported = false),
+                            ).copy(text = joinProposeLegTexts(firstText, tailText))
                             streamFinish = tailFinish
                             outputs.streamingText.value = initialText + joinProposeLegTexts(firstText, tailText)
                         }
@@ -1479,26 +1494,34 @@ class ChatRepository(
                             partitionId = providerRepository.currentCapabilityPartitionId(),
                             provider = provider,
                             model = activeModel,
-                            toolCall = true,
+                            observedToolCall = true,
                             reason = "structured_tool_calls_observed",
                         )
                     }
                 }
-                val generationCost = DeliveredCostResolver.resolve(result, model, provider.kind)
-                val generationCostStatus = if (DeliveredCostResolver.isUnknownPricing(result, model, provider.kind)) {
-                    "unknown"
+                // Price by the connection's effective region and keep the original currency; for per-item pricing the unit count is the number
+                // of images produced this time, and 0 images means unknown.
+                val generationParts = DeliveredCostResolver.resolveParts(
+                    result = result,
+                    model = model,
+                    provider = provider,
+                    modelId = runtimeModelId,
+                    at = java.time.Instant.now(),
+                    units = DeliveredCostResolver.producedUnits(streamingAttachments),
+                    relayTransport = relayDeliveredTransport.get(),
+                )
+                // The USD part goes into estimatedCost and a non-USD generation cost into nonUsdCost; currencies are not converted.
+                val costRecord = DeliveredCostResolver.record(generationParts)
+                // Continue: this round's cost is merged part by part with the placeholder's existing cost, so earlier rounds' cost is not overwritten.
+                val messageCost = if (continueTarget != null) {
+                    DeliveredCostResolver.addMessageCost(assistantPlaceholder.estimatedCost, assistantPlaceholder.nonUsdCost, costRecord)
                 } else {
-                    "priced"
+                    costRecord
                 }
 
                 if (displayText.isBlank() && streamingAttachments.isEmpty() && unhandledToolCalls.isEmpty()) {
                     emptyStreamFinish = streamFinish
                     throw ProviderServiceError.EmptyResponse
-                }
-
-                unhandledToolCalls.forEach { call ->
-                    if (model?.toolCall == false) {
-                    }
                 }
 
                 val finalCitations = mergeIncomingCitations(result?.citations.orEmpty())
@@ -1542,7 +1565,8 @@ class ChatRepository(
                     reasoningText = finalReasoning,
                     reasoningDurationMs = computedDurationMs,
                     servedModelID = result?.servedModelID,
-                    estimatedCost = generationCost,
+                    estimatedCost = messageCost.estimatedCost,
+                    nonUsdCost = messageCost.nonUsdCost,
                     state = ChatMessageState.Delivered,
                     stopReason = deliveredStopReason(finish = streamFinish, hadContent = displayText.isNotBlank()),
                     attachments = streamingAttachments.ifEmpty { result?.attachments },
@@ -1573,7 +1597,7 @@ class ChatRepository(
                     ),
                     cacheCreation5mTokens = result?.cacheCreation5mTokens,
                     cacheCreation1hTokens = result?.cacheCreation1hTokens,
-                    costSource = result?.costSource,
+                    costSource = messageCost.costSource,
                 )
                 conversationRepository.updateMessage(conversation.id, deliveredMessage)
                 // A rho sample is taken only from plain-text requests, using the input tokens of this round's usage.
@@ -1843,6 +1867,47 @@ class ChatRepository(
                 outputStarted = receivedUpstreamEvent,
                 protocolSwitched = relayProtocolSwitchStarted.get(),
                 sentTransport = relayFirstSend,
+                localIdentity = requestOptions.capabilityEvidenceIdentity,
+            )
+            // An official connection's upstream rejected media on a narrow signature: write negative cache v2; the error is shown as is and not retried.
+            // The failure card offers "resend without the image / file / video" for the rejected key: the next outbound projection is already rejected_recently, so a plain resend swaps in the placeholder.
+            // The record key must be the same one the outbound projection looks up: the connection id comes from the request identity (the outbound projection uses it too) and the transport is the one actually dispatched this time;
+            // when the identity is missing or does not match the connection the outbound side cannot find it, so it is better not to record than to record a wrong key.
+            // "Sent this time" only counts messages that passed the outbound gate: history images already swapped for placeholders and files injected as text do not count; if the post-gate result is unavailable nothing is recorded.
+            val officialInputRejection = model
+                ?.takeIf { requestOptions.capabilityEvidenceIdentity?.connectionInstanceId == provider.id }
+                ?.let { sent ->
+                    val outboundMessages = ai.oriveo.community.core.capability.InputRejectionFlow.outboundMessages(
+                        provider = provider,
+                        model = sent,
+                        messages = providerMessages,
+                        dispatchTransport = capabilityExecutionCollector.inputDispatchTransport,
+                    ) ?: return@let null
+                    ai.oriveo.community.core.capability.InputRejectionFlow.recordOfficial(
+                        provider = provider,
+                        model = sent,
+                        messages = outboundMessages,
+                        error = e,
+                        outputStarted = receivedUpstreamEvent,
+                        finalTransport = capabilityExecutionCollector.inputDispatchTransport,
+                    )
+                }
+            // A parameter rejected by the upstream on a narrow signature (temperature / top_p / structured_output / thinking): record a param negative cache entry;
+            // the error is shown as is and not resent automatically; the failure card offers "resend without that parameter" and the next send omits it through GenerationParameterResolver. The key is the same as above.
+            val officialParameterRejection = model
+                ?.takeIf { requestOptions.capabilityEvidenceIdentity?.connectionInstanceId == provider.id }
+                ?.let { sent ->
+                    ai.oriveo.community.core.capability.InputRejectionFlow.recordOfficialParameter(
+                        provider = provider,
+                        model = sent,
+                        error = e,
+                        outputStarted = receivedUpstreamEvent,
+                        dispatchTransport = capabilityExecutionCollector.inputDispatchTransport,
+                    )
+                }
+            val inputRejectionResendCode = ai.oriveo.community.core.capability.InputRejectionFlow.recoveryCode(
+                input = officialInputRejection,
+                rejectedParameter = officialParameterRejection,
             )
             if (!receivedUpstreamEvent) recordRelayKeyAccessFailure(provider, runtimeModelId, e)
             // The coroutine is already cancelled (user stop / system interruption) when OkHttp first throws IOException("Canceled") and it lands here:
@@ -1876,7 +1941,7 @@ class ChatRepository(
                 // affordance for the production-located recipe/custom + pre-token HTTP 400 shape;
                 // auth/rate-limit/5xx/network/stream failures keep the ordinary recovery card.
                 customRetryWithoutFieldsAvailable = canExplicitlyResend || localFieldsRetryOwner != null,
-                customRetryWithoutFieldsCode = resendCode,
+                customRetryWithoutFieldsCode = resendCode ?: inputRejectionResendCode,
                 reasoningText = tokenBuffer.accumulatedReasoningText.trim().takeIf { it.isNotEmpty() },
                 attachments = streamingAttachments.ifEmpty { assistantPlaceholder.attachments },
                 citations = accumulatedCitations.takeIf { it.isNotEmpty() } ?: assistantPlaceholder.citations,
@@ -2392,7 +2457,7 @@ class ChatRepository(
             partitionId = providerRepository.currentCapabilityPartitionId(),
             provider = provider,
             model = model,
-            toolCall = false,
+            observedToolCall = false,
             reason = "tools_rejected_4xx",
         )
     }
@@ -2410,6 +2475,8 @@ class ChatRepository(
         protocolSwitched: Boolean,
         /** The protocol this first send actually used (including the attachment rule); a switched send is not recorded, so this is the protocol it went out on. */
         sentTransport: RelayTransport? = null,
+        /** Local connection identity: the v2 revision uses the same vision verdict, with connection evidence, as the projection. */
+        localIdentity: ai.oriveo.community.core.model.CapabilityEvidenceIdentity? = null,
     ): Boolean {
         val sent = model ?: return false
         val key = sentTransport?.let { ai.oriveo.community.core.provider.relay.RelayNegativeCache.keyFor(provider, sent, it) }
@@ -2417,8 +2484,19 @@ class ChatRepository(
             ?: return false
         if (messages.none { message -> message.attachments.orEmpty().any { it.kind == AttachmentKind.Image } }) return false
         val rejected = ai.oriveo.community.core.provider.relay.RelayNegativeCache.isRejectionSignal(error)
-        if (!relayImageRejectionRecords(provider, sent, rejected, outputStarted, protocolSwitched)) return false
+        val relayIdentity = ai.oriveo.community.core.capability.truth.relayInputIdentity(provider, sent, localIdentity)
+        if (!relayImageRejectionRecords(provider, sent, rejected, outputStarted, protocolSwitched, relayIdentity)) return false
         relayNegativeCache.record(key, ai.oriveo.community.core.provider.relay.RelayNegativeCache.Kind.Image)
+        ai.oriveo.community.core.capability.InputRejectionFlow.recordRelay(
+            ai.oriveo.community.core.capability.truth.relayInputNegativeCacheTarget(
+                provider = provider,
+                model = sent,
+                transport = key.transport,
+                key = ai.oriveo.community.core.provider.CapabilityEvidenceFacade.VISION_INPUT,
+                relayIdentity = relayIdentity,
+            ),
+            inputNegativeCache,
+        )
         return true
     }
 
@@ -2562,7 +2640,7 @@ class ChatRepository(
         /** The assistant's replay-style continuation kinds that the service replays (same across platforms): on a continue the outbound history drops the target. */
         private val REPLAY_CONTINUATION_KINDS = setOf("replay_blocks", "replay_reasoning")
         /** imageGen routes that use a dedicated image generation endpoint: the request purpose is imageGeneration. */
-        private val DEDICATED_IMAGE_GEN_ROUTES = setOf("images_api", "dashscope_multimodal", "minimax_image_generation")
+        internal val DEDICATED_IMAGE_GEN_ROUTES = setOf("images_api", "dashscope_multimodal", "minimax_image_generation")
 
         /** Key of the hint card body on the failed message after a relay's image input was rejected upstream (string table relay_image_unsupported_hint). */
         const val RELAY_IMAGE_UNSUPPORTED_DETAIL =
@@ -2665,6 +2743,42 @@ internal fun joinProposeLegTexts(first: String, tail: String): String = when {
 }
 
 /**
+ * A tool loop's / tail leg's usage as pricing legs: each leg of [ToolLoopUsage.perLeg] (its usage comes from the same parser as that provider's
+ * ordinary chat, with cache buckets and the upstream's actual charge) becomes one leg and they are combined through
+ * [ai.oriveo.community.core.provider.DeliveredCostResolver.mergeLegs]; at delivery each leg is priced (the leg's actual upstream charge, else an estimate)
+ * and then added per currency. A leg that returned no usage ([ToolLoopUsage.allLegsReported]) counts as missing usage and makes the whole result unknown.
+ * A subscription connection is judged by the delivery layer from the connection's authMode, so it is not marked here.
+ */
+internal fun toolLoopLegResult(
+    usage: ai.oriveo.community.core.tools.ToolLoopUsage?,
+    model: AIModel?,
+): ProviderChatResult {
+    val hasKnownPrice = (model?.promptPrice ?: 0.0) > 0.0 || (model?.completionPrice ?: 0.0) > 0.0
+    val estimateSource = if (hasKnownPrice) CostSource.LOCAL_ESTIMATE.name else CostSource.UNKNOWN.name
+    val perLeg = usage?.perLeg() ?: listOf(null)
+    // The merge flag says some leg returned no usage but the breakdown holds no empty leg (the old path only gave a total): add an empty leg so the whole result is unknown.
+    val legs = if (usage?.allLegsReported == false && perLeg.none { it == null }) perLeg + null else perLeg
+    return ai.oriveo.community.core.provider.DeliveredCostResolver.mergeLegs(
+        legs.map { breakdown ->
+            breakdown?.let {
+                val upstream = it.upstreamCost
+                ProviderChatResult(
+                    text = "",
+                    promptTokens = it.totalInputTokens,
+                    completionTokens = it.completionTokens,
+                    estimatedCost = upstream ?: 0.0,
+                    cachedInputTokens = it.reportedCachedInputTokens,
+                    cacheCreation5mTokens = it.reportedCacheCreation5mTokens,
+                    cacheCreation1hTokens = it.reportedCacheCreation1hTokens,
+                    costSource = if (upstream != null) CostSource.UPSTREAM.name else estimateSource,
+                    usageReported = true,
+                )
+            }
+        },
+    )
+}
+
+/**
  * The stopReason of a normal ending: when Done carries a finish it is resolved from it;
  * when Done carries no finish (non-streaming, a tool loop) it is unknown.
  */
@@ -2728,19 +2842,27 @@ internal fun relayImageRejectionRecords(
     rejected: Boolean,
     outputStarted: Boolean,
     protocolSwitched: Boolean,
+    relayIdentity: ai.oriveo.community.core.provider.CapabilityEvidenceFacade.QueryIdentity? = null,
 ): Boolean {
     if (!rejected || outputStarted || protocolSwitched) return false
-    return relayImageSupportUnknown(provider, model)
+    return relayImageSupportUnknown(provider, model, relayIdentity)
 }
 
 /**
  * The model has no positive evidence of image support at any level (the record decision and the "unknown" image state in the model options use this same predicate):
- * an override of true, an engine declaration of true, or a capability (inherited from the catalog or declared) containing Image all count as positive evidence.
+ * an override of true or an engine declaration of true counts as positive evidence; otherwise the facade's image support level is read ([relayIdentity] comes from
+ * [ai.oriveo.community.core.capability.truth.relayInputIdentity], with the protocol following the first send), and supported / accepted (including
+ * catalog or model declarations) is positive evidence while anything else is unconfirmed. A missing connection identity fails closed as unconfirmed.
  */
-internal fun relayImageSupportUnknown(provider: Provider, model: AIModel): Boolean {
+internal fun relayImageSupportUnknown(
+    provider: Provider,
+    model: AIModel,
+    relayIdentity: ai.oriveo.community.core.provider.CapabilityEvidenceFacade.QueryIdentity? = null,
+): Boolean {
     if (model.relayCapabilityOverrides?.image == true) return false
     if (!provider.relayRequested?.engineProfile.isNullOrBlank() && model.engineDeclaration?.image == true) return false
-    return ModelCapability.Image !in model.capabilities
+    return ai.oriveo.community.core.capability.truth.relayVisionInputSupport(provider, model, relayIdentity) !in
+        setOf("supported", "accepted")
 }
 
 /**

@@ -262,7 +262,7 @@ class ContextLedgerMigrationTest {
 
     private fun openMigrated(): OriveoDatabase =
         Room.databaseBuilder(context, OriveoDatabase::class.java, dbName)
-            .addMigrations(OriveoDatabase.MIGRATION_4_5)
+            .addMigrations(*OriveoDatabase.allMigrations())
             .allowMainThreadQueries()
             .build()
             .also { it.openHelper.writableDatabase }
@@ -357,7 +357,7 @@ class ContextLedgerMigrationTest {
     }
 
     private companion object {
-        const val LATEST_VERSION = 5
+        val LATEST_VERSION: Int get() = LATEST_SCHEMA_VERSION
         const val ACCOUNT = "acct-1"
         const val OTHER_ACCOUNT = "acct-2"
         const val CONV_A = "AAAAAAAA-0000-0000-0000-000000000001"

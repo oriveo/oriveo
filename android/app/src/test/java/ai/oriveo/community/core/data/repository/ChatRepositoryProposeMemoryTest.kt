@@ -29,7 +29,17 @@ import ai.oriveo.community.core.model.ChatMessageState
 import ai.oriveo.community.core.model.ChatRequestOptions
 import ai.oriveo.community.core.model.Conversation
 import ai.oriveo.community.core.model.Provider
+import ai.oriveo.community.core.model.ModelCapability
 import ai.oriveo.community.core.model.ProviderAuthMode
+import ai.oriveo.community.core.model.ProviderChatResult
+import ai.oriveo.community.core.model.StreamEvent
+import ai.oriveo.community.core.notice.DirectiveSuggestionStore
+import ai.oriveo.community.core.provider.ProviderService
+import ai.oriveo.community.feature.chat.ChatSendCommandCoordinator
+import ai.oriveo.community.feature.chat.ChatSendLauncher
+import ai.oriveo.community.feature.chat.ChatUserSendLauncher
+import ai.oriveo.community.feature.chat.ContextConfirmAttempt
+import ai.oriveo.community.feature.chat.DirectiveSuggestionController
 import ai.oriveo.community.core.model.ProviderConnectionState
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.RelayRequestedConfig
@@ -55,6 +65,9 @@ import io.mockk.slot
 import java.util.Collections
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runTest
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -99,7 +112,12 @@ class ChatRepositoryProposeMemoryTest {
             val path = request.url.encodedPath
             requests += path to bodyText(request)
             val (status, body) = synchronized(replies) { replies.removeFirst() }
-            val type = if (status == HttpStatusCode.OK) "text/event-stream" else ContentType.Application.Json.toString()
+            // JSON bodies from the non-streaming / image endpoints are answered as JSON; any other 200 is SSE.
+            val type = if (status == HttpStatusCode.OK && !body.trimStart().startsWith("{")) {
+                "text/event-stream"
+            } else {
+                ContentType.Application.Json.toString()
+            }
             respond(body, status, headersOf(HttpHeaders.ContentType, type))
         },
     )
@@ -107,6 +125,7 @@ class ChatRepositoryProposeMemoryTest {
     private class RecordingHook : MemoryProposeSendHook {
         val calls = mutableListOf<String>()
         var rejected = 0
+        var notAttached = 0
 
         override suspend fun onProposeCall(argumentsJson: String) {
             calls += argumentsJson
@@ -114,6 +133,10 @@ class ChatRepositoryProposeMemoryTest {
 
         override suspend fun onToolsRejected() {
             rejected++
+        }
+
+        override suspend fun onToolsNotAttached() {
+            notAttached++
         }
     }
 
@@ -210,14 +233,15 @@ class ChatRepositoryProposeMemoryTest {
         recall: List<ContextRecallEntry> = emptyList(),
         generationParameters: ai.oriveo.community.core.model.GenerationParameterOverrides? = null,
         activeModel: AIModel? = null,
+        sendModel: AIModel = model,
     ) {
         repository().sendMessage(
             conversation = Conversation(
-                id = CONVERSATION, title = "Memory", providerID = provider.id, providerKind = provider.kind, modelID = model.id,
+                id = CONVERSATION, title = "Memory", providerID = provider.id, providerKind = provider.kind, modelID = sendModel.id,
             ),
             text = USER_TEXT,
             provider = provider,
-            modelID = model.id,
+            modelID = sendModel.id,
             existingMessages = emptyList(),
             requestOptions = ChatRequestOptions(
                 capabilityEvidenceIdentity = identity,
@@ -745,6 +769,131 @@ class ChatRepositoryProposeMemoryTest {
         assertEquals("Sure.", delivered.captured.text)
     }
 
+    /** A Relay image generation already judged tool goes to /images/generations: the request carries no tools, so the fallback reruns once and no degradation is recorded. */
+    @Test
+    fun `Relay image endpoint judged tool reruns the fallback when no tools are attached`() = runBlocking {
+        val imageModel = AIModel(
+            id = "gpt-image-1", name = "Image", toolCall = true, capabilities = listOf(ModelCapability.ImageGen),
+        )
+        val imageRelay = relay.copy(models = listOf(imageModel))
+        every { providerRepository.serviceFor(imageRelay, any()) } returns RelayService(client, json, TransportRegistry(json))
+        assertEquals("image model is judged tool mode", MemoryProposeMode.TOOL, modeFor(imageRelay, imageModel, identity))
+        replies += HttpStatusCode.OK to """{"created":1,"data":[{"b64_json":"aGk="}]}"""
+        val hook = RecordingHook()
+
+        send(hook, provider = imageRelay, sendModel = imageModel)
+
+        val body = chatBodies("/images/generations").single()
+        assertFalse("images endpoint carries no tools: $body", body.containsKey("tools"))
+        assertEquals(1, hook.notAttached)
+        assertEquals(0, hook.rejected)
+        assertFalse(ProposeMemoryRuntime.isDegraded(imageRelay.id, imageModel.id))
+    }
+
+    /** Relay with streaming off takes the non-streaming exit: clientTools is only attached to the first streaming leg, so the fallback reruns. */
+    @Test
+    fun `Relay non-streaming judged tool reruns the fallback when no tools are attached`() = runBlocking {
+        val nonStreaming = relay.copy(
+            relayRequested = RelayRequestedConfig(transport = RelayTransport.OpenAIChatCompletions, stream = false),
+        )
+        every { providerRepository.serviceFor(nonStreaming, any()) } returns RelayService(client, json, TransportRegistry(json))
+        assertEquals(MemoryProposeMode.TOOL, modeFor(nonStreaming, model, identity))
+        replies += HttpStatusCode.OK to
+            """{"id":"c1","object":"chat.completion","model":"relay-model","choices":[{"index":0,"message":{"role":"assistant","content":"Sure."},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":2}}"""
+        val hook = RecordingHook()
+
+        send(hook, provider = nonStreaming)
+
+        val body = chatBodies().single()
+        assertFalse("non-streaming send carries no tools: $body", body.containsKey("tools"))
+        assertEquals(1, hook.notAttached)
+        assertEquals(0, hook.rejected)
+    }
+
+    /** Direct native image generation (not Relay): real coordinator plus real ChatRepository; after the tool judgement the exit carries no tools, so the directive suggestion is surfaced. */
+    @Test
+    fun `native image generation judged tool surfaces the directive suggestion when no tools are attached`() = runTest {
+        val imageModel = AIModel(
+            id = "gemini-image", name = "Gemini Image", isDefault = true, toolCall = true,
+            capabilities = listOf(ModelCapability.Text, ModelCapability.ImageGen), imageGenProfile = "chat_image",
+        )
+        val gemini = Provider(
+            id = "gemini-1", kind = ProviderKind.Gemini, status = ProviderConnectionState.Connected, apiKey = "local-key",
+            models = listOf(imageModel), catalogModels = listOf(imageModel),
+        )
+        val sentOptions = mutableListOf<ChatRequestOptions>()
+        val service = mockk<ProviderService>(relaxed = true)
+        coEvery {
+            service.sendMessage(any(), any(), any(), any(), any(), any(), any(), capture(sentOptions))
+        } returns StreamEvent.Done(ProviderChatResult(text = "Here you go."))
+        every { providerRepository.serviceFor(gemini, any()) } returns service
+        coEvery { providerRepository.getById(gemini.id) } returns gemini
+        val conv = Conversation(
+            id = CONVERSATION, title = "Memory", providerID = gemini.id, providerKind = gemini.kind,
+            modelID = imageModel.id, useMemory = true,
+        )
+        coEvery { conversationRepository.getWithMessages(CONVERSATION) } returns conv
+        val appPreferences = mockk<ai.oriveo.community.core.app.AppPreferencesRepository>(relaxed = true)
+        coEvery { appPreferences.hasAcceptedProviderDisclosure(any()) } returns true
+        val controller = DirectiveSuggestionController(
+            scope = this,
+            store = DirectiveSuggestionStore(
+                prefsProvider = { RuntimeEnvironment.getApplication().getSharedPreferences("directive-pa", 0) },
+            ),
+            instructionsOf = { "" },
+            writeInstructions = { _, _ -> },
+            showToast = {},
+            ioContext = EmptyCoroutineContext,
+        )
+        var hook: MemoryProposeSendHook? = null
+        val coordinator = ChatSendCommandCoordinator(
+            viewModelScope = this,
+            appPreferencesRepository = appPreferences,
+            providerRepository = providerRepository,
+            conversationRepository = conversationRepository,
+            currentConversation = { conv },
+            currentConversationId = { CONVERSATION },
+            onProviderSelectionError = {},
+            onProviderResolutionError = {},
+            onModelSelectionError = {},
+            onDisclosureRequired = { _, _ -> },
+            onConversationActivated = {},
+            onComposerConsumed = {},
+            requestPin = {},
+            onSendSettled = {},
+            launchSend = ChatSendLauncher { _, _, _, _, _, _, _, _, _, _, _ -> },
+            attemptKind = { ContextConfirmAttempt.SEND },
+            directiveSuggestions = controller,
+            launchUserSend = ChatUserSendLauncher { c, p, modelId, sent, history, _, _, kind, created, propose ->
+                hook = propose
+                runBlocking {
+                    repository().sendMessage(
+                        conversation = c, text = sent, provider = p, modelID = modelId, existingMessages = history,
+                        requestOptions = ChatRequestOptions(
+                            clientTools = listOfNotNull(MemoryPropose.tool.takeIf { propose != null }),
+                            clientToolChoice = ToolLoopToolChoice.Auto,
+                        ),
+                        outputs = ConversationStreamingOutputs(MutableStateFlow(""), MutableStateFlow(null)),
+                        attemptKind = kind,
+                        onUserMessageCreated = created,
+                        memoryPropose = propose,
+                    )
+                }
+            },
+            memoryAccountId = { "u1" },
+            memoryScope = this,
+            memoryProposeMode = { _, _, _ -> MemoryProposeMode.TOOL },
+        )
+
+        coordinator.sendMessage(GATED_DIRECTIVE, null, gemini.id, imageModel.id)
+        advanceUntilIdle()
+
+        assertTrue("tool mode handed the hook to the send", hook != null)
+        assertTrue("image request carries no tools: $sentOptions", sentOptions.single().clientTools.isEmpty())
+        assertEquals("\u4ee5\u540e\u90fd\u7528\u4e2d\u6587\u56de\u7b54\u3002", controller.pending.value[CONVERSATION]?.sentence)
+        assertFalse(ProposeMemoryRuntime.isDegraded(gemini.id, imageModel.id))
+    }
+
     private fun proposeArguments(
         proposition: String = "Uses TypeScript at work",
         quote: String = "I use TypeScript at work",
@@ -763,5 +912,6 @@ class ChatRepositoryProposeMemoryTest {
             "{\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\"," +
                 "\"content\":[],\"model\":\"relay-model\",\"usage\":{\"input_tokens\":10,\"output_tokens\":1}}}"
         const val USER_TEXT = "Remember that I use TypeScript at work, and keep it short."
+        const val GATED_DIRECTIVE = "\u4ee5\u540e\u90fd\u7528\u4e2d\u6587\u56de\u7b54\u3002"
     }
 }

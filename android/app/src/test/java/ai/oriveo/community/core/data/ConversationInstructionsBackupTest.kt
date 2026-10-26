@@ -1,5 +1,8 @@
 package ai.oriveo.community.core.data
 
+import ai.oriveo.community.core.context.ContextContractFixture
+import ai.oriveo.community.core.context.ContextContractFixture.id
+import ai.oriveo.community.core.context.ContextContractFixture.stringOrNull
 import ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID
 import ai.oriveo.community.core.data.EntityMapper.toEntity
 import ai.oriveo.community.core.data.attachment.AttachmentStore
@@ -39,10 +42,12 @@ import kotlinx.serialization.json.jsonObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.nio.file.Files
 import java.nio.file.Path
+import java.time.Instant
 import java.util.zip.ZipInputStream
 
 /** A conversation's instructions are exported and imported with the backup, normalised on import, and on merge taken from the same side as the title. */
@@ -159,7 +164,7 @@ class ConversationInstructionsBackupTest {
             )),
         )
         val oldBytes = stripped.toString().toByteArray()
-        assertEquals("", json.decodeFromString<BackupFile>(String(oldBytes)).data.conversations.single().instructions)
+        assertEquals(null, json.decodeFromString<BackupFile>(String(oldBytes)).data.conversations.single().instructions)
 
         backupService.executeImport(mode = ImportMode.ImportNewOnly, bytes = oldBytes)
         assertEquals("", upserted.single().instructions)
@@ -192,6 +197,51 @@ class ConversationInstructionsBackupTest {
         assertEquals("Local title", mergedOlder.title)
         assertEquals("local rules", mergedOlder.instructions)
         assertFalse(mergedOlder.instructions == "backup rules")
+    }
+
+    /**
+     * The shared fixture conversation-backup-merge.v1, case by case: a backup with no instructions key or a null leaves the local value alone, an explicit "" clears it as usual;
+     * updatedAt is compared as an instant, so the same instant at a different fractional-second precision counts as equal.
+     */
+    @Test
+    fun backup_merge_matches_shared_fixture() = runTest {
+        val cases = ContextContractFixture.cases(ContextContractFixture.load("conversation-backup-merge.v1.json"), "cases")
+        assertEquals(8, cases.size)
+        val failures = cases.mapNotNull { case ->
+            val local = case["local"]!!.jsonObject
+            val backup = case["backup"]!!.jsonObject
+            val expected = case["expected"]!!.jsonObject
+            coEvery { conversationDao.getById(LOCAL_PARTITION_ID, "conversation-1") } returns conversationEntity(
+                title = local.stringOrNull("title")!!,
+                instructions = local.stringOrNull("instructions")!!,
+                updatedAt = Instant.parse(local.stringOrNull("updatedAt")!!).toEpochMilli(),
+            )
+            val conversation = backupConversation(
+                title = backup.stringOrNull("title")!!,
+                instructions = null,
+                updatedAt = Instant.parse(backup.stringOrNull("updatedAt")!!).toEpochMilli(),
+            )
+            // instructions goes on the wire exactly as the fixture has it: a missing key stays missing, null stays null, "" stays ""
+            val encoded = json.encodeToJsonElement(BackupFile.serializer(), backupFile(conversation)).jsonObject
+            val data = encoded.getValue("data").jsonObject
+            val wireConversation = data.getValue("conversations").jsonArray.single().jsonObject
+            if ("instructions" in wireConversation) return@mapNotNull "${case.id()}: null instructions must not be encoded"
+            val withInstructions = backup["instructions"]
+                ?.let { JsonObject(wireConversation + ("instructions" to it)) }
+                ?: wireConversation
+            val wire = JsonObject(
+                encoded + ("data" to JsonObject(
+                    data + ("conversations" to kotlinx.serialization.json.JsonArray(listOf(withInstructions))),
+                )),
+            ).toString()
+            upserted.clear()
+            backupService.executeImport(mode = ImportMode.Merge, bytes = wire.toByteArray())
+            val merged = upserted.last()
+            val want = expected.stringOrNull("title") to expected.stringOrNull("instructions")
+            val got = merged.title to merged.instructions
+            if (got == want) null else "${case.id()}: expected $want, got $got"
+        }
+        assertTrue(failures.joinToString("\n"), failures.isEmpty())
     }
 
     @Test
@@ -269,7 +319,7 @@ class ConversationInstructionsBackupTest {
 
     private fun backupConversation(
         title: String = "Backup conversation",
-        instructions: String = "",
+        instructions: String? = "",
         updatedAt: Long = 20L,
         pinnedNoteIds: List<String> = emptyList(),
     ) = BackupConversation(

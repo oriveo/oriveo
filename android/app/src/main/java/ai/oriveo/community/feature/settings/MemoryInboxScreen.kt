@@ -47,7 +47,7 @@ import ai.oriveo.community.ui.component.OriveoBackButton
 import ai.oriveo.community.ui.theme.OriveoTheme
 import org.koin.androidx.compose.koinViewModel
 
-/** Memory suggestions inbox (contract P6·U4 rules 3, 4): pending list or empty state, then the footnote. */
+/** Memory suggestions inbox: pending list or empty state, then the footnote. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MemoryInboxScreen(
@@ -192,7 +192,7 @@ private fun MemoryInboxCard(
     onSave: () -> Unit,
 ) {
     val colors = OriveoTheme.colors
-    // D-256: the eyebrow follows the proposed layer, not the kind — episodic suggestions sit under "Events & decisions".
+    // the eyebrow follows the proposed layer, not the kind — episodic suggestions sit under "Events & decisions".
     val episodic = candidate.proposedLayer == MemoryLayer.EPISODIC
     val group = candidate.inboxGroup()
     val glyph = if (episodic) MemoryGlyphs.Episodic else group.glyph

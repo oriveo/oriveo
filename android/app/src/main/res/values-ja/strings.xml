@@ -376,6 +376,8 @@
     <string name="chat_issue_model_missing_message">この会話で使用していたモデルは無効になっています。別のモデルを選択して続けてください。</string>
     <string name="chat_model_removed_banner">この会話で使っていたモデルは、%1$s にもうありません。</string>
     <string name="chat_model_removed_choose">モデルを選ぶ</string>
+    <string name="chat_model_retired_banner">%1$s は提供終了しました。</string>
+    <string name="chat_model_retired_switch_to">%1$s に切り替える</string>
     <string name="chat_issue_model_missing_title">モデルが利用できません</string>
     <string name="chat_issue_no_provider_message">プロバイダーを追加または再接続するまで、この会話は読み取り専用です。</string>
     <string name="chat_issue_no_provider_title">利用可能なプロバイダーがありません</string>
@@ -396,6 +398,7 @@
     <string name="hide_details">詳細を隠す</string>
     <string name="image_not_available">画像を利用できません</string>
     <string name="loading_full_image">元の画像を読み込み中…</string>
+    <string name="composer_restored_image_unavailable">画像をまだダウンロードできていません。インターネットに接続して、もう一度お試しください。</string>
     <string name="manual_model_save_failed_title">保存に失敗しました</string>
     <string name="manual_model_sync_not_supported_message">このプロバイダーは自動モデル同期に対応していません。モデル ID を手動で入力してください。</string>
     <string name="manual_model_sync_not_supported_title">同期非対応</string>
@@ -1190,7 +1193,7 @@
     <string name="chat_token_usage_cache_write">キャッシュ書き込み</string>
     <string name="chat_token_usage_total">合計</string>
     <string name="chat_token_usage_unavailable">データなし</string>
-    <string name="generation_conversation_scope_hint">この会話でこのモデルを使う場合のみ有効です。モデル切替時に値はコピーされず、戻すと復元されます。</string>
+    <string name="generation_conversation_scope_hint">この会話でこのモデルを使っている間だけ適用されます。モデルを切り替えても値はコピーされず、戻すと復元されます。</string>
     <string name="generation_parameter_self_healed">このモデルは %1$s を拒否しました。既定値で再試行しました。</string>
     <string name="relay_transport_llamacpp_native">llama.cpp ネイティブ completion</string>
     <string name="relay_catalog_loading">モデル一覧を読み込んでいます…</string>
@@ -2275,4 +2278,6 @@
     <string name="context_confirm_also_price_line">さらに %1$s の割増ライン %2$s も超えるため、リクエスト全体がロングコンテキスト料金になります。</string>
     <string name="context_confirm_dont_ask">この会話では今後確認しない</string>
     <string name="context_confirm_send">それでも送信</string>
+    <string name="chat_last_used_model_retired_hint">前回使っていたモデルは提供終了となったため、%1$s に切り替えました。</string>
+    <string name="model_options_shows_thinking_fixed">思考過程を表示 · 調整はできません</string>
 </resources>

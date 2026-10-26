@@ -259,7 +259,12 @@ class ContextPipelineSendTest {
 
     @Test
     fun vision_gate_image_only_keeps_placeholder() = runTest {
-        // A text-only route that cannot read images (DeepSeek Chat): the attachment is kept, MessageBuilder inserts a placeholder, and the last message is still a user message.
+        // An official model whose vision verdict is unavailable (outbound follows the projection): the local attachment is kept, the outbound gets a placeholder, and the last message is still a user message.
+        ai.oriveo.community.core.provider.MetadataTestFixtures.applyRaw(
+            """{"version":1,"providers":{"${ProviderKind.DeepSeek.rawValue}":{"resolveMap":{"deepseek-chat":"deepseek-chat"},""" +
+                """"models":{"deepseek-chat":{"canonicalModelId":"deepseek-chat","transport":"openai_chat",""" +
+                """"capabilityControls":{"vision_input":{"state":"unavailable","reasonCode":"model_capability_absent"}}}}}}}""",
+        )
         val model = AIModel(id = "deepseek-chat", name = "DeepSeek Chat", contextLength = 64_000, maxOutputTokens = 8_192)
         val provider = Provider(id = "deepseek-1", kind = ProviderKind.DeepSeek, apiKey = "byok-key", models = listOf(model))
         val harness = Harness(
@@ -283,7 +288,8 @@ class ContextPipelineSendTest {
         val last = wire.last()
         assertEquals("user", last["role"]?.jsonPrimitive?.content)
         val placeholder = ai.oriveo.community.core.attachments.AttachmentTransportProfile.DeepSeekChat.imagePlaceholderText!!
-        assertTrue("placeholder on the wire: $last", placeholder in last.toString())
+        // DeepSeek only accepts string content and this turn has no body text: the outbound content is the placeholder line itself (no leading separator).
+        assertEquals("placeholder on the wire: $last", placeholder, last["content"]?.jsonPrimitive?.content)
         assertTrue("no image bytes on the wire: $last", "iVBORw0KGgo=" !in last.toString())
     }
 

@@ -69,7 +69,7 @@ val networkModule = module {
         MetadataClient(
             androidContext(),
             metadataCacheDao = get(),
-            metadataSplitTransport = HttpUrlConnectionMetadataSplitTransport,
+            metadataSplitTransport = HttpUrlConnectionMetadataSplitTransport(),
         )
     }
 

@@ -6,6 +6,7 @@ import ai.oriveo.community.core.data.EntityMapper.toDomain
 import ai.oriveo.community.core.data.EntityMapper.toEntity
 import ai.oriveo.community.core.data.mapper.ConversationMapper.toContextBudgetCapOrNull
 import ai.oriveo.community.core.data.mapper.ConversationMapper.toStorageText
+import ai.oriveo.community.core.data.attachment.AttachmentOrphanSweeper
 import ai.oriveo.community.core.data.dao.ConversationDao
 import ai.oriveo.community.core.data.dao.MessageDao
 import ai.oriveo.community.core.data.dao.MessageContinuationDao
@@ -24,6 +25,8 @@ import ai.oriveo.community.core.model.RelayKind
 import ai.oriveo.community.core.model.computeConversationActivityAt
 import ai.oriveo.community.core.model.deriveConversationMetadata
 import ai.oriveo.community.core.model.makeConversationPreviewText
+import ai.oriveo.community.core.usage.CostPart
+import ai.oriveo.community.core.usage.CostParts
 import ai.oriveo.community.core.usage.MonthlyCostSummary
 import ai.oriveo.community.core.usage.ProviderUsageSummary
 import ai.oriveo.community.core.util.dedupeByNormalizedId
@@ -31,6 +34,8 @@ import ai.oriveo.community.core.util.generateUuidString
 import ai.oriveo.community.core.util.normalizeConversationIds
 import ai.oriveo.community.core.util.normalizeMessageIds
 import ai.oriveo.community.core.util.normalizeUuid
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -39,6 +44,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** Reads and writes conversations and the messages inside them. */
@@ -51,6 +57,9 @@ class ConversationRepository(
     private val searchIndexer: ai.oriveo.community.core.data.search.ConversationSearchIndexer? = null,
     // Edit-resend and regenerate drop the checkpoints that cover the deleted messages
     private val contextCompactionStore: ContextCompactionStore? = null,
+    // After a message or conversation delete commits, attachment files no longer referenced by any message are purged in the background on [attachmentPurgeScope]
+    private val attachmentSweeper: AttachmentOrphanSweeper? = null,
+    private val attachmentPurgeScope: CoroutineScope? = null,
 ) {
     private val searchService = ConversationSearchService(conversationDao, searchIndexer)
     private val usageAnalytics = ConversationUsageAnalytics(messageDao)
@@ -187,8 +196,12 @@ class ConversationRepository(
 
     suspend fun currentMonthlyCostTotal(): Double = usageAnalytics.currentMonthlyCostTotal()
 
-    fun observeMonthlyCostByConversationProvider(): Flow<Map<String, Double>> =
+    fun observeMonthlyCostByConversationProvider(): Flow<Map<String, List<CostPart>>> =
         usageAnalytics.observeMonthlyCostByConversationProvider()
+
+    /** Observes this month's billed-message count per provider; the Providers page ranks its spotlight card by it. */
+    fun observeMonthlyBilledMessageCountByProvider(): Flow<Map<String, Int>> =
+        usageAnalytics.observeMonthlyBilledMessageCountByProvider()
 
     fun observeProviderLocalUsageSummary(
         provider: ai.oriveo.community.core.model.Provider,
@@ -397,7 +410,8 @@ class ConversationRepository(
             return normalizeConversationIds(updated.toDomain())
         }
 
-        return create(normalizedProviderId, providerKind, modelID)
+        // No reusable draft: create one (isDraft = true so the query above can reuse it next time)
+        return createDraft(normalizedProviderId, providerKind, modelID)
     }
 
     suspend fun addMessage(conversationId: String, message: ChatMessage) {
@@ -441,7 +455,7 @@ class ConversationRepository(
 
             return
         }
-        val updatedConversation = refreshConversationMetadata(
+        refreshConversationMetadata(
             normalizedConversationId,
             scopedAccountId = scopedAccountId,
         )
@@ -449,21 +463,8 @@ class ConversationRepository(
         if (normalizedMessage.state == ChatMessageState.Delivered &&
             normalizedMessage.role == ChatRole.Assistant
         ) {
-
-            val conversationCost = messageDao.sumDeliveredCost(
-                accountId = scopedAccountId,
-                conversationId = normalizedConversationId,
-                minimumCostExclusive = CostFormatter.COST_EPSILON,
-            )
-
-            val pairedUser = if (updatedConversation != null) {
-                messageDao.lastDeliveredUserBefore(scopedAccountId, normalizedConversationId, order)
-                    ?.let { normalizeMessageIds(it.toDomain()) }
-            } else {
-                null
-            }
-            val deliveredCount = messageDao.countDeliveredByConversation(scopedAccountId, normalizedConversationId)
-
+            // Recompute the conversation totals from the delivered rows, so the cost shown never lags a round behind.
+            refreshCost(normalizedConversationId, scopedAccountId)
         }
     }
 
@@ -478,16 +479,60 @@ class ConversationRepository(
         }
     }
 
+    /**
+     * Recomputes the conversation's accumulated cost from its locally delivered messages.
+     * estimatedCost counts USD only; other currencies accumulate separately into nonUsdCostTotals and are never added across currencies.
+     */
     suspend fun refreshCost(conversationId: String, scopedAccountId: String = accountId) {
         val normalizedId = normalizeUuid(conversationId)
-
-        val newCost = messageDao.sumDeliveredCost(
-            accountId = scopedAccountId,
-            conversationId = normalizedId,
-            minimumCostExclusive = CostFormatter.COST_EPSILON,
+        // Aggregate per currency in SQL instead of loading every message and filtering in the app.
+        val parts = CostParts.split(
+            messageDao.sumDeliveredCostByCurrency(
+                accountId = scopedAccountId,
+                conversationId = normalizedId,
+                // Rows are summed at face value (only zero / negative amounts are dropped); the epsilon applies only to totals via CostParts.split
+                minimumCostExclusive = 0.0,
+            ).map { it.currencyCode to it.totalCost },
         )
-        conversationDao.getById(scopedAccountId, normalizedId)?.let {
-            conversationDao.update(it.copy(estimatedCost = newCost))
+        // Write only the two cost columns instead of rewriting the whole row.
+        if (conversationDao.getById(scopedAccountId, normalizedId) != null) {
+            conversationDao.updateCostTotals(
+                scopedAccountId,
+                normalizedId,
+                CostParts.usdAmount(parts),
+                ai.oriveo.community.core.data.mapper.ConversationMapper.encodeNonUsdCostTotals(
+                    parts.filterNot { it.currencyCode == CostParts.USD }.associate { it.currencyCode to it.amount },
+                ),
+            )
+        }
+    }
+
+    /**
+     * File keys referenced by the rows about to be deleted (attachment.id, localImageId and rawContentRef).
+     * Raw values from the database are used without id normalization: files are stored under the raw value and the reference set is compared the same way. Call before deleting.
+     */
+    private fun attachmentFileKeys(rows: List<ai.oriveo.community.core.data.entity.MessageEntity>?): Set<String> =
+        rows.orEmpty().flatMapTo(LinkedHashSet()) { row ->
+            val attachments = runCatching { row.toDomain().attachments }.getOrNull().orEmpty()
+            attachments.flatMap { listOfNotNull(it.id, it.localImageId, it.rawContentRef) }
+        }
+
+    /**
+     * Purges attachment files in the background after the delete commits: only keys no message references any more are removed.
+     * It never writes to the database; a failure is only logged and does not affect the delete result.
+     */
+    private fun purgeAttachmentFilesInBackground(candidates: Set<String>) {
+        if (candidates.isEmpty()) return
+        val sweeper = attachmentSweeper ?: return
+        val scope = attachmentPurgeScope ?: return
+        scope.launch {
+            try {
+                sweeper.purgeUnreferencedAttachments(candidates)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.w("ConversationRepository", "attachment file purge failed: ${e.message}")
+            }
         }
     }
 
@@ -505,6 +550,7 @@ class ConversationRepository(
         val allMsgs = readMessagesOrNull(normalizedConversationId, "deleteMessagesAfter", scopedAccountId)
         val deletedMsgs = allMsgs?.filter { it.sortOrder > msg.sortOrder }
         val deletedIDs = deletedMsgs?.map { normalizeUuid(it.id) }.orEmpty()
+        val attachmentKeys = attachmentFileKeys(deletedMsgs)
         val remainingLastMsg = allMsgs
             ?.filter { it.sortOrder <= msg.sortOrder }
             ?.maxByOrNull { it.sortOrder }
@@ -515,15 +561,16 @@ class ConversationRepository(
             continuationDao?.deleteMessages(scopedAccountId, ids)
         }
         messageDao.deleteAfterOrder(scopedAccountId, normalizedConversationId, msg.sortOrder)
+        purgeAttachmentFilesInBackground(attachmentKeys)
         invalidateCheckpointsForDeletion(scopedAccountId, normalizedConversationId, allMsgs, deletedIDs)
         refreshConversationMetadata(normalizedConversationId, scopedAccountId = scopedAccountId)
         refreshCost(normalizedConversationId, scopedAccountId)
 
     }
 
-    suspend fun deleteMessagesStartingAt(conversationId: String, startingMessageId: String) {
+    /** Deletes a message and everything after it, for the edit-and-resend flow. Returns whether the truncation took effect (false when the anchor cannot be read). */
+    suspend fun deleteMessagesStartingAt(conversationId: String, startingMessageId: String): Boolean =
         deleteMessagesStartingAtAndSync(conversationId, startingMessageId)
-    }
 
     /**
      * Deletes only these messages locally: rolls back the user message and assistant placeholder when a
@@ -544,14 +591,16 @@ class ConversationRepository(
         val targets = messageIds.map(::normalizeUuid).toSet()
         if (targets.isEmpty()) return emptyList()
         val allMsgs = readMessagesOrNull(normalizedConversationId, "deleteMessagesLocally", scopedAccountId)
-        val deletedRows = allMsgs?.filter { normalizeUuid(it.id) in targets }.orEmpty()
-            .map { normalizeMessageIds(it.toDomain()) }
+        val deletedEntities = allMsgs?.filter { normalizeUuid(it.id) in targets }.orEmpty()
+        val deletedRows = deletedEntities.map { normalizeMessageIds(it.toDomain()) }
+        val attachmentKeys = attachmentFileKeys(deletedEntities)
         val rowIds = allMsgs?.map { it.id }?.filter { normalizeUuid(it) in targets } ?: targets.toList()
         val deletedIDs = rowIds.map(::normalizeUuid)
         deletedIDs.chunked(CONTINUATION_DELETE_CHUNK_SIZE).forEach { ids ->
             continuationDao?.deleteMessages(scopedAccountId, ids)
         }
         rowIds.forEach { messageDao.deleteById(scopedAccountId, it) }
+        purgeAttachmentFilesInBackground(attachmentKeys)
         // Checkpoint invalidation is local only.
         if (allMsgs != null && deletedIDs.isNotEmpty()) {
             val historyIds = allMsgs.sortedBy { it.sortOrder }.map { normalizeUuid(it.id) }
@@ -567,7 +616,7 @@ class ConversationRepository(
         return deletedRows
     }
 
-    private suspend fun deleteMessagesStartingAtAndSync(conversationId: String, startingMessageId: String) {
+    private suspend fun deleteMessagesStartingAtAndSync(conversationId: String, startingMessageId: String): Boolean {
         val scopedAccountId = accountId
         val normalizedConversationId = normalizeUuid(conversationId)
 
@@ -576,10 +625,11 @@ class ConversationRepository(
         } catch (e: android.database.sqlite.SQLiteException) {
             android.util.Log.e("ConversationRepository", "corrupt row read at deleteMessagesStartingAt.getById", e)
             null
-        } ?: return
+        } ?: return false
         val allMsgs = readMessagesOrNull(normalizedConversationId, "deleteMessagesStartingAt", scopedAccountId)
         val deletedMsgs = allMsgs?.filter { it.sortOrder >= msg.sortOrder }
         val deletedIDs = deletedMsgs?.map { normalizeUuid(it.id) }.orEmpty()
+        val attachmentKeys = attachmentFileKeys(deletedMsgs)
         val remainingLastMsg = allMsgs
             ?.filter { it.sortOrder < msg.sortOrder }
             ?.maxByOrNull { it.sortOrder }
@@ -590,9 +640,11 @@ class ConversationRepository(
             continuationDao?.deleteMessages(scopedAccountId, ids)
         }
         messageDao.deleteAfterOrder(scopedAccountId, normalizedConversationId, msg.sortOrder - 1)
+        purgeAttachmentFilesInBackground(attachmentKeys)
         invalidateCheckpointsForDeletion(scopedAccountId, normalizedConversationId, allMsgs, deletedIDs)
         refreshConversationMetadata(normalizedConversationId, scopedAccountId = scopedAccountId)
         refreshCost(normalizedConversationId, scopedAccountId)
+        return true
     }
 
     /** Deletes one conversation and everything it owns. */
@@ -607,12 +659,32 @@ class ConversationRepository(
         val messageCount = if (entity != null) messages?.size ?: 0 else 0
         messages?.let { msgs ->
         }
+        val attachmentKeys = attachmentFileKeys(messages)
         val ageHours = entity?.createdAt?.let {
             ((System.currentTimeMillis() - it).coerceAtLeast(0L) / 3_600_000L).toInt()
         } ?: 0
 
         continuationDao?.deleteForConversation(scopedAccountId, normalizedId)
         conversationDao.deleteById(scopedAccountId, normalizedId)
+        purgeAttachmentFilesInBackground(attachmentKeys)
+    }
+
+    /**
+     * Deletes the conversation only if it still has no messages. The emptiness check and the delete share one transaction,
+     * so a message written elsewhere in between is not deleted with it. Returns whether it was deleted.
+     */
+    suspend fun deleteIfEmpty(id: String): Boolean {
+        val normalizedId = normalizeUuid(id)
+        val scopedAccountId = accountId
+        var deleted = false
+        runInTransaction {
+            if (conversationDao.getById(scopedAccountId, normalizedId) == null) return@runInTransaction
+            if (messageDao.countByConversation(scopedAccountId, normalizedId) > 0) return@runInTransaction
+            continuationDao?.deleteForConversation(scopedAccountId, normalizedId)
+            conversationDao.deleteById(scopedAccountId, normalizedId)
+            deleted = true
+        }
+        return deleted
     }
 
     suspend fun rename(id: String, newTitle: String) {
@@ -787,13 +859,14 @@ class ConversationRepository(
 
         val scopedAccountId = accountId
 
-        val deletedMessages = normalizedIds.flatMap { conversationId ->
-            readMessagesOrNull(conversationId, "deleteMultiple", scopedAccountId)
-                ?.map { normalizeMessageIds(it.toDomain()) }
-                .orEmpty()
+        // A conversation whose rows cannot be read only skips its attachment cleanup; the batch delete goes ahead.
+        val deletedRows = normalizedIds.flatMap { conversationId ->
+            readMessagesOrNull(conversationId, "deleteMultiple", scopedAccountId).orEmpty()
         }
+        val attachmentKeys = attachmentFileKeys(deletedRows)
         normalizedIds.forEach { continuationDao?.deleteForConversation(scopedAccountId, it) }
         conversationDao.deleteByIds(scopedAccountId, normalizedIds)
+        purgeAttachmentFilesInBackground(attachmentKeys)
     }
 
     suspend fun autoTitle(conversationId: String) {
@@ -819,6 +892,8 @@ private data class ConversationStreamFingerprint(
     val modelID: String,
     val previewTextHash: Int,
     val estimatedCostBits: Long,
+    /** Non-USD totals are compared together with the USD total. */
+    val nonUsdCostTotals: Map<String, Double>,
     val isDraft: Boolean,
     val messageCount: Int,
     val draftTextHash: Int,
@@ -853,6 +928,8 @@ private data class ConversationMetadataFingerprint(
     val modelID: String,
     val hasPreviewText: Boolean,
     val estimatedCostBits: Long,
+    /** Non-USD totals are compared together with the USD total. */
+    val nonUsdCostTotals: Map<String, Double>,
     val isDraft: Boolean,
     val messageCount: Int,
     val hasDraftText: Boolean,
@@ -876,6 +953,7 @@ private fun Conversation.metadataFingerprint(): ConversationMetadataFingerprint 
         modelID = modelID,
         hasPreviewText = previewText.isNotBlank(),
         estimatedCostBits = estimatedCost.toBits(),
+        nonUsdCostTotals = nonUsdCostTotals,
         isDraft = isDraft,
         messageCount = messageCount,
         hasDraftText = draftText.isNotBlank(),
@@ -896,6 +974,7 @@ private fun Conversation.streamFingerprint(): ConversationStreamFingerprint =
         modelID = modelID,
         previewTextHash = previewText.hashCode(),
         estimatedCostBits = estimatedCost.toBits(),
+        nonUsdCostTotals = nonUsdCostTotals,
         isDraft = isDraft,
         messageCount = messageCount,
         draftTextHash = draftText.hashCode(),

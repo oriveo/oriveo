@@ -14,20 +14,23 @@ import org.w3c.dom.Element
 class HindiBrandNameContractTest {
 
     private val transliteration = Regex("ओर[िी]व")
+    private val files = listOf("strings.xml", "strings_voice.xml")
 
     @Test
     fun `hi keeps the brand name in Latin`() {
-        val english = strings("values")
-        val problems = strings("values-hi").filter { (name, value) ->
-            transliteration.containsMatchIn(value) ||
-                (english[name].orEmpty().contains("Oriveo") && !value.contains("Oriveo"))
-        }.map { (name, value) -> "$name: $value" }
+        val problems = files.flatMap { file ->
+            val english = strings("values", file)
+            strings("values-hi", file).filter { (name, value) ->
+                transliteration.containsMatchIn(value) ||
+                    (english[name].orEmpty().contains("Oriveo") && !value.contains("Oriveo"))
+            }.map { (name, value) -> "$file $name: $value" }
+        }
         assertTrue("hi transliterates or drops the brand name; keep Oriveo as is:\n" + problems.joinToString("\n"), problems.isEmpty())
     }
 
-    private fun strings(dir: String): Map<String, String> {
+    private fun strings(dir: String, file: String): Map<String, String> {
         val document = DocumentBuilderFactory.newInstance().newDocumentBuilder()
-            .parse(File("src/main/res/$dir/strings.xml"))
+            .parse(File("src/main/res/$dir/$file"))
         val nodes = document.getElementsByTagName("string")
         return buildMap {
             for (index in 0 until nodes.length) {

@@ -117,6 +117,8 @@
     <string name="chat_issue_model_missing_message">The model used in this conversation is no longer enabled. Choose another model to keep going.</string>
     <string name="chat_model_removed_banner">This chat’s model is no longer in %1$s.</string>
     <string name="chat_model_removed_choose">Choose model</string>
+    <string name="chat_model_retired_banner">%1$s has been retired.</string>
+    <string name="chat_model_retired_switch_to">Switch to %1$s</string>
 
     <!-- Home -->
     <string name="conversations">Conversations</string>
@@ -517,6 +519,7 @@
     <!-- Image Viewer -->
     <string name="image_not_available">Image not available</string>
     <string name="loading_full_image">Loading full image…</string>
+    <string name="composer_restored_image_unavailable">This image hasn\'t downloaded yet. Connect to the internet and try again.</string>
     <string name="save_to_photos">Save to Photos</string>
     <string name="save_failed">Failed to save image</string>
     <string name="share_failed">Failed to share image</string>
@@ -2325,4 +2328,6 @@
     <string name="context_confirm_also_price_line">It also goes past the %2$s threshold for %1$s, so the whole request is billed at the long-context rate.</string>
     <string name="context_confirm_dont_ask">Don\'t ask again in this chat</string>
     <string name="context_confirm_send">Send anyway</string>
+    <string name="chat_last_used_model_retired_hint">Your last model was retired. Now using %1$s.</string>
+    <string name="model_options_shows_thinking_fixed">Shows its thinking · can’t be adjusted</string>
 </resources>

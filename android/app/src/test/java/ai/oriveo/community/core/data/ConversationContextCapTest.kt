@@ -154,7 +154,7 @@ class ConversationContextCapTest {
 
     private fun openMigrated(): OriveoDatabase =
         Room.databaseBuilder(context, OriveoDatabase::class.java, dbName)
-            .addMigrations(OriveoDatabase.MIGRATION_4_5)
+            .addMigrations(*OriveoDatabase.allMigrations())
             .allowMainThreadQueries()
             .build()
             .also { it.openHelper.writableDatabase }

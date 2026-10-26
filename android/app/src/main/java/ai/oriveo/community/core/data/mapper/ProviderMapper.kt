@@ -6,6 +6,7 @@ import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderAuthMode
 import ai.oriveo.community.core.model.ProviderConnectionState
+import ai.oriveo.community.core.model.ProviderIssueReason
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.RelayKey
 import ai.oriveo.community.core.model.RelayKeyStatus
@@ -38,7 +39,7 @@ object ProviderMapper {
         Provider(
             id = id,
             kind = ProviderKind.valueOf(kind),
-            status = json.decodeFromString<ProviderConnectionState>(status),
+            status = json.decodeFromString<ProviderConnectionState>(status).withLegacyIssueReason(),
             // The enabled list of a relay is also deduplicated by literal key; an official enabled list is kept as is.
             models = json.decodeFromString<List<AIModel>>(modelsJson).let { decoded ->
                 val providerKind = ProviderKind.valueOf(kind)
@@ -67,6 +68,20 @@ object ProviderMapper {
             },
         ).recoveredFromPersistence().withCurrentLocalEngineProfiles()
     )
+
+    /**
+     * Compatibility for stored rows: an Issue persisted before the reason field existed has no reason (decoded as Error),
+     * so the reason is restored once from the fixed message the writer used then. Done only at the read boundary;
+     * new writes always carry a typed reason.
+     */
+    private fun ProviderConnectionState.withLegacyIssueReason(): ProviderConnectionState {
+        if (this !is ProviderConnectionState.Issue || reason != ProviderIssueReason.Error) return this
+        return when (message) {
+            ProviderConnectionState.Issue.API_KEY_REQUIRED_MESSAGE -> copy(reason = ProviderIssueReason.MissingCredential)
+            ProviderConnectionState.Issue.SIGN_IN_REQUIRED_MESSAGE -> copy(reason = ProviderIssueReason.SignInRequired)
+            else -> this
+        }
+    }
 
     // Local engine parameter tables are constants shipped with the app; a persisted copy may come from an
     // older build (for example one without `strict`), so reads always use the current table.

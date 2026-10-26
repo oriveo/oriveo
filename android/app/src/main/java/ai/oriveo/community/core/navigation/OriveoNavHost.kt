@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.metrics.performance.PerformanceMetricsState
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavController
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -79,6 +80,7 @@ import ai.oriveo.community.feature.providers.setup.ProviderSetupScreen
 import ai.oriveo.community.feature.settings.MemoryInboxScreen
 import ai.oriveo.community.feature.settings.MemoryScreen
 import ai.oriveo.community.feature.settings.ContextSettingsScreen
+import ai.oriveo.community.feature.settings.VoiceSettingsScreen
 import ai.oriveo.community.feature.settings.SettingsScreen
 import ai.oriveo.community.feature.skills.SkillEditScreen
 import ai.oriveo.community.feature.skills.SkillsListScreen
@@ -139,6 +141,7 @@ private val fullScreenRoutes = setOf(
     AppRoute.Memory::class,
     AppRoute.MemoryInbox::class,
     AppRoute.ContextSettings::class,
+    AppRoute.VoiceSettings::class,
     AppRoute.McpServers::class,
     AppRoute.McpAddServer::class,
     AppRoute.McpServerDetail::class,
@@ -320,6 +323,7 @@ fun OriveoNavHost(
                             ),
                         )
                     },
+                    onReturnHome = { id -> navController.returnHomeAfterDeleting(id) },
                     onNavigateToChatAndAutoSend = { id ->
                         PageTrace.begin("Chat")
                         navController.navigate(
@@ -336,6 +340,10 @@ fun OriveoNavHost(
                     onNavigateToProviderSetup = {
                         PageTrace.begin("ProviderSetup")
                         navController.navigate(AppRoute.ProviderSetup(ProviderSetupEntryPoint.Providers))
+                    },
+                    onNavigateToVoiceSettings = {
+                        PageTrace.begin("VoiceSettings")
+                        navController.navigate(AppRoute.VoiceSettings)
                     },
                     onNavigateToProviderDetail = { providerID ->
                         PageTrace.begin("ProviderDetail")
@@ -379,6 +387,10 @@ fun OriveoNavHost(
                         PageTrace.begin("ContextSettings")
                         navController.navigate(AppRoute.ContextSettings)
                     },
+                    onNavigateToVoiceSettings = {
+                        PageTrace.begin("VoiceSettings")
+                        navController.navigate(AppRoute.VoiceSettings)
+                    },
                     onNavigateToMcpServers = {
                         navController.navigate(AppRoute.McpServers) { launchSingleTop = true }
                     },
@@ -413,6 +425,10 @@ fun OriveoNavHost(
                     onNavigateToProviderSetup = {
                         PageTrace.begin("ProviderSetup")
                         navController.navigate(AppRoute.ProviderSetup(ProviderSetupEntryPoint.Providers))
+                    },
+                    onNavigateToVoiceSettings = {
+                        PageTrace.begin("VoiceSettings")
+                        navController.navigate(AppRoute.VoiceSettings)
                     },
                     onNavigateToProviderDetail = { providerID ->
                         PageTrace.begin("ProviderDetail")
@@ -686,6 +702,15 @@ fun OriveoNavHost(
                     onNavigateBack = { navController.popBackStack() },
                 )
             }
+            composable<AppRoute.VoiceSettings> {
+                LaunchedEffect(Unit) { PageTrace.end("VoiceSettings") }
+                VoiceSettingsScreen(
+                    onBack = { navController.popBackStack() },
+                    onAddConnection = {
+                        navController.navigate(AppRoute.ProviderSetup(ProviderSetupEntryPoint.Providers))
+                    },
+                )
+            }
             composable<AppRoute.McpServers> {
                 ai.oriveo.community.feature.mcp.McpServersScreen(
                     onBack = { navController.popBackStack() },
@@ -850,8 +875,21 @@ private fun currentRouteLabel(destination: androidx.navigation.NavDestination?):
     destination?.hasRoute(AppRoute.Memory::class) == true -> "memory"
     destination?.hasRoute(AppRoute.MemoryInbox::class) == true -> "memory_inbox"
     destination?.hasRoute(AppRoute.ContextSettings::class) == true -> "context_settings"
+    destination?.hasRoute(AppRoute.VoiceSettings::class) == true -> "voice_settings"
     destination?.hasRoute(AppRoute.Backup::class) == true -> "backup"
     destination?.hasRoute(AppRoute.Skills::class) == true -> "skills"
     destination?.hasRoute(AppRoute.SkillEdit::class) == true -> "skill_edit"
     else -> "unknown"
+}
+
+/**
+ * A home realtime session is about to delete the empty conversation [conversationId] it created: go back to the
+ * home page only while that conversation's chat is still the current destination, since the user may have
+ * moved elsewhere in the meantime.
+ */
+internal fun NavController.returnHomeAfterDeleting(conversationId: String) {
+    val top = currentBackStackEntry ?: return
+    if (!top.destination.hasRoute<AppRoute.Chat>()) return
+    if (top.toRoute<AppRoute.Chat>().conversationId != conversationId) return
+    popBackStack(AppRoute.Home, inclusive = false)
 }

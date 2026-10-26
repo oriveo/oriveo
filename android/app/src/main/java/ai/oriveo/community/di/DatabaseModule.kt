@@ -27,18 +27,9 @@ val databaseModule = module {
             // second writer thread only adds lock contention.
             .setQueryExecutor(Executors.newFixedThreadPool(4))
             .setTransactionExecutor(Executors.newSingleThreadExecutor())
-            // v1 to v2: FTS4 conversation search (CJK bigrams) plus the message count moved into
-            // its own trigger-maintained table.
-            .addMigrations(
-                OriveoDatabase.MIGRATION_1_2,
-                // v2 to v3: the tables behind remote MCP servers, plus messages.toolStepsJson.
-                OriveoDatabase.MIGRATION_2_3,
-                // v3 to v4: providers.endpointSource / setupValuesJson / relayKeysJson (address source,
-                // setup field values and the relay key list, stored on this device only).
-                OriveoDatabase.MIGRATION_3_4,
-                // v4 to v5: context ledger, checkpoints, conversation instructions / contextCap, memory items and candidates, messages.stopReason / memoryItemIds.
-                OriveoDatabase.MIGRATION_4_5,
-            )
+            // Every version step lives in OriveoDatabase.allMigrations (v1 to v2 FTS4 search, v2 to v3 MCP tables,
+            // v3 to v4 relay columns, v4 to v5 context and memory, v5 to v6 non-USD cost columns).
+            .addMigrations(*OriveoDatabase.allMigrations())
             .addCallback(
                 object : RoomDatabase.Callback() {
                     override fun onOpen(db: SupportSQLiteDatabase) {

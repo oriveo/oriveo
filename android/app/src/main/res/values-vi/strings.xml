@@ -99,6 +99,8 @@
     <string name="chat_issue_model_missing_message">Mô hình được sử dụng trong cuộc trò chuyện này không còn được kích hoạt nữa. Chọn một mô hình khác để tiếp tục.</string>
     <string name="chat_model_removed_banner">Mô hình của cuộc trò chuyện này không còn trong %1$s.</string>
     <string name="chat_model_removed_choose">Chọn mô hình</string>
+    <string name="chat_model_retired_banner">%1$s đã ngừng cung cấp.</string>
+    <string name="chat_model_retired_switch_to">Chuyển sang %1$s</string>
     <string name="conversations">Cuộc trò chuyện</string>
     <string name="no_conversations">Chưa có cuộc trò chuyện nào</string>
     <string name="search_conversation_titles_or_content">Tìm kiếm tiêu đề hoặc nội dung cuộc trò chuyện</string>
@@ -352,6 +354,7 @@
     <string name="backup_error_unknown">Lỗi sao lưu không xác định.</string>
     <string name="image_not_available">Hình ảnh không có sẵn</string>
     <string name="loading_full_image">Đang tải ảnh đầy đủ…</string>
+    <string name="composer_restored_image_unavailable">Ảnh này chưa tải xuống được. Hãy kết nối Internet rồi thử lại.</string>
     <string name="save_to_photos">Lưu vào Ảnh</string>
     <string name="save_failed">Không lưu được hình ảnh</string>
     <string name="share_failed">Không thể chia sẻ hình ảnh</string>
@@ -1145,7 +1148,7 @@
     <string name="chat_token_usage_cache_write">Ghi cache</string>
     <string name="chat_token_usage_total">Tổng</string>
     <string name="chat_token_usage_unavailable">Chưa có</string>
-    <string name="generation_conversation_scope_hint">Chỉ áp dụng khi dùng mô hình này trong cuộc trò chuyện này. Giá trị không được sao chép khi đổi mô hình và sẽ được khôi phục khi quay lại.</string>
+    <string name="generation_conversation_scope_hint">Chỉ áp dụng khi mô hình này được dùng trong cuộc trò chuyện này. Đổi mô hình không sao chép giá trị; quay lại sẽ khôi phục chúng.</string>
     <string name="generation_parameter_self_healed">Mô hình này đã từ chối %1$s. Đã thử lại với cài đặt mặc định.</string>
     <string name="relay_transport_llamacpp_native">Completion gốc của llama.cpp</string>
     <string name="relay_catalog_loading">Đang tải danh sách mô hình…</string>
@@ -2230,4 +2233,6 @@
     <string name="context_confirm_also_price_line">Yêu cầu này còn vượt ngưỡng tăng giá %2$s của %1$s, nên cả yêu cầu bị tính theo giá ngữ cảnh dài.</string>
     <string name="context_confirm_dont_ask">Không hỏi lại trong cuộc trò chuyện này</string>
     <string name="context_confirm_send">Vẫn gửi</string>
+    <string name="chat_last_used_model_retired_hint">Mô hình bạn dùng lần trước đã ngừng cung cấp. Hiện đang dùng %1$s.</string>
+    <string name="model_options_shows_thinking_fixed">Hiển thị quá trình suy nghĩ · không thể điều chỉnh</string>
 </resources>

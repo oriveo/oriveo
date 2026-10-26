@@ -54,6 +54,8 @@ class ContextCompactionMessage(
     val estTokens: Int,
     directive: () -> Boolean,
     val attachments: List<SummaryAttachment> = emptyList(),
+    /** Carries media (image / video / file with original bytes); manual compaction stops before it. */
+    val carriesMedia: Boolean = false,
 ) {
     constructor(
         id: String,
@@ -62,7 +64,8 @@ class ContextCompactionMessage(
         estTokens: Int,
         isDirective: Boolean = false,
         attachments: List<SummaryAttachment> = emptyList(),
-    ) : this(id, role, text, estTokens, { isDirective }, attachments)
+        carriesMedia: Boolean = false,
+    ) : this(id, role, text, estTokens, { isDirective }, attachments, carriesMedia)
 
     val isDirective: Boolean by lazy(directive)
 }
@@ -76,9 +79,22 @@ data class ContextCompactionContext(
     val prefixTokens: Int,
     val fixedTokens: Int,
     val model: String,
-)
+) {
+    /**
+     * Manual compaction: only the history before the first media message is compacted;
+     * that message and everything after stay verbatim and count toward [fixedTokens]. Unchanged without media.
+     */
+    fun stoppedAtFirstMedia(): ContextCompactionContext {
+        val index = messages.indexOfFirst { it.carriesMedia }
+        if (index < 0) return this
+        return copy(
+            messages = messages.take(index),
+            fixedTokens = fixedTokens + messages.drop(index).sumOf { it.estTokens },
+        )
+    }
+}
 
-/** Contract P3·U3 rule 9 result; `failures` are the per-attempt reasons of the AI path. */
+/** Result of an attempt; `failures` are the per-attempt reasons of the AI path. */
 data class ContextCompactionResult(
     val outcome: CompactOutcome,
     val row: ContextCheckpointRecord?,
@@ -86,12 +102,12 @@ data class ContextCompactionResult(
 )
 
 /**
- * Produces and stores checkpoint rows (contract P3·U3 rules 1, 2, 4, 5, 8, 9).
+ * Produces and stores checkpoint rows.
  * The summary call and the upload are injected; the breaker is per conversation and in memory only.
  * [summarize] is the default summary call; a caller that knows the session provider passes its own to [compact].
  * [upload] receives the account the row was saved under.
  * [onSaved] receives the conversation and its local row count after a successful local save
- * (contract P3·U4 rule 6: the third-compaction hint counts local rows only).
+ *.
  */
 class ContextCompactionCoordinator(
     private val store: ContextCompactionStore,
@@ -109,7 +125,7 @@ class ContextCompactionCoordinator(
     private val aiJobs = ConcurrentHashMap<String, Job>()
     private val _aiCompacting = MutableStateFlow<Set<String>>(emptySet())
 
-    /** Contract P3·U4 rule 9: conversations whose AI summary call is running (the fallback is instant and never shows). */
+    /** Contract conversations whose AI summary call is running (the fallback is instant and never shows). */
     val aiCompacting: StateFlow<Set<String>> = _aiCompacting.asStateFlow()
 
     private val flights = ConcurrentHashMap<String, Mutex>()
@@ -148,11 +164,11 @@ class ContextCompactionCoordinator(
         null
     }
 
-    /** Contract P3·U4 rule 10: AI mode for automatic triggers (preference, remote flag and breaker in llm). */
+    /** Contract AI mode for automatic triggers (preference, remote flag and breaker in llm). */
     suspend fun aiMode(conversationId: String): Boolean = useAI(conversationId, ContextCompactionTrigger.PRE_SEND)
 
     /**
-     * [fallback] false (P3·U4 rule 10 pre-compaction): no fallback row when AI is off, fails or is cancelled;
+     * [fallback] false (pre-send compaction): no fallback row when AI is off, fails or is cancelled;
      * the result is noop and the breaker counts as usual.
      * One compaction per conversation at a time: a later call waits for the running one, then re-reads latestValid;
      * when that row already leaves nothing to compact, the result is noop carrying that row.
@@ -171,7 +187,8 @@ class ContextCompactionCoordinator(
             val waited = !flight.tryLock()
             if (waited) flight.lock()
             try {
-                return compactLocked(conversationId, trigger, context, summarizeWith, fallback, waited)
+                val scoped = if (trigger == ContextCompactionTrigger.MANUAL) context.stoppedAtFirstMedia() else context
+                return compactLocked(conversationId, trigger, scoped, summarizeWith, fallback, waited)
             } finally {
                 flight.unlock()
             }
@@ -221,7 +238,7 @@ class ContextCompactionCoordinator(
                     return ContextCompactionResult(CompactOutcome.NOOP, null, emptyList())
                 ai.first.outcome == CompactOutcome.SUMMARY -> {
                     val row = persist(account, summaryRow(conversationId, context, ai.first, ai.second))
-                    // D-137: a failed save is a noop (failures kept) so the caller falls back to P2.
+                    // a failed save is a noop (failures kept) so the caller falls back to P2.
                     return ContextCompactionResult(
                         if (row == null) CompactOutcome.NOOP else CompactOutcome.SUMMARY,
                         row,

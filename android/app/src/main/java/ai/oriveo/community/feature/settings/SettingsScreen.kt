@@ -41,6 +41,7 @@ import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.FolderShared
 import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.Compress
+import androidx.compose.material.icons.outlined.GraphicEq
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -74,6 +75,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -117,6 +119,7 @@ fun SettingsScreen(
     onNavigateToMcpServers: () -> Unit = {},
     onNavigateToBackup: () -> Unit = {},
     onNavigateToSkills: () -> Unit = {},
+    onNavigateToVoiceSettings: () -> Unit = {},
     viewModel: SettingsViewModel = koinViewModel(),
 ) {
     val theme by viewModel.theme.collectAsStateWithLifecycle()
@@ -206,7 +209,10 @@ fun SettingsScreen(
                             )
                         }
                         InsetHairline()
-                        FlatTapRow(onClick = onNavigateToContextSettings) {
+                        FlatTapRow(
+                            onClick = onNavigateToContextSettings,
+                            modifier = Modifier.testTag("settings_context_row"),
+                        ) {
                             OriveoSettingsRow(
                                 icon = Icons.Outlined.Compress,
                                 iconColor = aiColor,
@@ -233,6 +239,17 @@ fun SettingsScreen(
                                 icon = Icons.Outlined.Lightbulb,
                                 iconColor = aiColor,
                                 title = stringResource(R.string.skills_title),
+                            )
+                        }
+                        InsetHairline()
+                        FlatTapRow(
+                            onClick = onNavigateToVoiceSettings,
+                            modifier = Modifier.testTag("settings_voice_row"),
+                        ) {
+                            OriveoSettingsRow(
+                                icon = Icons.Outlined.GraphicEq,
+                                iconColor = aiColor,
+                                title = stringResource(R.string.voice_settings_title),
                             )
                         }
                     }
@@ -564,7 +581,6 @@ fun SettingsScreen(
 }
 }
 
-@Composable
 internal fun shouldStackSettingsHubCards(maxWidthDp: Float, fontScale: Float): Boolean =
     maxWidthDp < 322f || fontScale >= 1.3f
 

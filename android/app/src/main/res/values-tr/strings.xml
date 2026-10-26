@@ -99,6 +99,8 @@
     <string name="chat_issue_model_missing_message">Bu görüşmede kullanılan model artık etkin değil. Devam etmek için başka bir model seçin.</string>
     <string name="chat_model_removed_banner">Bu sohbetin modeli artık %1$s içinde yok.</string>
     <string name="chat_model_removed_choose">Model seç</string>
+    <string name="chat_model_retired_banner">%1$s kullanımdan kaldırıldı.</string>
+    <string name="chat_model_retired_switch_to">%1$s modeline geç</string>
     <string name="conversations">Konuşmalar</string>
     <string name="no_conversations">Henüz görüşme yok</string>
     <string name="search_conversation_titles_or_content">Konuşma başlıklarını veya içeriğini arayın</string>
@@ -353,6 +355,7 @@
     <string name="backup_error_unknown">Bilinmeyen yedekleme hatası.</string>
     <string name="image_not_available">Resim mevcut değil</string>
     <string name="loading_full_image">Tam görüntü yükleniyor…</string>
+    <string name="composer_restored_image_unavailable">Bu görsel henüz indirilmedi. İnternete bağlanıp tekrar deneyin.</string>
     <string name="save_to_photos">Fotoğraflara Kaydet</string>
     <string name="save_failed">Resim kaydedilemedi</string>
     <string name="share_failed">Resim paylaşılamadı</string>
@@ -1112,7 +1115,7 @@
     <string name="generation_parameter_source">Kaynak</string>
     <string name="provider_detail_connection_settings">Bağlantı ayarları</string>
     <string name="generation_connection_defaults">%1$s varsayılanları</string>
-    <string name="generation_current_conversation">Geçerli Sohbet</string>
+    <string name="generation_current_conversation">Geçerli sohbet</string>
     <string name="generation_basic_settings">Temel Ayarlar</string>
     <string name="generation_group_budget">Çıktı Sınırı</string>
     <string name="generation_group_reasoning">Akıl Yürütme</string>
@@ -1147,7 +1150,7 @@
     <string name="chat_token_usage_cache_write">Önbellek yazma</string>
     <string name="chat_token_usage_total">Toplam</string>
     <string name="chat_token_usage_unavailable">Veri yok</string>
-    <string name="generation_conversation_scope_hint">Yalnızca bu sohbette bu model kullanılırken geçerlidir. Model değiştirilince değerler kopyalanmaz; geri dönülünce geri yüklenir.</string>
+    <string name="generation_conversation_scope_hint">Yalnızca bu sohbette bu model kullanılırken geçerlidir. Model değiştirmek değerleri kopyalamaz; geri dönünce geri yüklenir.</string>
     <string name="generation_parameter_self_healed">Bu model %1$s parametresini reddetti. Varsayılan ayarla yeniden denendi.</string>
     <string name="relay_transport_llamacpp_native">llama.cpp yerel completion</string>
     <string name="relay_catalog_loading">Model listesi yükleniyor…</string>
@@ -2268,4 +2271,6 @@
     <string name="context_confirm_also_price_line">Ayrıca %1$s için %2$s fiyat eşiğini de aşıyor; bu yüzden isteğin tamamı uzun bağlam fiyatından ücretlendirilir.</string>
     <string name="context_confirm_dont_ask">Bu sohbette bir daha sorma</string>
     <string name="context_confirm_send">Yine de gönder</string>
+    <string name="chat_last_used_model_retired_hint">Son kullandığınız model kullanımdan kaldırıldı. Artık %1$s kullanılıyor.</string>
+    <string name="model_options_shows_thinking_fixed">Düşünme sürecini gösterir · ayarlanamaz</string>
 </resources>

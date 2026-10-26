@@ -14,6 +14,7 @@ import ai.oriveo.community.core.model.RequestPreferenceResolver
 import ai.oriveo.community.core.model.GenerationProfileRef
 import ai.oriveo.community.core.model.GenerationParameterRef
 import ai.oriveo.community.core.model.GenerationParameterRange
+import ai.oriveo.community.core.provider.CapabilityEvidenceFacade
 import ai.oriveo.community.core.provider.GenerationParameterResolver
 import ai.oriveo.community.core.provider.ModelPricingFormatter
 import ai.oriveo.community.core.provider.grok.GrokSubscriptionAvailability
@@ -47,6 +48,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -154,11 +156,27 @@ private fun metadataBaseUrl(): String? =
  * views by accident.
  */
 internal interface MetadataSplitTransport {
-    suspend fun fetchIndex(ifNoneMatch: String?): MetadataTransportResponse
-    suspend fun fetchCatalog(provider: String, ifNoneMatch: String?): MetadataTransportResponse
+    /**
+     * When [cacheBust] is non-null the URL carries `fresh=<value>`: used only for the one refetch after a revision mismatch, bypassing the edge cache straight to origin
+     * (contract section 5.9); regular fetches pass null.
+     */
+    suspend fun fetchIndex(ifNoneMatch: String?, cacheBust: String?): MetadataTransportResponse
+
+    /**
+     * [revision] is the catalogRevision for this provider announced by the index the caller holds; when non-null the URL carries `rev=<value>`:
+     * a new revision is necessarily an edge miss and never returns an old catalog (contract section 5.9); pass null when the index announces none, keeping the old shape.
+     */
+    suspend fun fetchCatalog(provider: String, ifNoneMatch: String?, revision: String?): MetadataTransportResponse
 }
 
-private suspend fun httpGetMetadata(pathAndQuery: String, ifNoneMatch: String?): MetadataTransportResponse {
+private suspend fun httpGetMetadata(pathAndQuery: String, ifNoneMatch: String?): MetadataTransportResponse =
+    httpGetMetadata(pathAndQuery, emptyMap(), ifNoneMatch)
+
+private suspend fun httpGetMetadata(
+    pathAndQuery: String,
+    headers: Map<String, String>,
+    ifNoneMatch: String?,
+): MetadataTransportResponse {
     val baseUrl = metadataBaseUrl() ?: return MetadataTransportResponse(
         statusCode = HttpURLConnection.HTTP_NOT_IMPLEMENTED,
         eTag = null,
@@ -169,6 +187,7 @@ private suspend fun httpGetMetadata(pathAndQuery: String, ifNoneMatch: String?):
     return try {
         connection.requestMethod = "GET"
         connection.setRequestProperty("Accept", "application/json")
+        headers.forEach { (name, value) -> connection.setRequestProperty(name, value) }
         ifNoneMatch?.let { connection.setRequestProperty("If-None-Match", it) }
         connection.connectTimeout = 10_000
         connection.readTimeout = 15_000
@@ -199,15 +218,36 @@ private object HttpUrlConnectionMetadataTransport : MetadataTransport {
         httpGetMetadata("/api/metadata?view=lean", ifNoneMatch)
 }
 
-internal object HttpUrlConnectionMetadataSplitTransport : MetadataSplitTransport {
-    override suspend fun fetchIndex(ifNoneMatch: String?): MetadataTransportResponse =
-        httpGetMetadata("/api/metadata?view=index", ifNoneMatch)
+/**
+ * HTTP implementation of index / catalog. With [requestSchema] >= 2 it sends both a `schema=N` query and the
+ * `X-Oriveo-Metadata-Schema: N` header; with 1 the URL and headers keep the historical shape. Lean is always schema 1 and does not go through here.
+ */
+internal class HttpUrlConnectionMetadataSplitTransport internal constructor(
+    private val requestSchema: Int = MetadataClient.METADATA_REQUEST_SCHEMA,
+    private val get: suspend (pathAndQuery: String, headers: Map<String, String>, ifNoneMatch: String?) -> MetadataTransportResponse =
+        { pathAndQuery, headers, ifNoneMatch -> httpGetMetadata(pathAndQuery, headers, ifNoneMatch) },
+) : MetadataSplitTransport {
+    private val schemaQuery: String = if (requestSchema >= 2) "&schema=$requestSchema" else ""
+    private val schemaHeaders: Map<String, String> =
+        if (requestSchema >= 2) mapOf(METADATA_SCHEMA_HEADER to requestSchema.toString()) else emptyMap()
 
-    override suspend fun fetchCatalog(provider: String, ifNoneMatch: String?): MetadataTransportResponse =
-        httpGetMetadata(
-            "/api/metadata?view=catalog&provider=" + java.net.URLEncoder.encode(provider, "UTF-8"),
+    override suspend fun fetchIndex(ifNoneMatch: String?, cacheBust: String?): MetadataTransportResponse =
+        get("/api/metadata?view=index$schemaQuery" + queryParam("fresh", cacheBust), schemaHeaders, ifNoneMatch)
+
+    override suspend fun fetchCatalog(provider: String, ifNoneMatch: String?, revision: String?): MetadataTransportResponse =
+        get(
+            "/api/metadata?view=catalog&provider=" + java.net.URLEncoder.encode(provider, "UTF-8") + schemaQuery +
+                queryParam("rev", revision),
+            schemaHeaders,
             ifNoneMatch,
         )
+
+    private fun queryParam(name: String, value: String?): String =
+        value?.let { "&$name=" + java.net.URLEncoder.encode(it, "UTF-8") }.orEmpty()
+
+    private companion object {
+        const val METADATA_SCHEMA_HEADER = "X-Oriveo-Metadata-Schema"
+    }
 }
 
 private object HttpUrlConnectionModelFactsTransport : ModelFactsTransport {
@@ -280,8 +320,52 @@ private fun Map<String, String>.tagOrUnknown(key: String): String =
 internal fun metadataFailureMessage(tags: Map<String, String>): String =
     "metadata ${tags.tagOrUnknown("phase")} failed"
 
+/** Verdict of the schema 2 revision monotonic-increase comparison (contract section 7 revisionCases). */
+internal enum class MetadataRevisionVerdict { Accept, Unchanged, Reject }
+
+/**
+ * Compares schema 2 bodies only: accept when the cache has no revision (schema 1) or the built-in 0; accept newer; treat equal as 304
+ * (data unchanged, only the ETag is refreshed); reject older, keeping the cache and reporting.
+ */
+internal fun compareMetadataRevision(cached: Long?, incoming: Long): MetadataRevisionVerdict = when {
+    cached == null || cached <= 0L -> MetadataRevisionVerdict.Accept
+    incoming > cached -> MetadataRevisionVerdict.Accept
+    incoming == cached -> MetadataRevisionVerdict.Unchanged
+    else -> MetadataRevisionVerdict.Reject
+}
+
+/** Explicit grouping key so one failure phase is one group regardless of the call site. */
 internal fun metadataFailureFingerprint(tags: Map<String, String>): List<String> =
     listOf(METADATA_FAILURE_MODULE, tags.tagOrUnknown("phase"), tags.tagOrUnknown("exception_class"))
+
+/**
+ * Catalog tombstone: a retired model (retiredModels[] on an index provider entry, contract model catalog and capability truth section 8).
+ * [routedTo] is the successor model id given by the server; the client must still verify it is in the catalog and available before treating it as the successor.
+ */
+@Serializable
+data class RetiredModel(
+    val id: String,
+    val displayName: String? = null,
+    val retiredAt: String? = null,
+    val routedTo: String? = null,
+)
+
+/** Read-only view of a schema 2 model lifecycle: only decodes the state / shutdownAt / routedTo that retirement checks need. */
+data class ModelLifecycle(
+    val state: String?,
+    val shutdownAt: String?,
+    val routedTo: String?,
+) {
+    companion object {
+        /** Preserved lifecycle JsonObject to view; null when missing or not an object. */
+        fun from(raw: JsonObject?): ModelLifecycle? {
+            if (raw == null) return null
+            fun field(key: String): String? =
+                (raw[key] as? JsonPrimitive)?.takeUnless { it is JsonNull }?.contentOrNull?.takeIf { it.isNotBlank() }
+            return ModelLifecycle(state = field("state"), shutdownAt = field("shutdownAt"), routedTo = field("routedTo"))
+        }
+    }
+}
 
 class MetadataClient internal constructor(
     initialContext: Context? = null,
@@ -295,6 +379,16 @@ class MetadataClient internal constructor(
     private val nowMillis: () -> Long = System::currentTimeMillis,
     private val failureReporter: (Map<String, String>) -> Unit = { tags ->
     },
+    /**
+     * Text of the shared metadata_payload.v2.schema.json; when null it is read once from the APK asset
+     * [METADATA_PAYLOAD_SCHEMA_ASSET] on first use and cached. Injected in unit tests to avoid depending on Context.assets.
+     */
+    private val metadataPayloadSchemaText: String? = null,
+    /**
+     * Whether to adopt the schema 2 snapshot bundled in the APK ([BundledMetadata]) when a cold start has no cache and the fetch fails.
+     * Follows the request schema by default (enabled when >= 2).
+     */
+    private val bundledFallbackEnabled: Boolean = METADATA_REQUEST_SCHEMA >= 2,
 ) {
     private val nonAutoReasoningModes = listOf(
         ReasoningMode.Fast,
@@ -357,12 +451,73 @@ class MetadataClient internal constructor(
         /** The model entry's v2 `capabilityControls` is carried through unchanged and belongs to the same publication as the evidence candidates. */
         val capabilityControls: JsonObject? = null,
         /**
-         * Long-context surcharge tier (pricing.longContext); null when the shape is bad or
-         * thresholdTokens is not a positive integer. Only the window factory looks the threshold
-         * up on demand; it is never written into AIModel, Room, or backups.
+         * Long-context surcharge tier (pricing.longContext); null when the shape is bad or thresholdTokens is not a positive integer.
+         * Only the window factory looks the threshold up on demand; it is never written into AIModel, Room, or backups.
          */
         val longContext: LongContextPricing? = null,
+        /**
+         * The model entry's `promptCache.policyRef`; null when missing or not a string.
+         * Only used for outbound breakpoint decisions (official Anthropic applies cache_control only for `anthropic.explicit`); never written into AIModel or backups.
+         */
+        val promptCachePolicyRef: String? = null,
+        /** The schema 2 parameter support table as is (parameter name -> {state, reasonCode, sourceRefs}); only used to compute the verdict revision for the param negative cache. */
+        val parameterSupport: JsonObject? = null,
+        /**
+         * Model-level pricing v2; null when missing or malformed. Only used by
+         * [ai.oriveo.community.core.provider.CostCalculator.calcCost] for local estimates; never written into AIModel or the Room projection.
+         */
+        val pricingV2: ai.oriveo.community.core.provider.PricingV2? = null,
+        /** Model-level price currency (ISO 4217, as is); null when missing (= USD). */
+        val currencyCode: String? = null,
+        /**
+         * Prices for other regions (contract section 5.7 regionPricing); bad entries are already dropped at decode. Only
+         * [ai.oriveo.community.core.provider.RegionPricingSelector] replaces the five price keys by the connection's effective region.
+         */
+        val regionPricing: List<RegionPricingEntry> = emptyList(),
+    ) {
+        /** Replaces the five price keys wholesale with [price] (an entry without pricingV2 clears it); other fields are untouched. */
+        fun withPrice(price: PriceKeys): ResolvedModelMetadata = copy(
+            currencyCode = price.currencyCode,
+            pricingStatus = price.pricingStatus,
+            pricingUnit = price.pricingUnit,
+            promptPerToken = price.promptPerToken,
+            completionPerToken = price.completionPerToken,
+            costPerUnit = price.costPerUnit,
+            costInputBatches = price.costInputBatches,
+            costOutputBatches = price.costOutputBatches,
+            costInputPriority = price.costInputPriority,
+            costOutputPriority = price.costOutputPriority,
+            cacheReadInputPerMToken = price.cacheReadInputPerMToken,
+            cacheCreationInputPerMToken = price.cacheCreationInputPerMToken,
+            cacheWrite5mPerMToken = price.cacheWrite5mPerMToken,
+            cacheWrite1hPerMToken = price.cacheWrite1hPerMToken,
+            longContext = price.longContext,
+            pricingV2 = price.pricingV2,
+        )
+    }
+
+    /** The five price keys (currencyCode / pricingStatus / pricingUnit / pricing / pricingV2) after parsing; the model level and region entries share one convention. */
+    data class PriceKeys(
+        val currencyCode: String?,
+        val pricingStatus: String,
+        val pricingUnit: String,
+        val promptPerToken: Double?,
+        val completionPerToken: Double?,
+        val costPerUnit: Double?,
+        val costInputBatches: Double?,
+        val costOutputBatches: Double?,
+        val costInputPriority: Double?,
+        val costOutputPriority: Double?,
+        val cacheReadInputPerMToken: Double?,
+        val cacheCreationInputPerMToken: Double?,
+        val cacheWrite5mPerMToken: Double?,
+        val cacheWrite1hPerMToken: Double?,
+        val longContext: LongContextPricing?,
+        val pricingV2: ai.oriveo.community.core.provider.PricingV2?,
     )
+
+    /** One regionPricing entry: the [regionScope] region replaces the model-level price with [price]. */
+    data class RegionPricingEntry(val regionScope: String, val price: PriceKeys)
 
     /** Once the input exceeds [thresholdTokens], the whole request is priced at this tier (USD per 1M tokens). */
     data class LongContextPricing(
@@ -448,7 +603,7 @@ class MetadataClient internal constructor(
     )
 
     @Serializable
-    data class ProviderAttachmentSupport(
+    internal data class ProviderAttachmentSupport(
         val image: Boolean = false,
         val video: Boolean = false,
         val nativeFile: Boolean = false,
@@ -472,7 +627,7 @@ class MetadataClient internal constructor(
     )
 
     @Serializable
-    data class PublicProviderConfig(
+    data class PublicProviderConfig internal constructor(
         val kind: String,
         val displayName: String,
         val shortName: String? = null,
@@ -485,7 +640,7 @@ class MetadataClient internal constructor(
         val protocolFeatures: kotlinx.serialization.json.JsonObject? = null,
         val category: String? = null,
         val supportsAutoSync: Boolean? = null,
-        val attachmentSupport: ProviderAttachmentSupport? = null,
+        internal val attachmentSupport: ProviderAttachmentSupport? = null,
         val regionOptions: List<ProviderRegionOption>? = null,
         val sortOrder: Int? = null,
         /** Trusted host suffixes of this provider. Missing is the same as empty: only the registrable domain of the built-in fallback address is trusted. */
@@ -495,7 +650,7 @@ class MetadataClient internal constructor(
     )
 
     @Serializable
-    data class RelayTransportEnvelope(
+    internal data class RelayTransportEnvelope(
         val image: Boolean = false,
         val nativeFile: Boolean = false,
         val textFileInline: Boolean = false,
@@ -555,7 +710,11 @@ class MetadataClient internal constructor(
         val showSoftFailHint: Boolean = true,
     )
 
-    data class RelayRuntimeConfig(
+    /**
+     * Relay runtime rules. Clients only consume them; missing config or fields fall back field by field to [FALLBACK_RELAY_RUNTIME_CONFIG].
+     * Change-driven: after the backend bumps [version], the next /api/metadata refresh takes effect.
+     */
+    internal data class RelayRuntimeConfig(
         val version: String,
         val officialProviderWhitelist: List<String>,
         val transportEnvelopes: Map<String, RelayTransportEnvelope>,
@@ -601,9 +760,8 @@ class MetadataClient internal constructor(
 
         val cacheWrite5mPerMToken: Double? = null,
         val cacheWrite1hPerMToken: Double? = null,
-        // The long-context tier is received as a raw JsonElement and parsed leniently by
-        // [decodeLongContext]: a bad shape drops only this one field instead of failing the
-        // whole model (or the whole metadata payload).
+        // The long-context tier is received as a raw JsonElement and parsed leniently by [decodeLongContext]:
+        // a bad shape drops only this one field instead of failing the whole model (or the whole metadata payload).
         val longContext: JsonElement? = null,
     )
 
@@ -811,7 +969,22 @@ class MetadataClient internal constructor(
         val capabilityEvidenceViewMalformed: Boolean? = null,
 
         val capabilityControls: JsonObject? = null,
-    )
+        /** Schema 2: model lifecycle (state / shutdownAt / signal), kept as is so it survives a Room round trip. */
+        val lifecycle: JsonObject? = null,
+        /** Schema 2: parameter support table, kept as is so it survives a Room round trip. */
+        val parameterSupport: JsonObject? = null,
+        /** Prompt cache policy (policyRef -> cachePolicies); kept as is so it survives a Room round trip, only serves outbound breakpoints. */
+        val promptCache: JsonObject? = null,
+        /** Pricing v2 is received as a raw JsonElement and parsed leniently by [ai.oriveo.community.core.provider.PricingV2Estimator.parse]: a bad shape drops only this one field. */
+        val pricingV2: JsonElement? = null,
+        /** Model-level price currency; missing = USD. */
+        val currencyCode: String? = null,
+        /** Prices for other regions are received as a raw JsonElement and parsed leniently per entry: a bad entry drops only itself (contract section 5.7). */
+        val regionPricing: JsonElement? = null,
+    ) {
+        /** Read-only view of lifecycle state / shutdownAt / routedTo (used for retirement checks). */
+        fun lifecycleInfo(): ModelLifecycle? = ModelLifecycle.from(lifecycle)
+    }
 
     @Serializable
     private data class ProviderData(
@@ -823,6 +996,8 @@ class MetadataClient internal constructor(
         val models: Map<String, ModelData> = emptyMap(),
 
         val transport: ProviderTransport? = null,
+        /** Catalog tombstones (only sent under index provider entries, merged as is by assembleLeanData); empty by default. */
+        val retiredModels: List<RetiredModel>? = null,
     )
 
     @Serializable
@@ -888,6 +1063,16 @@ class MetadataClient internal constructor(
         /** Facts published alongside the catalog; artifactHash is deliberately not decoded. */
         val modelFacts: Map<String, ModelFacts>? = null,
         val modelFactsRevision: String? = null,
+        /** Schema 2 revision field; null when missing (schema 1), and not written when encoding to keep the historical byte shape. */
+        val metadataSchema: Int? = null,
+        /**
+         * Wire name `metadataRevision` (the server-published revision). The property is named differently to avoid confusion with the
+         * client's own ETag-derived `metadataRevision` identity.
+         */
+        @SerialName("metadataRevision")
+        val payloadRevision: Long? = null,
+        val generatedAt: String? = null,
+        val rollbackOf: Long? = null,
     )
 
     @Serializable
@@ -953,6 +1138,13 @@ class MetadataClient internal constructor(
     private data class CatalogCacheEnvelope(
         val eTag: String? = null,
         val data: JsonObject,
+        /** metadataRevision of a schema 2 body; null for schema 1 / old rows. Written atomically in the same row as the snapshot and ETag. */
+        val payloadRevision: Long? = null,
+        /**
+         * The source body's metadataSchema: recorded as 2 in data after schema 3 expansion, so cross-schema decisions rely on this;
+         * an old row without it counts as 2 (before upgrade only schema 1 / 2 were stored, and schema 1 has no revision and does not take part in comparison).
+         */
+        val payloadSchema: Int? = null,
     )
 
     /** In split mode the model-facts sidecar has its own row instead of riding along with the snapshot. */
@@ -1056,6 +1248,9 @@ class MetadataClient internal constructor(
     private class LoadedCatalog(
         val eTag: String?,
         val catalog: MetadataCatalogAssembly.ExpandedCatalog,
+        val payloadRevision: Long? = null,
+        /** Same as [CatalogCacheEnvelope.payloadSchema]. */
+        val payloadSchema: Int? = null,
     )
 
     @Volatile
@@ -1155,6 +1350,8 @@ class MetadataClient internal constructor(
         responseBytes: Long,
         statusCode: Int?,
         error: Throwable,
+        /** Extra tags for schema 2 entry-level reports (reason / provider_kind / model_id / instance_path / keyword); locations only, no values. */
+        extraTags: Map<String, String> = emptyMap(),
     ) {
 
         if (error.isTransientNetworkOrCancellation()) return
@@ -1167,7 +1364,84 @@ class MetadataClient internal constructor(
                 "exception_class" to error.javaClass.simpleName.ifBlank { error.javaClass.name },
 
                 "has_snapshot" to (table != null).toString(),
-            )
+            ) + extraTags
+        )
+    }
+
+    private val payloadSchemaLock = Any()
+
+    @Volatile
+    private var payloadSchemaValidator: MetadataPayloadSchemaValidator? = null
+
+    /** Schema 2 validator: the schema text is read only once; failing to read or parse throws, and the caller treats it as a decode failure (keeping last-good). */
+    private fun payloadSchemaValidator(): MetadataPayloadSchemaValidator {
+        payloadSchemaValidator?.let { return it }
+        return synchronized(payloadSchemaLock) {
+            payloadSchemaValidator ?: run {
+                val text = metadataPayloadSchemaText
+                    ?: (appContext ?: throw IllegalStateException("metadata payload schema unavailable"))
+                        .assets.open(METADATA_PAYLOAD_SCHEMA_ASSET).bufferedReader().use { it.readText() }
+                MetadataPayloadSchemaValidator(json.parseToJsonElement(text)).also { payloadSchemaValidator = it }
+            }
+        }
+    }
+
+    /** Schema 2 and 3 both go through the shared schema check and revision: 3 is just the compact form (the catalog is expanded to 2 first, the index only lacks retiredModels). */
+    private fun isMetadataSchemaV2(data: JsonObject): Boolean =
+        (data["metadataSchema"] as? JsonPrimitive)?.intOrNull in 2..3
+
+    /** Entry-level schema failure: drops only that entry and reports; tags carry only provider / modelId / the first instancePath + keyword. */
+    private fun reportEntryInvalid(
+        code: String,
+        phase: String,
+        startedAtMs: Long,
+        responseBytes: Long,
+        statusCode: Int?,
+        provider: String,
+        modelId: String?,
+        error: MetadataPayloadSchemaValidator.SchemaError,
+    ) {
+        val tags = linkedMapOf(
+            "reason" to code,
+            "provider_kind" to catalogProviderKindLabel(provider),
+            "instance_path" to error.instancePath,
+            "keyword" to error.keyword,
+        )
+        modelId?.let { tags["model_id"] = it }
+        reportFailure(phase, startedAtMs, responseBytes, statusCode, MetadataEntryInvalidException(code), tags)
+    }
+
+    /** Lowercase provider label of the catalog diagnostics: the catalog key mapped to its ProviderKind name, `index` kept as is, unknown keys lowercased. */
+    private fun catalogProviderKindLabel(provider: String): String =
+        if (provider == INDEX_REVISION_PROVIDER) {
+            provider
+        } else {
+            ProviderKind.entries.firstOrNull { catalogKeyFor(it) == provider }?.name?.lowercase() ?: provider.lowercase()
+        }
+
+    private class MetadataEntryInvalidException(code: String) : IllegalStateException("metadata $code")
+
+    private class MetadataRevisionRegressedException(provider: String) :
+        IllegalStateException("metadata $REVISION_REGRESSED: $provider")
+
+    /** The body's metadataSchema; null when missing (schema 1). */
+    private fun bodyMetadataSchema(data: JsonObject): Int? = (data["metadataSchema"] as? JsonPrimitive)?.intOrNull
+
+    private fun schemaV2Revision(data: JsonObject): Long? =
+        if (isMetadataSchemaV2(data)) (data["metadataRevision"] as? JsonPrimitive)?.longOrNull else null
+
+    /** Revision regression: reject and keep the cache, report revision_regressed (index-level provider is `index`). */
+    private fun reportRevisionRegressed(
+        phase: String,
+        startedAtMs: Long,
+        responseBytes: Long,
+        statusCode: Int?,
+        provider: String,
+    ) {
+        reportFailure(
+            phase, startedAtMs, responseBytes, statusCode,
+            MetadataRevisionRegressedException(provider),
+            mapOf("reason" to REVISION_REGRESSED, "provider_kind" to catalogProviderKindLabel(provider)),
         )
     }
 
@@ -1311,13 +1585,15 @@ class MetadataClient internal constructor(
         appContext = context.applicationContext
 
         initMutex.withLock {
-            if (table != null) return
+            // The bundled snapshot is only a placeholder: still refetch via the cold path, any online response may override it.
+            if (table != null && !bundledSnapshotActive) return
 
             val splitCache = if (metadataSplitTransport != null) loadSplitCache() else null
             val cached = loadPersistedCache(context)
             if (splitCache == null && cached == null) {
                 // No usable cache is the cold path: no leftover ETag may turn an empty table into a 304.
                 fetchMetadata(bypassETag = true)
+                adoptBundledSnapshotIfEmpty(context)
                 return
             }
             // Cache bucketing: a cached contractVersion outside the compatible window
@@ -1424,6 +1700,52 @@ class MetadataClient internal constructor(
         }
     }
 
+    /** Whether the current table comes from the APK bundled snapshot (not confirmed online, not written to Room). Any online publication clears it. */
+    @Volatile
+    private var bundledSnapshotActive = false
+
+    /**
+     * After a cold-path fetch fails and there is still no table, adopt the bundled snapshot: not written to Room, not counted as confirmed this session, no cache timestamp set,
+     * source recorded as [MetadataSource.Unknown]. If the asset cannot be read or fails validation it is not adopted and we keep waiting for online data.
+     */
+    internal suspend fun adoptBundledSnapshotIfEmpty(context: Context) {
+        if (!bundledFallbackEnabled || table != null) return
+        val startedAtMs = nowMillis()
+        val decoded = try {
+            val text = BundledMetadata.readAsset(context) ?: return
+            val data = BundledMetadata.validated(text, json, payloadSchemaValidator()) ?: return
+            json.decodeFromJsonElement(MetadataResponse.serializer(), data)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            reportFailure("bundled_decode", startedAtMs, 0L, null, error)
+            return
+        }
+        val safe = normalizeMetadataEvidenceViews(
+            data = decoded,
+            metadataRevision = null,
+            acceptPersistedProjection = false,
+        )
+        // Parsing happens outside the lock; assignment and online publication are both inside fetchMutex, so re-check under the lock: yield if online data was published while parsing.
+        val nextRevision = fetchMutex.withLock {
+            if (table != null) return
+            val next = evidencePublication.contentRevision + 1
+            evidencePublication = EvidencePublication(safe, null, next)
+            table = safe
+            bundledSnapshotActive = true
+            next
+        }
+        _refreshEvents.tryEmit(
+            RefreshEvent(
+                version = safe.version,
+                contractVersion = safe.contractVersion,
+                contentRevision = nextRevision,
+            )
+        )
+    }
+
+    internal val isBundledSnapshotActiveForTesting: Boolean get() = bundledSnapshotActive
+
     private fun isCachedContractInWindow(contract: Int): Boolean =
         contract == 0 || contract in (SUPPORTED_CONTRACT_VERSION - 1)..(SUPPORTED_CONTRACT_VERSION + 1)
 
@@ -1440,9 +1762,8 @@ class MetadataClient internal constructor(
 
     suspend fun ensureInitialized() {
         val context = appContext ?: return
-        if (table == null) initialize(context)
-        // Once the cache has hydrated (table is non-null) the background full refresh is not
-        // awaited: otherwise the first message after a cold start would block on the catalog
+        if (table == null || bundledSnapshotActive) initialize(context)
+        // Once the cache has hydrated (table is non-null) the background full refresh is not awaited: otherwise the first message after a cold start would block on the catalog
         // fetch, and a slow or unreachable backend would hold the first token for many seconds.
         if (table == null) pendingRefresh?.join()
     }
@@ -1964,10 +2285,7 @@ class MetadataClient internal constructor(
         }
         val uiHints = normalizeUIHints(model.uiHints)
         val capabilities = normalizeCapabilities(model.capabilities, uiHints?.badgeOrder)
-        val pricingUnit = normalizePricingUnit(model.pricingUnit)
-        val pricingStatus = normalizePricingStatus(model, pricing, pricingUnit)
-        val promptPerToken = pricing?.promptPerMToken?.div(1_000_000)
-        val completionPerToken = pricing?.completionPerMToken?.div(1_000_000)
+        val price = resolvePriceKeys(model.currencyCode, model.pricingStatus, model.pricingUnit, pricing, model.pricingV2)
 
         return ResolvedModelMetadata(
             canonicalModelId = model.canonicalModelId ?: canonicalId,
@@ -1978,21 +2296,21 @@ class MetadataClient internal constructor(
             maxOutputTokens = model.maxOutputTokens,
             supportsTemperature = model.supportsTemperature,
             billingSku = model.billingSku?.trim()?.takeIf { it.isNotEmpty() },
-            pricingUnit = pricingUnit,
+            pricingUnit = price.pricingUnit,
             sourceSummary = normalizeSourceSummary(model.sourceSummary),
-            pricingStatus = pricingStatus,
+            pricingStatus = price.pricingStatus,
             capabilities = capabilities,
-            promptPerToken = if (pricingStatus == "unknown" || pricingUnit != "per_token") null else promptPerToken,
-            completionPerToken = if (pricingStatus == "unknown" || pricingUnit != "per_token") null else completionPerToken,
-            costPerUnit = pricing?.costPerUnit,
-            costInputBatches = pricing?.costInputBatches,
-            costOutputBatches = pricing?.costOutputBatches,
-            costInputPriority = pricing?.costInputPriority,
-            costOutputPriority = pricing?.costOutputPriority,
-            cacheReadInputPerMToken = pricing?.cacheReadInputPerMToken,
-            cacheCreationInputPerMToken = pricing?.cacheCreationInputPerMToken,
-            cacheWrite5mPerMToken = pricing?.cacheWrite5mPerMToken,
-            cacheWrite1hPerMToken = pricing?.cacheWrite1hPerMToken,
+            promptPerToken = price.promptPerToken,
+            completionPerToken = price.completionPerToken,
+            costPerUnit = price.costPerUnit,
+            costInputBatches = price.costInputBatches,
+            costOutputBatches = price.costOutputBatches,
+            costInputPriority = price.costInputPriority,
+            costOutputPriority = price.costOutputPriority,
+            cacheReadInputPerMToken = price.cacheReadInputPerMToken,
+            cacheCreationInputPerMToken = price.cacheCreationInputPerMToken,
+            cacheWrite5mPerMToken = price.cacheWrite5mPerMToken,
+            cacheWrite1hPerMToken = price.cacheWrite1hPerMToken,
             profiles = profiles,
             supportsPdfInput = model.supportsPdfInput == true,
             supportsServiceTier = model.supportsServiceTier == true,
@@ -2010,21 +2328,83 @@ class MetadataClient internal constructor(
             capabilityEvidenceOwnedKeys = model.capabilityEvidenceOwnedKeys?.toSet(),
             capabilityEvidenceViewMalformed = model.capabilityEvidenceViewMalformed,
             capabilityControls = model.capabilityControls,
-            longContext = decodeLongContext(pricing?.longContext),
+            parameterSupport = model.parameterSupport,
+            longContext = price.longContext,
+            promptCachePolicyRef = (model.promptCache?.get("policyRef") as? JsonPrimitive)
+                ?.takeIf { it.isString }?.content?.takeIf { it.isNotBlank() },
+            pricingV2 = price.pricingV2,
+            currencyCode = price.currencyCode,
+            regionPricing = decodeRegionPricing(model.regionPricing),
         )
     }
 
+    /** Price key parsing: the model level and every regionPricing entry share this convention. */
+    private fun resolvePriceKeys(
+        currencyCode: String?,
+        rawStatus: String?,
+        rawUnit: String?,
+        pricing: ModelPricing?,
+        rawPricingV2: JsonElement?,
+    ): PriceKeys {
+        val pricingUnit = normalizePricingUnit(rawUnit)
+        val pricingStatus = normalizePricingStatus(rawStatus, pricing, pricingUnit)
+        val tokenPriced = pricingStatus != "unknown" && pricingUnit == "per_token"
+        return PriceKeys(
+            currencyCode = currencyCode?.trim()?.takeIf { it.isNotEmpty() },
+            pricingStatus = pricingStatus,
+            pricingUnit = pricingUnit,
+            promptPerToken = if (tokenPriced) pricing?.promptPerMToken?.div(1_000_000) else null,
+            completionPerToken = if (tokenPriced) pricing?.completionPerMToken?.div(1_000_000) else null,
+            costPerUnit = pricing?.costPerUnit,
+            costInputBatches = pricing?.costInputBatches,
+            costOutputBatches = pricing?.costOutputBatches,
+            costInputPriority = pricing?.costInputPriority,
+            costOutputPriority = pricing?.costOutputPriority,
+            // Cache read price: new field > legacy cachedInputPerMToken; if both are missing leave it empty and CostCalculator falls back to input price x 0.5.
+            cacheReadInputPerMToken = pricing?.cacheReadInputPerMToken ?: pricing?.cachedInputPerMToken,
+            cacheCreationInputPerMToken = pricing?.cacheCreationInputPerMToken,
+            cacheWrite5mPerMToken = pricing?.cacheWrite5mPerMToken,
+            cacheWrite1hPerMToken = pricing?.cacheWrite1hPerMToken,
+            longContext = decodeLongContext(pricing?.longContext),
+            pricingV2 = ai.oriveo.community.core.provider.PricingV2Estimator.parse(rawPricingV2),
+        )
+    }
+
+    @Serializable
+    private data class RegionPricingData(
+        val regionScope: String,
+        val currencyCode: String,
+        val pricingStatus: String,
+        val pricingUnit: String,
+        val pricing: ModelPricing?,
+        val pricingV2: JsonElement? = null,
+    )
+
     /**
-     * pricing.longContext has four fields: thresholdTokens (positive integer), promptPerMToken and
-     * completionPerMToken are required, cacheReadPerMToken may be omitted; any field with the wrong
-     * shape makes the whole tier count as missing.
+     * regionPricing is parsed leniently per entry (contract section 5.7): a non-array is an empty list; a single entry with a bad shape (missing required keys, pricing not an object, ...)
+     * drops only that entry, unknown keys are ignored. Under schema 2 the validator already removed bad entries first; this also covers schema 1 and the cache.
+     */
+    private fun decodeRegionPricing(raw: JsonElement?): List<RegionPricingEntry> =
+        (raw as? JsonArray).orEmpty().mapNotNull { element ->
+            val entry = runCatching { json.decodeFromJsonElement(RegionPricingData.serializer(), element) }.getOrNull()
+                ?: return@mapNotNull null
+            val scope = entry.regionScope.trim().takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+            RegionPricingEntry(
+                regionScope = scope,
+                price = resolvePriceKeys(entry.currencyCode, entry.pricingStatus, entry.pricingUnit, entry.pricing, entry.pricingV2),
+            )
+        }
+
+    /**
+     * The four pricing.longContext fields: thresholdTokens (positive integer), promptPerMToken, completionPerMToken are required,
+     * cacheReadPerMToken may be omitted; any field with a wrong shape makes the whole tier count as missing (contract long-context rule 3).
      */
     private fun decodeLongContext(raw: JsonElement?): LongContextPricing? {
         val fields = raw as? JsonObject ?: return null
         fun number(key: String): JsonPrimitive? =
             (fields[key] as? JsonPrimitive)?.takeIf { it !is JsonNull && !it.isString }
         fun price(key: String): Double? = number(key)?.content?.toDoubleOrNull()?.takeIf { it.isFinite() && it >= 0 }
-        // Must be an integral value (200000.0 is fine) with 1 <= t <= Int.MAX_VALUE; parse as a number first, then convert exactly.
+        // Contract long-context rule 3: an integer value (including forms like 200000.0) with 1 <= t <= Int.MAX_VALUE; parse as a number first, then convert exactly.
         val threshold = number("thresholdTokens")?.content?.toDoubleOrNull()
             ?.takeIf { it.isFinite() && it == Math.floor(it) && it >= 1.0 && it <= Int.MAX_VALUE.toDouble() }
             ?.toInt() ?: return null
@@ -2041,6 +2421,19 @@ class MetadataClient internal constructor(
             completionPerMToken = completion,
             cacheReadPerMToken = cacheRead,
         )
+    }
+
+    /**
+     * Cross-provider lookup for display (e.g. the price badge on the usage page): scans only **already loaded** official catalogs and never triggers a fetch.
+     * It does not take part in request construction; relay requests always go through the whitelist of [resolveCatalogModelAcrossProviders].
+     */
+    fun resolveCatalogModelInLoadedCatalogs(modelID: String): ResolvedModelMetadata? {
+        val snapshot = table
+        ProviderKind.entries.forEach { kind ->
+            if (kind == ProviderKind.Relay) return@forEach
+            resolveCatalogModel(snapshot, modelID, kind)?.let { return it }
+        }
+        return null
     }
 
     /**
@@ -2099,7 +2492,7 @@ class MetadataClient internal constructor(
     fun mcpRuntimeConfig(): ai.oriveo.community.core.mcp.McpRuntimeConfig =
         ai.oriveo.community.core.mcp.McpRuntimeConfig.fromJson(table?.mcpRuntimeConfig)
 
-    fun relayRuntimeConfig(): RelayRuntimeConfig {
+    internal fun relayRuntimeConfig(): RelayRuntimeConfig {
         val remote = table?.relayRuntimeConfig ?: return FALLBACK_RELAY_RUNTIME_CONFIG
         return mergeRelayRuntimeConfig(remote)
     }
@@ -2271,11 +2664,44 @@ class MetadataClient internal constructor(
         return providerFor(providerKind)?.defaultModelId
     }
 
+    /** Catalog tombstones (retired models) of this provider; empty when the catalog sent none or omitted them. */
+    fun retiredModels(providerKind: ProviderKind): List<RetiredModel> {
+        return providerFor(providerKind)?.retiredModels.orEmpty()
+    }
+
+    /**
+     * Catalog view for retirement checks (contract model catalog and capability truth section 8): model id + display name + lifecycle, tombstones, resolveMap, default model.
+     * Only given when this provider's catalog is [CatalogLoadState.Loaded]; otherwise null (checks always say available, never treating "not loaded yet" as "not in the catalog").
+     */
+    fun retirementCatalog(providerKind: ProviderKind): ai.oriveo.community.core.provider.ModelRetirement.Catalog? {
+        if (catalogLoadState(providerKind) != CatalogLoadState.Loaded) return null
+        val provider = providerFor(providerKind) ?: return null
+        return ai.oriveo.community.core.provider.ModelRetirement.Catalog(
+            models = provider.models.map { (id, model) ->
+                ai.oriveo.community.core.provider.ModelRetirement.CatalogModel(
+                    id = id,
+                    displayName = model.displayName,
+                    lifecycle = model.lifecycleInfo(),
+                )
+            },
+            retiredModels = provider.retiredModels.orEmpty(),
+            resolveMap = provider.resolveMap.orEmpty(),
+            defaultModelId = provider.defaultModelId,
+        )
+    }
+
+    /** Whether the current table is the APK bundled snapshot (fallback when a cold-start fetch fails): "not in the catalog" cannot be trusted then. */
+    val isBundledSnapshotActive: Boolean get() = bundledSnapshotActive
+
+    /**
+     * BYOK key validation contract (probe / probePath / authMode / headerProfile / invalidKeySignals).
+     * When missing, callers fall back to the most common shape (list_models + bearer + 401 signal).
+     */
     fun validation(providerKind: ProviderKind): ProviderValidation? {
         return providerFor(providerKind)?.validation
     }
 
-    fun providerAttachmentSupport(providerKind: ProviderKind): ProviderAttachmentSupport? {
+    internal fun providerAttachmentSupport(providerKind: ProviderKind): ProviderAttachmentSupport? {
         return providerFor(providerKind)?.attachmentSupport
     }
 
@@ -2544,11 +2970,10 @@ class MetadataClient internal constructor(
     }
 
     private fun normalizePricingStatus(
-        model: ModelData,
+        status: String?,
         pricing: ModelPricing?,
         pricingUnit: String,
     ): String {
-        val status = model.pricingStatus
         if (status == "priced" || status == "free" || status == "unknown") {
             return status
         }
@@ -2819,7 +3244,7 @@ class MetadataClient internal constructor(
         (get(key) as? JsonPrimitive)?.longOrNull?.takeIf { it > 0 }
 
     private fun isPublicCapabilityEvidenceKey(key: String): Boolean {
-        if (key in setOf("web_search", "vision_input", "tool_call")) return true
+        if (key in setOf("web_search", CapabilityEvidenceFacade.VISION_INPUT, "tool_call")) return true
         val separator = key.indexOf('/')
         if (separator <= 0 || separator == key.lastIndex) return false
         val prefix = key.substring(0, separator)
@@ -3034,6 +3459,8 @@ class MetadataClient internal constructor(
         data object Failed : IndexFetch
         data object NotModified : IndexFetch
         class Fetched(val index: SplitIndexState) : IndexFetch
+        /** The schema 2 revision equals the cache's: data is reused from [index] (only the ETag changed, already persisted), handled as a 304. */
+        class Unchanged(val index: SplitIndexState) : IndexFetch
     }
 
     private enum class CatalogSyncResult { Current, Adopted, Mismatch, Failed }
@@ -3042,7 +3469,16 @@ class MetadataClient internal constructor(
         IllegalStateException("metadata catalog rejected: $reason")
 
     private class CatalogRevisionMismatchException(provider: String) :
-        IllegalStateException("metadata catalog revision differs from index after refetch: $provider")
+        IllegalStateException("metadata $REVISION_MISMATCH: $provider")
+
+    /** The catalog revision still disagrees with the index registration after the refetch: keep last-good and report revision_mismatch. */
+    private fun reportRevisionMismatch(provider: String) {
+        reportFailure(
+            CATALOG_SYNC_PHASE, nowMillis(), 0L, null,
+            CatalogRevisionMismatchException(provider),
+            mapOf("reason" to REVISION_MISMATCH, "provider_kind" to catalogProviderKindLabel(provider)),
+        )
+    }
 
     private suspend fun refreshSplitLocked(
         split: MetadataSplitTransport,
@@ -3055,7 +3491,7 @@ class MetadataClient internal constructor(
         val previous = splitIndex
         val index: SplitIndexState
         var indexChanged = false
-        when (val fetched = fetchIndexLocked(split, previous?.eTag.takeUnless { bypassETag })) {
+        when (val fetched = fetchIndexLocked(split, previous?.eTag.takeUnless { bypassETag }, previous, bypassEdgeCache = false)) {
             IndexFetch.Unsupported -> {
                 // The client shipped before the server: a cold start must not fail because of it.
                 fetchLeanLocked(bypassETag = bypassETag || previous != null)
@@ -3063,6 +3499,10 @@ class MetadataClient internal constructor(
             }
             IndexFetch.Failed -> return
             IndexFetch.NotModified -> index = previous ?: return
+            is IndexFetch.Unchanged -> {
+                index = fetched.index
+                splitIndex = index
+            }
             is IndexFetch.Fetched -> {
                 index = fetched.index
                 indexChanged = true
@@ -3070,7 +3510,8 @@ class MetadataClient internal constructor(
         }
         if (previous == null && evidencePublication.loadedProviderKeys == null) {
             // First switch from a full lean payload (old cache or lean fallback) to split: keep it as each provider's last good.
-            table?.let { legacyLeanFallback = it }
+            // The bundled snapshot is not used as last-good: build-time data must not mix into the online catalog.
+            table?.takeUnless { bundledSnapshotActive }?.let { legacyLeanFallback = it }
         }
         val (needed, demandKnown) = neededCatalogKeys(index, requestedKeys)
         syncAndPublishLocked(
@@ -3105,30 +3546,30 @@ class MetadataClient internal constructor(
         var results = syncCatalogsLocked(split, index, keys)
         val mismatched = results.filterValues { it == CatalogSyncResult.Mismatch }.keys
         if (mismatched.isNotEmpty()) {
-            val refetched = fetchIndexLocked(split, index.eTag)
+            // The edge cache may serve a new index with an old catalog, and refetching the index at the same URL hits the same edge copy: this time pass fresh to go straight to origin.
+            val refetched = fetchIndexLocked(split, index.eTag, index, bypassEdgeCache = true)
             if (refetched is IndexFetch.Fetched) {
                 index = refetched.index
                 changed = true
+            } else if (refetched is IndexFetch.Unchanged) {
+                index = refetched.index
+                if (!changed) splitIndex = index
             }
             val retried = syncCatalogsLocked(split, index, mismatched)
             results = results + retried
+            // Still out of step after refetching the index: report revision_mismatch once per provider per sync round.
             retried.filterValues { it == CatalogSyncResult.Mismatch }.keys.forEach { key ->
-                reportFailure(
-                    phase = "catalog_revision",
-                    startedAtMs = nowMillis(),
-                    responseBytes = 0L,
-                    statusCode = null,
-                    error = CatalogRevisionMismatchException(key),
-                )
+                reportRevisionMismatch(key)
             }
         }
         if (changed) {
+            val previousIndex = splitIndex
             splitIndex = index
             // After the index changes, a last good whose revision no longer matches is no longer confirmed this session.
             confirmedCatalogKeys.removeAll { key ->
                 loadedCatalogs[key]?.catalog?.catalogRevision != index.catalogRevisions[key]
             }
-            persistSplitIndex(index)
+            persistSplitIndexWithRetiredBackfill(previous = previousIndex, next = index)
         }
         val adopted = results.values.any { it == CatalogSyncResult.Adopted }
         val retiredLegacy = demandComplete && retireLegacyLeanIfComplete(keys)
@@ -3139,13 +3580,20 @@ class MetadataClient internal constructor(
         }
     }
 
-    private suspend fun fetchIndexLocked(split: MetadataSplitTransport, ifNoneMatch: String?): IndexFetch {
+    private suspend fun fetchIndexLocked(
+        split: MetadataSplitTransport,
+        ifNoneMatch: String?,
+        /** Baseline for revision comparison: the current index the caller holds (may not yet be written back to [splitIndex]). */
+        cached: SplitIndexState?,
+        /** True only for the one refetch after a revision mismatch (contract section 5.9). */
+        bypassEdgeCache: Boolean,
+    ): IndexFetch {
         val startedAtMs = nowMillis()
         var phase = "index_fetch"
         var responseBytes = 0L
         var statusCode: Int? = null
         return try {
-            val response = split.fetchIndex(ifNoneMatch)
+            val response = split.fetchIndex(ifNoneMatch, cacheBust = if (bypassEdgeCache) ai.oriveo.community.core.util.generateUuidString() else null)
             statusCode = response.statusCode
             responseBytes = response.responseBytes
             when (statusCode) {
@@ -3160,9 +3608,49 @@ class MetadataClient internal constructor(
                 HttpURLConnection.HTTP_OK -> {
                     phase = "index_decode"
                     val body = response.body ?: throw EOFException("metadata index body missing")
-                    val data = MetadataCatalogAssembly.unwrapData(json.parseToJsonElement(body))
+                    val rawData = MetadataCatalogAssembly.unwrapData(json.parseToJsonElement(body))
                         ?.takeIf { (it["view"] as? JsonPrimitive)?.contentOrNull == "index" }
                         ?: throw IllegalStateException("metadata index view missing")
+                    var droppedProviders = emptyList<MetadataPayloadSchemaValidator.DroppedProvider>()
+                    val data = if (isMetadataSchemaV2(rawData)) {
+                        // Schema 2: a bad envelope rejects the whole payload (falls into catch -> Failed, keeping last-good); a bad provider drops only that provider,
+                        // but entry reports wait until the revision decision adopts it (same order as Web: rejected / 304-treated responses report no entries).
+                        val result = payloadSchemaValidator().decode(rawData)
+                        result.envelopeError?.let {
+                            throw IllegalStateException("metadata index schema rejected: ${it.keyword} at ${it.instancePath}")
+                        }
+                        droppedProviders = result.droppedProviders
+                        val droppedIds = result.droppedProviders.mapTo(hashSetOf()) { it.providerId }
+                        val providers = rawData["providers"] as? JsonObject
+                        if (droppedIds.isEmpty() || providers == null) rawData
+                        else JsonObject(rawData + ("providers" to JsonObject(providers - droppedIds)))
+                    } else {
+                        rawData
+                    }
+                    // Revisions are compared only within one schema: schema 2 and 3 share metadataRevision, and across schemas (e.g. the cache is still a schema 2 index after an upgrade)
+                    // the new data is always accepted and replaces the old, otherwise the old index's catalogRevision would never match the new catalog.
+                    val sameSchema = cached?.data?.let(::bodyMetadataSchema) == bodyMetadataSchema(rawData)
+                    val incomingRevision = schemaV2Revision(rawData)?.takeIf { sameSchema }
+                    val cachedRevision = cached?.data?.let { (it["metadataRevision"] as? JsonPrimitive)?.longOrNull }
+                    when (incomingRevision?.let { compareMetadataRevision(cachedRevision, it) }) {
+                        MetadataRevisionVerdict.Reject -> {
+                            reportRevisionRegressed(phase, startedAtMs, responseBytes, statusCode, INDEX_REVISION_PROVIDER)
+                            return IndexFetch.Failed
+                        }
+                        MetadataRevisionVerdict.Unchanged -> if (cached != null) {
+                            // Equal is treated as 304: data unchanged, the ETag is refreshed with the data in one upsert.
+                            val refreshed = SplitIndexState(cached.data, response.eTag, cached.catalogRevisions)
+                            persistSplitIndex(refreshed)
+                            return IndexFetch.Unchanged(refreshed)
+                        }
+                        else -> Unit
+                    }
+                    droppedProviders.forEach { dropped ->
+                        reportEntryInvalid(
+                            MODEL_ENTRY_INVALID, phase, startedAtMs, responseBytes, statusCode,
+                            dropped.providerId, null, dropped.error,
+                        )
+                    }
                     IndexFetch.Fetched(
                         SplitIndexState(
                             data = data,
@@ -3211,7 +3699,7 @@ class MetadataClient internal constructor(
         var responseBytes = 0L
         var statusCode: Int? = null
         try {
-            val response = split.fetchCatalog(key, cached?.eTag)
+            val response = split.fetchCatalog(key, cached?.eTag, revision = expectedRevision)
             statusCode = response.statusCode
             responseBytes = response.responseBytes
             when (statusCode) {
@@ -3230,17 +3718,79 @@ class MetadataClient internal constructor(
             }
             phase = "catalog_decode"
             val body = response.body ?: throw EOFException("metadata catalog body missing")
-            val data = MetadataCatalogAssembly.unwrapData(json.parseToJsonElement(body))
+            val rawData = MetadataCatalogAssembly.unwrapData(json.parseToJsonElement(body))
                 ?: throw CatalogRejectedException("body")
-            val catalog = when (val expansion = MetadataCatalogAssembly.expandCatalog(data, key)) {
-                is MetadataCatalogAssembly.Expansion.Rejected -> throw CatalogRejectedException(expansion.reason)
-                is MetadataCatalogAssembly.Expansion.Accepted -> expansion.catalog
+            // A schema 3 compact catalog is first expanded to its schema 2 equivalent; validation, expansion and persistence all happen after expansion; an unresolved ref rejects the whole catalog.
+            val data = when (val compact = MetadataCatalogAssembly.expandCompactCatalog(rawData)) {
+                is MetadataCatalogAssembly.CompactExpansion.Rejected -> throw CatalogRejectedException(compact.reason)
+                is MetadataCatalogAssembly.CompactExpansion.Expanded -> compact.data
+            }
+            // Schema 2: a bad envelope rejects the whole payload (keeping last-good); a bad model drops only that entry and is reported one by one after adoption.
+            val droppedModels = if (isMetadataSchemaV2(data)) {
+                val result = payloadSchemaValidator().decode(data)
+                result.envelopeError?.let { throw CatalogRejectedException("schema ${it.keyword} at ${it.instancePath}") }
+                result.droppedModels
+            } else {
+                emptyList()
+            }
+            val incomingRevision = schemaV2Revision(data)
+            // Same as the index: compare revisions only against a cache from the same source schema; across schemas accept the new data.
+            val incomingSchema = bodyMetadataSchema(rawData)
+            val sameSchema = cached == null || (cached.payloadSchema ?: 2) == incomingSchema
+            when (incomingRevision?.takeIf { sameSchema }?.let { compareMetadataRevision(cached?.payloadRevision, it) }) {
+                MetadataRevisionVerdict.Reject -> {
+                    reportRevisionRegressed(phase, startedAtMs, responseBytes, statusCode, key)
+                    return CatalogSyncResult.Failed
+                }
+                MetadataRevisionVerdict.Unchanged -> if (cached != null) {
+                    // Equal: upsert only the new ETag together with this provider's cache row in one step; handled like a 304 as far as out-of-step generations go.
+                    loadedCatalogs[key] = LoadedCatalog(response.eTag, cached.catalog, cached.payloadRevision, cached.payloadSchema)
+                    refreshCatalogRowETag(key, response.eTag)
+                    return CatalogSyncResult.Mismatch
+                }
+                else -> Unit
+            }
+            val droppedIds = droppedModels.mapTo(linkedSetOf()) { it.modelId }
+            val expansion = when (val result = MetadataCatalogAssembly.expandCatalog(data, key, droppedIds)) {
+                is MetadataCatalogAssembly.Expansion.Rejected -> throw CatalogRejectedException(result.reason)
+                is MetadataCatalogAssembly.Expansion.Accepted -> result
+            }
+            // Tombstone snapshot (section 9.8): schema 3 uses the catalog's own; schema 1 / 2 take this provider's retiredModels from the index at the moment of adoption.
+            val catalog = expansion.catalog.let { expanded ->
+                if (expanded.retiredModels != null) expanded
+                else expanded.copy(retiredModels = indexRetiredModels(index.data, key))
             }
             if (catalog.catalogRevision != expectedRevision) return CatalogSyncResult.Mismatch
-            loadedCatalogs[key] = LoadedCatalog(eTag = response.eTag, catalog = catalog)
+            droppedModels.forEach { dropped ->
+                reportEntryInvalid(
+                    MODEL_ENTRY_INVALID, phase, startedAtMs, responseBytes, statusCode,
+                    key, dropped.modelId, dropped.error,
+                )
+            }
+            // The shared schema check cannot see parametersRef (profile -> generationParameters); it is only dropped during expansion, so report it here.
+            expansion.droppedRefs.forEach { dropped ->
+                reportEntryInvalid(
+                    MODEL_ENTRY_INVALID, phase, startedAtMs, responseBytes, statusCode,
+                    key, dropped.modelId,
+                    MetadataPayloadSchemaValidator.SchemaError("/${dropped.reason}", UNRESOLVED_REF_KEYWORD),
+                )
+            }
+            loadedCatalogs[key] = LoadedCatalog(
+                eTag = response.eTag,
+                catalog = catalog,
+                payloadRevision = incomingRevision,
+                payloadSchema = incomingSchema,
+            )
             confirmedCatalogKeys.add(key)
             phase = "cache_write"
-            persistCatalogRow(key, response.eTag, data)
+            // What is persisted is the copy with bad entries already dropped: a cold-start replay from the cache skips schema validation, so bad entries must not sneak back in.
+            persistCatalogRow(
+                key,
+                response.eTag,
+                withRetiredSnapshot(MetadataCatalogAssembly.withoutModels(data, droppedIds), catalog.retiredModels),
+                incomingRevision,
+                incomingSchema,
+            )
             return CatalogSyncResult.Adopted
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -3361,11 +3911,17 @@ class MetadataClient internal constructor(
                 key !in catalogs && key in normalized.providers && provider.models.isNotEmpty()
             }
             .keys
+        // Tombstones for the lean fallback follow the same convention as the catalog snapshot (section 9.8): a schema 3 index carries no tombstones, so the provider's retiredModels in the lean row is the snapshot.
+        val compactIndex = bodyMetadataSchema(index.data) == 3
         val safe = if (legacy == null || overlayKeys.isEmpty()) normalized else normalized.copy(
             providers = normalized.providers.mapValues { (key, provider) ->
                 val old = legacy.providers[key]
                 if (key in overlayKeys && old != null) {
-                    provider.copy(resolveMap = old.resolveMap, models = old.models)
+                    provider.copy(
+                        resolveMap = old.resolveMap,
+                        models = old.models,
+                        retiredModels = if (compactIndex) old.retiredModels else provider.retiredModels,
+                    )
                 } else {
                     provider
                 }
@@ -3381,6 +3937,7 @@ class MetadataClient internal constructor(
             loadedProviderKeys = catalogs.keys + overlayKeys,
         )
         table = safe
+        bundledSnapshotActive = false
         if (indexConfirmed) {
             _metadataSource = MetadataSource.FreshNetwork
             _snapshotConfirmedThisSession = true
@@ -3440,7 +3997,12 @@ class MetadataClient internal constructor(
             } ?: continue
             when (val expansion = MetadataCatalogAssembly.expandCatalog(envelope.data, key)) {
                 is MetadataCatalogAssembly.Expansion.Accepted ->
-                    catalogs[key] = LoadedCatalog(eTag = envelope.eTag, catalog = expansion.catalog)
+                    catalogs[key] = LoadedCatalog(
+                        eTag = envelope.eTag,
+                        catalog = expansion.catalog,
+                        payloadRevision = envelope.payloadRevision,
+                        payloadSchema = envelope.payloadSchema,
+                    )
                 is MetadataCatalogAssembly.Expansion.Rejected -> {
                     reportFailure("cache_decode", startedAtMs, payload.length.toLong(), null, CatalogRejectedException(expansion.reason))
                     deleteRowQuietly(dao, rowKey)
@@ -3513,22 +4075,22 @@ class MetadataClient internal constructor(
         }
     }
 
+    private fun splitIndexEntity(index: SplitIndexState) = MetadataCacheEntity(
+        key = MetadataCacheEntity.INDEX_KEY,
+        payload = json.encodeToString(
+            SplitIndexCacheEnvelope.serializer(),
+            SplitIndexCacheEnvelope(eTag = index.eTag, data = index.data),
+        ),
+        version = (index.data["version"] as? JsonPrimitive)?.intOrNull ?: 0,
+        contractVersion = (index.data["contractVersion"] as? JsonPrimitive)?.intOrNull ?: 0,
+        updatedAtMs = nowMillis(),
+    )
+
     private suspend fun persistSplitIndex(index: SplitIndexState) {
         val dao = metadataCacheDao ?: return
         val startedAtMs = nowMillis()
         try {
-            dao.upsert(
-                MetadataCacheEntity(
-                    key = MetadataCacheEntity.INDEX_KEY,
-                    payload = json.encodeToString(
-                        SplitIndexCacheEnvelope.serializer(),
-                        SplitIndexCacheEnvelope(eTag = index.eTag, data = index.data),
-                    ),
-                    version = (index.data["version"] as? JsonPrimitive)?.intOrNull ?: 0,
-                    contractVersion = (index.data["contractVersion"] as? JsonPrimitive)?.intOrNull ?: 0,
-                    updatedAtMs = nowMillis(),
-                )
-            )
+            dao.upsert(splitIndexEntity(index))
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
@@ -3536,20 +4098,96 @@ class MetadataClient internal constructor(
         }
     }
 
-    private suspend fun persistCatalogRow(key: String, eTag: String?, data: JsonObject) {
+    /** The provider's retiredModels in the index; recorded as an empty array when none (the snapshot was taken, there are just no tombstones). */
+    private fun indexRetiredModels(indexData: JsonObject, key: String): JsonElement =
+        ((indexData["providers"] as? JsonObject)?.get(key) as? JsonObject)?.get("retiredModels")
+            ?.takeUnless { it is JsonNull }
+            ?: JsonArray(emptyList())
+
+    private fun withRetiredSnapshot(data: JsonObject, snapshot: JsonElement?): JsonObject =
+        if (snapshot == null) data else JsonObject(data + ("retiredModels" to snapshot))
+
+    /**
+     * Writes the next-generation index. On the first switch from a schema 2 index to a schema 3 index, backfills a snapshot for old cache rows without a tombstone snapshot:
+     * take the tombstones of this provider from the replaced old index (it is the index generation those catalogs were adopted under). The backfilled catalog rows and the new index row
+     * are written in the same Room transaction; if any fails everything rolls back and the persisted index does not advance (the next cold start still takes tombstones from the schema 2 index);
+     * in memory this session uses the new index and the backfilled snapshots as usual.
+     */
+    private suspend fun persistSplitIndexWithRetiredBackfill(previous: SplitIndexState?, next: SplitIndexState) {
+        val transition = previous != null && bodyMetadataSchema(next.data) == 3 && bodyMetadataSchema(previous.data) != 3
+        val backfill = if (!transition) emptyMap() else loadedCatalogs.toMap()
+            .filterValues { it.catalog.retiredModels == null }
+            .mapValues { (key, _) -> indexRetiredModels(checkNotNull(previous).data, key) }
+        if (backfill.isEmpty()) {
+            persistSplitIndex(next)
+            return
+        }
+        for ((key, snapshot) in backfill) {
+            loadedCatalogs.computeIfPresent(key) { _, loaded ->
+                LoadedCatalog(loaded.eTag, loaded.catalog.copy(retiredModels = snapshot), loaded.payloadRevision, loaded.payloadSchema)
+            }
+        }
         val dao = metadataCacheDao ?: return
+        val startedAtMs = nowMillis()
+        try {
+            val rows = backfill.mapNotNull { (key, snapshot) ->
+                val payload = readPersistedPayload(dao, MetadataCacheEntity.CATALOG_KEY_PREFIX + key) ?: return@mapNotNull null
+                val envelope = json.decodeFromString<CatalogCacheEnvelope>(payload)
+                catalogRowEntity(
+                    key, envelope.eTag, withRetiredSnapshot(envelope.data, snapshot), envelope.payloadRevision, envelope.payloadSchema,
+                )
+            }
+            dao.upsertAllInTransaction(rows + splitIndexEntity(next))
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            reportFailure("cache_write", startedAtMs, 0L, null, error)
+        }
+    }
+
+    /** When the revision is equal only the ETag changes: read back this provider's cache row and upsert the same data with the new ETag. */
+    private suspend fun refreshCatalogRowETag(key: String, eTag: String?) {
+        val dao = metadataCacheDao ?: return
+        val startedAtMs = nowMillis()
+        try {
+            val payload = readPersistedPayload(dao, MetadataCacheEntity.CATALOG_KEY_PREFIX + key) ?: return
+            val envelope = json.decodeFromString<CatalogCacheEnvelope>(payload)
+            persistCatalogRow(key, eTag, envelope.data, envelope.payloadRevision, envelope.payloadSchema)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            reportFailure("cache_write", startedAtMs, 0L, null, error)
+        }
+    }
+
+    private suspend fun persistCatalogRow(
+        key: String,
+        eTag: String?,
+        data: JsonObject,
+        payloadRevision: Long?,
+        payloadSchema: Int?,
+    ) {
+        val dao = metadataCacheDao ?: return
+        dao.upsert(catalogRowEntity(key, eTag, data, payloadRevision, payloadSchema))
+    }
+
+    private fun catalogRowEntity(
+        key: String,
+        eTag: String?,
+        data: JsonObject,
+        payloadRevision: Long?,
+        payloadSchema: Int?,
+    ): MetadataCacheEntity {
         val index = splitIndex
-        dao.upsert(
-            MetadataCacheEntity(
-                key = MetadataCacheEntity.CATALOG_KEY_PREFIX + key,
-                payload = json.encodeToString(
-                    CatalogCacheEnvelope.serializer(),
-                    CatalogCacheEnvelope(eTag = eTag, data = data),
-                ),
-                version = (index?.data?.get("version") as? JsonPrimitive)?.intOrNull ?: 0,
-                contractVersion = (index?.data?.get("contractVersion") as? JsonPrimitive)?.intOrNull ?: 0,
-                updatedAtMs = nowMillis(),
-            )
+        return MetadataCacheEntity(
+            key = MetadataCacheEntity.CATALOG_KEY_PREFIX + key,
+            payload = json.encodeToString(
+                CatalogCacheEnvelope.serializer(),
+                CatalogCacheEnvelope(eTag = eTag, data = data, payloadRevision = payloadRevision, payloadSchema = payloadSchema),
+            ),
+            version = (index?.data?.get("version") as? JsonPrimitive)?.intOrNull ?: 0,
+            contractVersion = (index?.data?.get("contractVersion") as? JsonPrimitive)?.intOrNull ?: 0,
+            updatedAtMs = nowMillis(),
         )
     }
 
@@ -3605,6 +4243,7 @@ class MetadataClient internal constructor(
 
         evidencePublication = EvidencePublication(safe, responseETag, nextRevision)
         table = safe
+        bundledSnapshotActive = false
         storedETag = responseETag
         _metadataSource = MetadataSource.FreshNetwork
         _snapshotConfirmedThisSession = true
@@ -3780,7 +4419,21 @@ class MetadataClient internal constructor(
     }
 
     companion object {
+        /**
+         * Metadata schema of index / catalog requests. 3: sends both the request header and `?schema=3` (compact catalog),
+         * and the bundled snapshot fallback is enabled accordingly (>= 2). Responses are always decoded by the body's metadataSchema (1 / 2 / 3).
+         */
+        internal const val METADATA_REQUEST_SCHEMA = 3
         private const val DATA_FIELD = "data"
+        /** Copied into the APK from the shared model-contracts by :app's syncMetadataContractAssets at build time. */
+        internal const val METADATA_PAYLOAD_SCHEMA_ASSET = "model-contracts/metadata_payload.v2.schema.json"
+        private const val MODEL_ENTRY_INVALID = "model_entry_invalid"
+        private const val REVISION_REGRESSED = "revision_regressed"
+        private const val REVISION_MISMATCH = "revision_mismatch"
+        private const val CATALOG_SYNC_PHASE = "catalog_sync"
+        private const val UNRESOLVED_REF_KEYWORD = "unresolved_ref"
+        /** The provider label used when reporting an index-level revision regression. */
+        private const val INDEX_REVISION_PROVIDER = "index"
 
         private const val PAYLOAD_CHUNK_CHARS = 200_000
         private const val CAPABILITY_EVIDENCE_ABSENT = "__oriveo_capability_evidence_absent__"
@@ -3797,7 +4450,11 @@ class MetadataClient internal constructor(
         @Volatile
         var instance: MetadataClient = MetadataClient()
 
-        val FALLBACK_RELAY_RUNTIME_CONFIG: RelayRuntimeConfig = RelayRuntimeConfig(
+        /**
+         * Built-in default Relay runtime rules of the client. Only used when the backend /api/metadata sends no relayRuntimeConfig;
+         * any change must be mirrored in the server's DefaultRelayRuntimeConfig.
+         */
+        internal val FALLBACK_RELAY_RUNTIME_CONFIG: RelayRuntimeConfig = RelayRuntimeConfig(
             version = "fallback",
             officialProviderWhitelist = listOf(
                 "openAI", "anthropic", "gemini", "deepseek", "miniMax", "zhipu", "qwen", "moonshot",
@@ -3958,13 +4615,16 @@ class MetadataClient internal constructor(
         fun resolveCatalogModelAcrossProviders(modelID: String): ResolvedModelMetadata? =
             instance.resolveCatalogModelAcrossProviders(modelID)
 
+        fun resolveCatalogModelInLoadedCatalogs(modelID: String): ResolvedModelMetadata? =
+            instance.resolveCatalogModelInLoadedCatalogs(modelID)
+
         fun resolveCatalogModelAcrossProvidersWithProvider(
             modelID: String,
             transportPriority: ProviderKind? = null,
         ): RelayCatalogMatchResult? =
             instance.resolveCatalogModelAcrossProvidersWithProvider(modelID, transportPriority)
 
-        fun relayRuntimeConfig(): RelayRuntimeConfig = instance.relayRuntimeConfig()
+        internal fun relayRuntimeConfig(): RelayRuntimeConfig = instance.relayRuntimeConfig()
         fun mcpRuntimeConfig(): ai.oriveo.community.core.mcp.McpRuntimeConfig = instance.mcpRuntimeConfig()
 
         /** See [MetadataClient.snapshotConfirmedThisSession]. */
@@ -4004,10 +4664,13 @@ class MetadataClient internal constructor(
         fun defaultModelId(providerKind: ProviderKind): String? =
             instance.defaultModelId(providerKind)
 
+        fun retiredModels(providerKind: ProviderKind): List<RetiredModel> =
+            instance.retiredModels(providerKind)
+
         fun validation(providerKind: ProviderKind): ProviderValidation? =
             instance.validation(providerKind)
 
-        fun providerAttachmentSupport(providerKind: ProviderKind): ProviderAttachmentSupport? =
+        internal fun providerAttachmentSupport(providerKind: ProviderKind): ProviderAttachmentSupport? =
             instance.providerAttachmentSupport(providerKind)
 
         fun providerTransport(providerKind: ProviderKind): ProviderTransport? =

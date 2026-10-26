@@ -5,19 +5,28 @@ import ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID
 import ai.oriveo.community.core.data.dao.ConversationDao
 import ai.oriveo.community.core.data.dao.MessageDao
 import ai.oriveo.community.core.data.dao.MessageContinuationDao
+import android.content.Context
+import ai.oriveo.community.core.data.attachment.AttachmentOrphanSweeper
+import ai.oriveo.community.core.data.attachment.AttachmentStore
+import ai.oriveo.community.core.data.entity.AttachmentsJsonPageRow
 import ai.oriveo.community.core.data.entity.ConversationEntity
 import ai.oriveo.community.core.data.entity.ConversationWithCount
 import ai.oriveo.community.core.data.entity.MessageEntity
+import ai.oriveo.community.core.data.EntityMapper.toDomain
+import ai.oriveo.community.core.data.entity.CurrencyCostRow
 import ai.oriveo.community.core.data.entity.MonthlyCostRow
-import ai.oriveo.community.core.data.entity.MonthlyProviderCostRow
+import ai.oriveo.community.core.model.Attachment
+import ai.oriveo.community.core.model.AttachmentKind
 import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.ChatMessageState
 import ai.oriveo.community.core.model.ChatRole
 import ai.oriveo.community.core.model.Conversation
 import ai.oriveo.community.core.model.CostFormatter
+import ai.oriveo.community.core.usage.CostPart
 import ai.oriveo.community.core.usage.CostSummarySource
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -27,10 +36,19 @@ import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
+import org.junit.rules.TemporaryFolder
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -43,8 +61,15 @@ class ConversationRepositoryTest {
 
     private val testAccountId = LOCAL_PARTITION_ID
 
+    /** refreshCost writes only the two cost columns: the post-write entity is synthesized from the row at write time for assertions. */
+    private val costWrites = mutableListOf<ConversationEntity>()
+
     @Before
     fun setUp() {
+        coEvery { conversationDao.updateCostTotals(any(), any(), any(), any()) } coAnswers {
+            val row = conversationDao.getById(firstArg(), secondArg()) ?: error("cost write without row")
+            costWrites += row.copy(estimatedCost = thirdArg(), nonUsdCostTotals = arg(3))
+        }
         repository = ConversationRepository(conversationDao, messageDao)
     }
 
@@ -102,6 +127,136 @@ class ConversationRepositoryTest {
         coVerify(exactly = 1) { continuationDao.deleteForConversation(testAccountId, "CONV-3") }
     }
 
+    // -- Attachment files are cleaned up after deleting messages / conversations --
+
+    @get:Rule
+    val tempFolder = TemporaryFolder()
+
+    private fun realAttachmentStore(): AttachmentStore {
+        val dir = tempFolder.newFolder("files")
+        val context = mockk<Context> { every { filesDir } returns dir }
+        return AttachmentStore(context)
+    }
+
+    private fun AttachmentStore.saveImage(key: String) {
+        saveImageRaw(key, byteArrayOf(1, 2, 3))
+        saveThumbnailRaw(key, byteArrayOf(4, 5))
+    }
+
+    private fun AttachmentStore.imageKept(key: String) = hasImage(key) && loadThumbnailBytes(key) != null
+
+    private fun AttachmentStore.imageGone(key: String) = !hasImage(key) && loadThumbnailBytes(key) == null
+
+    private fun imageAttachment(id: String, localImageId: String) = Attachment(
+        id = id,
+        kind = AttachmentKind.Image,
+        fileName = "a.jpg",
+        mimeType = "image/jpeg",
+        localImageId = localImageId,
+    )
+
+    private fun attachmentsJson(vararg attachments: Attachment) = Json.encodeToString(attachments.toList())
+
+    /** After the delete, the (all-accounts) reference set contains only these [json] rows. */
+    private fun MessageDao.referencesAfterDelete(vararg json: String) {
+        coEvery { findOversizedAttachmentsJsonRows(any()) } returns emptyList()
+        coEvery { readAttachmentsJsonPageAllAccounts(any(), any(), any()) } returns
+            json.mapIndexed { index, value -> AttachmentsJsonPageRow(rowId = index + 1L, attachmentsJson = value) }
+    }
+
+    private fun TestScope.repositoryWithSweeper(
+        conversationDao: ConversationDao,
+        messageDao: MessageDao,
+        store: AttachmentStore,
+    ) = ConversationRepository(
+        conversationDao, messageDao,
+        attachmentSweeper = AttachmentOrphanSweeper(
+            messageDao = messageDao,
+            attachmentStore = store,
+            ioDispatcher = StandardTestDispatcher(testScheduler),
+        ),
+        attachmentPurgeScope = this,
+    )
+
+    @Test
+    fun messageDelete_purgesUnreferencedImages() = runTest {
+        val store = realAttachmentStore()
+        store.saveImage("img-kept")
+        store.saveImage("img-after")
+        store.saveImage("img-local")
+        val localConversationDao = mockk<ConversationDao>(relaxed = true)
+        val localMessageDao = mockk<MessageDao>(relaxed = true)
+        val local = repositoryWithSweeper(localConversationDao, localMessageDao, store)
+        val anchorJson = attachmentsJson(imageAttachment("att-kept", "img-kept"))
+        val anchor = makeMessageEntity("anchor", sortOrder = 0).copy(attachmentsJson = anchorJson)
+        val after = makeMessageEntity("after", sortOrder = 1)
+            .copy(attachmentsJson = attachmentsJson(imageAttachment("att-after", "img-after")))
+        coEvery { localConversationDao.getById(testAccountId, "CONV-1") } returns null
+        coEvery { localMessageDao.lastDelivered(testAccountId, "CONV-1") } returns null
+        coEvery { localMessageDao.lastDeliveredUser(testAccountId, "CONV-1") } returns null
+        coEvery { localMessageDao.getById(testAccountId, "anchor") } returns anchor
+        coEvery { localMessageDao.getByConversation(testAccountId, "CONV-1") } returns listOf(anchor, after)
+        localMessageDao.referencesAfterDelete(anchorJson)
+
+        local.deleteMessagesAfter("CONV-1", "anchor")
+        // The cleanup runs in the background: the file is still there when the delete call returns
+        assertTrue(store.imageKept("img-after"))
+        advanceUntilIdle()
+
+        assertTrue(store.imageGone("img-after"))
+        assertTrue(store.imageKept("img-kept"))
+        // The reference set is only read after the delete has been committed
+        coVerifyOrder {
+            localMessageDao.deleteAfterOrder(testAccountId, "CONV-1", 0)
+            localMessageDao.readAttachmentsJsonPageAllAccounts(any(), any(), any())
+        }
+
+        // Rolling these messages back locally (deleteMessagesLocally) cleans up the images too
+        val pending = makeMessageEntity("pending", sortOrder = 2)
+            .copy(attachmentsJson = attachmentsJson(imageAttachment("att-local", "img-local")))
+        coEvery { localMessageDao.getByConversation(testAccountId, "CONV-1") } returns listOf(anchor, pending)
+        local.deleteMessagesLocally("CONV-1", listOf("pending"))
+        advanceUntilIdle()
+
+        assertTrue(store.imageGone("img-local"))
+        assertTrue(store.imageKept("img-kept"))
+    }
+
+    @Test
+    fun conversationDelete_keepsSharedImage() = runTest {
+        val store = realAttachmentStore()
+        listOf("img-shared", "img-solo", "img-batch").forEach { store.saveImage(it) }
+        val localConversationDao = mockk<ConversationDao>(relaxed = true)
+        val localMessageDao = mockk<MessageDao>(relaxed = true)
+        val local = repositoryWithSweeper(localConversationDao, localMessageDao, store)
+        coEvery { localConversationDao.getById(testAccountId, any()) } returns makeConversationEntity()
+        val message = makeMessageEntity("MSG-1").copy(
+            attachmentsJson = attachmentsJson(
+                imageAttachment("att-shared", "img-shared"),
+                imageAttachment("att-solo", "img-solo"),
+            ),
+        )
+        val batchMessage = makeMessageEntity("MSG-2", conversationId = "CONV-2")
+            .copy(attachmentsJson = attachmentsJson(imageAttachment("att-batch", "img-batch")))
+        coEvery { localMessageDao.getByConversation(testAccountId, "CONV-1") } returns listOf(message)
+        coEvery { localMessageDao.getByConversation(testAccountId, "CONV-2") } returns listOf(batchMessage)
+        // Another message (for example in another account) still references img-shared
+        localMessageDao.referencesAfterDelete(attachmentsJson(imageAttachment("att-copy", "img-shared")))
+
+        local.delete("CONV-1")
+        advanceUntilIdle()
+
+        assertTrue(store.imageKept("img-shared"))
+        assertTrue(store.imageGone("img-solo"))
+        assertTrue(store.imageKept("img-batch"))
+
+        local.deleteMultiple(listOf("CONV-2"))
+        advanceUntilIdle()
+
+        assertTrue(store.imageGone("img-batch"))
+        assertTrue(store.imageKept("img-shared"))
+    }
+
     private fun makeConversationEntity(
         id: String = "CONV-1",
         estimatedCost: Double = 0.0,
@@ -154,20 +309,50 @@ class ConversationRepositoryTest {
 
         coEvery { messageDao.getByConversation(testAccountId, "CONV-1") } returns listOf(msg1, msg2)
 
-        coEvery { messageDao.sumDeliveredCost(testAccountId, "CONV-1", CostFormatter.COST_EPSILON) } returns 0.20
+        coEvery { messageDao.sumDeliveredCostByCurrency(testAccountId, "CONV-1", 0.0) } returns listOf(CurrencyCostRow("USD", 0.20))
         coEvery { conversationDao.getById(testAccountId, "CONV-1") } returns conv
-        val updatedEntitySlot = slot<ConversationEntity>()
-        coEvery { conversationDao.update(capture(updatedEntitySlot)) } just runs
 
         repository.refreshCost("CONV-1")
 
-        assertTrue(updatedEntitySlot.isCaptured)
+        assertTrue(costWrites.isNotEmpty())
         assertEquals(
             "Cost should be sum of remaining messages (0.10 + 0.10 = 0.20)",
             0.20,
-            updatedEntitySlot.captured.estimatedCost,
+            costWrites.last().estimatedCost,
             0.00001,
         )
+    }
+
+    @Test
+    fun refresh_cost_writes_usd_and_non_usd_totals() = runTest {
+        // The USD total goes into estimatedCost and every other currency into nonUsdCostTotals; currencies are never added together
+        val conv = makeConversationEntity(estimatedCost = 9.0)
+        coEvery {
+            messageDao.sumDeliveredCostByCurrency(testAccountId, "CONV-1", 0.0)
+        } returns listOf(
+            CurrencyCostRow("EUR", 1.0),
+            CurrencyCostRow("USD", 1.25),
+            CurrencyCostRow("CNY", 3.62),
+        )
+        coEvery { conversationDao.getById(testAccountId, "CONV-1") } returns conv
+
+        repository.refreshCost("CONV-1")
+
+        val updated = costWrites.last()
+        assertEquals(1.25, updated.estimatedCost, 1e-9)
+        val totals = updated.toDomain().nonUsdCostTotals
+        assertEquals(setOf("CNY", "EUR"), totals.keys)
+        assertEquals(3.62, totals.getValue("CNY"), 1e-9)
+        assertEquals(1.0, totals.getValue("EUR"), 1e-9)
+
+        // With USD only, the nonUsdCostTotals column is written empty
+        coEvery {
+            messageDao.sumDeliveredCostByCurrency(testAccountId, "CONV-1", 0.0)
+        } returns listOf(CurrencyCostRow("USD", 0.5))
+        coEvery { conversationDao.getById(testAccountId, "CONV-1") } returns updated
+        repository.refreshCost("CONV-1")
+        assertEquals(0.5, costWrites.last().estimatedCost, 1e-9)
+        assertNull(costWrites.last().nonUsdCostTotals)
     }
 
     @Test
@@ -175,18 +360,16 @@ class ConversationRepositoryTest {
         val conv = makeConversationEntity(estimatedCost = 0.50)
 
         coEvery { messageDao.getByConversation(testAccountId, "CONV-1") } returns emptyList()
-        coEvery { messageDao.sumDeliveredCost(testAccountId, "CONV-1", CostFormatter.COST_EPSILON) } returns 0.0
+        coEvery { messageDao.sumDeliveredCostByCurrency(testAccountId, "CONV-1", 0.0) } returns listOf(CurrencyCostRow("USD", 0.0))
         coEvery { conversationDao.getById(testAccountId, "CONV-1") } returns conv
-        val updatedEntitySlot = slot<ConversationEntity>()
-        coEvery { conversationDao.update(capture(updatedEntitySlot)) } just runs
 
         repository.refreshCost("CONV-1")
 
-        assertTrue(updatedEntitySlot.isCaptured)
+        assertTrue(costWrites.isNotEmpty())
         assertEquals(
             "Cost should be 0 when no messages remain",
             0.0,
-            updatedEntitySlot.captured.estimatedCost,
+            costWrites.last().estimatedCost,
             0.00001,
         )
     }
@@ -209,24 +392,22 @@ class ConversationRepositoryTest {
         )
 
         coEvery { messageDao.getByConversation(testAccountId, "CONV-1") } returns listOf(delivered, generating, failed)
-        coEvery { messageDao.sumDeliveredCost(testAccountId, "CONV-1", CostFormatter.COST_EPSILON) } returns 0.10
+        coEvery { messageDao.sumDeliveredCostByCurrency(testAccountId, "CONV-1", 0.0) } returns listOf(CurrencyCostRow("USD", 0.10))
         coEvery { conversationDao.getById(testAccountId, "CONV-1") } returns conv
-        val updatedEntitySlot = slot<ConversationEntity>()
-        coEvery { conversationDao.update(capture(updatedEntitySlot)) } just runs
 
         repository.refreshCost("CONV-1")
 
-        assertTrue(updatedEntitySlot.isCaptured)
+        assertTrue(costWrites.isNotEmpty())
         assertEquals(
             "Only Delivered messages should be counted",
             0.10,
-            updatedEntitySlot.captured.estimatedCost,
+            costWrites.last().estimatedCost,
             0.00001,
         )
     }
 
     @Test
-    fun `refreshCost ignores messages below epsilon`() = runTest {
+    fun `refreshCost sums raw per-message amounts and applies epsilon only to the total`() = runTest {
         val conv = makeConversationEntity(estimatedCost = 0.10)
         val normal = makeMessageEntity("MSG-1", estimatedCost = 0.05, sortOrder = 0)
         val belowEpsilon = makeMessageEntity(
@@ -236,18 +417,19 @@ class ConversationRepositoryTest {
         )
 
         coEvery { messageDao.getByConversation(testAccountId, "CONV-1") } returns listOf(normal, belowEpsilon)
-        coEvery { messageDao.sumDeliveredCost(testAccountId, "CONV-1", CostFormatter.COST_EPSILON) } returns 0.05
+        // The DAO sums raw per-message amounts (floor 0.0, no per-row epsilon filter): 0.05 + epsilon/2
+        coEvery { messageDao.sumDeliveredCostByCurrency(testAccountId, "CONV-1", 0.0) } returns
+            listOf(CurrencyCostRow("USD", 0.05 + CostFormatter.COST_EPSILON * 0.5), CurrencyCostRow("CNY", CostFormatter.COST_EPSILON * 0.5))
         coEvery { conversationDao.getById(testAccountId, "CONV-1") } returns conv
-        val updatedEntitySlot = slot<ConversationEntity>()
-        coEvery { conversationDao.update(capture(updatedEntitySlot)) } just runs
 
         repository.refreshCost("CONV-1")
 
-        assertTrue(updatedEntitySlot.isCaptured)
+        assertTrue(costWrites.isNotEmpty())
+        assertFalse("a currency whose total is within epsilon is not emitted", costWrites.last().nonUsdCostTotals.orEmpty().contains("CNY"))
         assertEquals(
-            "Messages below epsilon should be excluded from cost",
-            0.05,
-            updatedEntitySlot.captured.estimatedCost,
+            "tiny amounts are part of the raw sum",
+            0.05 + CostFormatter.COST_EPSILON * 0.5,
+            costWrites.last().estimatedCost,
             0.00001,
         )
     }
@@ -262,18 +444,16 @@ class ConversationRepositoryTest {
         val msg3 = makeMessageEntity("MSG-3", estimatedCost = 0.15, sortOrder = 1)
 
         coEvery { messageDao.getByConversation(testAccountId, "CONV-1") } returns listOf(msg1, msg3)
-        coEvery { messageDao.sumDeliveredCost(testAccountId, "CONV-1", CostFormatter.COST_EPSILON) } returns 0.25
+        coEvery { messageDao.sumDeliveredCostByCurrency(testAccountId, "CONV-1", 0.0) } returns listOf(CurrencyCostRow("USD", 0.25))
         coEvery { conversationDao.getById(testAccountId, "CONV-1") } returns conv
-        val updatedEntitySlot = slot<ConversationEntity>()
-        coEvery { conversationDao.update(capture(updatedEntitySlot)) } just runs
 
         repository.refreshCost("CONV-1")
 
-        assertTrue(updatedEntitySlot.isCaptured)
+        assertTrue(costWrites.isNotEmpty())
         assertEquals(
             "Cost after resend should be sum of current messages (0.10 + 0.15 = 0.25)",
             0.25,
-            updatedEntitySlot.captured.estimatedCost,
+            costWrites.last().estimatedCost,
             0.00001,
         )
     }
@@ -281,14 +461,14 @@ class ConversationRepositoryTest {
     @Test
     fun `refreshCost with no conversation does not crash`() = runTest {
         coEvery { messageDao.getByConversation(testAccountId, "CONV-MISSING") } returns emptyList()
-        coEvery { messageDao.sumDeliveredCost(testAccountId, "CONV-MISSING", CostFormatter.COST_EPSILON) } returns 0.0
+        coEvery { messageDao.sumDeliveredCostByCurrency(testAccountId, "CONV-MISSING", 0.0) } returns listOf(CurrencyCostRow("USD", 0.0))
         coEvery { conversationDao.getById(testAccountId, "CONV-MISSING") } returns null
 
         // Should not throw
         repository.refreshCost("CONV-MISSING")
 
         // Verify update was never called since conversation doesn't exist
-        coVerify(exactly = 0) { conversationDao.update(any()) }
+        coVerify(exactly = 0) { conversationDao.updateCostTotals(any(), any(), any(), any()) }
     }
 
     @Test
@@ -355,17 +535,17 @@ class ConversationRepositoryTest {
         every {
             messageDao.observeMonthlyCostByProviderKind(
                 accountId = testAccountId,
-                minimumCostExclusive = CostFormatter.COST_EPSILON,
+                minimumCostExclusive = 0.0,
                 windowStartMillis = any(),
                 windowEndMillis = any(),
             )
         } returns flowOf(
 
             listOf(
-                MonthlyCostRow(providerKind = "Anthropic", providerID = "anthropic-1", totalCost = 1.4),
-                MonthlyCostRow(providerKind = "OpenAI", providerID = "openai-1", totalCost = 2.1),
-                MonthlyCostRow(providerKind = "Relay", providerID = "relay-a", totalCost = 0.4),
-                MonthlyCostRow(providerKind = "Relay", providerID = "relay-b", totalCost = 0.6),
+                MonthlyCostRow(providerKind = "Anthropic", providerID = "anthropic-1", totalCost = 1.4, currencyCode = "USD"),
+                MonthlyCostRow(providerKind = "OpenAI", providerID = "openai-1", totalCost = 2.1, currencyCode = "USD"),
+                MonthlyCostRow(providerKind = "Relay", providerID = "relay-a", totalCost = 0.4, currencyCode = "USD"),
+                MonthlyCostRow(providerKind = "Relay", providerID = "relay-b", totalCost = 0.6, currencyCode = "USD"),
             ),
         )
 
@@ -419,26 +599,27 @@ class ConversationRepositoryTest {
     }
 
     @Test
-    fun `observeMonthlyCostByConversationProvider returns provider cost map`() = runTest {
+    fun `observeMonthlyCostByConversationProvider returns per-currency parts by normalized provider id`() = runTest {
         every {
-            messageDao.observeMonthlyCostByConversationProvider(
+            messageDao.observeMonthlyCostByProviderKind(
                 accountId = testAccountId,
-                minimumCostExclusive = CostFormatter.COST_EPSILON,
+                minimumCostExclusive = 0.0,
                 windowStartMillis = any(),
                 windowEndMillis = any(),
             )
         } returns flowOf(
             listOf(
-                MonthlyProviderCostRow(providerId = "provider-a", totalCost = 1.25),
-                MonthlyProviderCostRow(providerId = "provider-b", totalCost = 0.75),
+                MonthlyCostRow(providerKind = "OpenAI", providerID = "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa", totalCost = 1.25, currencyCode = "USD"),
+                MonthlyCostRow(providerKind = "OpenAI", providerID = "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa", totalCost = 3.5, currencyCode = "CNY"),
+                MonthlyCostRow(providerKind = "Moonshot", providerID = "bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb", totalCost = 0.75, currencyCode = "CNY"),
             ),
         )
 
         val costs = repository.observeMonthlyCostByConversationProvider().first()
 
-        assertEquals(2, costs.size)
-        assertEquals(1.25, costs["provider-a"] ?: 0.0, 0.00001)
-        assertEquals(0.75, costs["provider-b"] ?: 0.0, 0.00001)
+        // Each provider is split by currency with USD first; a provider with only CNY gets no USD 0 entry
+        assertEquals(listOf(CostPart("USD", 1.25), CostPart("CNY", 3.5)), costs.getValue("AAAAAAAA-1111-4111-8111-AAAAAAAAAAAA"))
+        assertEquals(listOf(CostPart("CNY", 0.75)), costs.getValue("BBBBBBBB-2222-4222-8222-BBBBBBBBBBBB"))
     }
 
     // ── Folder Operations ─────────────────────────────────────
@@ -719,7 +900,7 @@ class ConversationRepositoryTest {
     }
 
     @Test
-    fun `TC-BugB updateMessage assistant delivered syncs whole round via didCompleteRound`() = runTest {
+    fun `updateMessage assistant delivered writes USD and non-USD conversation cost totals`() = runTest {
         val convId = "CONV-1"
         val userEntity = makeMessageEntity("MSG-USER-1", conversationId = convId, sortOrder = 0)
         val assistantEntity = makeMessageEntity("MSG-AI-1", conversationId = convId, sortOrder = 1)
@@ -734,7 +915,8 @@ class ConversationRepositoryTest {
         coEvery { messageDao.lastDeliveredUser(testAccountId, convId) } returns userEntity
         coEvery { messageDao.lastDeliveredUserBefore(testAccountId, convId, 1) } returns userEntity
         coEvery { messageDao.countDeliveredByConversation(testAccountId, convId) } returns 2
-        coEvery { messageDao.sumDeliveredCost(testAccountId, convId, CostFormatter.COST_EPSILON) } returns 0.05
+        coEvery { messageDao.sumDeliveredCostByCurrency(testAccountId, convId, 0.0) } returns
+            listOf(CurrencyCostRow("USD", 0.05), CurrencyCostRow("CNY", 0.0039))
         coEvery { conversationDao.update(any()) } just runs
 
         val deliveredAssistant = ChatMessage(
@@ -752,6 +934,9 @@ class ConversationRepositoryTest {
 
         repository.updateMessage(convId, deliveredAssistant)
 
+        // The conversation totals are recomputed locally after the delivery and written in one statement
+        assertEquals(0.05, costWrites.last().estimatedCost, 1e-9)
+        assertEquals(mapOf("CNY" to 0.0039), costWrites.last().toDomain().nonUsdCostTotals)
     }
 
     @Test

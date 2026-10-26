@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.time.Instant
@@ -312,6 +313,12 @@ class AppPreferencesRepository(
     }
 
     suspend fun setLastUsedModel(providerId: String, modelId: String) {
+        // A non-null override shadows the stored value, so every write path (send, voice, quick relay add,
+        // "set as default" from details) refreshes it; otherwise an older explicit pick would keep masking
+        // the newly written last-used model.
+        lastUsedModelOverride.update { current ->
+            current?.let { currentAccountId() to LastUsedModelRef(providerID = providerId, modelID = modelId) }
+        }
         preferenceDao.set(
             PreferenceEntity(
                 storageKeyForCurrentAccount(AppPreferenceKeys.LAST_USED_PROVIDER_ID),

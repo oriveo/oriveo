@@ -28,7 +28,7 @@ import ai.oriveo.community.ui.component.OriveoPrimaryButton
 import ai.oriveo.community.ui.component.OriveoSheetDragHandle
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-/** Organize flow phases (P5·U6 contract rule 6). */
+/** Organize flow phases. */
 enum class MemoryOrganizePhase {
     Loading,
     Failed,

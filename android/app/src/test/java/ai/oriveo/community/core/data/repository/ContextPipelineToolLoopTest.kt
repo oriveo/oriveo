@@ -52,7 +52,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * P2·U4 contract card item 3: MCP agent legs carry a single system produced by the assembler
+ * MCP agent legs carry a single system produced by the assembler
  * (purpose toolLoopLeg, tool safety as the last segment), byte-identical on every leg.
  *
  * Production path: real ChatRepository.sendMessage (with chatContext) → real
@@ -126,7 +126,7 @@ class ContextPipelineToolLoopTest {
 
     @Test
     fun tool_loop_first_leg_ignores_stored_checkpoint() = runTest {
-        // D-132: stored checkpoint rows apply to purpose=chat only; the tool loop first leg keeps P2 history.
+        // stored checkpoint rows apply to purpose=chat only; the tool loop first leg keeps P2 history.
         val history = listOf(
             historyMessage("u0", ChatRole.User, "First question"),
             historyMessage("a0", ChatRole.Assistant, "First answer"),

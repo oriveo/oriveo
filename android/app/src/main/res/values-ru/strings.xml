@@ -99,6 +99,8 @@
     <string name="chat_issue_model_missing_message">Модель, использованная в этом разговоре, больше не активна. Выберите другую модель, чтобы продолжить.</string>
     <string name="chat_model_removed_banner">Модели этого чата больше нет в %1$s.</string>
     <string name="chat_model_removed_choose">Выбрать модель</string>
+    <string name="chat_model_retired_banner">Модель %1$s больше не поддерживается.</string>
+    <string name="chat_model_retired_switch_to">Перейти на %1$s</string>
     <string name="conversations">Разговоры</string>
     <string name="no_conversations">Пока нет разговоров</string>
     <string name="search_conversation_titles_or_content">Поиск по заголовкам или содержанию разговоров</string>
@@ -355,6 +357,7 @@
     <string name="backup_error_unknown">Неизвестная ошибка резервного копирования.</string>
     <string name="image_not_available">Изображение недоступно</string>
     <string name="loading_full_image">Загрузка полного изображения…</string>
+    <string name="composer_restored_image_unavailable">Изображение ещё не загрузилось. Подключитесь к интернету и попробуйте снова.</string>
     <string name="save_to_photos">Сохранить в фотографии</string>
     <string name="save_failed">Не удалось сохранить изображение</string>
     <string name="share_failed">Не удалось поделиться изображением.</string>
@@ -1151,7 +1154,7 @@
     <string name="chat_token_usage_cache_write">Запись кэша</string>
     <string name="chat_token_usage_total">Всего</string>
     <string name="chat_token_usage_unavailable">Нет данных</string>
-    <string name="generation_conversation_scope_hint">Действует только для этой модели в текущем диалоге. При смене модели значения не копируются, а при возврате восстанавливаются.</string>
+    <string name="generation_conversation_scope_hint">Действует только пока в этом разговоре используется эта модель. Смена модели не копирует значения; при возврате они восстанавливаются.</string>
     <string name="generation_parameter_self_healed">Модель отклонила %1$s. Запрос повторён с настройкой по умолчанию.</string>
     <string name="relay_transport_llamacpp_native">Нативный completion llama.cpp</string>
     <string name="relay_catalog_loading">Загрузка списка моделей…</string>
@@ -2344,4 +2347,6 @@
     <string name="context_confirm_also_price_line">Кроме того, превышен ценовой порог %1$s (%2$s), поэтому весь запрос оплачивается по тарифу для длинного контекста.</string>
     <string name="context_confirm_dont_ask">Больше не спрашивать в этом чате</string>
     <string name="context_confirm_send">Всё равно отправить</string>
+    <string name="chat_last_used_model_retired_hint">Прежняя модель больше не поддерживается. Теперь используется %1$s.</string>
+    <string name="model_options_shows_thinking_fixed">Показывает ход размышлений · не настраивается</string>
 </resources>

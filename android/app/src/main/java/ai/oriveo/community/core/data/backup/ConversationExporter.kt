@@ -5,10 +5,13 @@ import ai.oriveo.community.core.data.EntityMapper.toDomain
 import ai.oriveo.community.core.data.dao.ConversationDao
 import ai.oriveo.community.core.data.dao.MessageDao
 import ai.oriveo.community.core.model.CostFormatter
+import java.util.Locale
 
 class ConversationExporter(
     private val conversationDao: ConversationDao,
     private val messageDao: MessageDao,
+    /** Locale used to format the non-USD part of the cost (the UI locale). */
+    private val localeProvider: () -> Locale = { Locale.getDefault() },
 ) {
 
     suspend fun exportMarkdown(conversationId: String): String? {
@@ -20,7 +23,8 @@ class ConversationExporter(
             appendLine("# ${convEntity.title}")
             appendLine()
             appendLine("Model: ${convEntity.modelID}")
-            val costText = CostFormatter.format(convEntity.estimatedCost)
+            // The USD total and the non-USD totals are exported per currency, never added across currencies
+            val costText = CostFormatter.formatParts(convEntity.toDomain().costParts, localeProvider())
             if (costText.isNotEmpty()) {
                 appendLine("Estimated Cost: $costText")
             }

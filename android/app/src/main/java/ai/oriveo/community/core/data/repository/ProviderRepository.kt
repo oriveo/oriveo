@@ -3,7 +3,6 @@ package ai.oriveo.community.core.data.repository
 import ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID
 import ai.oriveo.community.core.data.EntityMapper.toDomain
 import ai.oriveo.community.core.data.EntityMapper.toEntity
-import ai.oriveo.community.core.data.dao.ConversationDao
 import ai.oriveo.community.core.data.dao.ProviderDao
 import ai.oriveo.community.core.data.entity.ProviderEntity
 import ai.oriveo.community.core.data.remote.MetadataClient
@@ -106,7 +105,6 @@ import kotlinx.coroutines.withContext
 
 class ProviderRepository(
     private val dao: ProviderDao,
-    private val conversationDao: ConversationDao,
     private val secureKeyStore: SecureKeyStore,
     private val openRouterService: OpenRouterService,
     private val openAIService: OpenAIService,
@@ -629,7 +627,6 @@ class ProviderRepository(
         }
         val enrichedProvider = upsertProviderEntity(sourcedProvider, targetAccountId)
         val normalizedProvider = normalizeProviderIds(enrichedProvider)
-        normalizeConversationSelections(normalizedProvider, targetAccountId)
 
         metadataRefreshEventBus.dispatch(
             ai.oriveo.community.core.data.remote.MetadataClient.RefreshEvent(
@@ -901,6 +898,12 @@ class ProviderRepository(
         }
         if (descriptors.isEmpty()) return seed.copy(lastError = SUBSCRIPTION_CATALOG_UNAVAILABLE_MESSAGE)
 
+        // Capabilities are copied **verbatim from the upstream declaration**, not from the metadata catalog's pay-as-you-go capabilities, and not hard-coded in the client:
+        // subscription models are not in the official catalog, so buildCatalogModel cannot find them and falls back to [Text] + no reasoning,
+        // which lets the UI offer web / thinking while the outbound request is always false. If upstream declares nothing we degrade (as before);
+        // once it is declared it takes effect automatically, no one needs to patch code for a new model.
+        // tool_call is not in the upstream declaration (the subscription /models has no tool field): the model.toolCall carried by base is the server catalog bit,
+        // the subscription tool_call verdict does not read it and only trusts modelFacts > connection memory.
         val catalogModels = descriptors.map { descriptor ->
             val base = ai.oriveo.community.core.provider.CatalogModelBuilder.buildCatalogModel(
                 providerKind = kind,
@@ -981,6 +984,11 @@ class ProviderRepository(
         }
         if (descriptors.isEmpty()) return seed.copy(lastError = CODEX_CATALOG_UNAVAILABLE_MESSAGE)
 
+        // Capabilities are copied **verbatim from the upstream declaration**: Codex /models sends web_search_tool_type /
+        // supported_reasoning_levels / input_modalities per model. Subscription models are not in the metadata catalog
+        // and never have an official recipe, but that does not mean they must be treated as capability-less: the explicit upstream declaration is the only
+        // legitimate capability authority on this path. Anything not sent degrades to unsupported, never guessed from the slug (that would be the forbidden model-id inference).
+        // Upstream sends no tool field: the model.toolCall carried by base is the server catalog bit, the subscription tool_call verdict does not read it.
         val catalogModels = descriptors.map { descriptor ->
             val base = ai.oriveo.community.core.provider.CatalogModelBuilder.buildCatalogModel(
                 providerKind = kind,
@@ -998,6 +1006,8 @@ class ProviderRepository(
                 capabilities = capabilities,
                 reasoningModeAvailable = descriptor.supportsReasoning,
                 upstreamReasoningLevels = descriptor.supportedReasoningLevels,
+                // Copy the upstream input_modalities table verbatim: first-hand declaration for the subscription input verdict, null = upstream sent nothing.
+                upstreamInputModalities = descriptor.inputModalities,
             )
         }
 
@@ -1272,7 +1282,6 @@ class ProviderRepository(
                 expectedEntity = expectedEntity,
                 targetAccountId = targetAccountId,
                 commitGuard = commitGuard,
-                normalizeConversations = false,
             ) ?: return ProviderResyncOutcome(null, false, stale = true)
             expectedEntity = syncingWrite.entity
 
@@ -1326,7 +1335,6 @@ class ProviderRepository(
                 expectedEntity = expectedEntity,
                 targetAccountId = targetAccountId,
                 commitGuard = commitGuard,
-                normalizeConversations = false,
             ) ?: return ProviderResyncOutcome(null, false, stale = true, error = e)
             return ProviderResyncOutcome(failedWrite.provider, catalogSucceeded = false, error = e)
         }
@@ -1396,7 +1404,6 @@ class ProviderRepository(
             expectedEntity = expectedEntity,
             targetAccountId = targetAccountId,
             commitGuard = commitGuard,
-            normalizeConversations = true,
         ) ?: return null
         dispatchProviderSyncIfCurrent(write, targetAccountId, commitGuard)
         return write.provider
@@ -1421,7 +1428,6 @@ class ProviderRepository(
                 expectedEntity = expectedEntity,
                 targetAccountId = targetAccountId,
                 commitGuard = commitGuard,
-                normalizeConversations = false,
             )?.provider
         }
 
@@ -1449,7 +1455,6 @@ class ProviderRepository(
             expectedEntity = expectedEntity,
             targetAccountId = targetAccountId,
             commitGuard = commitGuard,
-            normalizeConversations = true,
         ) ?: return null
         dispatchProviderSyncIfCurrent(write, targetAccountId, commitGuard)
         return write.provider
@@ -1474,7 +1479,6 @@ class ProviderRepository(
                 expectedEntity = expectedEntity,
                 targetAccountId = targetAccountId,
                 commitGuard = commitGuard,
-                normalizeConversations = false,
             )?.provider
         }
 
@@ -1503,7 +1507,6 @@ class ProviderRepository(
             expectedEntity = expectedEntity,
             targetAccountId = targetAccountId,
             commitGuard = commitGuard,
-            normalizeConversations = true,
         ) ?: return null
         dispatchProviderSyncIfCurrent(write, targetAccountId, commitGuard)
         return write.provider
@@ -1587,7 +1590,6 @@ class ProviderRepository(
             expectedEntity = expectedEntity,
             targetAccountId = targetAccountId,
             commitGuard = commitGuard,
-            normalizeConversations = true,
         ) ?: return null
         dispatchProviderSyncIfCurrent(write, targetAccountId, commitGuard)
         return write.provider
@@ -1659,7 +1661,6 @@ class ProviderRepository(
                 expectedEntity = expectedEntity,
                 targetAccountId = targetAccountId,
                 commitGuard = { true },
-                normalizeConversations = true,
             ) ?: return ProviderResyncOutcome(null, false, stale = true)
             dispatchProviderSyncIfCurrent(write, targetAccountId) { true }
             ProviderResyncOutcome(write.provider, catalogSucceeded = true)
@@ -1677,7 +1678,6 @@ class ProviderRepository(
                 expectedEntity = expectedEntity,
                 targetAccountId = targetAccountId,
                 commitGuard = { true },
-                normalizeConversations = false,
             ) ?: return ProviderResyncOutcome(null, false, stale = true)
             dispatchProviderSyncIfCurrent(write, targetAccountId) { true }
             ProviderResyncOutcome(write.provider, catalogSucceeded = true)
@@ -1699,7 +1699,6 @@ class ProviderRepository(
                 expectedEntity = expectedEntity,
                 targetAccountId = targetAccountId,
                 commitGuard = { true },
-                normalizeConversations = false,
             ) ?: return ProviderResyncOutcome(null, false, stale = true, error = error)
             dispatchProviderSyncIfCurrent(write, targetAccountId) { true }
             ProviderResyncOutcome(write.provider, catalogSucceeded = false, error = error)
@@ -1858,7 +1857,6 @@ class ProviderRepository(
             expectedEntity = latestEntity,
             targetAccountId = targetAccountId,
             commitGuard = { true },
-            normalizeConversations = succeeded,
         ) ?: return ProviderResyncOutcome(null, false, stale = true, error = firstError.takeUnless { succeeded })
         dispatchProviderSyncIfCurrent(write, targetAccountId) { true }
         return ProviderResyncOutcome(write.provider, catalogSucceeded = succeeded, error = firstError.takeUnless { succeeded })
@@ -1941,7 +1939,6 @@ class ProviderRepository(
             if (updatedProvider == provider) continue
 
             val persisted = upsertProviderEntity(updatedProvider, targetAccountId)
-            normalizeConversationSelections(persisted, targetAccountId)
         }
 
         metadataRefreshEventBus.dispatch(
@@ -2056,7 +2053,6 @@ class ProviderRepository(
 
         // (ProviderManager.swift:643-654)
         val persisted = upsertProviderEntity(normalizedProvider, targetAccountId)
-        normalizeConversationSelections(persisted, targetAccountId)
 
     }
 
@@ -2094,7 +2090,6 @@ class ProviderRepository(
         expectedEntity: ProviderEntity,
         targetAccountId: String,
         commitGuard: () -> Boolean,
-        normalizeConversations: Boolean,
     ): GuardedProviderWrite? {
         val (finalized, entity) = finalizeForUpsert(provider, targetAccountId)
         return try {
@@ -2103,9 +2098,6 @@ class ProviderRepository(
                 val current = dao.getById(targetAccountId, entity.id)
                 if (current != expectedEntity) throw StaleProviderMutation()
                 dao.upsert(entity)
-                if (normalizeConversations) {
-                    normalizeConversationSelections(finalized, targetAccountId)
-                }
                 if (!commitGuard()) throw StaleProviderMutation()
             }
             persistRelayKeySecrets(finalized, entity)
@@ -2141,7 +2133,6 @@ class ProviderRepository(
                 if (!commitGuard()) throw StaleProviderMutation()
                 if (dao.getById(targetAccountId, entity.id) != null) throw StaleProviderMutation()
                 dao.upsert(entity)
-                normalizeConversationSelections(finalized, targetAccountId)
                 if (!commitGuard()) throw StaleProviderMutation()
             }
             persistRelayKeySecrets(finalized, entity)
@@ -2187,7 +2178,6 @@ class ProviderRepository(
             expectedEntity = expectedEntity,
             targetAccountId = targetAccountId,
             commitGuard = commitGuard,
-            normalizeConversations = true,
         )
         if (write == null && keyChanged && loadApiKey(targetAccountId, expectedEntity.id) == nextApiKey) {
             val currentEntity = dao.getById(targetAccountId, expectedEntity.id)
@@ -2380,7 +2370,6 @@ class ProviderRepository(
                 expectedEntity = live.entity,
                 targetAccountId = targetAccountId,
                 commitGuard = commitGuard,
-                normalizeConversations = true,
             ) ?: return@repeat
             if (toolCallMemoryScopeChanged(live.provider, write.provider)) {
                 toolCallMemoryStore?.clearConnection(targetAccountId, normalizedId)
@@ -2753,7 +2742,6 @@ class ProviderRepository(
                     expectedEntity = unverifiedWrite.entity,
                     targetAccountId = targetAccountId,
                     commitGuard = { true },
-                    normalizeConversations = false,
                 ) ?: throw StaleProviderMutation()
                 dispatchProviderSyncIfCurrent(connectedWrite, targetAccountId) { true }
                 refreshRelayCatalogOnly(
@@ -2777,7 +2765,6 @@ class ProviderRepository(
                                 expectedEntity = unverifiedWrite.entity,
                                 targetAccountId = targetAccountId,
                                 commitGuard = { true },
-                                normalizeConversations = false,
                             )?.let { dispatchProviderSyncIfCurrent(it, targetAccountId) { true } }
                         }
                     }
@@ -2797,7 +2784,6 @@ class ProviderRepository(
             }
         }
         upsertProviderEntity(updated, targetAccountId)
-        normalizeConversationSelections(updated, targetAccountId)
         resyncProvider(normalizedId, targetAccountId)
     }
 
@@ -2955,7 +2941,6 @@ class ProviderRepository(
         // Drop learned outcomes before the new row can be selected; otherwise an old model with the same
         // normalized id can lend its positive/negative verdict to a user-edited definition.
         toolCallMemoryStore?.clearConnection(targetAccountId, normalizedProviderId)
-        normalizeConversationSelections(persisted, targetAccountId)
     }
 
     /** Connection edits invalidate observations; cosmetic rename/default-selection changes do not. */
@@ -2967,52 +2952,11 @@ class ProviderRepository(
         fun manualIdentity(provider: Provider): Set<String> = provider.allModels
             .asSequence()
             .filter { it.isManual }
-            .map { MetadataClient.normalizeModelFactsID(it.id) }
+            // After a manual declaration (toolCall) is edited by the user, previously recorded rejection memory is void.
+            .map { MetadataClient.normalizeModelFactsID(it.id) + "|" + it.toolCall }
             .toSet()
 
         return manualIdentity(previous) != manualIdentity(next)
-    }
-
-    private suspend fun normalizeConversationSelections(provider: Provider, targetAccountId: String) {
-        // A relay conversation's model is neither replaced nor rewritten: when it is removed, the chat page asks the user to choose again.
-        if (provider.kind == ProviderKind.Relay) return
-        val defaultModel = provider.defaultModel ?: return
-        withContext(Dispatchers.IO) {
-            val defaultStoredModelId = ModelSelectionUtils.preferredStoredModelIdentifier(defaultModel, provider.kind)
-            // Read the catalog once and index it once: every read of allModels on a built-in provider is a full
-            // resolve, and a relay catalog comes from the user's own server (up to tens of thousands of models).
-            // Reading and scanning it per conversation cost conversations x catalog size.
-            val allModels by lazy { provider.allModels }
-            val availableModelIds by lazy { allModels.map { it.id }.toSet() }
-            val catalogIndex by lazy { ModelSelectionUtils.catalogMatchIndex(allModels, provider.kind) }
-            val resolvedByStoredId = HashMap<String, String>()
-            val conversations = conversationDao.getAll(targetAccountId)
-
-            val toUpdate = conversations
-                .filter { sameNormalizedUuid(it.providerID, provider.id) }
-                .mapNotNull { entity ->
-                    val resolvedModelId = resolvedByStoredId.getOrPut(entity.modelID) {
-                        catalogIndex.match(entity.modelID)
-                            ?.let { ModelSelectionUtils.preferredStoredModelIdentifier(it, provider.kind) }
-                            ?: if (availableModelIds.contains(entity.modelID)) {
-                                entity.modelID
-                            } else {
-                                defaultStoredModelId
-                            }
-                    }
-
-                    if (resolvedModelId != entity.modelID) {
-                        entity.copy(modelID = resolvedModelId)
-                    } else {
-                        null
-                    }
-                }
-
-            if (toUpdate.isNotEmpty()) {
-
-                conversationDao.updateAll(toUpdate)
-            }
-        }
     }
 
     /** Resolves the [ProviderService] that speaks to a given provider kind. */
@@ -3165,7 +3109,6 @@ class ProviderRepository(
             expectedEntity = expectedEntity,
             targetAccountId = targetAccountId,
             commitGuard = { true },
-            normalizeConversations = false,
         ) ?: return RelayGenerationVerificationOutcome(
             provider = getById(targetAccountId, normalizedId),
             attemptedProvider = provider,
@@ -3359,7 +3302,6 @@ class ProviderRepository(
                     expectedEntity = entity,
                     targetAccountId = targetAccountId,
                     commitGuard = { true },
-                    normalizeConversations = false,
                 )?.let { write ->
                     // Already persisted: a later error while dispatching the sync does not change "written", and the panel must not report an interruption.
                     try {
@@ -3512,7 +3454,6 @@ class ProviderRepository(
                 expectedEntity = entity,
                 targetAccountId = targetAccountId,
                 commitGuard = { true },
-                normalizeConversations = false,
             )?.let { write ->
                 try {
                     dispatchProviderSyncIfCurrent(write, targetAccountId) { true }
@@ -3658,7 +3599,6 @@ class ProviderRepository(
                 expectedEntity = entity,
                 targetAccountId = targetAccountId,
                 commitGuard = { true },
-                normalizeConversations = false,
             )?.let { write ->
                 try {
                     dispatchProviderSyncIfCurrent(write, targetAccountId) { true }
@@ -3686,7 +3626,6 @@ class ProviderRepository(
                 expectedEntity = entity,
                 targetAccountId = targetAccountId,
                 commitGuard = { true },
-                normalizeConversations = false,
             ) ?: return@repeat
             dispatchProviderSyncIfCurrent(write, targetAccountId) { true }
             return write.provider
@@ -3730,7 +3669,6 @@ class ProviderRepository(
                 expectedEntity = entity,
                 targetAccountId = targetAccountId,
                 commitGuard = { true },
-                normalizeConversations = false,
             ) ?: return@repeat
             dispatchProviderSyncIfCurrent(write, targetAccountId) { true }
             cleared = write.provider
@@ -3806,7 +3744,6 @@ class ProviderRepository(
                 expectedEntity = entity,
                 targetAccountId = targetAccountId,
                 commitGuard = { true },
-                normalizeConversations = false,
             ) ?: return@repeat
             dispatchProviderSyncIfCurrent(write, targetAccountId) { true }
             return
@@ -3831,7 +3768,6 @@ class ProviderRepository(
                 expectedEntity = entity,
                 targetAccountId = targetAccountId,
                 commitGuard = { true },
-                normalizeConversations = false,
             ) ?: return@repeat
             dispatchProviderSyncIfCurrent(write, targetAccountId) { true }
             return
@@ -3878,7 +3814,6 @@ class ProviderRepository(
                 expectedEntity = entity,
                 targetAccountId = targetAccountId,
                 commitGuard = { true },
-                normalizeConversations = false,
             ) ?: return@repeat
             dispatchProviderSyncIfCurrent(write, targetAccountId) { true }
             return
@@ -3914,7 +3849,6 @@ class ProviderRepository(
                 expectedEntity = entity,
                 targetAccountId = targetAccountId,
                 commitGuard = { true },
-                normalizeConversations = false,
             ) ?: return@repeat
             dispatchProviderSyncIfCurrent(write, targetAccountId) { true }
             return
@@ -3957,9 +3891,13 @@ class ProviderRepository(
         modelID: String,
         capability: ai.oriveo.community.feature.providers.detail.RelayAdvancedCapability,
         value: Boolean?,
-    ): Provider? = updateRelayModel(id) {
-        ai.oriveo.community.feature.providers.detail.RelayModelAdvancedEdits
-            .settingCapabilityOverride(it, modelID, capability, value, relayNegativeCache)
+    ): Provider? {
+        // baseVerdict reads connection evidence, which must use the same local identity as the projection.
+        val localIdentity = getById(id)?.let { capabilityEvidenceIdentity(it, modelID) }
+        return updateRelayModel(id) {
+            ai.oriveo.community.feature.providers.detail.RelayModelAdvancedEdits
+                .settingCapabilityOverride(it, modelID, capability, value, relayNegativeCache, localIdentity = localIdentity)
+        }
     }
 
     /** Thinking tier override (already narrowed and normalized by the caller; pass null when it equals the automatic set). */
@@ -4022,7 +3960,6 @@ class ProviderRepository(
                 expectedEntity = entity,
                 targetAccountId = targetAccountId,
                 commitGuard = { true },
-                normalizeConversations = false,
             ) ?: return@repeat
             dispatchProviderSyncIfCurrent(write, targetAccountId) { true }
             return write.provider
@@ -4097,7 +4034,6 @@ class ProviderRepository(
                 expectedEntity = entity,
                 targetAccountId = targetAccountId,
                 commitGuard = { true },
-                normalizeConversations = false,
             ) ?: return@repeat
             dispatchProviderSyncIfCurrent(write, targetAccountId) { true }
             return write.provider
@@ -4144,7 +4080,6 @@ class ProviderRepository(
                     expectedEntity = entity,
                     targetAccountId = targetAccountId,
                     commitGuard = { true },
-                    normalizeConversations = false,
                 ) ?: return@repeat
                 dispatchProviderSyncIfCurrent(write, targetAccountId) { true }
                 return

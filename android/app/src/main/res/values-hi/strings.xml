@@ -99,6 +99,8 @@
     <string name="chat_issue_model_missing_message">इस वार्तालाप में प्रयुक्त मॉडल अब सक्षम नहीं है. आगे बढ़ने के लिए कोई अन्य मॉडल चुनें.</string>
     <string name="chat_model_removed_banner">इस चैट का मॉडल अब %1$s में नहीं है।</string>
     <string name="chat_model_removed_choose">मॉडल चुनें</string>
+    <string name="chat_model_retired_banner">%1$s अब बंद हो चुका है।</string>
+    <string name="chat_model_retired_switch_to">%1$s पर स्विच करें</string>
     <string name="conversations">बात चिट</string>
     <string name="no_conversations">अभी तक कोई बातचीत नहीं</string>
     <string name="search_conversation_titles_or_content">वार्तालाप शीर्षक या सामग्री खोजें</string>
@@ -353,6 +355,7 @@
     <string name="backup_error_unknown">अज्ञात बैकअप त्रुटि.</string>
     <string name="image_not_available">छवि उपलब्ध नहीं है</string>
     <string name="loading_full_image">पूरी छवि लोड हो रही है…</string>
+    <string name="composer_restored_image_unavailable">यह इमेज अभी डाउनलोड नहीं हुई है। इंटरनेट से कनेक्ट करके फिर से कोशिश करें।</string>
     <string name="save_to_photos">फ़ोटो में सहेजें</string>
     <string name="save_failed">छवि सहेजने में विफल</string>
     <string name="share_failed">छवि साझा करने में विफल</string>
@@ -1112,7 +1115,7 @@
     <string name="generation_parameter_source">स्रोत</string>
     <string name="provider_detail_connection_settings">कनेक्शन सेटिंग्स</string>
     <string name="generation_connection_defaults">%1$s के डिफ़ॉल्ट</string>
-    <string name="generation_current_conversation">वर्तमान बातचीत</string>
+    <string name="generation_current_conversation">मौजूदा बातचीत</string>
     <string name="generation_basic_settings">बुनियादी सेटिंग्स</string>
     <string name="generation_group_budget">आउटपुट सीमा</string>
     <string name="generation_group_reasoning">रीज़निंग</string>
@@ -1147,7 +1150,7 @@
     <string name="chat_token_usage_cache_write">कैश राइट</string>
     <string name="chat_token_usage_total">कुल</string>
     <string name="chat_token_usage_unavailable">कोई डेटा नहीं</string>
-    <string name="generation_conversation_scope_hint">केवल इस बातचीत में इस मॉडल पर लागू। मॉडल बदलने पर मान कॉपी नहीं होते; वापस आने पर पुनः मिलते हैं।</string>
+    <string name="generation_conversation_scope_hint">यह केवल तब लागू होता है जब इस बातचीत में यही मॉडल इस्तेमाल हो। मॉडल बदलने पर मान कॉपी नहीं होते; वापस आने पर वे बहाल हो जाते हैं।</string>
     <string name="generation_parameter_self_healed">इस मॉडल ने %1$s को अस्वीकार किया। डिफ़ॉल्ट सेटिंग के साथ फिर कोशिश की गई।</string>
     <string name="relay_transport_llamacpp_native">llama.cpp नेटिव completion</string>
     <string name="relay_catalog_loading">मॉडल सूची लोड हो रही है…</string>
@@ -2268,4 +2271,6 @@
     <string name="context_confirm_also_price_line">यह अनुरोध %1$s की %2$s वाली ऊँची दर की रेखा से भी ऊपर जाता है, इसलिए पूरे अनुरोध का बिल लॉन्ग कॉन्टेक्स्ट की दर से बनेगा।</string>
     <string name="context_confirm_dont_ask">इस चैट में दोबारा न पूछें</string>
     <string name="context_confirm_send">फिर भी भेजें</string>
+    <string name="chat_last_used_model_retired_hint">पिछली बार इस्तेमाल किया गया मॉडल बंद हो चुका है। अब %1$s इस्तेमाल हो रहा है।</string>
+    <string name="model_options_shows_thinking_fixed">अपनी सोच दिखाता है · बदला नहीं जा सकता</string>
 </resources>
