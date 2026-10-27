@@ -22,6 +22,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -45,10 +46,11 @@ import ai.oriveo.community.ui.component.BrandImageRequest
 import ai.oriveo.community.ui.component.BrandLogoResources
 import ai.oriveo.community.ui.component.LocalBrandImageBitmapCache
 
-private val LightColorScheme = lightColorScheme(
-    primary = Color(0xFF8C5FF8),
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFFEDE9FE),
+/** Light Material3 ColorScheme: the three brand slots follow the light brand colors; the other neutral values are unchanged. */
+internal fun lightColorSchemeOf(c: OriveoColors): ColorScheme = lightColorScheme(
+    primary = c.primary,
+    onPrimary = c.onPrimary,
+    primaryContainer = c.primarySoft,
     onPrimaryContainer = Color(0xFF21005D),
     secondary = Color(0xFF10B981),
     onSecondary = Color.White,
@@ -134,6 +136,50 @@ enum class DarkPaletteId(val id: String) {
 }
 
 /**
+ * The dark palette the user picked: one of the 7 presets, or "custom" (id `custom` + a seed color).
+ * Rendering, preference writes and the theme page all go through it; [DarkPaletteId] only represents a preset.
+ */
+sealed interface DarkPaletteChoice {
+    /** The id stored in the `darkPalette` preference. */
+    val storageId: String
+
+    /** The full token set in dark; a custom palette is cached per seed. */
+    val colors: OriveoColors
+
+    /** Brand colors in the light appearance; the default palette uses hand-tuned values, the others are derived and cached per palette. */
+    val lightBrand: OriveoLightBrand get() = OriveoLightBrand.of(this)
+
+    data class Preset(val id: DarkPaletteId) : DarkPaletteChoice {
+        override val storageId: String get() = id.id
+        override val colors: OriveoColors get() = id.colors
+    }
+
+    /** [seed] is `0xRRGGBB`. */
+    data class Custom(val seed: Int) : DarkPaletteChoice {
+        override val storageId: String get() = OriveoCustomPalette.ID
+        override val colors: OriveoColors get() = OriveoCustomPalette.colors(seed)
+    }
+
+    companion object {
+        val Default: DarkPaletteChoice = Preset(DarkPaletteId.Default)
+
+        /**
+         * Merges the two preference fields:
+         * `custom` uses the seed when valid, otherwise (missing / invalid) the default seed; anything else resolves as a preset id, with unknown ids falling back to the default.
+         */
+        fun resolve(stored: String?, seed: String?): DarkPaletteChoice =
+            if (stored == OriveoCustomPalette.ID) {
+                Custom(OriveoCustomPalette.parseSeed(seed) ?: OriveoCustomPalette.DEFAULT_SEED)
+            } else {
+                Preset(DarkPaletteId.fromId(stored))
+            }
+    }
+}
+
+/** The current dark palette choice (the light brand colors are derived from it too); provided by [OriveoTheme]. */
+val LocalDarkPaletteChoice = staticCompositionLocalOf { DarkPaletteChoice.Default }
+
+/**
  * Single source of truth for the motion durations of the model-control modal.
  *
  * The Android equivalent of "reduce motion" is `ANIMATOR_DURATION_SCALE == 0`
@@ -162,12 +208,16 @@ fun modelControlTextButtonColors(): ButtonColors =
 @Composable
 fun OriveoTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    palette: DarkPaletteId = DarkPaletteId.Default,
+    palette: DarkPaletteChoice = DarkPaletteChoice.Default,
     content: @Composable () -> Unit,
 ) {
     // A palette switch only swaps the palette in the CompositionLocal: the Activity is not recreated, and remember state, input and scroll positions are all kept
-    val oriveoColors = if (darkTheme) palette.colors else LightOriveoColors
-    val colorScheme = if (darkTheme) remember(oriveoColors) { darkColorSchemeOf(oriveoColors) } else LightColorScheme
+    // Light only swaps the brand color family, remembered per palette
+    val oriveoColors = if (darkTheme) palette.colors else remember(palette) { lightOriveoColorsOf(palette.lightBrand) }
+    val colorScheme = remember(darkTheme, oriveoColors) {
+        if (darkTheme) darkColorSchemeOf(oriveoColors) else lightColorSchemeOf(oriveoColors)
+    }
+    val windowLightBg = palette.lightBrand.windowBackground
 
     val view = LocalView.current
     if (!view.isInEditMode) {
@@ -177,8 +227,7 @@ fun OriveoTheme(
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
             WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = !darkTheme
             // Sync the window background color dynamically, using the gradient base so the navigation bar area blends with the background gradient
-            val windowBg = if (darkTheme) oriveoColors.backgroundBase.toArgb()
-                else android.graphics.Color.parseColor("#FFF6F5FA")
+            val windowBg = if (darkTheme) oriveoColors.backgroundBase.toArgb() else windowLightBg.toArgb()
             window.decorView.setBackgroundColor(windowBg)
         }
     }
@@ -207,6 +256,7 @@ fun OriveoTheme(
 
     CompositionLocalProvider(
         LocalOriveoColors provides oriveoColors,
+        LocalDarkPaletteChoice provides palette,
         LocalIsDarkTheme provides darkTheme,
         LocalDensity provides adjustedDensity,
         LocalBrandImageBitmapCache provides brandImageCache,
@@ -232,57 +282,64 @@ object OriveoTheme {
     val radius: OriveoRadius get() = OriveoRadius
 
     val layout: OriveoLayout get() = OriveoLayout
+
+    /** The current palette's light brand colors; brand points not in [OriveoColors] (home, glow, etc.) are read from here. */
+    val lightBrand: OriveoLightBrand
+        @Composable get() = LocalDarkPaletteChoice.current.lightBrand
 }
 
 // ── OriveoGradients ──
 
 /**
  * Primary button / user bubble gradient. Dark uses the current palette's gradient-brand (135 degrees, primary -> accent) and follows palette switches immediately;
- * light keeps the original brand gradient (aligned with iOS primaryGradient), pixel for pixel unchanged.
+ * light uses the current palette's light brand gradient gradStart -> gradEnd (the default palette is the original brand gradient, aligned with iOS primaryGradient).
  */
 object OriveoGradients {
-    // dark-palette-guard: keep (d) light branch
-    private val LightPrimaryStops = listOf(Color(0xFF8347F5), Color(0xFF6B3BC7))
+    // Hand-tuned pressed gradient of the default palette in light (the light brand has no pressed-gradient field); other palettes press to [fillPressed, gradEnd]
+    private val DefaultLightPressedStops = listOf(Color(0xFF7238E5), Color(0xFF5A2BB0))
 
-    // dark-palette-guard: keep (d) light branch
-    private val LightPrimaryPressedStops = listOf(Color(0xFF7238E5), Color(0xFF5A2BB0))
+    /** Primary gradient endpoints: dark = [primary, accent], light = [gradStart, gradEnd]. */
+    internal fun primaryStops(
+        colors: OriveoColors,
+        isDark: Boolean,
+        lightBrand: OriveoLightBrand = OriveoLightBrand.Default,
+    ): List<Color> = if (isDark) colors.gradientBrandStops else listOf(lightBrand.gradStart, lightBrand.gradEnd)
 
-    private val lightPrimary = brandLinear(LightPrimaryStops)
-    private val lightPrimaryPressed = brandLinear(LightPrimaryPressedStops)
-
-    /** Primary gradient endpoints: dark = [primary, accent], light = the original brand gradient. */
-    internal fun primaryStops(colors: OriveoColors, isDark: Boolean): List<Color> =
-        if (isDark) colors.gradientBrandStops else LightPrimaryStops
-
-    /** Pressed-state endpoints: dark = [primaryActive, accent], light = the original pressed gradient. */
-    internal fun primaryPressedStops(colors: OriveoColors, isDark: Boolean): List<Color> =
-        if (isDark) listOf(colors.primaryActive, colors.accent) else LightPrimaryPressedStops
+    /** Pressed-state endpoints: dark = [primaryActive, accent]; light default palette = the original pressed gradient, others = [fillPressed, gradEnd]. */
+    internal fun primaryPressedStops(
+        colors: OriveoColors,
+        isDark: Boolean,
+        lightBrand: OriveoLightBrand = OriveoLightBrand.Default,
+    ): List<Color> = when {
+        isDark -> listOf(colors.primaryActive, colors.accent)
+        lightBrand === OriveoLightBrand.Default -> DefaultLightPressedStops
+        else -> listOf(lightBrand.fillPressed, lightBrand.gradEnd)
+    }
 
     /** Primary button / user bubble gradient, aligned with iOS primaryGradient */
     val primary: Brush
         @Composable get() {
             val colors = LocalOriveoColors.current
-            return if (LocalIsDarkTheme.current) {
-                remember(colors) { brandLinear(primaryStops(colors, isDark = true)) }
-            } else {
-                lightPrimary
-            }
+            val isDark = LocalIsDarkTheme.current
+            val lightBrand = OriveoTheme.lightBrand
+            return remember(colors, isDark, lightBrand) { brandLinear(primaryStops(colors, isDark, lightBrand)) }
         }
 
     /** Primary button pressed-state gradient, aligned with iOS primaryGradientPressed */
     val primaryPressed: Brush
         @Composable get() {
             val colors = LocalOriveoColors.current
-            return if (LocalIsDarkTheme.current) {
-                remember(colors) { brandLinear(primaryPressedStops(colors, isDark = true)) }
-            } else {
-                lightPrimaryPressed
-            }
+            val isDark = LocalIsDarkTheme.current
+            val lightBrand = OriveoTheme.lightBrand
+            return remember(colors, isDark, lightBrand) { brandLinear(primaryPressedStops(colors, isDark, lightBrand)) }
         }
 
-    /** Icon / text color on the [primary] gradient: the palette onPrimary in dark, white in light. */
-    internal fun onPrimaryContent(colors: OriveoColors, isDark: Boolean): Color =
-        if (isDark) colors.onPrimary else Color.White
+    /**
+     * Icon / text color on the [primary] gradient: the palette onPrimary in dark, the light brand onPrimary in light
+     * ([lightOriveoColorsOf] already writes it into colors.onPrimary; white for the white mode, dark text for the bright-fill mode).
+     */
+    @Suppress("UNUSED_PARAMETER")
+    internal fun onPrimaryContent(colors: OriveoColors, isDark: Boolean): Color = colors.onPrimary
 
     /** Reads [onPrimaryContent] during composition. */
     val onPrimary: Color
@@ -383,8 +440,7 @@ fun OriveoScreenBackground(
 ) {
     val colors = OriveoTheme.colors
     val isDark = OriveoTheme.isDark
-    // dark-palette-guard: keep (d) light branch
-    val resolvedGlowTint = glowTint.takeOrElse { if (isDark) colors.primary else Color(0xFF8C5FF8) }
+    val resolvedGlowTint = glowTint.takeOrElse { colors.primary }
 
     val baseBrush = if (isDark) {
         Brush.linearGradient(
@@ -443,10 +499,11 @@ fun OriveoNotesBackground(
 ) {
     val isDark = OriveoTheme.isDark
     val colors = OriveoTheme.colors
+    val lightBrand = OriveoTheme.lightBrand
     val brush = if (isDark) {
         Brush.verticalGradient(listOf(colors.background, colors.backgroundBase))
     } else {
-        Brush.verticalGradient(listOf(Color(0xFFF7F5FB), Color(0xFFF1ECF8)))
+        Brush.verticalGradient(listOf(lightBrand.bgTop, lightBrand.tuned(Color(0xFFF1ECF8), lightBrand.bgBottom)))
     }
     Box(modifier = modifier.fillMaxSize().background(brush))
 }

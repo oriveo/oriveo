@@ -269,7 +269,7 @@
 }
 
 .relatedNoteAttach {
-  background: var(--o-primary);
+  background: var(--o-primary-fill-text);
   color: var(--o-primary-text);
   box-shadow: 0 2px 7px color-mix(in srgb, var(--o-primary) 20%, transparent);
 }
@@ -281,7 +281,7 @@
 }
 
 .relatedNoteAttach:hover {
-  background: var(--o-primary-active);
+  background: var(--o-primary-hover);
 }
 
 .relatedNoteDismiss:hover {
@@ -1266,10 +1266,11 @@
   height: 34px;
   border: none;
   border-radius: var(--o-radius-full);
+  /* Non-default light palettes use this palette's brand gradient (gradStart to gradEnd, paired with --o-primary-text to meet contrast); default light and dark fall back to the original value */
   background: linear-gradient(
     135deg,
-    color-mix(in srgb, var(--o-primary) 92%, white),
-    var(--o-primary-active)
+    var(--o-brand-grad-start, color-mix(in srgb, var(--o-primary-fill) 92%, white)),
+    var(--o-brand-grad-end, var(--o-primary-active))
   );
   color: var(--o-primary-text);
   cursor: pointer;

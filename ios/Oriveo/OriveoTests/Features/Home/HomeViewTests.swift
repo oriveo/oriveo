@@ -219,11 +219,29 @@ struct HomeViewTests {
 
         let lightIdle = AuroraHeroCardAppearance.resolve(isDark: false, focused: false)
         #expect(lightIdle.contactShadow == AuroraHeroCardAppearance.Shadow(color: Color(hex: 0x0F172A, alpha: 0.04), radius: 1, y: 1))
-        #expect(lightIdle.ambientShadow == AuroraHeroCardAppearance.Shadow(color: Color(hex: 0x8B5CF6, alpha: 0.08), radius: 14, y: 10))
+        // The light violet shadow follows the palette; the default palette still resolves to the hand-tuned #8B5CF6
+        #expect(Self.lightDefaultRGBA(lightIdle.ambientShadow.color) == Self.rgba(0x8B5CF6, alpha: 0.08))
+        #expect(lightIdle.ambientShadow.radius == 14 && lightIdle.ambientShadow.y == 10)
 
         let lightFocused = AuroraHeroCardAppearance.resolve(isDark: false, focused: true)
         #expect(lightFocused.contactShadow == .none)
-        #expect(lightFocused.ambientShadow == AuroraHeroCardAppearance.Shadow(color: Color(hex: 0x8B5CF6, alpha: 0.16), radius: 20, y: 14))
+        #expect(Self.lightDefaultRGBA(lightFocused.ambientShadow.color) == Self.rgba(0x8B5CF6, alpha: 0.16))
+        #expect(lightFocused.ambientShadow.radius == 20 && lightFocused.ambientShadow.y == 14)
+    }
+
+    /// The RGBA (0-255, rounded) a dynamic color resolves to under "light + default palette".
+    private static func lightDefaultRGBA(_ color: Color) -> [Int] {
+        let traits = UITraitCollection { traits in
+            traits.userInterfaceStyle = .light
+            traits.oriveoDarkPalette = OriveoDarkPaletteChoice.defaultID
+        }
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        UIColor(color).resolvedColor(with: traits).getRed(&r, green: &g, blue: &b, alpha: &a)
+        return [r, g, b, a].map { Int(($0 * 255).rounded()) }
+    }
+
+    private static func rgba(_ hex: UInt, alpha: CGFloat) -> [Int] {
+        [Int((hex >> 16) & 0xFF), Int((hex >> 8) & 0xFF), Int(hex & 0xFF), Int((alpha * 255).rounded())]
     }
 
     @Test("the hero card has no divider, a solid send button without a shadow, and no attachment button")
@@ -296,7 +314,7 @@ struct HomeViewTests {
         #expect(!themeSource.contains("angleDegrees: 150"), "the dark surface no longer uses a 150° diagonal gradient")
         #expect(!themeSource.contains("Color(hex: 0x818CF8"), "no directional glow inside the dark card")
         // The pill is opaque; the grey text inside the hero shares the card's hue and is not the global tertiary
-        #expect(themeSource.contains("static let pillFill = Color.dynamic(light: 0xF3F0FA, dark: \\.surfaceRaised)"))
+        #expect(themeSource.contains("static let pillFill = Color.brand(light: \\.pill, dark: \\.surfaceRaised)"))  // light = this palette's pill (#F3F0FA for the default palette)
         #expect(themeSource.contains("static let heroTextTertiary = Color.dynamic(light: 0x9C95AA, dark: 0x9493A8)"))
         let viewSource = try source(named: "HomeView.swift")
         #expect(viewSource.components(separatedBy: "AuroraTheme.Colors.heroTextTertiary").count - 1 == 4,

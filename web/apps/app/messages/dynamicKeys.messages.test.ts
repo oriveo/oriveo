@@ -1,3 +1,11 @@
+import {
+  APPEARANCE_SEGMENTS,
+  CUSTOM_PRESET_DOTS,
+  PALETTE_CARDS,
+  appearanceLabelKey,
+  cardLabelKey,
+} from '../app/settings/theme/theme-page-rules';
+
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -38,5 +46,27 @@ describe('dynamically composed message keys', () => {
       .map(knowledgeStatusKey)
       .filter((key) => typeof messages.skills[key] !== 'string');
     expect(missing).toEqual([]);
+  });
+});
+
+// The theme page looks up card names, appearance section names, preset color names and summary templates through a mapping table (theme-page-rules.ts), so the source has no full literals.
+const THEME_SUMMARY_KEYS = ['themeSummaryLight', 'themeSummaryDark', 'themeSummaryFollowSystem'];
+
+describe('theme page message keys', () => {
+  const locales = readdirSync(MESSAGES_DIR).filter((name) => name.endsWith('.json'));
+  const keys = [
+    ...PALETTE_CARDS.map(cardLabelKey),
+    ...APPEARANCE_SEGMENTS.map(appearanceLabelKey),
+    ...CUSTOM_PRESET_DOTS.map((dot) => dot.labelKey),
+    ...THEME_SUMMARY_KEYS,
+  ];
+
+  it.each(locales)('%s has every pages.settings theme key; summaries keep {palette}', (file) => {
+    const messages = JSON.parse(readFileSync(join(MESSAGES_DIR, file), 'utf8')) as { pages: { settings: Record<string, unknown> } };
+    const settings = messages.pages.settings;
+    expect(keys.filter((key) => typeof settings[key] !== 'string')).toEqual([]);
+    expect(THEME_SUMMARY_KEYS.filter((key) => !String(settings[key]).includes('{palette}'))).toEqual([]);
+    // The follow-system switch is gone, and its hint text with it
+    expect(settings.themeFollowSystemHint).toBeUndefined();
   });
 });

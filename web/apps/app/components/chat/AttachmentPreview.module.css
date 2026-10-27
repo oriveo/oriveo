@@ -80,7 +80,7 @@
 
 .removeBtn:hover {
   background: var(--o-error);
-  color: var(--o-primary-text);
+  color: var(--o-text-inverse);
 }
 
 /* Truncation CTA: points the user at adding the file to Skill Knowledge for full retrieval */

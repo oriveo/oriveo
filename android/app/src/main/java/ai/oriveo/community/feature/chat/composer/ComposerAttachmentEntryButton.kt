@@ -67,9 +67,8 @@ internal fun ComposerAttachmentEntryButton(
     val pressed by interactionSource.collectIsPressedAsState()
     val buttonScale by animateFloatAsState(if (pressed) 0.975f else 1f, label = "attachmentButtonScale")
 
-    // Uniform flat lavender circle: light brand purple@12% / dark white@10% (dark is not tinted).
-    // dark-palette-guard: keep (d) light branch
-    val flatFill = if (isDark) Color.White.copy(alpha = 0.10f) else Color(0xFF8C5FF8).copy(alpha = 0.12f)
+    // Uniform flat lavender circle: light brand ink@12% / dark white@10% (dark is not tinted).
+    val flatFill = if (isDark) Color.White.copy(alpha = 0.10f) else colors.primary.copy(alpha = 0.12f)
 
     val iconTint = if (emphasized) colors.primary else colors.textPrimary
     val iconSize = if (icon == Icons.Filled.Add) 17.dp else 16.dp

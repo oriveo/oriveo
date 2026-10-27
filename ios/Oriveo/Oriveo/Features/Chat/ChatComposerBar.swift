@@ -1505,7 +1505,7 @@ struct ChatComposerBar: View {
                 .frame(width: 36, height: 36)
                 .background(
                     Circle().fill(
-                        Color.dynamic(light: 0x8C5FF8, dark: 0xFFFFFF, lightAlpha: 0.12, darkAlpha: 0.10)
+                        Color.brand(defaultLight: OriveoLightBrand.defaultBrand.ink, light: \.ink, lightAlpha: 0.12, darkFixed: 0xFFFFFF, darkAlpha: 0.10)
                     )
                 )
                 .contentShape(.hoverEffect, Circle())
@@ -1646,7 +1646,7 @@ struct ChatComposerBar: View {
                     // available: lit up as a purple gradient CTA, keeping the primary / secondary hierarchy.
                     fill: isLit
                         ? AnyShapeStyle(OriveoTheme.Palette.primaryGradient)
-                        : AnyShapeStyle(Color.dynamic(light: 0x8C5FF8, dark: 0xFFFFFF, lightAlpha: 0.12, darkAlpha: 0.10)),
+                        : AnyShapeStyle(Color.brand(defaultLight: OriveoLightBrand.defaultBrand.ink, light: \.ink, lightAlpha: 0.12, darkFixed: 0xFFFFFF, darkAlpha: 0.10)),
                     foreground: isLit ? OriveoTheme.Palette.onPrimary : OriveoTheme.Palette.textTertiary,
                     border: isLit ? OriveoTheme.Palette.hairline : .clear,
                     shadowColor: isLit ? OriveoTheme.Palette.primaryGlow : .clear,
@@ -1797,12 +1797,13 @@ struct ChatComposerBar: View {
 
     private var modelBehaviorAccent: ComposerCapabilityAccent {
         .init(
-            tint: Color.dynamic(light: 0x5B4AB8, dark: \.accent),
-            iconStart: Color.dynamic(light: 0xA78BFA, dark: \.accent),
-            iconEnd: Color.dynamic(light: 0x6D5BD0, dark: \.primary),
-            softFill: Color.dynamic(light: 0xF5F3FF, dark: 0x211B36, lightAlpha: 1, darkAlpha: 0.94),
-            softBorder: Color.dynamic(light: 0xC4B5FD, dark: \.primary, lightAlpha: 0.7, darkAlpha: 0.3),
-            shadow: Color.dynamic(light: 0x6D5BD0, dark: 0x000000, lightAlpha: 0.15, darkAlpha: 0.22)
+            // Brand colors: the default palette keeps its hand-tuned light values, other palettes follow the palette; the dark soft fill takes 15% of the primary instead of a fixed violet-black
+            tint: Color.brand(defaultLight: 0x5B4AB8, light: \.textSafe, dark: \.accent),
+            iconStart: Color.brand(defaultLight: 0xA78BFA, light: \.accent, dark: \.accent),
+            iconEnd: Color.brand(defaultLight: 0x6D5BD0, light: \.ink, dark: \.primary),
+            softFill: Color.brand(defaultLight: 0xF5F3FF, light: \.soft, dark: \.primary, darkAlpha: 0.15),
+            softBorder: Color.brand(defaultLight: 0xC4B5FD, light: \.ink, lightAlpha: 0.7, dark: \.primary, darkAlpha: 0.3),
+            shadow: Color.brand(defaultLight: 0x6D5BD0, light: \.ink, lightAlpha: 0.15, darkFixed: 0x000000, darkAlpha: 0.22)
         )
     }
 

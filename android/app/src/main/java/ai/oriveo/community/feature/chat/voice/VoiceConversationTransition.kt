@@ -217,5 +217,5 @@ fun Modifier.voiceEntryAnchor(): Modifier {
 
 private val GhostSize = 18.dp
 
-/** The flying ≋ crosses the page background, not the purple button: deep purple in light, the palette accent in dark. */
-private fun ghostGlyphTint(colors: OriveoColors, isDark: Boolean): Color = if (isDark) colors.accent else Color(0xFF6D28D9)
+/** The flying ≋ crosses the page background, not the purple button: light-brand text-safe in light, the palette accent in dark. */
+private fun ghostGlyphTint(colors: OriveoColors, isDark: Boolean): Color = if (isDark) colors.accent else colors.primaryTextSafe

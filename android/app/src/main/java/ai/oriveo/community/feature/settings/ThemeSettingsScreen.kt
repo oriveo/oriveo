@@ -7,9 +7,12 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -17,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -28,6 +32,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
@@ -38,14 +43,19 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,15 +64,20 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -70,7 +85,9 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -82,13 +99,24 @@ import ai.oriveo.community.ui.component.FlatSectionHeader
 import ai.oriveo.community.ui.component.OriveoBackButton
 import ai.oriveo.community.ui.component.markdown.MarkdownColors
 import ai.oriveo.community.ui.component.markdown.MarkdownTheme
+import ai.oriveo.community.ui.component.markdown.SyntaxHighlighter
+import ai.oriveo.community.ui.theme.DarkPaletteChoice
 import ai.oriveo.community.ui.theme.DarkPaletteId
 import ai.oriveo.community.ui.theme.LightOriveoColors
 import ai.oriveo.community.ui.theme.OriveoColors
+import ai.oriveo.community.ui.theme.OriveoCustomPalette
 import ai.oriveo.community.ui.theme.OriveoGradients
+import ai.oriveo.community.ui.theme.OriveoLightBrand
 import ai.oriveo.community.ui.theme.OriveoScreenBackground
 import ai.oriveo.community.ui.theme.OriveoTheme
+import ai.oriveo.community.ui.theme.OriveoUserBubble
+import ai.oriveo.community.ui.theme.UserBubbleStyle
+import ai.oriveo.community.ui.theme.UserBubbleViewport
+import ai.oriveo.community.ui.theme.userBubbleFill
+import ai.oriveo.community.ui.theme.userBubbleViewport
+import ai.oriveo.community.ui.theme.lightOriveoColorsOf
 import java.util.Calendar
+import kotlin.math.roundToInt
 import org.koin.androidx.compose.koinViewModel
 
 private const val THEME_COLOR_ANIM_MILLIS = 250
@@ -96,21 +124,26 @@ private const val PREVIEW_THINKING_MILLIS = 4_000L
 private const val PREVIEW_MODEL_NAME = "Claude Opus 5.5"
 private const val PREVIEW_COST = "$0.04"
 private const val PREVIEW_CODE_LANG = "rust"
+private const val PREVIEW_CODE_SOURCE = "let s = String::from(\"hi\");\nlet r = &s;"
 private val PREVIEW_MIN_HEIGHT = 352.dp
 private val PREVIEW_COMPOSER_HEIGHT = 38.dp
+private const val PRESET_DOTS_PER_ROW = 6
+private val PRESET_DOT_SIZE = 32.dp
+private val PRESET_DOT_TOUCH = 48.dp
+private val HUE_TRACK_HEIGHT = 12.dp
+private val HUE_THUMB_SIZE = 26.dp
 
-// Mini "other side" bubbles on the light card (the light surface is white on white).
-// dark-palette-guard: keep (d) light branch only; dark cards use the palette surface
-private val LightMiniBubble = Color(0xFFE5E7EB)
+/** Appearance segments, left to right. */
+internal val ThemeAppearanceOrder: List<ThemeOption> = listOf(ThemeOption.Light, ThemeOption.Dark, ThemeOption.System)
 
-/** Horizontal palette row order: Light, Dark, then the other dark palettes. */
+/** Palette card order: Default (`dark`), the other presets, then Custom. */
 internal val ThemePaletteCardOrder: List<ThemeSwatchSelection> =
-    listOf(ThemeSwatchSelection.Light) + DarkPaletteId.entries.map { ThemeSwatchSelection.Palette(it) }
+    DarkPaletteId.entries.map { ThemeSwatchSelection.Palette(it) } + ThemeSwatchSelection.Custom
 
-/** Display name of a dark palette; the default palette is shown as "Dark". */
+/** Display name of a preset palette; `dark` is "Default" because it applies to both appearances. */
 @StringRes
 internal fun darkPaletteNameRes(palette: DarkPaletteId): Int = when (palette) {
-    DarkPaletteId.Dark -> R.string.theme_dark
+    DarkPaletteId.Dark -> R.string.default_model_short
     DarkPaletteId.Purple -> R.string.theme_palette_purple
     DarkPaletteId.Graphite -> R.string.theme_palette_graphite
     DarkPaletteId.Black -> R.string.theme_palette_black
@@ -119,14 +152,67 @@ internal fun darkPaletteNameRes(palette: DarkPaletteId): Int = when (palette) {
     DarkPaletteId.Sunset -> R.string.theme_palette_sunset
 }
 
-internal fun themeSwatchTestTag(selection: ThemeSwatchSelection): String = when (selection) {
-    ThemeSwatchSelection.Light -> "theme_swatch_light"
-    is ThemeSwatchSelection.Palette -> "theme_swatch_${selection.palette.id}"
+@StringRes
+internal fun themeSwatchNameRes(selection: ThemeSwatchSelection): Int = when (selection) {
+    is ThemeSwatchSelection.Palette -> darkPaletteNameRes(selection.palette)
+    ThemeSwatchSelection.Custom -> R.string.theme_palette_custom
 }
 
+@StringRes
+internal fun themeAppearanceNameRes(theme: ThemeOption): Int = when (theme) {
+    ThemeOption.Light -> R.string.theme_light
+    ThemeOption.Dark -> R.string.theme_dark
+    ThemeOption.System -> R.string.theme_system
+}
+
+/** "<appearance> · %1$s" summary for non-default palettes. */
+@StringRes
+internal fun themeSummaryWithPaletteRes(theme: ThemeOption): Int = when (theme) {
+    ThemeOption.Light -> R.string.theme_summary_light
+    ThemeOption.Dark -> R.string.theme_summary_dark
+    ThemeOption.System -> R.string.theme_summary_follow_system
+}
+
+/** Accessibility names of `custom.presets`, same order. */
+internal val CustomPresetNameRes: List<Int> = listOf(
+    R.string.theme_color_coral,
+    R.string.theme_color_orange,
+    R.string.theme_color_amber,
+    R.string.theme_color_lime,
+    R.string.theme_color_green,
+    R.string.theme_color_teal,
+    R.string.theme_color_cyan,
+    R.string.theme_color_blue,
+    R.string.theme_color_indigo,
+    R.string.theme_color_violet,
+    R.string.theme_color_pink,
+    R.string.theme_color_rose,
+)
+
+/** Test tag and Sentry click tag of a palette card (`-` in ids becomes `_`, matching iOS). */
+internal fun themeSwatchTestTag(selection: ThemeSwatchSelection): String = when (selection) {
+    is ThemeSwatchSelection.Palette -> "theme_swatch_${selection.palette.id.replace('-', '_')}"
+    ThemeSwatchSelection.Custom -> "theme_swatch_custom"
+}
+
+internal fun themeAppearanceTestTag(theme: ThemeOption): String = "theme_appearance_${theme.name.lowercase()}"
+
+internal fun customPresetTestTag(seed: Int): String =
+    "theme_custom_preset_${OriveoCustomPalette.format(seed).removePrefix("#")}"
+
+/** The palette a card stands for; Custom shows the stored seed (or the default seed if never picked). */
+private fun ThemeSwatchSelection.choice(customSeed: Int): DarkPaletteChoice = when (this) {
+    is ThemeSwatchSelection.Palette -> DarkPaletteChoice.Preset(palette)
+    ThemeSwatchSelection.Custom -> DarkPaletteChoice.Custom(customSeed)
+}
+
+private fun Int.opaque(): Color = Color(this).copy(alpha = 1f)
+
+private fun Color.hex(): String = OriveoCustomPalette.format(toArgb() and 0xFFFFFF)
+
 /**
- * Settings › Theme (Telegram-style): live chat preview, a horizontally scrolling row of palette cards,
- * then the follow-system card. Every tap applies immediately app-wide; there is no save button.
+ * Settings › Theme: live chat preview, appearance segments, a horizontally scrolling row of palette cards,
+ * and the custom color picker when Custom is selected. Every tap applies immediately app-wide; no save button.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -137,7 +223,7 @@ fun ThemeSettingsScreen(
     val colors = OriveoTheme.colors
     val theme by viewModel.theme.collectAsStateWithLifecycle()
     val darkPalette by viewModel.darkPalette.collectAsStateWithLifecycle()
-    val systemDark = isSystemInDarkTheme()
+    val customSeed by viewModel.darkPaletteCustom.collectAsStateWithLifecycle()
 
     Box(modifier = Modifier.fillMaxSize().testTag("theme_settings_screen")) {
         OriveoScreenBackground()
@@ -168,7 +254,8 @@ fun ThemeSettingsScreen(
             ThemeSettingsContent(
                 theme = theme,
                 darkPalette = darkPalette,
-                onAction = { viewModel.onAction(it, systemDark) },
+                customSeed = customSeed,
+                onAction = viewModel::onAction,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
@@ -182,76 +269,107 @@ fun ThemeSettingsScreen(
 internal fun ThemeSettingsContent(
     theme: ThemeOption,
     darkPalette: String?,
+    customSeed: String?,
     onAction: (ThemePageAction) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val follow = theme == ThemeOption.System
-    val selection = ThemePageRules.selection(theme, darkPalette)
+    val isDark = OriveoTheme.isDark
+    val stored = DarkPaletteChoice.resolve(darkPalette, customSeed)
+    // Hue drag / just-picked seed: previews on this page only until the stored preference catches up.
+    var pendingSeed by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(darkPalette, customSeed) { pendingSeed = null }
+    val effective = pendingSeed?.let { DarkPaletteChoice.Custom(it) } ?: stored
+    val selection = ThemePageRules.selection(effective)
+    val cardSeed = (effective as? DarkPaletteChoice.Custom)?.seed
+        ?: OriveoCustomPalette.parseSeed(customSeed)
+        ?: OriveoCustomPalette.DEFAULT_SEED
     val sidePadding = OriveoTheme.spacing.lg
 
     Column(
         modifier = modifier.padding(top = 6.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(22.dp),
     ) {
-        ThemePreviewCard(selection = selection, modifier = Modifier.padding(horizontal = sidePadding))
+        ThemePreviewCard(choice = effective, isDark = isDark, modifier = Modifier.padding(horizontal = sidePadding))
+
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            FlatSectionHeader(
+                title = stringResource(R.string.theme_section_appearance),
+                modifier = Modifier.padding(horizontal = sidePadding + 4.dp),
+            )
+            AppearanceSegments(theme = theme, onAction = onAction, modifier = Modifier.padding(horizontal = sidePadding))
+        }
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             FlatSectionHeader(
                 title = stringResource(R.string.theme_section_palettes),
                 modifier = Modifier.padding(horizontal = sidePadding + 4.dp),
             )
-            PaletteCardRow(selection = selection, onAction = onAction, sidePadding = sidePadding)
+            PaletteCardRow(
+                selection = selection,
+                customSeed = cardSeed,
+                isDark = isDark,
+                onAction = onAction,
+                sidePadding = sidePadding,
+            )
         }
 
-        FollowSystemCard(
-            follow = follow,
-            onAction = onAction,
-            modifier = Modifier.padding(horizontal = sidePadding),
-        )
+        if (selection == ThemeSwatchSelection.Custom) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                FlatSectionHeader(
+                    title = stringResource(R.string.theme_custom_color),
+                    modifier = Modifier.padding(horizontal = sidePadding + 4.dp),
+                )
+                CustomColorSection(
+                    seed = cardSeed,
+                    isDark = isDark,
+                    onPreview = { pendingSeed = it },
+                    onCommit = { seed ->
+                        pendingSeed = seed
+                        onAction(ThemePageAction.PickSeed(seed))
+                    },
+                    onCancel = { pendingSeed = null },
+                    modifier = Modifier.padding(horizontal = sidePadding),
+                )
+            }
+        }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun FollowSystemCard(
-    follow: Boolean,
+private fun AppearanceSegments(
+    theme: ThemeOption,
     onAction: (ThemePageAction) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val colors = OriveoTheme.colors
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(colors.surface)
-            .padding(start = 16.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
-    ) {
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(
-                text = stringResource(R.string.theme_system),
-                style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium),
-                color = colors.textPrimary,
-            )
-            Text(
-                text = stringResource(R.string.theme_follow_system_hint),
-                style = TextStyle(fontSize = 12.sp, lineHeight = 17.sp),
-                color = colors.textTertiary,
+    SingleChoiceSegmentedButtonRow(modifier = modifier.fillMaxWidth().testTag("theme_appearance")) {
+        ThemeAppearanceOrder.forEachIndexed { index, option ->
+            SegmentedButton(
+                selected = option == theme,
+                onClick = { if (option != theme) onAction(ThemePageAction.SetAppearance(option)) },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = ThemeAppearanceOrder.size),
+                icon = {},
+                modifier = Modifier
+                    .testTag(themeAppearanceTestTag(option)),
+                label = {
+                    Text(
+                        text = stringResource(themeAppearanceNameRes(option)),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                },
             )
         }
-        Switch(
-            checked = follow,
-            onCheckedChange = { onAction(ThemePageAction.ToggleFollow(it)) },
-            modifier = Modifier.testTag("theme_follow_system_switch"),
-        )
     }
 }
 
 @Composable
 private fun PaletteCardRow(
     selection: ThemeSwatchSelection,
+    customSeed: Int,
+    isDark: Boolean,
     onAction: (ThemePageAction) -> Unit,
-    sidePadding: androidx.compose.ui.unit.Dp,
+    sidePadding: Dp,
 ) {
     val listState = rememberLazyListState()
     // Bring the selected card into view when it is not fully visible (keep one card peeking before it).
@@ -275,12 +393,13 @@ private fun PaletteCardRow(
         itemsIndexed(ThemePaletteCardOrder, key = { _, item -> themeSwatchTestTag(item) }) { _, item ->
             PaletteCard(
                 item = item,
+                card = paletteCardColors(item.choice(customSeed), isDark),
                 selected = item == selection,
                 onClick = {
                     onAction(
                         when (item) {
-                            ThemeSwatchSelection.Light -> ThemePageAction.TapLight
                             is ThemeSwatchSelection.Palette -> ThemePageAction.TapPalette(item.palette)
+                            ThemeSwatchSelection.Custom -> ThemePageAction.TapCustom
                         },
                     )
                 },
@@ -293,26 +412,31 @@ private fun PaletteCardRow(
 private data class PaletteCardColors(
     val background: Color,
     val bubble: Color,
+    /** User-bubble stops, anchored on the card. */
     val stops: List<Color>,
     val primary: Color,
     val glowK: Float,
 )
 
-private fun paletteCardColors(item: ThemeSwatchSelection): PaletteCardColors = when (item) {
-    ThemeSwatchSelection.Light -> PaletteCardColors(
-        background = LightOriveoColors.backgroundBase,
-        bubble = LightMiniBubble,
-        stops = OriveoGradients.primaryStops(LightOriveoColors, isDark = false),
-        primary = LightOriveoColors.primary,
-        glowK = LightOriveoColors.glowK,
-    )
-    is ThemeSwatchSelection.Palette -> item.palette.colors.let { c ->
+/** A card draws its palette in the current appearance: light = bgTop page + light brand bubbles. */
+private fun paletteCardColors(choice: DarkPaletteChoice, isDark: Boolean): PaletteCardColors = if (isDark) {
+    choice.colors.let { c ->
         PaletteCardColors(
             background = c.backgroundBase,
             bubble = c.surface,
-            stops = OriveoGradients.primaryStops(c, isDark = true),
+            stops = OriveoUserBubble.stops(choice, isDark = true),
             primary = c.primary,
             glowK = c.glowK,
+        )
+    }
+} else {
+    choice.lightBrand.let { b ->
+        PaletteCardColors(
+            background = b.bgTop,
+            bubble = b.soft,
+            stops = OriveoUserBubble.stops(choice, isDark = false),
+            primary = b.ink,
+            glowK = LightOriveoColors.glowK,
         )
     }
 }
@@ -320,20 +444,20 @@ private fun paletteCardColors(item: ThemeSwatchSelection): PaletteCardColors = w
 @Composable
 private fun PaletteCard(
     item: ThemeSwatchSelection,
+    card: PaletteCardColors,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
     val colors = OriveoTheme.colors
-    val name = when (item) {
-        ThemeSwatchSelection.Light -> stringResource(R.string.theme_light)
-        is ThemeSwatchSelection.Palette -> stringResource(darkPaletteNameRes(item.palette))
-    }
-    val card = paletteCardColors(item)
+    val name = stringResource(themeSwatchNameRes(item))
+    val tag = themeSwatchTestTag(item)
     val cardShape = RoundedCornerShape(16.dp)
+    // The user-bubble strip takes its slice of a gradient anchored on the card.
+    val bubbleViewport = remember { UserBubbleViewport() }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .testTag(themeSwatchTestTag(item))
+            .testTag(tag)
             .width(84.dp)
             .clip(RoundedCornerShape(20.dp))
             .clickable(role = Role.Button, onClick = onClick)
@@ -354,6 +478,7 @@ private fun PaletteCard(
                 verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.Bottom),
                 modifier = Modifier
                     .fillMaxSize()
+                    .userBubbleViewport(bubbleViewport)
                     .clip(cardShape)
                     .background(card.background)
                     .drawBehind {
@@ -375,9 +500,11 @@ private fun PaletteCard(
                     Modifier
                         .align(Alignment.End)
                         .size(width = 44.dp, height = 16.dp)
-                        .background(
-                            Brush.linearGradient(card.stops, start = Offset.Zero, end = Offset.Infinite),
-                            RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp, bottomEnd = 3.dp, bottomStart = 8.dp),
+                        .userBubbleFill(
+                            style = UserBubbleStyle(card.stops, isDark = OriveoTheme.isDark),
+                            shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp, bottomEnd = 3.dp, bottomStart = 8.dp),
+                            viewport = bubbleViewport,
+                            decorated = false,
                         ),
                 )
             }
@@ -399,17 +526,212 @@ private fun PaletteCard(
     }
 }
 
-/** Palette used by the preview card: the light set or the selected dark palette. */
-private fun previewColors(selection: ThemeSwatchSelection): Pair<OriveoColors, Boolean> = when (selection) {
-    ThemeSwatchSelection.Light -> LightOriveoColors to false
-    is ThemeSwatchSelection.Palette -> selection.palette.colors to true
+/** Custom color picker: 12 preset dots, a hue bar, primary / accent readout and the adjusted notice. */
+@Composable
+private fun CustomColorSection(
+    seed: Int,
+    isDark: Boolean,
+    onPreview: (Int) -> Unit,
+    onCommit: (Int) -> Unit,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = OriveoTheme.colors
+    Column(
+        modifier = modifier.fillMaxWidth().testTag("theme_custom_section"),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        PresetDots(seed = seed, onPick = onCommit)
+        Text(
+            text = stringResource(R.string.theme_custom_hue),
+            style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Medium),
+            color = colors.textSecondary,
+        )
+        HueSlider(seed = seed, onPreview = onPreview, onCommit = onCommit, onCancel = onCancel)
+        ColorReadout(choice = DarkPaletteChoice.Custom(seed), isDark = isDark)
+        val adjusted = OriveoCustomPalette.derive(seed).adjusted
+        if (adjusted != null) {
+            Text(
+                text = stringResource(
+                    when (adjusted) {
+                        OriveoCustomPalette.Adjusted.Lightened -> R.string.theme_custom_lightened
+                        OriveoCustomPalette.Adjusted.Darkened -> R.string.theme_custom_darkened
+                    },
+                ),
+                style = TextStyle(fontSize = 12.sp, lineHeight = 17.sp),
+                color = colors.textTertiary,
+                modifier = Modifier.testTag("theme_custom_adjusted"),
+            )
+        }
+    }
 }
 
-/** Markdown tokens of the previewed palette, so the mini code block matches real chat highlighting. */
-internal fun previewMarkdownColors(selection: ThemeSwatchSelection): MarkdownColors {
-    val (colors, isDark) = previewColors(selection)
-    return MarkdownTheme.resolveColors(colors, isDark)
+@Composable
+private fun PresetDots(seed: Int, onPick: (Int) -> Unit) {
+    val colors = OriveoTheme.colors
+    Column(
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.fillMaxWidth().selectableGroup(),
+    ) {
+        OriveoCustomPalette.presets.withIndex().chunked(PRESET_DOTS_PER_ROW).forEach { row ->
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                row.forEach { (index, preset) ->
+                    val selected = preset == seed
+                    val name = stringResource(CustomPresetNameRes[index])
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(PRESET_DOT_TOUCH)
+                            .testTag(customPresetTestTag(preset))
+                            .clip(CircleShape)
+                            .clickable(role = Role.Button) { onPick(preset) }
+                            .clearAndSetSemantics {
+                                role = Role.Button
+                                this.selected = selected
+                                contentDescription = name
+                            },
+                    ) {
+                        // Selected: 2dp gap + 2dp ring around the 32dp dot.
+                        Box(
+                            modifier = Modifier
+                                .size(PRESET_DOT_SIZE + 8.dp)
+                                .then(if (selected) Modifier.border(2.dp, colors.textPrimary, CircleShape) else Modifier)
+                                .padding(4.dp)
+                                .background(preset.opaque(), CircleShape),
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
+
+@Composable
+private fun HueSlider(
+    seed: Int,
+    onPreview: (Int) -> Unit,
+    onCommit: (Int) -> Unit,
+    onCancel: () -> Unit,
+) {
+    val colors = OriveoTheme.colors
+    val label = stringResource(R.string.theme_custom_hue)
+    val trackStops = remember {
+        (0..12).map { OriveoCustomPalette.hueSliderSeed((it * 30).coerceAtMost(OriveoCustomPalette.HUE_SLIDER_MAX)).opaque() }
+    }
+    var dragHue by remember { mutableStateOf<Int?>(null) }
+    val seedHue = remember(seed) {
+        OriveoCustomPalette.oklch(seed)[2].roundToInt().mod(360)
+            .coerceIn(OriveoCustomPalette.HUE_SLIDER_MIN, OriveoCustomPalette.HUE_SLIDER_MAX)
+    }
+    val hue = dragHue ?: seedHue
+    val preview by rememberUpdatedState(onPreview)
+    val commit by rememberUpdatedState(onCommit)
+    val cancel by rememberUpdatedState(onCancel)
+    val range = OriveoCustomPalette.HUE_SLIDER_MIN.toFloat()..OriveoCustomPalette.HUE_SLIDER_MAX.toFloat()
+
+    BoxWithConstraints(
+        contentAlignment = Alignment.CenterStart,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(PRESET_DOT_TOUCH)
+            .testTag("theme_hue_slider")
+            // Keep the system back gesture off the bar; the drag below consumes every move so the
+            // palette row / page scroll never steal it.
+            .systemGestureExclusion()
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    fun hueAt(x: Float): Int = (x / size.width * OriveoCustomPalette.HUE_SLIDER_MAX).roundToInt()
+                        .coerceIn(OriveoCustomPalette.HUE_SLIDER_MIN, OriveoCustomPalette.HUE_SLIDER_MAX)
+                    val down = awaitFirstDown()
+                    down.consume()
+                    var current = hueAt(down.position.x)
+                    dragHue = current
+                    preview(OriveoCustomPalette.hueSliderSeed(current))
+                    val released = drag(down.id) { change ->
+                        change.consume()
+                        current = hueAt(change.position.x)
+                        dragHue = current
+                        preview(OriveoCustomPalette.hueSliderSeed(current))
+                    }
+                    dragHue = null
+                    // Only the release writes the preference (and syncs); a cancelled drag reverts the preview.
+                    if (released) commit(OriveoCustomPalette.hueSliderSeed(current)) else cancel()
+                }
+            }
+            .semantics {
+                contentDescription = label
+                progressBarRangeInfo = ProgressBarRangeInfo(hue.toFloat(), range)
+                setProgress { value ->
+                    val target = value.roundToInt().coerceIn(range.start.toInt(), range.endInclusive.toInt())
+                    commit(OriveoCustomPalette.hueSliderSeed(target))
+                    true
+                }
+            },
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(HUE_TRACK_HEIGHT)
+                .clip(CircleShape)
+                .background(Brush.horizontalGradient(trackStops)),
+        )
+        val travel = maxWidth - HUE_THUMB_SIZE
+        Box(
+            Modifier
+                .offset(x = travel * (hue.toFloat() / OriveoCustomPalette.HUE_SLIDER_MAX))
+                .size(HUE_THUMB_SIZE)
+                .shadow(3.dp, CircleShape)
+                .background(colors.textPrimary, CircleShape)
+                .padding(3.dp)
+                .background(OriveoCustomPalette.hueSliderSeed(hue).opaque(), CircleShape),
+        )
+    }
+}
+
+/** Primary / accent swatches with hex, in the current appearance (light shows the light brand ink / accent). */
+@Composable
+private fun ColorReadout(choice: DarkPaletteChoice, isDark: Boolean) {
+    val primary = if (isDark) choice.colors.primary else choice.lightBrand.ink
+    val accent = if (isDark) choice.colors.accent else choice.lightBrand.accent
+    Row(horizontalArrangement = Arrangement.spacedBy(20.dp), modifier = Modifier.fillMaxWidth()) {
+        ColorChip(label = stringResource(R.string.theme_custom_primary), color = primary, tag = "theme_custom_primary")
+        ColorChip(label = stringResource(R.string.theme_custom_accent), color = accent, tag = "theme_custom_accent")
+    }
+}
+
+@Composable
+private fun ColorChip(label: String, color: Color, tag: String) {
+    val colors = OriveoTheme.colors
+    val hex = color.hex()
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.testTag(tag).semantics(mergeDescendants = true) {},
+    ) {
+        Box(
+            Modifier
+                .size(22.dp)
+                .background(color, RoundedCornerShape(6.dp))
+                .border(1.dp, colors.border, RoundedCornerShape(6.dp)),
+        )
+        Column {
+            Text(text = label, style = TextStyle(fontSize = 12.sp), color = colors.textTertiary)
+            Text(
+                text = hex,
+                style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Medium, fontFamily = FontFamily.Monospace),
+                color = colors.textPrimary,
+            )
+        }
+    }
+}
+
+/** Token set the preview draws with: the palette's dark set, or the light set with its light brand. */
+private fun previewColors(choice: DarkPaletteChoice, isDark: Boolean): OriveoColors =
+    if (isDark) choice.colors else lightOriveoColorsOf(choice.lightBrand)
+
+/** Markdown tokens of the previewed palette, so the mini code block matches real chat highlighting. */
+internal fun previewMarkdownColors(choice: DarkPaletteChoice, isDark: Boolean): MarkdownColors =
+    MarkdownTheme.resolveColors(previewColors(choice, isDark), isDark)
 
 @Composable
 private fun animatedColor(target: Color, label: String): Color =
@@ -427,14 +749,13 @@ private class PreviewPalette(
     val accent: Color,
     val onBubble: Color,
     val stops: List<Color>,
+    /** User-bubble stops, top to bottom, anchored on the preview card. */
+    val bubbleStops: List<Color>,
     val inlineCodeText: Color,
     val inlineCodeBg: Color,
     val codeBg: Color,
     val codeHeaderBg: Color,
     val codeText: Color,
-    val syntaxKeyword: Color,
-    val syntaxType: Color,
-    val syntaxString: Color,
     val composer: Color,
 )
 
@@ -442,41 +763,46 @@ private class PreviewPalette(
 private fun animatedPreviewPalette(
     target: OriveoColors,
     isDark: Boolean,
+    brand: OriveoLightBrand,
     markdown: MarkdownColors,
+    bubbleStops: List<Color>,
 ): PreviewPalette {
-    val targetStops = OriveoGradients.primaryStops(target, isDark)
+    val targetStops = OriveoGradients.primaryStops(target, isDark, brand)
+    // Light page: the default palette keeps its original base, others use the brand page top.
+    val bg = if (isDark) target.backgroundBase else brand.tuned(target.backgroundBase, brand.bgTop)
     return PreviewPalette(
-        bg = animatedColor(target.backgroundBase, "previewBg"),
+        bg = animatedColor(bg, "previewBg"),
         border = animatedColor(target.border, "previewBorder"),
         hairline = animatedColor(target.border, "previewHairline"),
         text = animatedColor(target.textPrimary, "previewText"),
         text2 = animatedColor(target.textSecondary, "previewText2"),
         text3 = animatedColor(target.textTertiary, "previewText3"),
         primary = animatedColor(target.primary, "previewPrimary"),
-        accent = animatedColor(target.accent, "previewAccent"),
-        // Text on the brand gradient: on-primary in dark, white in light.
-        // dark-palette-guard: keep (d) light branch keeps white text on the light brand gradient
-        onBubble = animatedColor(if (isDark) target.onPrimary else Color.White, "previewOnBubble"),
+        // Light: the default palette keeps its accent (= primary); others show the second brand color.
+        accent = animatedColor(if (isDark) target.accent else brand.tuned(target.accent, brand.accent), "previewAccent"),
+        // Text on the brand gradient: on-primary of the previewed set (light bright fills use dark text).
+        onBubble = animatedColor(target.onPrimary, "previewOnBubble"),
         stops = listOf(
             animatedColor(targetStops.first(), "previewStopStart"),
             animatedColor(targetStops.last(), "previewStopEnd"),
         ),
+        bubbleStops = bubbleStops.mapIndexed { i, stop -> animatedColor(stop, "previewBubbleStop$i") },
         inlineCodeText = animatedColor(markdown.inlineCodeText, "previewInlineCodeText"),
         inlineCodeBg = animatedColor(markdown.inlineCodeBg, "previewInlineCodeBg"),
         codeBg = animatedColor(markdown.codeBlockBg, "previewCodeBg"),
         codeHeaderBg = animatedColor(markdown.codeBlockSurface, "previewCodeHeaderBg"),
         codeText = animatedColor(markdown.codeBlockFg, "previewCodeText"),
-        syntaxKeyword = animatedColor(markdown.syntaxKeyword, "previewSyntaxKeyword"),
-        syntaxType = animatedColor(markdown.syntaxType, "previewSyntaxType"),
-        syntaxString = animatedColor(markdown.syntaxString, "previewSyntaxString"),
         composer = animatedColor(target.surface, "previewComposer"),
     )
 }
 
 @Composable
-private fun ThemePreviewCard(selection: ThemeSwatchSelection, modifier: Modifier = Modifier) {
-    val (target, isDark) = previewColors(selection)
-    val p = animatedPreviewPalette(target, isDark, previewMarkdownColors(selection))
+private fun ThemePreviewCard(choice: DarkPaletteChoice, isDark: Boolean, modifier: Modifier = Modifier) {
+    val target = remember(choice, isDark) { previewColors(choice, isDark) }
+    val brand = choice.lightBrand
+    val markdown = remember(target, isDark) { MarkdownTheme.resolveColors(target, isDark) }
+    val p = animatedPreviewPalette(target, isDark, brand, markdown, OriveoUserBubble.stops(choice, isDark))
+    val bubbleViewport = remember { UserBubbleViewport() }
     val glowLayers = chatAuroraGlowLayers(target.copy(primary = p.primary, accent = p.accent), isDark)
     val gradient = Brush.linearGradient(p.stops, start = Offset.Zero, end = Offset.Infinite)
 
@@ -485,6 +811,7 @@ private fun ThemePreviewCard(selection: ThemeSwatchSelection, modifier: Modifier
             .fillMaxWidth()
             // At least 352dp, grows with long locales / large font scale; never clips or scrolls inside.
             .heightIn(min = PREVIEW_MIN_HEIGHT)
+            .userBubbleViewport(bubbleViewport)
             .clip(RoundedCornerShape(24.dp))
             .background(p.bg)
             .drawBehind {
@@ -516,10 +843,10 @@ private fun ThemePreviewCard(selection: ThemeSwatchSelection, modifier: Modifier
                     modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(9.dp),
                 ) {
-                    PreviewUserBubble(p, gradient, modifier = Modifier.align(Alignment.End))
+                    PreviewUserBubble(p, isDark, bubbleViewport, modifier = Modifier.align(Alignment.End))
                     PreviewThinkingRow(p)
                     PreviewReply(p)
-                    PreviewCodeBlock(p)
+                    PreviewCodeBlock(p, markdown)
                     PreviewCapabilityTags(p)
                 }
             }
@@ -574,7 +901,12 @@ private fun PreviewTopBar(p: PreviewPalette, gradient: Brush) {
 }
 
 @Composable
-private fun PreviewUserBubble(p: PreviewPalette, gradient: Brush, modifier: Modifier = Modifier) {
+private fun PreviewUserBubble(
+    p: PreviewPalette,
+    isDark: Boolean,
+    viewport: UserBubbleViewport,
+    modifier: Modifier = Modifier,
+) {
     val context = LocalContext.current
     // A fixed moment (21:41 today) formatted with the user's locale and 12/24h setting.
     val time = remember(context) {
@@ -590,13 +922,7 @@ private fun PreviewUserBubble(p: PreviewPalette, gradient: Brush, modifier: Modi
         verticalArrangement = Arrangement.spacedBy(2.dp),
         modifier = modifier
             .widthIn(max = 220.dp)
-            .shadow(
-                elevation = 8.dp,
-                shape = shape,
-                ambientColor = p.primary.copy(alpha = 0.35f),
-                spotColor = p.primary.copy(alpha = 0.35f),
-            )
-            .background(gradient, shape)
+            .userBubbleFill(UserBubbleStyle(p.bubbleStops, isDark), shape, viewport)
             .padding(start = 13.dp, end = 13.dp, top = 9.dp, bottom = 7.dp),
     ) {
         Text(
@@ -648,7 +974,7 @@ private fun PreviewReply(p: PreviewPalette) {
 }
 
 @Composable
-private fun PreviewCodeBlock(p: PreviewPalette) {
+private fun PreviewCodeBlock(p: PreviewPalette, markdown: MarkdownColors) {
     val shape = RoundedCornerShape(12.dp)
     Column(
         modifier = Modifier
@@ -674,19 +1000,13 @@ private fun PreviewCodeBlock(p: PreviewPalette) {
             )
             Text(text = stringResource(R.string.copy), style = TextStyle(fontSize = 10.5.sp), color = p.text3)
         }
-        // Two plain code lines, not localized: `let s = String::from("hi");` and `let r = &s;`.
+        // Two plain code lines, not localized; colored by the same highlighter as chat code blocks.
+        val highlighted = remember(markdown) {
+            SyntaxHighlighter.highlight(PREVIEW_CODE_SOURCE, PREVIEW_CODE_LANG, markdown)
+        }
         Text(
-            text = buildAnnotatedString {
-                val plain = SpanStyle(color = p.codeText)
-                withStyle(SpanStyle(color = p.syntaxKeyword)) { append("let") }
-                withStyle(plain) { append(" s = ") }
-                withStyle(SpanStyle(color = p.syntaxType)) { append("String") }
-                withStyle(plain) { append("::from(") }
-                withStyle(SpanStyle(color = p.syntaxString)) { append("\"hi\"") }
-                withStyle(plain) { append(");\n") }
-                withStyle(SpanStyle(color = p.syntaxKeyword)) { append("let") }
-                withStyle(plain) { append(" r = &s;") }
-            },
+            text = highlighted,
+            color = p.codeText,
             style = TextStyle(fontSize = 11.sp, lineHeight = 16.5.sp, fontFamily = FontFamily.Monospace),
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
         )

@@ -862,7 +862,7 @@
   appearance: none;
   border: 0;
   border-radius: 8px;
-  background: var(--o-primary);
+  background: var(--o-primary-fill-text);
   color: var(--o-primary-text);
   padding: 5px 9px;
   font: inherit;
@@ -1025,7 +1025,7 @@
   padding: 5px 9px;
   border-radius: 999px;
   background: var(--o-primary-active);
-  color: var(--o-primary-text);
+  color: var(--o-text-inverse);
   font-size: 11px;
   font-weight: 700;
 }
@@ -1367,11 +1367,11 @@
   align-items: center;
   justify-content: center;
   background: var(--note-source-color);
-  color: var(--o-primary-text);
+  color: var(--o-text-inverse);
 }
 
 .sourceActionBadgeIcon svg {
-  color: var(--o-primary-text);
+  color: var(--o-text-inverse);
 }
 
 .tagEditor {

@@ -14,6 +14,7 @@ vi.mock('next-intl', () => ({
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock('../../../providers/StoreProvider', () => ({
+  tryGetVanillaStore: () => null,
   useAppStore: <T,>(selector: (state: { providers: Provider[] }) => T) => selector({ providers: mocks.providers }),
 }));
 vi.mock('../../../lib/core/telemetry', () => ({ trackEvent: vi.fn() }));

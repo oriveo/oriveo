@@ -43,8 +43,9 @@ const BOOTSTRAP_TIMEOUT_MS = 8000;
 function ThemeSyncer() {
   const theme = useAppStore((s) => s.preferences.theme);
   const darkPalette = useAppStore((s) => s.preferences.darkPalette);
+  const darkPaletteCustom = useAppStore((s) => s.preferences.darkPaletteCustom);
   useTheme(theme);
-  useDarkPalette(darkPalette);
+  useDarkPalette(darkPalette, darkPaletteCustom);
   return null;
 }
 

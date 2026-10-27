@@ -202,6 +202,7 @@ async function buildBackupZip(options: ExportOptions): Promise<JSZip> {
     preferences: {
       theme: preferences.theme,
       ...(typeof preferences.darkPalette === 'string' ? { darkPalette: preferences.darkPalette } : {}),
+      ...(typeof preferences.darkPaletteCustom === 'string' ? { darkPaletteCustom: preferences.darkPaletteCustom } : {}),
       language: preferences.language,
       ...(preferences.memoryText ? { memoryText: preferences.memoryText } : {}),
       ...(preferences.memoryAntiForgetEnabled === true ? { memoryAntiForgetEnabled: true } : {}),

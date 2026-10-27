@@ -10,10 +10,10 @@ enum AuroraTheme {
 
     enum Colors {
         /// Primary violet. Same family as the V2 brand `#8C5FF8`, a touch brighter in light mode; dark mode takes the current palette primary.
-        static let accent = Color.dynamic(light: 0x8B5CF6, dark: \.primary)
+        static let accent = Color.brand(defaultLight: OriveoLightBrand.DefaultLight.homePurple, light: \.ink, dark: \.primary)
 
         /// Primary violet used for glows and gradient highlights.
-        static let accentGlow = Color.dynamic(light: 0x8B5CF6, dark: \.accent)
+        static let accentGlow = Color.brand(defaultLight: OriveoLightBrand.DefaultLight.homePurple, light: \.ink, dark: \.accent)
 
         /// Secondary accent: aurora blue, a subtle complement to the violet.
         static let auroraBlue = Color.dynamic(light: 0x60A5FA, dark: 0x93C5FD)
@@ -42,7 +42,9 @@ enum AuroraTheme {
         static let cardEdgeHighlight = Color.dynamic(light: 0xFFFFFF, dark: 0xFFFFFF, lightAlpha: 0.85, darkAlpha: 0.10)
 
         /// Card border.
-        static let cardBorder = Color.dynamic(light: 0x6B5BD0, dark: 0xFFFFFF, lightAlpha: 0.10, darkAlpha: 0.08)
+        static let cardBorder = Color.brand(
+            defaultLight: 0x6B5BD0, light: \.ink, lightAlpha: 0.10, darkFixed: 0xFFFFFF, darkAlpha: 0.08
+        )
 
         /// Very light hairline for separators.
         static let hairline = Color.dynamic(light: 0x000000, dark: 0xFFFFFF, lightAlpha: 0.06, darkAlpha: 0.08)
@@ -62,13 +64,13 @@ enum AuroraTheme {
 
         /// Model pill fill: a tonal surface without a stroke (light #F3F0FA). Dark mode uses an opaque
         /// tone from the same family; translucent white on the card surface washed out into a grey patch.
-        static let pillFill = Color.dynamic(light: 0xF3F0FA, dark: \.surfaceRaised)
+        static let pillFill = Color.brand(light: \.pill, dark: \.surfaceRaised)
 
-        /// Send button: one solid violet, no gradient, no shadow. Fixed violet in light mode, the current palette primary in dark mode.
-        static let sendFill = Color.dynamic(light: 0x8B5CF6, dark: \.primary)
+        /// Send button: one solid color, no gradient, no shadow. In light mode the current palette's light fill (the default palette keeps its original violet), in dark mode the current palette primary.
+        static let sendFill = Color.brand(defaultLight: OriveoLightBrand.DefaultLight.homePurple, light: \.fill, dark: \.primary)
 
         /// Arrow on the send button: white in light mode, the current palette onPrimary in dark mode (primary is bright, so white text lacks contrast).
-        static let onSendFill = Color.dynamic(light: 0xFFFFFF, dark: \.onPrimary)
+        static let onSendFill = Color.brand(light: \.onPrimary, dark: \.onPrimary)
     }
 
     // MARK: - Typography
@@ -126,7 +128,7 @@ struct AuroraScreenBackground: View {
             )
         }
         return LinearGradient(
-            colors: [Color(hex: 0xF7F5FB), Color(hex: 0xF2EEF7)],
+            colors: [Color.lightBrand(\.bgTop), Color.lightBrand(\.bgBottom)],
             startPoint: .top,
             endPoint: .bottom
         )
@@ -234,9 +236,9 @@ struct AuroraHeroSurface: View {
     }
 
     /// The violet glow (top-left on the hero, the single glow on Notes) in light mode.
-    private var tintA: Color { Color(hex: 0x8B5CF6, alpha: 0.10) }
+    private var tintA: Color { Color.lightBrand(\.ink, alpha: 0.10, defaultLight: OriveoLightBrand.DefaultLight.homePurple) }
     /// The pink glow top-right in light mode.
-    private var tintB: Color { Color(hex: 0xEC8FEA, alpha: 0.08) }
+    private var tintB: Color { Color.lightBrand(\.accent, alpha: 0.08, defaultLight: 0xEC8FEA) }
 
     /// Bottom colour of the dark card gradient; also the fill of the shadow shape.
     static let darkBaseBottom = Color.darkPalette(\.surface)
@@ -398,13 +400,13 @@ struct AuroraHeroCardAppearance: Equatable {
             contact = .none
             ambient = Shadow(color: Color.black.opacity(0.36), radius: 14, y: 12)
         } else if focused {
-            // 0 14 40 rgba(139,92,246,.16)
+            // 0 14 40, ink at 16%
             contact = .none
-            ambient = Shadow(color: Color(hex: 0x8B5CF6, alpha: 0.16), radius: 20, y: 14)
+            ambient = Shadow(color: Color.lightBrand(\.ink, alpha: 0.16, defaultLight: OriveoLightBrand.DefaultLight.homePurple), radius: 20, y: 14)
         } else {
-            // 0 1 2 rgba(15,23,42,.04) + 0 10 28 rgba(139,92,246,.08)
+            // 0 1 2 rgba(15,23,42,.04) + 0 10 28, ink at 8%
             contact = Shadow(color: Color(hex: 0x0F172A, alpha: 0.04), radius: 1, y: 1)
-            ambient = Shadow(color: Color(hex: 0x8B5CF6, alpha: 0.08), radius: 14, y: 10)
+            ambient = Shadow(color: Color.lightBrand(\.ink, alpha: 0.08, defaultLight: OriveoLightBrand.DefaultLight.homePurple), radius: 14, y: 10)
         }
         return AuroraHeroCardAppearance(
             showsGlowBorder: focused,
@@ -491,12 +493,12 @@ struct AuroraGlassCardModifier: ViewModifier {
 /// cool aurora accent without the candy glow.
 /// In dark mode the violet and lavender stops take the current palette primary / accent; pink, blue and teal are aurora accents that do not follow the palette.
 private let auroraGlowColors: [Color] = [
-    Color.dynamic(light: 0x8B5CF6, dark: \.primary),
-    Color.dynamic(light: 0xA78BFA, dark: \.accent),
+    Color.brand(defaultLight: OriveoLightBrand.DefaultLight.homePurple, light: \.ink, dark: \.primary),
+    Color.brand(defaultLight: OriveoLightBrand.DefaultLight.lavender, light: \.accent, dark: \.accent),
     Color(hex: 0xEC8FEA),
     Color(hex: 0x8DB4FF), Color(hex: 0x86D2E6),
-    Color.dynamic(light: 0xC4B5FD, dark: \.accent),
-    Color.dynamic(light: 0x8B5CF6, dark: \.primary)
+    Color.brand(defaultLight: OriveoLightBrand.DefaultLight.lavenderLight, light: \.accent, dark: \.accent),
+    Color.brand(defaultLight: OriveoLightBrand.DefaultLight.homePurple, light: \.ink, dark: \.primary)
 ]
 
 /// The aurora stroke: `shape.stroke(AngularGradient)` gives a crisp rainbow edge (deterministic, so it
@@ -575,8 +577,8 @@ struct AuroraSectionRule: View {
             .fill(
                 LinearGradient(
                     colors: [
-                        Color.dynamic(light: 0xC4B5FD, dark: \.accent),
-                        Color.dynamic(light: 0x8B5CF6, dark: \.primary)
+                        Color.brand(defaultLight: OriveoLightBrand.DefaultLight.lavenderLight, light: \.accent, dark: \.accent),
+                        Color.brand(defaultLight: OriveoLightBrand.DefaultLight.homePurple, light: \.ink, dark: \.primary)
                     ],
                     startPoint: .top,
                     endPoint: .bottom
@@ -584,7 +586,7 @@ struct AuroraSectionRule: View {
             )
             .frame(width: 3, height: 18)
             .shadow(
-                color: Color.dynamic(light: 0x8B5CF6, dark: \.primary, lightAlpha: 0.35, darkAlpha: 0.55),
+                color: Color.brand(defaultLight: OriveoLightBrand.DefaultLight.homePurple, light: \.ink, lightAlpha: 0.35, dark: \.primary, darkAlpha: 0.55),
                 radius: isDark ? 4 : 3,
                 y: 0
             )

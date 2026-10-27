@@ -277,9 +277,11 @@ fun SettingsScreen(
                         value = themeSummaryLabel(
                             theme = theme,
                             darkPalette = darkPalette,
-                            lightLabel = stringResource(R.string.theme_light),
-                            paletteLabel = { resources.getString(darkPaletteNameRes(it)) },
-                            followSystemLabel = { resources.getString(R.string.theme_summary_follow_system, it) },
+                            appearanceLabel = { resources.getString(themeAppearanceNameRes(it)) },
+                            paletteLabel = { resources.getString(themeSwatchNameRes(it)) },
+                            appearanceWithPalette = { appearance, name ->
+                                resources.getString(themeSummaryWithPaletteRes(appearance), name)
+                            },
                         ),
                         // The color dot only shows in dark.
                         leadingValueDot = if (isDark) settingsThemeDotBrush(colors.primary, colors.accent) else null,

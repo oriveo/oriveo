@@ -205,3 +205,45 @@ export {
   resolveDarkPaletteId,
 } from './theme/dark-palettes';
 export type { DarkPaletteId } from './theme/dark-palettes';
+export {
+  CUSTOM_PALETTE_ID,
+  CUSTOM_PALETTE_TOKENS,
+  CUSTOM_PRESETS,
+  CUSTOM_HUE_SLIDER,
+  CUSTOM_DERIVATION,
+  CUSTOM_LADDER,
+  DEFAULT_CUSTOM_SEED,
+  USER_BUBBLE_STOP_COUNT,
+  USER_BUBBLE_STOPS_CSS_VAR,
+  bubbleStops,
+  customBubbleStops,
+  customPaletteCssVarName,
+  customPaletteCssVars,
+  deriveCustom,
+  fromOklch,
+  hueSliderSeed,
+  isKnownPaletteChoiceId,
+  oklch,
+  parseSeed,
+  resolvePaletteChoice,
+} from './theme/custom-palette';
+export type {
+  CustomPaletteAdjustment,
+  CustomPaletteDerivation,
+  CustomPaletteId,
+  CustomPaletteToken,
+  PaletteChoice,
+} from './theme/custom-palette';
+export {
+  LIGHT_BRAND_CSS_VARS,
+  LIGHT_BRAND_PRESETS,
+  LIGHT_BRAND_TOKENS,
+  LIGHT_DERIVATION,
+  customLightBrandCssVars,
+  customLightBubbleStops,
+  deriveCustomLight,
+  deriveLight,
+  lightBrandColors,
+  lightBrandFor,
+} from './theme/light-brand';
+export type { LightBrand, LightBrandMode, LightBrandSource, LightBrandToken } from './theme/light-brand';

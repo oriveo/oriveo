@@ -7,7 +7,7 @@ import UIKit
 @MainActor
 @Suite("Dark palette chat colors", .serialized)
 struct OriveoDarkPaletteChatColorTests {
-    @Test("after switching to ocean, the user bubble gradient ends = ocean primary/accent and the text color = onPrimary")
+    @Test("after switching to ocean, the user bubble vertical color stops = ocean accent → primary (7 stops) and the text color = onPrimary")
     func userBubbleFollowsOceanPalette() throws {
         let scene = try #require(
             UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first,
@@ -34,46 +34,11 @@ struct OriveoDarkPaletteChatColorTests {
         #expect(cell.traitCollection.userInterfaceStyle == .dark)
         #expect(cell.traitCollection.oriveoDarkPalette == .darkOcean)
         let stops = cell.bubbleGradientColorsForTesting.map { Self.hex(UIColor(cgColor: $0)) }
-        #expect(stops == [ocean.primary, ocean.accent])
+        #expect(stops == OriveoUserBubble.stops(for: .darkOcean, dark: true))
+        #expect(stops.first == ocean.accent)
+        #expect(stops.last == ocean.primary)
         let text = try #require(cell.bubbleTextColorForTesting)
         #expect(Self.hex(text.resolvedColor(with: cell.traitCollection)) == ocean.onPrimary)
-    }
-
-    @Test("after switching to ocean, the UITextView text color of the SwiftUI user bubble resolves to ocean onPrimary under the dark trait")
-    func swiftUIUserBubbleTextFollowsOceanPalette() throws {
-        let scene = try #require(
-            UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first,
-            "the test host has no window scene"
-        )
-        let window = UIWindow(windowScene: scene)
-        window.frame = CGRect(x: 0, y: 0, width: 390, height: 600)
-        window.overrideUserInterfaceStyle = .dark
-        let message = ChatMessage(
-            id: UUID(), role: .user, text: "hello ocean", providerKind: .relay,
-            providerName: "Relay", modelName: "m", state: .delivered
-        )
-        let host = UIHostingController(rootView: UserMessageBubble(message: message, showMetadata: false))
-        window.rootViewController = host
-        window.isHidden = false
-        defer { window.isHidden = true }
-        OriveoDarkPaletteSwitcher.apply(.darkOcean, to: [window])
-        window.layoutIfNeeded()
-        host.view.layoutIfNeeded()
-
-        let textView = try #require(Self.firstTextView(in: host.view), "there is no UITextView in the bubble")
-        textView.updateTraitsIfNeeded()
-        #expect(textView.traitCollection.userInterfaceStyle == .dark)
-        #expect(textView.traitCollection.oriveoDarkPalette == .darkOcean)
-        let color = try #require(textView.textColor)
-        #expect(Self.hex(color.resolvedColor(with: textView.traitCollection)) == OriveoDarkPalettes.darkOcean.onPrimary)
-    }
-
-    private static func firstTextView(in view: UIView) -> UITextView? {
-        if let textView = view as? UITextView { return textView }
-        for sub in view.subviews {
-            if let found = firstTextView(in: sub) { return found }
-        }
-        return nil
     }
 
     @Test("voice mute button inverted foreground: dark = the current palette bg (the fill is the near-white text), light mode is still white")
@@ -82,7 +47,7 @@ struct OriveoDarkPaletteChatColorTests {
         for id in OriveoDarkPaletteID.allCases {
             let trait = UITraitCollection { traits in
                 traits.userInterfaceStyle = .dark
-                traits.oriveoDarkPalette = id
+                traits.oriveoDarkPalette = .preset(id)
             }
             #expect(Self.hex(color.resolvedColor(with: trait)) == id.palette.bg)
         }
@@ -103,7 +68,7 @@ struct OriveoDarkPaletteChatColorTests {
         for id in OriveoDarkPaletteID.allCases {
             let trait = UITraitCollection { traits in
                 traits.userInterfaceStyle = .dark
-                traits.oriveoDarkPalette = id
+                traits.oriveoDarkPalette = .preset(id)
             }
             #expect(Self.hex(color.resolvedColor(with: trait)) == id.palette.onPrimary)
         }

@@ -271,8 +271,8 @@
 }
 
 .checkbox[data-checked='true'] {
-  background: var(--o-primary);
-  border-color: var(--o-primary);
+  background: var(--o-primary-fill);
+  border-color: var(--o-primary-fill);
   color: var(--o-primary-text);
 }
 

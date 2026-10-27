@@ -105,8 +105,8 @@
 
 /* Jump-to-bottom button: bottom right (bottom-centre was rejected because it covers the text) with the
    height pushed to 62% of the rail to avoid mis-taps; bottom must clear the overlay composer (the same
-   140px as .list padding-bottom - an earlier 16px sat straight behind the input box); primary gradient
-   fill with a white arrow, since the old surface-overlay fill had too little contrast to read. */
+   140px as .list padding-bottom - an earlier 16px sat straight behind the input box); brand gradient
+   fill with the text color that sits on the gradient, since the old surface-overlay fill had too little contrast to read; it follows the palette, and on light-filled palettes (Ocean etc.) the arrow turns dark. */
 .jumpToBottomBtn {
   position: absolute;
   right: var(--o-space-lg);
@@ -119,8 +119,8 @@
   height: 40px;
   border: 0.5px solid rgb(255 255 255 / 20%);
   border-radius: var(--o-radius-full);
-  background: linear-gradient(135deg, var(--o-primary), color-mix(in srgb, var(--o-primary) 72%, #7c5cff));
-  color: #fff;
+  background: var(--o-gradient-brand);
+  color: var(--o-user-bubble-fg);
   cursor: pointer;
   transition: box-shadow var(--o-transition-fast), transform var(--o-transition-fast), filter var(--o-transition-fast);
   box-shadow: 0 8px 18px color-mix(in srgb, var(--o-primary) 35%, transparent), 0 2px 5px rgb(0 0 0 / 20%);

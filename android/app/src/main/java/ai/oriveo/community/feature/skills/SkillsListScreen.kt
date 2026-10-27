@@ -87,6 +87,7 @@ import ai.oriveo.community.core.util.localizedDescription
 import ai.oriveo.community.core.util.localizedName
 import ai.oriveo.community.ui.component.OriveoBackButton
 import ai.oriveo.community.ui.theme.OriveoScreenBackground
+import ai.oriveo.community.ui.theme.DefaultLightBrandTuned
 import ai.oriveo.community.ui.theme.OriveoTheme
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.androidx.compose.koinViewModel
@@ -894,8 +895,9 @@ private fun SkillCardView(
 @Composable
 fun SkillChip(skill: Skill, onClick: () -> Unit) {
     val isDark = OriveoTheme.isDark
-    // Fallback color when parsing fails: the current palette primary in dark, a fixed purple in light
-    val fallbackColor = if (isDark) OriveoTheme.colors.primary else Color(0xFF8B5CF6) // dark-palette-guard: keep (d) light branch
+    // Fallback color when parsing fails: the current palette primary in dark, the light brand ink in light (the default palette keeps the original home purple)
+    val lightBrand = OriveoTheme.lightBrand
+    val fallbackColor = if (isDark) OriveoTheme.colors.primary else lightBrand.tuned(DefaultLightBrandTuned.homeViolet, lightBrand.ink)
     val skillColor = remember(skill.color, fallbackColor) {
         runCatching { Color(android.graphics.Color.parseColor(skill.color)) }.getOrNull()
             ?: fallbackColor

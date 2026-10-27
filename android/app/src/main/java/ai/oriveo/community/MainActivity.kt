@@ -27,7 +27,7 @@ import ai.oriveo.community.core.performance.AppJankStats
 import ai.oriveo.community.core.reachability.ServiceReachabilityMonitor
 import ai.oriveo.community.feature.storage.DatabaseBlockedDialog
 import ai.oriveo.community.feature.storage.StorageSettingsLauncher
-import ai.oriveo.community.ui.theme.DarkPaletteId
+import ai.oriveo.community.ui.theme.DarkPaletteChoice
 import ai.oriveo.community.ui.theme.OriveoScreenBackground
 import ai.oriveo.community.ui.theme.OriveoTheme
 import kotlinx.coroutines.launch
@@ -66,9 +66,9 @@ class MainActivity : AppCompatActivity() {
                 appViewModel.markUiReady()
             }
 
-            // Dark palette preference: unset or unknown ids render as the default dark palette
+            // Dark palette preference: unset or unknown ids render as the default dark palette; custom is derived from its seed color
             val darkPalette by appPreferencesRepository.resolvedDarkPalette
-                .collectAsStateWithLifecycle(initialValue = DarkPaletteId.Default)
+                .collectAsStateWithLifecycle(initialValue = DarkPaletteChoice.Default)
 
             OriveoTheme(
                 darkTheme = resolveDarkTheme(theme),

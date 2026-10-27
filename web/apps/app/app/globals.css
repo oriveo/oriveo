@@ -159,7 +159,7 @@ select {
   margin: 0 !important;
   clip-path: none !important;
   padding: var(--o-space-sm) var(--o-space-md);
-  background: var(--o-primary);
+  background: var(--o-primary-fill-text);
   color: var(--o-primary-text);
   border-radius: var(--o-radius-md);
   font-size: var(--o-text-sm);

@@ -104,11 +104,11 @@ struct OriveoDarkPalettesTests {
         for id in OriveoDarkPaletteID.allCases {
             let dark = UITraitCollection { traits in
                 traits.userInterfaceStyle = .dark
-                traits.oriveoDarkPalette = id
+                traits.oriveoDarkPalette = .preset(id)
             }
             let light = UITraitCollection { traits in
                 traits.userInterfaceStyle = .light
-                traits.oriveoDarkPalette = id
+                traits.oriveoDarkPalette = .preset(id)
             }
             #expect(Self.hex(of: color.resolvedColor(with: dark)) == id.palette.bg, "\(id.rawValue) dark")
             #expect(Self.hex(of: color.resolvedColor(with: light)) == 0xF8FAFC, "\(id.rawValue) light")

@@ -297,8 +297,8 @@
 }
 
 .documentRow[data-selected] .selection {
-  border-color: var(--o-primary);
-  background: var(--o-primary);
+  border-color: var(--o-primary-fill);
+  background: var(--o-primary-fill);
 }
 
 .loadMore {

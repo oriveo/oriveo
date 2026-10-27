@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import ai.oriveo.community.R
 import ai.oriveo.community.ui.theme.OriveoBorderWidth
 import ai.oriveo.community.ui.theme.OriveoGradients
+import ai.oriveo.community.ui.theme.LightOriveoColors
 import ai.oriveo.community.ui.theme.OriveoTheme
 
 /**
@@ -76,7 +77,7 @@ internal fun ComposerActionCluster(
     val pressScale by animateFloatAsState(if (pressed) 0.97f else 1f, label = "sendPressScale")
 
     // Uniform flat lavender base (same as the top bar / attachment button): light brand purple@12% / dark white@10%.
-    val flatFill = composerFlatFill(isDark)
+    val flatFill = composerFlatFill(isDark, OriveoTheme.colors.primary)
     val background: Brush = when {
         isGenerating -> SolidColor(colors.danger)
         isLit -> OriveoGradients.primary
@@ -175,7 +176,6 @@ private const val GLYPH_ENTER_MILLIS = 180
 private const val GLYPH_EXIT_MILLIS = 120
 private const val GLYPH_MIN_SCALE = 0.6f
 
-/** Flat lavender base of the idle main button: light brand purple @ 12%, dark white @ 10%. */
-internal fun composerFlatFill(isDark: Boolean): Color =
-    // dark-palette-guard: keep (d) light branch
-    if (isDark) Color.White.copy(alpha = 0.10f) else Color(0xFF8C5FF8).copy(alpha = 0.12f)
+/** Flat lavender base of the idle main button: light = the palette's light-brand ink ([lightPrimary]) @ 12%, dark white @ 10%. */
+internal fun composerFlatFill(isDark: Boolean, lightPrimary: Color = LightOriveoColors.primary): Color =
+    if (isDark) Color.White.copy(alpha = 0.10f) else lightPrimary.copy(alpha = 0.12f)

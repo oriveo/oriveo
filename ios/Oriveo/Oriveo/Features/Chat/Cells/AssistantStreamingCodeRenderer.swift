@@ -75,6 +75,7 @@ final class AssistantStreamingCodeRenderer {
 
         lastRenderedCode = code
         highlightNewlyCompletedLines()
+        textView.codeLineBackgrounds?.invalidate(in: textView)
 
         // Measure against a stable width rather than the live bounds: during cell
         // self-sizing neither view has been laid out yet, so both report zero and the
@@ -118,6 +119,7 @@ final class AssistantStreamingCodeRenderer {
         textViewHeightConstraint.constant = 0
         lastRenderedCode = ""
         resetHighlightState()
+        textView.codeLineBackgrounds?.invalidate(in: textView)
     }
 
     // MARK: - Incremental highlighting
@@ -245,6 +247,7 @@ final class AssistantStreamingCodeRenderer {
             )
             applyLineHighlight(lineRange: lineRange, line: ns.substring(with: lineRange))
             highlightedPrefixUTF16 = ns.length
+            textView.codeLineBackgrounds?.invalidate(in: textView)
         }
         return NSAttributedString(attributedString: textView.textStorage)
     }
@@ -306,7 +309,7 @@ final class AssistantStreamingCodeRenderer {
         capsule.addSubview(languageIcon)
 
         languageLabel.font = .systemFont(ofSize: 12)
-        languageLabel.textColor = textFg
+        languageLabel.textColor = secondaryFg
         languageLabel.translatesAutoresizingMaskIntoConstraints = false
         capsule.addSubview(languageLabel)
 
@@ -322,6 +325,7 @@ final class AssistantStreamingCodeRenderer {
         textView.backgroundColor = .clear
         textView.font = .monospacedSystemFont(ofSize: 14, weight: .regular)
         textView.textColor = textFg
+        textView.codeLineBackgrounds = CodeLineBackgroundDecorator()
         textView.textContainerInset = UIEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
         textView.textContainer.lineFragmentPadding = 0
         textView.translatesAutoresizingMaskIntoConstraints = false

@@ -332,12 +332,15 @@ class BackupModelsTest {
         val prefs = json.decodeFromString<BackupPreferences>("""{"theme":"dark","language":"system"}""")
         assertEquals("dark", prefs.theme)
         assertEquals(null, prefs.darkPalette)
+        assertEquals(null, prefs.darkPaletteCustom)
     }
 
     @Test
     fun `BackupPreferences round trips darkPalette`() {
-        val encoded = json.encodeToString(BackupPreferences(theme = "dark", darkPalette = "dark-ocean"))
-        assertEquals("dark-ocean", json.decodeFromString<BackupPreferences>(encoded).darkPalette)
+        val encoded = json.encodeToString(BackupPreferences(theme = "dark", darkPalette = "custom", darkPaletteCustom = "#C084FC"))
+        val decoded = json.decodeFromString<BackupPreferences>(encoded)
+        assertEquals("custom", decoded.darkPalette)
+        assertEquals("#C084FC", decoded.darkPaletteCustom)
     }
 
     @Test

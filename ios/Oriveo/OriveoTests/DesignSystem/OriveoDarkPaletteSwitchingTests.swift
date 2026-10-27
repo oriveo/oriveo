@@ -96,25 +96,25 @@ struct OriveoDarkPaletteSwitchingTests {
 
         var preference = AppPreference(theme: .dark, language: .system)
         preference.darkPalette = OriveoDarkPaletteID.darkForest.rawValue
-        OriveoDarkPaletteSwitcher.applyStoredPreference(preference.darkPalette, to: [window])
+        OriveoDarkPaletteSwitcher.applyStoredPreference(preference.darkPalette, seed: preference.darkPaletteCustom, to: [window])
         window.layoutIfNeeded()
         rootView.updateTraitsIfNeeded()
         #expect(rootView.traitCollection.oriveoDarkPalette == .darkForest)
 
         preference.darkPalette = "dark-aurora-future"
-        OriveoDarkPaletteSwitcher.applyStoredPreference(preference.darkPalette, to: [window])
+        OriveoDarkPaletteSwitcher.applyStoredPreference(preference.darkPalette, seed: preference.darkPaletteCustom, to: [window])
         window.layoutIfNeeded()
         rootView.updateTraitsIfNeeded()
         #expect(rootView.traitCollection.oriveoDarkPalette == .defaultID)
 
         preference.darkPalette = OriveoDarkPaletteID.darkSunset.rawValue
-        OriveoDarkPaletteSwitcher.applyStoredPreference(preference.darkPalette, to: [window])
+        OriveoDarkPaletteSwitcher.applyStoredPreference(preference.darkPalette, seed: preference.darkPaletteCustom, to: [window])
         window.layoutIfNeeded()
         rootView.updateTraitsIfNeeded()
         #expect(rootView.traitCollection.oriveoDarkPalette == .darkSunset)
 
         preference.darkPalette = nil
-        OriveoDarkPaletteSwitcher.applyStoredPreference(preference.darkPalette, to: [window])
+        OriveoDarkPaletteSwitcher.applyStoredPreference(preference.darkPalette, seed: preference.darkPaletteCustom, to: [window])
         window.layoutIfNeeded()
         rootView.updateTraitsIfNeeded()
         #expect(rootView.traitCollection.oriveoDarkPalette == .defaultID)
@@ -125,7 +125,7 @@ struct OriveoDarkPaletteSwitchingTests {
         for id in OriveoDarkPaletteID.allCases {
             var environment = EnvironmentValues()
             environment.colorScheme = .dark
-            environment.oriveoDarkPalette = id
+            environment.oriveoDarkPalette = .preset(id)
             let resolved = UIColor(cgColor: OriveoTheme.Palette.backgroundBase.resolve(in: environment).cgColor)
             #expect(Self.hex(resolved) == id.palette.bg, "\(id.rawValue)")
         }

@@ -11,6 +11,8 @@ object AppPreferenceKeys {
     const val THEME = "theme"
     /** Dark palette: stores the raw id string (e.g. `dark-ocean`, may be unknown); no row means unset and renders as `dark`. */
     const val DARK_PALETTE = "darkPalette"
+    /** Custom palette seed color: stores the raw string (uppercase `#RRGGBB` when valid, may be invalid); no row means unset; kept when switching back to a preset. */
+    const val DARK_PALETTE_CUSTOM = "darkPaletteCustom"
     const val LANGUAGE = "language"
     const val LAST_USED_PROVIDER_ID = "last_used_provider_id"
     const val LAST_USED_MODEL_ID = "last_used_model_id"
@@ -67,6 +69,7 @@ object AppPreferenceKeys {
         ONBOARDING_COMPLETED,
         THEME,
         DARK_PALETTE,
+        DARK_PALETTE_CUSTOM,
         LANGUAGE,
         PROVIDER_DISCLOSURE_ACCEPTED_LIST,
         NOTE_CAPTURE_HINT_SEEN,

@@ -941,9 +941,11 @@ class BackupServiceTest {
         coEvery { conversationDao.getAll(LOCAL_PARTITION_ID) } returns emptyList()
         coEvery { preferenceDao.get(AppPreferenceKeys.THEME) } returns ThemeOption.Dark.name
         coEvery { preferenceDao.get(AppPreferenceKeys.DARK_PALETTE) } returns "dark-ocean"
+        coEvery { preferenceDao.get(AppPreferenceKeys.DARK_PALETTE_CUSTOM) } returns "#C084FC"
 
         val exported = decodeBackupZip(backupService.exportBackup())
         assertEquals("export carries the raw id", "dark-ocean", exported.data.preferences?.darkPalette)
+        assertEquals("export carries the seed color", "#C084FC", exported.data.preferences?.darkPaletteCustom)
 
         val backupFile = BackupFile(
             version = BackupService.CURRENT_VERSION,
@@ -957,6 +959,7 @@ class BackupServiceTest {
         backupService.executeImport(mode = ImportMode.ReplaceAll, bytes = json.encodeToString(backupFile).toByteArray())
 
         coVerify { preferenceDao.set(PreferenceEntity(AppPreferenceKeys.DARK_PALETTE, "dark-ocean")) }
+        coVerify { preferenceDao.set(PreferenceEntity(AppPreferenceKeys.DARK_PALETTE_CUSTOM, "#C084FC")) }
     }
 
     @Test
@@ -971,8 +974,12 @@ class BackupServiceTest {
         backupService.executeImport(mode = ImportMode.Merge, bytes = bytes)
 
         coVerify { preferenceDao.delete(AppPreferenceKeys.DARK_PALETTE) }
+        coVerify { preferenceDao.delete(AppPreferenceKeys.DARK_PALETTE_CUSTOM) }
         coVerify(exactly = 0) {
             preferenceDao.set(match { it.key == AppPreferenceKeys.DARK_PALETTE })
+        }
+        coVerify(exactly = 0) {
+            preferenceDao.set(match { it.key == AppPreferenceKeys.DARK_PALETTE_CUSTOM })
         }
     }
 

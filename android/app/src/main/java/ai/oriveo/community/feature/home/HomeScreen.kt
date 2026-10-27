@@ -289,8 +289,15 @@ fun HomeScreen(
 
     val rawIsDark = ai.oriveo.community.ui.theme.LocalIsDarkTheme.current
     // Dark reuses the palette already chosen by the outer OriveoTheme (V2 dark shares V1's board); do not hard-code the default dark, or the home page would not follow a palette switch
-    val v2Colors = if (rawIsDark) ai.oriveo.community.ui.theme.LocalOriveoColors.current
-        else ai.oriveo.community.ui.theme.LightV2OriveoColors
+    // Light only overrides the V2 border on the current palette's light colors (the default palette is LightV2OriveoColors)
+    val outerColors = ai.oriveo.community.ui.theme.LocalOriveoColors.current
+    val v2Colors = if (rawIsDark) outerColors
+        else remember(outerColors) {
+            outerColors.copy(
+                border = ai.oriveo.community.ui.theme.LightV2OriveoColors.border,
+                borderStrong = ai.oriveo.community.ui.theme.LightV2OriveoColors.borderStrong,
+            )
+        }
     androidx.compose.runtime.CompositionLocalProvider(
         ai.oriveo.community.ui.theme.LocalOriveoColors provides v2Colors,
     ) {

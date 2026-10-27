@@ -1387,7 +1387,7 @@
 }
 
 .primaryAction {
-  background: var(--o-primary);
+  background: var(--o-primary-fill-text);
   color: var(--o-primary-text);
   width: 100%;
   min-height: 44px;

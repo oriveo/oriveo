@@ -65,7 +65,7 @@ describe('ProviderShowcaseCard', () => {
     expect(card.getAttribute('data-selected')).toBe('true');
   });
 
-  it('unregistered brands use palette tokens instead of literal colors in dark mode and keep the original values in light mode', () => {
+  it('unregistered brands use palette tokens instead of literal colors in both appearances (light follows the palette), and the light background stays neutral grey', () => {
     const { rerender } = render(
       <ProviderShowcaseCard kind="unregisteredKind" displayName="Custom" selected={false} isDark onSelect={() => {}} />,
     );
@@ -77,7 +77,8 @@ describe('ProviderShowcaseCard', () => {
       <ProviderShowcaseCard kind="unregisteredKind" displayName="Custom" selected={false} isDark={false} onSelect={() => {}} />,
     );
     expect(card.style.getPropertyValue('--card-bg').toUpperCase()).toBe('#F4F4F5');
-    expect(card.style.getPropertyValue('--card-accent').toUpperCase()).toBe('#8B5CF6');
+    // The default palette's light section keeps --o-primary at #8B5CF6; other palettes use their own ink
+    expect(card.style.getPropertyValue('--card-accent')).toBe('var(--o-primary)');
   });
 
   it('checkmark color on the accent fill: unregistered brands use on-primary in dark mode, while light mode and registered brands keep white', () => {

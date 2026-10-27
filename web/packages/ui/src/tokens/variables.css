@@ -68,7 +68,7 @@
   --o-primary: #8B5CF6;
   --o-primary-hover: #7C3AED;
   --o-primary-active: #6D28D9;
-  --o-primary-subtle: rgba(139, 92, 246, 0.08);
+  --o-primary-subtle: color-mix(in srgb, var(--o-primary) 8%, transparent);
   --o-primary-text: #ffffff;
   /* Strictly distinct from the line above: --o-primary-text is the text colour drawn on
    * top of a primary fill, paired with background: var(--o-primary), while
@@ -86,6 +86,13 @@
    * --o-primary itself is untouched: fills, icons and strokes that carry no text keep the
    * saturated original. */
   --o-primary-text-safe: #6D28D9;
+  /* --o-primary-fill = the brand fill for icon-only controls (send button, + round button, checkbox); the icon on top is --o-primary-text.
+   * In default light and in dark it is just --o-primary; in bright-fill palettes (mode=bright) --o-primary is the ink color and
+   * --o-primary-text is dark, so this palette's fill must be the background, otherwise dark lands on dark.
+   * Fills that carry text use --o-primary-fill-text. */
+  --o-primary-fill: var(--o-primary);
+  /* Primary fill that carries text (paired with --o-primary-text): default and dark = primary, value for value; non-default light palettes = fillText, see the shared palette section below */
+  --o-primary-fill-text: var(--o-primary);
 
   /* ── Bottom navigation per-tab selected colour: home uses primary purple, providers teal, settings orange ── */
   --o-tab-teal: #0d9488;
@@ -158,35 +165,46 @@
   --o-code-inline-bg: var(--o-code-bg);
   --o-code-inline-text: var(--o-code-text);
 
-  /* ── Syntax Highlighting ── */
+  /* ── Syntax Highlighting "Oriveo Code" light (source of truth: shared/theme-contracts/code-highlight.v1.json light; body text color is --o-code-text) ── */
   --o-code-keyword: #7C3AED;
-  --o-code-string: #16A34A;
-  --o-code-number: #EA580C;
-  --o-code-function: #2563EB;
-  --o-code-builtin: #D97706;
-  --o-code-attr: #BE185D;
-  --o-code-comment: #A1A1AA;
+  --o-code-string: #13773A;
+  --o-code-number: #B5400C;
+  --o-code-function: #1D4ED8;
+  --o-code-type: #8F5B00;
+  --o-code-property: #0E7490;
+  --o-code-comment: #6B6B76;
+  --o-code-punctuation: #52525B;
+  --o-code-diff-add: #13773A;
+  --o-code-diff-delete: #B91C1C;
+  --o-code-diff-hunk: #0E7490;
+  /* diff full-line background: #10B981 / #EF4444 @ 10% */
+  --o-code-diff-add-line: rgba(16, 185, 129, 0.1);
+  --o-code-diff-delete-line: rgba(239, 68, 68, 0.1);
 
   /* ── Tag / Badge ── */
   --o-tag-bg: rgba(0, 0, 0, 0.04);
   --o-tag-text: #52525B;
 
   /* ── Gradient ── */
-  --o-gradient-brand: linear-gradient(135deg, #8B5CF6, #7C3AED, #6D28D9);
-  /* User bubble: purple background with white text in light mode (carried over unchanged from MessageBubble); the dark section uses the current palette's gradient + onPrimary */
-  --o-user-bubble-bg: linear-gradient(135deg, color-mix(in srgb, var(--o-primary) 96%, white) 0%, var(--o-primary-active) 100%);
+  --o-gradient-brand: linear-gradient(135deg, var(--o-primary), var(--o-primary-hover), var(--o-primary-active));
+  /* User bubble: 7 stops top to bottom form a 180deg vertical gradient, and the bubble uses background-attachment: fixed
+     to anchor it to the viewport (each bubble shows only the slice it sits on). The stops come from
+     dark-palettes.v1.json#userBubbleStops and each palette section overrides only --o-user-bubble-stops;
+     shadow = bottom stop @ 16% blur 14 y 4 + a 1px white inner highlight on top.
+     Default light = userBubbleStops.dark.light (gradEnd to gradStart); the bottom stop is light.palettes.dark.gradStart. */
+  --o-user-bubble-stops: #6B3BC7, #6F3DCF, #733FD6, #7741DE, #7B43E5, #7F45ED, #8347F5;
+  --o-user-bubble-bg: linear-gradient(180deg, var(--o-user-bubble-stops));
   --o-user-bubble-fg: #fff;
   --o-user-bubble-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.05),
-    0 6px 16px color-mix(in srgb, var(--o-primary) 22%, transparent),
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.18);
+    0 4px 14px color-mix(in srgb, #8347F5 16%, transparent),
+    inset 0 1px 0 0 color-mix(in srgb, white 28%, transparent);
   /* Chat outline rail tooltip: a fixed dark chip in light mode (carried over from ChatOutlineRail); the dark section follows the palette */
   --o-chat-outline-tooltip-bg: #1f212b;
   --o-gradient-surface: linear-gradient(180deg, var(--o-bg) 0%, var(--o-bg-subtle) 100%);
 
   /* ── Glow ── */
-  --o-glow-primary: 0 0 0 3px rgba(139, 92, 246, 0.12);
-  --o-glow-primary-strong: 0 0 0 4px rgba(139, 92, 246, 0.2), 0 0 24px rgba(139, 92, 246, 0.08);
+  --o-glow-primary: 0 0 0 3px color-mix(in srgb, var(--o-primary) 12%, transparent);
+  --o-glow-primary-strong: 0 0 0 4px color-mix(in srgb, var(--o-primary) 20%, transparent), 0 0 24px color-mix(in srgb, var(--o-primary) 8%, transparent);
   --o-bubble-glow: 0 6px 10px rgba(140, 95, 248, 0.10);
 
   /* ── Hairline ── */
@@ -226,16 +244,19 @@
       color-mix(in srgb, var(--o-bg) 0%, transparent) 100%
     );
   --o-chat-topbar-border: color-mix(in srgb, var(--o-border) 44%, transparent);
+  /* The two secondary colors of the chat empty-state glow (hand-tuned values for the default palette; other palettes take their own accent / ink in the shared light-palette section below) */
+  --o-chat-aurora-tint-a: #6366f1;
+  --o-chat-aurora-tint-b: #8b7cf0;
   --o-chat-aurora-glow-bg:
     radial-gradient(ellipse 132% 96% at 50% 108%, color-mix(in srgb, var(--o-primary) 16%, transparent) 0%, transparent 74%),
-    radial-gradient(ellipse 92% 82% at 8% 92%, color-mix(in srgb, #6366f1 13%, transparent) 0%, transparent 70%),
-    radial-gradient(ellipse 88% 78% at 92% 96%, color-mix(in srgb, #8b7cf0 11%, transparent) 0%, transparent 68%),
+    radial-gradient(ellipse 92% 82% at 8% 92%, color-mix(in srgb, var(--o-chat-aurora-tint-a) 13%, transparent) 0%, transparent 70%),
+    radial-gradient(ellipse 88% 78% at 92% 96%, color-mix(in srgb, var(--o-chat-aurora-tint-b) 11%, transparent) 0%, transparent 68%),
     radial-gradient(ellipse 122% 74% at 50% -4%, color-mix(in srgb, var(--o-primary) 10%, transparent) 0%, transparent 70%);
   /* Second offset colour blob (cool purple-blue, same family as the sidebar), carried by .glow::after and drifting the other way to build up motion */
   --o-chat-aurora-glow-bg-2:
-    radial-gradient(ellipse 84% 72% at 26% 72%, color-mix(in srgb, #6366f1 11%, transparent) 0%, transparent 66%),
+    radial-gradient(ellipse 84% 72% at 26% 72%, color-mix(in srgb, var(--o-chat-aurora-tint-a) 11%, transparent) 0%, transparent 66%),
     radial-gradient(ellipse 80% 68% at 76% 60%, color-mix(in srgb, var(--o-primary) 11%, transparent) 0%, transparent 64%),
-    radial-gradient(ellipse 88% 72% at 50% 42%, color-mix(in srgb, #8b7cf0 10%, transparent) 0%, transparent 66%);
+    radial-gradient(ellipse 88% 72% at 50% 42%, color-mix(in srgb, var(--o-chat-aurora-tint-b) 10%, transparent) 0%, transparent 66%);
   --o-chat-aurora-glow-blur: blur(20px);
   --o-chat-aurora-halftone-dot: color-mix(in srgb, var(--o-primary) 34%, transparent);
   --o-chat-aurora-halftone-size: 14px 14px;
@@ -579,6 +600,8 @@
    * aurora is the full-page library glow at ~0.62 strength: the dialog covers less than
    * half the screen and full strength would leave the whole of it bathed in light.
    */
+  /* Second blob of the library page / confirmation dialog glow (hand-tuned for the default palette; other palettes take their own accent) */
+  --o-brand-glow-secondary: #b07bf0;
   --o-lc-aurora:
     radial-gradient(
       120% 100% at 0% 0%,
@@ -587,7 +610,7 @@
     ),
     radial-gradient(
       110% 90% at 100% 0%,
-      color-mix(in srgb, #b07bf0 7%, transparent),
+      color-mix(in srgb, var(--o-brand-glow-secondary) 7%, transparent),
       transparent 58%
     );
   --o-lc-inset-bg: color-mix(in srgb, #2e1b69 3.5%, transparent);
@@ -674,6 +697,9 @@
   /* The dark accent fill already passes - #111113 on #A78BFA is 6.93:1 - so it points back
    * at the original: darkening it here would drop to 4.43:1. */
   --o-primary-text-safe: var(--o-primary);
+  --o-primary-fill: var(--o-primary);
+  /* Primary fill that carries text (paired with --o-primary-text): default and dark = primary, value for value; non-default light palettes = fillText, see the shared palette section below */
+  --o-primary-fill-text: var(--o-primary);
 
   /* ── Bottom navigation per-tab selected colour, desaturated and lightened for dark ── */
   --o-tab-teal: var(--o-primary);
@@ -733,14 +759,22 @@
   --o-code-inline-bg: rgba(255, 255, 255, 0.07);
   --o-code-inline-text: var(--o-accent);
 
-  /* ── Syntax Highlighting (Catppuccin Mocha palette) ── */
+  /* ── Syntax Highlighting "Oriveo Code" dark (source of truth: code-highlight.v1.json dark):
+   * written once in this section and not overridden by the palette sections, because code colors do not follow the palette; a palette only swaps code-bg / code-header-bg ── */
   --o-code-keyword: #CBA6F7;
   --o-code-string: #A6E3A1;
   --o-code-number: #FAB387;
   --o-code-function: #89B4FA;
-  --o-code-builtin: #F9E2AF;
-  --o-code-attr: #F2CDCD;
-  --o-code-comment: #71717A;
+  --o-code-type: #F9E2AF;
+  --o-code-property: #89DCEB;
+  --o-code-comment: #9399B2;
+  --o-code-punctuation: #A6ADC8;
+  --o-code-diff-add: #A6E3A1;
+  --o-code-diff-delete: #F38BA8;
+  --o-code-diff-hunk: #89DCEB;
+  /* diff full-line background: #6EE7A1 / #F8978F @ 12% */
+  --o-code-diff-add-line: rgba(110, 231, 161, 0.12);
+  --o-code-diff-delete-line: rgba(248, 151, 143, 0.12);
 
   /* ── Tag / Badge ── */
   --o-tag-bg: rgba(255, 255, 255, 0.06);
@@ -748,12 +782,13 @@
 
   /* ── Gradient ── */
   --o-gradient-brand: linear-gradient(135deg, var(--o-primary), var(--o-accent));
-  --o-user-bubble-bg: var(--o-gradient-brand);
+  /* User bubble: the 7 stops from accent to primary in dark (userBubbleStops.dark.dark); palette sections override --o-user-bubble-stops */
+  --o-user-bubble-stops: #C4B5FD, #BFAEFD, #BAA7FC, #B5A0FC, #B099FB, #AC92FB, #A78BFA;
+  --o-user-bubble-bg: linear-gradient(180deg, var(--o-user-bubble-stops));
   --o-user-bubble-fg: var(--o-on-primary);
   --o-user-bubble-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.05),
-    0 6px 16px var(--o-primary-glow),
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.18);
+    0 4px 14px color-mix(in srgb, var(--o-primary) 16%, transparent),
+    inset 0 1px 0 0 color-mix(in srgb, white 22%, transparent);
   --o-chat-outline-tooltip-bg: var(--o-surface-raised);
   --o-gradient-surface: linear-gradient(180deg, var(--o-bg) 0%, var(--o-bg-subtle) 100%);
 
@@ -1078,7 +1113,7 @@
 
 /* ── Dark palettes ──
  * Source of truth: shared/theme-contracts/dark-palettes.v1.json. The default dark is written in the [data-theme='dark'] section above;
- * the other 6 palettes override only the 15 color fields and --o-glow-k; derived tokens are computed in the default section with var() / color-mix and follow automatically.
+ * the other 6 palettes override only the 15 color fields, --o-glow-k and the bubble stops --o-user-bubble-stops (#userBubbleStops.<id>.dark); derived tokens are computed in the default section with var() / color-mix and follow automatically.
  * Do not nest braces inside a section (the token verifier reads up to the first closing brace). */
 [data-theme='dark'][data-palette='dark-purple'] {
   --o-bg: #130F1D;
@@ -1097,6 +1132,7 @@
   --o-code-bg: #0E0B17;
   --o-code-header-bg: #1A1528;
   --o-glow-k: 1;
+  --o-user-bubble-stops: #F0ABFC, #E5A5FC, #DA9FFC, #CE9AFC, #C195FC, #B490FB, #A78BFA;
 }
 
 [data-theme='dark'][data-palette='dark-graphite'] {
@@ -1116,6 +1152,7 @@
   --o-code-bg: #131519;
   --o-code-header-bg: #212328;
   --o-glow-k: 1;
+  --o-user-bubble-stops: #7DE3FF, #77DAFE, #6FD0FF, #6EC6FD, #6BBCFD, #69B1FE, #6AA6FF;
 }
 
 [data-theme='dark'][data-palette='dark-black'] {
@@ -1135,6 +1172,7 @@
   --o-code-bg: #0A0A0B;
   --o-code-header-bg: #141416;
   --o-glow-k: 1;
+  --o-user-bubble-stops: #7DD3FC, #94C5FD, #A7B7FD, #BDA4FE, #D98EF1, #F07BCD, #FF6B9D;
 }
 
 [data-theme='dark'][data-palette='dark-ocean'] {
@@ -1154,6 +1192,7 @@
   --o-code-bg: #041013;
   --o-code-header-bg: #0A1B20;
   --o-glow-k: 1;
+  --o-user-bubble-stops: #67B7FF, #51BEFA, #3AC4F2, #1FC9E8, #03CEDC, #0FD1CE, #2DD4BF;
 }
 
 [data-theme='dark'][data-palette='dark-forest'] {
@@ -1173,6 +1212,7 @@
   --o-code-bg: #08100C;
   --o-code-header-bg: #101B15;
   --o-glow-k: 1;
+  --o-user-bubble-stops: #D9F99D, #C4F398, #AEED96, #96E794, #7CE195, #5EDA96, #34D399;
 }
 
 [data-theme='dark'][data-palette='dark-sunset'] {
@@ -1192,4 +1232,124 @@
   --o-code-bg: #100B09;
   --o-code-header-bg: #1C1511;
   --o-glow-k: 1;
+  --o-user-bubble-stops: #FF7E79, #FF8971, #FD956D, #FE9E66, #FFA75D, #FEB057, #FDBA4D;
+}
+
+/* ── Light palettes ──
+ * Source of truth: shared/theme-contracts/dark-palettes.v1.json#light.palettes. The light of the default palette (dark) is the hand-tuned values in the :root section above, so it has no section here;
+ * the other 6 palettes override only the brand-color family (the same keys as LIGHT_BRAND_CSS_VARS in packages/shared/src/theme/light-brand.ts)
+ * and the bubble stops --o-user-bubble-stops (#userBubbleStops.<id>.light);
+ * the custom palette is written at runtime by <style id="oriveo-custom-palette"> as an equivalent [data-theme='light'][data-palette='custom'] section.
+ * Nested braces are not allowed inside a section. */
+[data-theme='light'][data-palette]:not([data-palette='dark']) {
+  --o-primary-fill-text: var(--o-primary-text-safe);
+  /* Derivations shared by the non-default palettes: the default section has hand-tuned literals for these, here they follow this palette's brand color */
+  --o-gradient-brand: linear-gradient(135deg, var(--o-brand-grad-start), var(--o-brand-grad-end));
+  --o-user-bubble-fg: var(--o-primary-text);
+  --o-user-bubble-shadow:
+    0 4px 14px color-mix(in srgb, var(--o-brand-grad-start) 16%, transparent),
+    inset 0 1px 0 0 color-mix(in srgb, white 28%, transparent);
+  --o-bubble-glow: 0 6px 10px color-mix(in srgb, var(--o-primary) 10%, transparent);
+  --o-screen-bg: linear-gradient(180deg, var(--o-brand-bg-top), var(--o-brand-bg-bottom));
+  --o-tab-teal: var(--o-primary);
+  --o-tab-orange: var(--o-primary);
+  --o-chat-aurora-tint-a: var(--o-brand-accent);
+  --o-chat-aurora-tint-b: var(--o-primary);
+  --o-brand-glow-secondary: var(--o-brand-accent);
+}
+
+[data-theme='light'][data-palette='dark-purple'] {
+  --o-primary: #8F5DF8;
+  --o-primary-hover: #7E3BED;
+  --o-primary-active: #6F27D8;
+  --o-primary-text: #FFFFFF;
+  --o-primary-text-on-surface: #6F27D8;
+  --o-primary-text-safe: #6F27D8;
+  --o-primary-fill: #8F5DF8;
+  --o-brand-accent: #D847F1;
+  --o-brand-grad-start: #8547F4;
+  --o-brand-grad-end: #6C3BC7;
+  --o-brand-bg-top: #F6F5FB;
+  --o-brand-bg-bottom: #F0EFF8;
+  --o-user-bubble-stops: #6C3BC7, #703DCE, #743FD6, #7841DD, #7D43E5, #8145EC, #8547F4;
+}
+
+[data-theme='light'][data-palette='dark-graphite'] {
+  --o-primary: #0076FD;
+  --o-primary-hover: #0169E2;
+  --o-primary-active: #025AC4;
+  --o-primary-text: #FFFFFF;
+  --o-primary-text-on-surface: #025AC4;
+  --o-primary-text-safe: #025AC4;
+  --o-primary-fill: #0076FD;
+  --o-brand-accent: #149BB8;
+  --o-brand-grad-start: #0370EF;
+  --o-brand-grad-end: #055BC4;
+  --o-brand-bg-top: #F3F6FC;
+  --o-brand-bg-bottom: #EBF1F9;
+  --o-user-bubble-stops: #055BC4, #055ECB, #0562D2, #0465D9, #0469E0, #036CE8, #0370EF;
+}
+
+[data-theme='light'][data-palette='dark-black'] {
+  --o-primary: #E42E7A;
+  --o-primary-hover: #CB0667;
+  --o-primary-active: #B00358;
+  --o-primary-text: #FFFFFF;
+  --o-primary-text-on-surface: #B00358;
+  --o-primary-text-safe: #B00358;
+  --o-primary-fill: #E42E7A;
+  --o-brand-accent: #0298C9;
+  --o-brand-grad-start: #D8016D;
+  --o-brand-grad-end: #B10759;
+  --o-brand-bg-top: #FBF4F6;
+  --o-brand-bg-bottom: #F8EDEF;
+  --o-user-bubble-stops: #B10759, #B7065C, #BE0560, #C40563, #CB0366, #D1026A, #D8016D;
+}
+
+[data-theme='light'][data-palette='dark-ocean'] {
+  --o-primary: #0E8B7C;
+  --o-primary-hover: #18B7A4;
+  --o-primary-active: #0C7064;
+  --o-primary-text: #021614;
+  --o-primary-text-on-surface: #0C7064;
+  --o-primary-text-safe: #0EC9B4;
+  --o-primary-fill: #14C9B4;
+  --o-brand-accent: #0693F0;
+  --o-brand-grad-start: #0FDBC4;
+  --o-brand-grad-end: #06C5B1;
+  --o-brand-bg-top: #F1F8F6;
+  --o-brand-bg-bottom: #E7F3F1;
+  --o-user-bubble-stops: #06C5B1, #07C9B4, #09CCB7, #0AD0BA, #0CD4BE, #0ED7C1, #0FDBC4;
+}
+
+[data-theme='light'][data-palette='dark-forest'] {
+  --o-primary: #0F8D63;
+  --o-primary-hover: #06BB83;
+  --o-primary-active: #03734F;
+  --o-primary-text: #03160C;
+  --o-primary-text-on-surface: #03734F;
+  --o-primary-text-safe: #05CD90;
+  --o-primary-fill: #0DCD91;
+  --o-brand-accent: #779A0E;
+  --o-brand-grad-start: #13DF9E;
+  --o-brand-grad-end: #16C98E;
+  --o-brand-bg-top: #F2F8F4;
+  --o-brand-bg-bottom: #E9F3EE;
+  --o-user-bubble-stops: #16C98E, #16CD91, #15D093, #15D496, #14D899, #14DB9B, #13DF9E;
+}
+
+[data-theme='light'][data-palette='dark-sunset'] {
+  --o-primary: #A77201;
+  --o-primary-hover: #D19005;
+  --o-primary-active: #815705;
+  --o-primary-text: #241005;
+  --o-primary-text-on-surface: #815705;
+  --o-primary-text-safe: #E59E02;
+  --o-primary-fill: #E59E08;
+  --o-brand-accent: #FF474D;
+  --o-brand-grad-start: #F9AD0D;
+  --o-brand-grad-end: #E09B12;
+  --o-brand-bg-top: #F9F5F0;
+  --o-brand-bg-bottom: #F5EFE7;
+  --o-user-bubble-stops: #E09B12, #E49E11, #E8A111, #ECA410, #F1A70F, #F5AA0E, #F9AD0D;
 }

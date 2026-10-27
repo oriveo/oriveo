@@ -79,7 +79,7 @@
   padding: var(--o-space-sm) var(--o-space-md);
   border: none;
   border-radius: var(--o-radius-md);
-  background: var(--o-primary);
+  background: var(--o-primary-fill-text);
   color: var(--o-primary-text);
   font-size: var(--o-text-sm);
   font-weight: 600;

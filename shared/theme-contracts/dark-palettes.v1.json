@@ -1,5 +1,5 @@
 {
-  "$comment": "Dark palette presets shared by every client. Each client asserts its palette instances equal `palettes`, derives tokens with `derived`, and resolves the stored preference with `resolveCases`. Light mode is out of scope and unchanged.",
+  "$comment": "Dark palette presets shared by every client. Each client asserts its palette instances equal `palettes`, derives tokens with `derived`, and resolves the stored preference with `resolveCases`. Light mode is out of scope and unchanged. `custom` is the 8th dark palette, derived from a user seed color by the derivation steps in `custom.derivationCases`; every client must reproduce `custom.derivationCases` (each channel may differ by at most 1 because of libm rounding). It is not in `order` so ends that do not know it yet keep treating \"custom\" as an unknown id.",
   "schema": "oriveo.theme.dark-palettes/v1",
   "defaultId": "dark",
   "order": [
@@ -152,7 +152,7 @@
     "hairline": "rgba(255,255,255,0.06)",
     "overlay": "rgba(0,0,0,0.72)",
     "codeText": "#E4E4E7",
-    "syntax": "catppuccin-mocha",
+    "syntax": "code-highlight.v1.json",
     "status": {
       "success": "#6EE7A1",
       "warning": "#FCD34D",
@@ -212,9 +212,34 @@
       "scaleBy": "glowK"
     },
     "userBubble": {
+      "$comment": "User message bubble: the gradient is anchored to the visible chat viewport and runs vertically from top to bottom, so each bubble shows only its own slice and the colors flow as it scrolls. Stops are precomputed with OKLCH interpolation (userBubbleStops / custom.derivationCases[].bubble); every client copies them and interpolates between adjacent stops in sRGB. Standalone elements outside the chat list (the preview card mini bubble, palette cards) anchor to their own container. The top inner highlight is a white line of `width` pixels at `alpha`; the drop shadow uses the bottom stop color at `alpha`, with `blur` and a downward offset `y`. Text color is onPrimary.",
       "fill": "gradientBrand",
       "text": "onPrimary",
-      "shadow": "primaryGlow"
+      "anchor": "viewport",
+      "axis": "vertical",
+      "stops": 7,
+      "dark": {
+        "top": "accent",
+        "bottom": "primary"
+      },
+      "light": {
+        "top": "gradEnd",
+        "bottom": "gradStart"
+      },
+      "highlight": {
+        "color": "#FFFFFF",
+        "width": 1,
+        "alpha": {
+          "dark": 0.22,
+          "light": 0.28
+        }
+      },
+      "shadow": {
+        "from": "bottom",
+        "alpha": 0.16,
+        "blur": 14,
+        "y": 4
+      }
     }
   },
   "contrastRules": {
@@ -287,72 +312,1525 @@
       "pushToCloud": false
     }
   ],
-  "themePageCases": [
+  "custom": {
+    "id": "custom",
+    "name": "Custom",
+    "storageField": "darkPaletteCustom",
+    "$storageField": "preference field holding the user's seed color as #RRGGBB (uppercase); presence = the user picked a color",
+    "defaultSeed": "#60A5FA",
+    "presets": [
+      "#FF8A65",
+      "#FB923C",
+      "#FBBF24",
+      "#A3E635",
+      "#4ADE80",
+      "#2DD4BF",
+      "#22D3EE",
+      "#60A5FA",
+      "#818CF8",
+      "#C084FC",
+      "#F472B6",
+      "#FB7185"
+    ],
+    "hueSlider": {
+      "lightness": 0.78,
+      "chroma": 0.14,
+      "min": 0,
+      "max": 359,
+      "$comment": "slider value h (integer degrees) → seed = fromOklch(lightness, chroma, h)"
+    },
+    "derivation": {
+      "$steps": [
+        "1. [L0, C0, H] = OKLCH(seed); C = max(C0, minChroma).",
+        "2. Surface and text family: for each key in familyChroma, L = OKLCH(palettes[ladderFrom][key]).L; color = fromOklch(L, familyChroma[key], H).",
+        "3. primary: base = clamp(L0, primaryLightness); if base == L0 primary = seed else fromOklch(base, C, H). While min contrast on contrastRules.surfaces < minSecondaryOnSurfaces and base + lightenStep*i <= maxLightness: pL = base + lightenStep*i, primary = fromOklch(pL, C, H).",
+        "4. accent: aBase = min(accent.maxLightness, pL + accent.lightnessDelta), chroma C*accent.chromaScale, hue (H + accent.hueShift) mod 360; lighten by lightenStep the same way until it passes on the surfaces.",
+        "5. primaryHover = fromOklch(min(hover.maxLightness, pL + hover.lightnessDelta), C*hover.chromaScale, H); primaryActive = fromOklch(pL - active.lightnessDelta, C, H).",
+        "6. onPrimary = fromOklch(onPrimary.startLightness - lightenStep*i, min(C, onPrimary.maxChroma), H) for i = 0, 1, ... until it reaches minOnPrimary on primary, accent, primaryHover and primaryActive, or the lightness would drop below onPrimary.minLightness.",
+        "7. If onPrimary on primaryActive is still below minOnPrimary, raise primaryActive by lightenStep (not above pL) until it passes.",
+        "8. adjusted = 'lightened' / 'darkened' when |pL - L0| > adjustedNoticeDelta, else null (drives the one-line notice under the picker).",
+        "fromOklch(L, C, H): OKLab → linear sRGB; if any channel is outside [-1e-4, 1+1e-4], retry with C - gamutStep*i; clamp, gamma-encode, round to #RRGGBB.",
+        "Derived tokens (primarySubtle, glow, gradient, aurora, …) then follow `derived` like every preset; glowK = derivation.glowK; status colors are shared."
+      ],
+      "ladderFrom": "dark",
+      "familyChroma": {
+        "bg": 0.014,
+        "bgSubtle": 0.015,
+        "bgInset": 0.016,
+        "surface": 0.017,
+        "surfaceRaised": 0.02,
+        "text": 0.008,
+        "textSecondary": 0.02,
+        "textTertiary": 0.02,
+        "codeBg": 0.012,
+        "codeHeaderBg": 0.016
+      },
+      "minChroma": 0.04,
+      "primaryLightness": [
+        0.72,
+        0.88
+      ],
+      "maxLightness": 0.96,
+      "lightenStep": 0.01,
+      "accent": {
+        "hueShift": 35,
+        "lightnessDelta": 0.05,
+        "chromaScale": 0.9,
+        "maxLightness": 0.9
+      },
+      "hover": {
+        "lightnessDelta": 0.07,
+        "chromaScale": 0.8,
+        "maxLightness": 0.94
+      },
+      "active": {
+        "lightnessDelta": 0.08
+      },
+      "onPrimary": {
+        "startLightness": 0.22,
+        "minLightness": 0.08,
+        "maxChroma": 0.06
+      },
+      "gamutStep": 0.004,
+      "adjustedNoticeDelta": 0.02,
+      "glowK": 1
+    },
+    "derivationCases": [
+      {
+        "seed": "#FF8A65",
+        "expect": {
+          "bg": "#170F0D",
+          "bgSubtle": "#1B1310",
+          "bgInset": "#201714",
+          "surface": "#241A17",
+          "surfaceRaised": "#302420",
+          "text": "#F2ECE9",
+          "textSecondary": "#C0B0AB",
+          "textTertiary": "#9B8B86",
+          "codeBg": "#100A08",
+          "codeHeaderBg": "#1E1512",
+          "primary": "#FF8A65",
+          "primaryHover": "#FDB098",
+          "primaryActive": "#E3714C",
+          "accent": "#F4B050",
+          "onPrimary": "#310E04"
+        },
+        "adjusted": null,
+        "light": {
+          "ink": "#DC4600",
+          "textSafe": "#A63505",
+          "fill": "#DC4600",
+          "fillText": "#A63505",
+          "fillPressed": "#BF3E07",
+          "gradStart": "#CB4208",
+          "gradEnd": "#A83401",
+          "soft": "#FEE6DF",
+          "accent": "#BF7F0D",
+          "bgTop": "#FBF4F2",
+          "bgBottom": "#F9EDEA",
+          "pill": "#FBEFEB",
+          "onPrimary": "#FFFFFF",
+          "mode": "white"
+        },
+        "bubble": {
+          "dark": [
+            "#F4B050",
+            "#F7AA50",
+            "#FAA351",
+            "#FC9D54",
+            "#FE9659",
+            "#FF905F",
+            "#FF8A65"
+          ],
+          "light": [
+            "#A83401",
+            "#AE3602",
+            "#B43903",
+            "#B93B04",
+            "#BF3D05",
+            "#C54007",
+            "#CB4208"
+          ]
+        }
+      },
+      {
+        "seed": "#FB923C",
+        "expect": {
+          "bg": "#16100B",
+          "bgSubtle": "#1B140F",
+          "bgInset": "#1F1812",
+          "surface": "#231A15",
+          "surfaceRaised": "#2F251E",
+          "text": "#F2ECE8",
+          "textSecondary": "#BEB1A8",
+          "textTertiary": "#998C84",
+          "codeBg": "#0F0A07",
+          "codeHeaderBg": "#1D1610",
+          "primary": "#FB923C",
+          "primaryHover": "#FEB37E",
+          "primaryActive": "#DF7918",
+          "accent": "#E3BC40",
+          "onPrimary": "#2C1301"
+        },
+        "adjusted": null,
+        "light": {
+          "ink": "#C0650C",
+          "textSafe": "#914C07",
+          "fill": "#C0650C",
+          "fillText": "#914C07",
+          "fillPressed": "#A7580A",
+          "gradStart": "#B35D05",
+          "gradEnd": "#934B02",
+          "soft": "#FCE8DB",
+          "accent": "#AC8A06",
+          "bgTop": "#FBF5F1",
+          "bgBottom": "#F7EEE8",
+          "pill": "#FAF0E9",
+          "onPrimary": "#FFFFFF",
+          "mode": "white"
+        },
+        "bubble": {
+          "dark": [
+            "#E3BC40",
+            "#E8B539",
+            "#EDAE34",
+            "#F2A732",
+            "#F5A033",
+            "#F99936",
+            "#FB923C"
+          ],
+          "light": [
+            "#934B02",
+            "#984E02",
+            "#9E5103",
+            "#A35403",
+            "#A85704",
+            "#AE5A04",
+            "#B35D05"
+          ]
+        }
+      },
+      {
+        "seed": "#FBBF24",
+        "expect": {
+          "bg": "#14110A",
+          "bgSubtle": "#18150E",
+          "bgInset": "#1D1911",
+          "surface": "#201C13",
+          "surfaceRaised": "#2C271C",
+          "text": "#F0EDE7",
+          "textSecondary": "#BAB3A6",
+          "textTertiary": "#958E81",
+          "codeBg": "#0E0B06",
+          "codeHeaderBg": "#1B170F",
+          "primary": "#FBBF24",
+          "primaryHover": "#FEDC96",
+          "primaryActive": "#DDA611",
+          "accent": "#CEE870",
+          "onPrimary": "#241901"
+        },
+        "adjusted": null,
+        "light": {
+          "ink": "#9F7706",
+          "textSafe": "#7A5B0A",
+          "fill": "#DAA40C",
+          "fillText": "#DBA405",
+          "fillPressed": "#C79609",
+          "gradStart": "#EEB30F",
+          "gradEnd": "#D6A214",
+          "soft": "#F5EBD8",
+          "accent": "#81970F",
+          "bgTop": "#F9F6F0",
+          "bgBottom": "#F4F0E7",
+          "pill": "#F6F1E7",
+          "onPrimary": "#241901",
+          "mode": "bright"
+        },
+        "bubble": {
+          "dark": [
+            "#CEE870",
+            "#D6E262",
+            "#DFDB55",
+            "#E6D547",
+            "#EECE3A",
+            "#F5C62E",
+            "#FBBF24"
+          ],
+          "light": [
+            "#D6A214",
+            "#DAA513",
+            "#DEA813",
+            "#E2AA12",
+            "#E6AD11",
+            "#EAB010",
+            "#EEB30F"
+          ]
+        }
+      },
+      {
+        "seed": "#A3E635",
+        "expect": {
+          "bg": "#0F130C",
+          "bgSubtle": "#13170F",
+          "bgInset": "#171B13",
+          "surface": "#1A1E16",
+          "surfaceRaised": "#242A1F",
+          "text": "#ECEEE9",
+          "textSecondary": "#B0B7A9",
+          "textTertiary": "#8B9285",
+          "codeBg": "#0A0C07",
+          "codeHeaderBg": "#151911",
+          "primary": "#A3E635",
+          "primaryHover": "#C2FA7C",
+          "primaryActive": "#8BCB01",
+          "accent": "#62FEC1",
+          "onPrimary": "#121F01"
+        },
+        "adjusted": null,
+        "light": {
+          "ink": "#5C880A",
+          "textSafe": "#496E02",
+          "fill": "#87C40D",
+          "fillText": "#87C408",
+          "fillPressed": "#7BB30E",
+          "gradStart": "#93D60A",
+          "gradEnd": "#85C012",
+          "soft": "#E6F0DD",
+          "accent": "#0FA072",
+          "bgTop": "#F4F7F2",
+          "bgBottom": "#EDF2E9",
+          "pill": "#EFF4EA",
+          "onPrimary": "#121F01",
+          "mode": "bright"
+        },
+        "bubble": {
+          "dark": [
+            "#62FEC1",
+            "#67FCB0",
+            "#70F99E",
+            "#7BF58A",
+            "#87F173",
+            "#95EC59",
+            "#A3E635"
+          ],
+          "light": [
+            "#85C012",
+            "#87C411",
+            "#8AC710",
+            "#8CCB0F",
+            "#8ECF0D",
+            "#91D20C",
+            "#93D60A"
+          ]
+        }
+      },
+      {
+        "seed": "#4ADE80",
+        "expect": {
+          "bg": "#0D130E",
+          "bgSubtle": "#101712",
+          "bgInset": "#141C16",
+          "surface": "#171F18",
+          "surfaceRaised": "#202A23",
+          "text": "#EAEFEB",
+          "textSecondary": "#ABB8AE",
+          "textTertiary": "#869389",
+          "codeBg": "#080D09",
+          "codeHeaderBg": "#121A14",
+          "primary": "#4ADE80",
+          "primaryHover": "#85F0A4",
+          "primaryActive": "#22C467",
+          "accent": "#0AECDD",
+          "onPrimary": "#01220C"
+        },
+        "adjusted": null,
+        "light": {
+          "ink": "#0D9049",
+          "textSafe": "#037439",
+          "fill": "#10CF6B",
+          "fillText": "#0ACF6A",
+          "fillPressed": "#11BD61",
+          "gradStart": "#0DE274",
+          "gradEnd": "#15CB69",
+          "soft": "#DFF2E3",
+          "accent": "#119D93",
+          "bgTop": "#F2F8F3",
+          "bgBottom": "#EAF3EC",
+          "pill": "#EBF5ED",
+          "onPrimary": "#01220C",
+          "mode": "bright"
+        },
+        "bubble": {
+          "dark": [
+            "#0AECDD",
+            "#17EAD0",
+            "#13E8C2",
+            "#1DE6B4",
+            "#20E5A4",
+            "#37E292",
+            "#4ADE80"
+          ],
+          "light": [
+            "#15CB69",
+            "#14CF6B",
+            "#13D36D",
+            "#12D66E",
+            "#10DA70",
+            "#0FDE72",
+            "#0DE274"
+          ]
+        }
+      },
+      {
+        "seed": "#2DD4BF",
+        "expect": {
+          "bg": "#0A1312",
+          "bgSubtle": "#0E1816",
+          "bgInset": "#111C1A",
+          "surface": "#131F1D",
+          "surfaceRaised": "#1D2B28",
+          "text": "#E8EFEE",
+          "textSecondary": "#A7B8B5",
+          "textTertiary": "#829390",
+          "codeBg": "#060D0C",
+          "codeHeaderBg": "#0F1A18",
+          "primary": "#2DD4BF",
+          "primaryHover": "#77E6D4",
+          "primaryActive": "#0EB9A5",
+          "accent": "#5CDCFB",
+          "onPrimary": "#03201C"
+        },
+        "adjusted": null,
+        "light": {
+          "ink": "#0E8B7C",
+          "textSafe": "#0C7064",
+          "fill": "#14C9B4",
+          "fillText": "#0EC9B4",
+          "fillPressed": "#18B7A4",
+          "gradStart": "#0FDBC4",
+          "gradEnd": "#06C5B1",
+          "soft": "#D9F3ED",
+          "accent": "#109BB7",
+          "bgTop": "#F1F8F6",
+          "bgBottom": "#E7F3F1",
+          "pill": "#E8F5F2",
+          "onPrimary": "#03201C",
+          "mode": "bright"
+        },
+        "bubble": {
+          "dark": [
+            "#5CDCFB",
+            "#50DBF3",
+            "#44DAE9",
+            "#3AD9E0",
+            "#32D8D5",
+            "#2DD6CA",
+            "#2DD4BF"
+          ],
+          "light": [
+            "#06C5B1",
+            "#07C9B4",
+            "#09CCB7",
+            "#0AD0BA",
+            "#0CD4BE",
+            "#0ED7C1",
+            "#0FDBC4"
+          ]
+        }
+      },
+      {
+        "seed": "#22D3EE",
+        "expect": {
+          "bg": "#0A1315",
+          "bgSubtle": "#0D1719",
+          "bgInset": "#111B1E",
+          "surface": "#131F21",
+          "surfaceRaised": "#1C2A2D",
+          "text": "#E8EFF0",
+          "textSecondary": "#A6B8BB",
+          "textTertiary": "#829296",
+          "codeBg": "#060D0E",
+          "codeHeaderBg": "#0F191C",
+          "primary": "#22D3EE",
+          "primaryHover": "#75E6FC",
+          "primaryActive": "#15B7CF",
+          "accent": "#A4D2FD",
+          "onPrimary": "#021F24"
+        },
+        "adjusted": null,
+        "light": {
+          "ink": "#078A9D",
+          "textSafe": "#026D7C",
+          "fill": "#15C3DC",
+          "fillText": "#0EC3DD",
+          "fillPressed": "#19B1C8",
+          "gradStart": "#0CD5F0",
+          "gradEnd": "#07C0D9",
+          "soft": "#D8F2F7",
+          "accent": "#0E94ED",
+          "bgTop": "#F0F8F9",
+          "bgBottom": "#E7F3F5",
+          "pill": "#E8F5F7",
+          "onPrimary": "#021F24",
+          "mode": "bright"
+        },
+        "bubble": {
+          "dark": [
+            "#A4D2FD",
+            "#96D2FE",
+            "#87D2FD",
+            "#76D2FB",
+            "#62D2F8",
+            "#49D3F4",
+            "#22D3EE"
+          ],
+          "light": [
+            "#07C0D9",
+            "#08C3DD",
+            "#09C7E1",
+            "#09CAE4",
+            "#0ACEE8",
+            "#0BD1EC",
+            "#0CD5F0"
+          ]
+        }
+      },
+      {
+        "seed": "#60A5FA",
+        "expect": {
+          "bg": "#0D1217",
+          "bgSubtle": "#11161C",
+          "bgInset": "#141A21",
+          "surface": "#171D24",
+          "surfaceRaised": "#212831",
+          "text": "#EAEEF3",
+          "textSecondary": "#ABB5C1",
+          "textTertiary": "#87909B",
+          "codeBg": "#080C10",
+          "codeHeaderBg": "#12181F",
+          "primary": "#62A7FC",
+          "primaryHover": "#8BBEFE",
+          "primaryActive": "#498EE1",
+          "accent": "#B3A6FF",
+          "onPrimary": "#041B36"
+        },
+        "adjusted": null,
+        "light": {
+          "ink": "#017CEC",
+          "textSafe": "#055FB6",
+          "fill": "#017CEC",
+          "fillText": "#055FB6",
+          "fillPressed": "#076ED2",
+          "gradStart": "#0875DF",
+          "gradEnd": "#005FB9",
+          "soft": "#E2EDFD",
+          "accent": "#9375FE",
+          "bgTop": "#F3F6FC",
+          "bgBottom": "#EAF1F9",
+          "pill": "#ECF2FB",
+          "onPrimary": "#FFFFFF",
+          "mode": "white"
+        },
+        "bubble": {
+          "dark": [
+            "#B3A6FF",
+            "#A8A6FE",
+            "#9CA6FF",
+            "#90A6FF",
+            "#83A6FE",
+            "#73A7FF",
+            "#62A7FC"
+          ],
+          "light": [
+            "#005FB9",
+            "#0163BF",
+            "#0266C6",
+            "#036ACC",
+            "#056ED2",
+            "#0671D9",
+            "#0875DF"
+          ]
+        }
+      },
+      {
+        "seed": "#818CF8",
+        "expect": {
+          "bg": "#101118",
+          "bgSubtle": "#13151C",
+          "bgInset": "#171921",
+          "surface": "#1A1C24",
+          "surfaceRaised": "#252731",
+          "text": "#ECEDF3",
+          "textSecondary": "#B0B3C1",
+          "textTertiary": "#8B8E9B",
+          "codeBg": "#0A0B10",
+          "codeHeaderBg": "#15171F",
+          "primary": "#8E9AFF",
+          "primaryHover": "#A9B4FF",
+          "primaryActive": "#767FEA",
+          "accent": "#D298F6",
+          "onPrimary": "#141736"
+        },
+        "adjusted": "lightened",
+        "light": {
+          "ink": "#6669FE",
+          "textSafe": "#4A3BE4",
+          "fill": "#6669FE",
+          "fillText": "#4A3BE4",
+          "fillPressed": "#574DFA",
+          "gradStart": "#5D58FE",
+          "gradEnd": "#4B48D1",
+          "soft": "#E8EBFD",
+          "accent": "#C458FD",
+          "bgTop": "#F4F6FC",
+          "bgBottom": "#EEF0F9",
+          "pill": "#EFF1FB",
+          "onPrimary": "#FFFFFF",
+          "mode": "white"
+        },
+        "bubble": {
+          "dark": [
+            "#D298F6",
+            "#C898F9",
+            "#BD98FC",
+            "#B298FE",
+            "#A799FD",
+            "#9B9AFD",
+            "#8E9AFF"
+          ],
+          "light": [
+            "#4B48D1",
+            "#4E4BD8",
+            "#514DE0",
+            "#5450E7",
+            "#5753EF",
+            "#5A55F6",
+            "#5D58FE"
+          ]
+        }
+      },
+      {
+        "seed": "#C084FC",
+        "expect": {
+          "bg": "#131016",
+          "bgSubtle": "#17141B",
+          "bgInset": "#1B181F",
+          "surface": "#1E1A23",
+          "surfaceRaised": "#2A252F",
+          "text": "#EEECF2",
+          "textSecondary": "#B7B1BE",
+          "textTertiary": "#928C99",
+          "codeBg": "#0C0A0F",
+          "codeHeaderBg": "#19161D",
+          "primary": "#C084FC",
+          "primaryHover": "#CFA5FD",
+          "primaryActive": "#A76BE1",
+          "accent": "#F789D4",
+          "onPrimary": "#211230"
+        },
+        "adjusted": null,
+        "light": {
+          "ink": "#A453EA",
+          "textSafe": "#8317C9",
+          "fill": "#A453EA",
+          "fillText": "#8317C9",
+          "fillPressed": "#942EDE",
+          "gradStart": "#9B3BE5",
+          "gradEnd": "#7E31BB",
+          "soft": "#F0E8FC",
+          "accent": "#F233C4",
+          "bgTop": "#F7F5FB",
+          "bgBottom": "#F2EEF7",
+          "pill": "#F4F0FA",
+          "onPrimary": "#FFFFFF",
+          "mode": "white"
+        },
+        "bubble": {
+          "dark": [
+            "#F789D4",
+            "#F087DC",
+            "#E786E3",
+            "#DF85EA",
+            "#D584F1",
+            "#CB84F7",
+            "#C084FC"
+          ],
+          "light": [
+            "#7E31BB",
+            "#8333C2",
+            "#8834C9",
+            "#8C36D0",
+            "#9138D7",
+            "#9639DE",
+            "#9B3BE5"
+          ]
+        }
+      },
+      {
+        "seed": "#F472B6",
+        "expect": {
+          "bg": "#160F12",
+          "bgSubtle": "#1B1316",
+          "bgInset": "#1F161A",
+          "surface": "#23191D",
+          "surfaceRaised": "#2F2429",
+          "text": "#F2EBEE",
+          "textSecondary": "#BEAFB6",
+          "textTertiary": "#998A91",
+          "codeBg": "#0F090C",
+          "codeHeaderBg": "#1D1418",
+          "primary": "#F472B6",
+          "primaryHover": "#FF95C9",
+          "primaryActive": "#D8599D",
+          "accent": "#FE938C",
+          "onPrimary": "#2E0D1F"
+        },
+        "adjusted": null,
+        "light": {
+          "ink": "#DB3496",
+          "textSafe": "#AC0071",
+          "fill": "#DB3496",
+          "fillText": "#AC0071",
+          "fillPressed": "#C50483",
+          "gradStart": "#D2008B",
+          "gradEnd": "#AC0472",
+          "soft": "#FCE5EF",
+          "accent": "#FF484B",
+          "bgTop": "#FBF4F7",
+          "bgBottom": "#F7EDF1",
+          "pill": "#FAEEF3",
+          "onPrimary": "#FFFFFF",
+          "mode": "white"
+        },
+        "bubble": {
+          "dark": [
+            "#FE938C",
+            "#FE8D91",
+            "#FE8796",
+            "#FD819D",
+            "#FB7CA5",
+            "#F877AD",
+            "#F472B6"
+          ],
+          "light": [
+            "#AC0472",
+            "#B20476",
+            "#B9037A",
+            "#BF027E",
+            "#C50283",
+            "#CC0187",
+            "#D2008B"
+          ]
+        }
+      },
+      {
+        "seed": "#FB7185",
+        "expect": {
+          "bg": "#170F0F",
+          "bgSubtle": "#1C1313",
+          "bgInset": "#201617",
+          "surface": "#24191A",
+          "surfaceRaised": "#312425",
+          "text": "#F3EBEC",
+          "textSecondary": "#C0AFB0",
+          "textTertiary": "#9B8A8B",
+          "codeBg": "#10090A",
+          "codeHeaderBg": "#1E1415",
+          "primary": "#FB7185",
+          "primaryHover": "#FF98A3",
+          "primaryActive": "#DF586E",
+          "accent": "#FF955A",
+          "onPrimary": "#310C12"
+        },
+        "adjusted": null,
+        "light": {
+          "ink": "#E92D5C",
+          "textSafe": "#B3073F",
+          "fill": "#E92D5C",
+          "fillText": "#B3073F",
+          "fillPressed": "#CE0B4A",
+          "gradStart": "#DC054F",
+          "gradEnd": "#B5023F",
+          "soft": "#FEE5E7",
+          "accent": "#E36809",
+          "bgTop": "#FBF4F4",
+          "bgBottom": "#F9EDED",
+          "pill": "#FBEEEF",
+          "onPrimary": "#FFFFFF",
+          "mode": "white"
+        },
+        "bubble": {
+          "dark": [
+            "#FF955A",
+            "#FE9062",
+            "#FF8968",
+            "#FF836E",
+            "#FE7D76",
+            "#FE767C",
+            "#FB7185"
+          ],
+          "light": [
+            "#B5023F",
+            "#BB0242",
+            "#C20344",
+            "#C80347",
+            "#CF044A",
+            "#D5044C",
+            "#DC054F"
+          ]
+        }
+      },
+      {
+        "seed": "#1E3A8A",
+        "expect": {
+          "bg": "#0E1118",
+          "bgSubtle": "#12151C",
+          "bgInset": "#161921",
+          "surface": "#191C25",
+          "surfaceRaised": "#232732",
+          "text": "#EBEDF3",
+          "textSecondary": "#AEB4C1",
+          "textTertiary": "#898F9C",
+          "codeBg": "#090B10",
+          "codeHeaderBg": "#14171F",
+          "primary": "#7BA1FB",
+          "primaryHover": "#9BB9FD",
+          "primaryActive": "#6488E0",
+          "accent": "#C1A1F7",
+          "onPrimary": "#0D1936"
+        },
+        "adjusted": "lightened",
+        "light": {
+          "ink": "#3E6FFE",
+          "textSafe": "#1F47E6",
+          "fill": "#3E6FFE",
+          "fillText": "#1F47E6",
+          "fillPressed": "#2B59FC",
+          "gradStart": "#3465FE",
+          "gradEnd": "#2951D3",
+          "soft": "#E4ECFD",
+          "accent": "#AB6EFD",
+          "bgTop": "#F3F6FC",
+          "bgBottom": "#ECF0F9",
+          "pill": "#EDF2FC",
+          "onPrimary": "#FFFFFF",
+          "mode": "white"
+        },
+        "bubble": {
+          "dark": [
+            "#C1A1F7",
+            "#B7A1F9",
+            "#ACA0FB",
+            "#A1A0FC",
+            "#95A0FD",
+            "#89A1FC",
+            "#7BA1FB"
+          ],
+          "light": [
+            "#2951D3",
+            "#2B54DA",
+            "#2D58E1",
+            "#2E5BE8",
+            "#305EF0",
+            "#3262F7",
+            "#3465FE"
+          ]
+        }
+      },
+      {
+        "seed": "#7F1D1D",
+        "expect": {
+          "bg": "#170F0E",
+          "bgSubtle": "#1C1312",
+          "bgInset": "#201716",
+          "surface": "#241918",
+          "surfaceRaised": "#312422",
+          "text": "#F3EBEB",
+          "textSecondary": "#C0AFAD",
+          "textTertiary": "#9B8B89",
+          "codeBg": "#100909",
+          "codeHeaderBg": "#1E1514",
+          "primary": "#EC8178",
+          "primaryHover": "#F8A097",
+          "primaryActive": "#D16861",
+          "accent": "#ECA261",
+          "onPrimary": "#310D0B"
+        },
+        "adjusted": "lightened",
+        "light": {
+          "ink": "#EB3135",
+          "textSafe": "#B60619",
+          "fill": "#EB3135",
+          "fillText": "#B60619",
+          "fillPressed": "#D10A1F",
+          "gradStart": "#DF0521",
+          "gradEnd": "#B80118",
+          "soft": "#FFE6E2",
+          "accent": "#D27708",
+          "bgTop": "#FBF4F3",
+          "bgBottom": "#F9EDEC",
+          "pill": "#FBEEED",
+          "onPrimary": "#FFFFFF",
+          "mode": "white"
+        },
+        "bubble": {
+          "dark": [
+            "#ECA261",
+            "#ED9C63",
+            "#EE9665",
+            "#EF9169",
+            "#EE8B6D",
+            "#EE8672",
+            "#EC8178"
+          ],
+          "light": [
+            "#B80118",
+            "#BE0219",
+            "#C5021B",
+            "#CB031C",
+            "#D2031E",
+            "#D8041F",
+            "#DF0521"
+          ]
+        }
+      },
+      {
+        "seed": "#FFFF00",
+        "expect": {
+          "bg": "#12120B",
+          "bgSubtle": "#16160E",
+          "bgInset": "#1A1A12",
+          "surface": "#1D1D14",
+          "surfaceRaised": "#28281D",
+          "text": "#EDEEE8",
+          "textSecondary": "#B4B5A7",
+          "textTertiary": "#8F9082",
+          "codeBg": "#0B0C06",
+          "codeHeaderBg": "#181810",
+          "primary": "#E1E107",
+          "primaryHover": "#F3F45E",
+          "primaryActive": "#C6C614",
+          "accent": "#84FE8A",
+          "onPrimary": "#1C1C00"
+        },
+        "adjusted": "darkened",
+        "light": {
+          "ink": "#80800B",
+          "textSafe": "#656505",
+          "fill": "#B5B513",
+          "fillText": "#B5B50F",
+          "fillPressed": "#A5A50D",
+          "gradStart": "#C6C603",
+          "gradEnd": "#B2B208",
+          "soft": "#EDEED9",
+          "accent": "#0DA42D",
+          "bgTop": "#F6F7F1",
+          "bgBottom": "#F0F1E7",
+          "pill": "#F2F3E8",
+          "onPrimary": "#1C1C00",
+          "mode": "bright"
+        },
+        "bubble": {
+          "dark": [
+            "#84FE8A",
+            "#97FA79",
+            "#A8F668",
+            "#B8F156",
+            "#C7EC43",
+            "#D4E72D",
+            "#E1E107"
+          ],
+          "light": [
+            "#B2B208",
+            "#B5B507",
+            "#B9B907",
+            "#BCBC06",
+            "#BFBF05",
+            "#C3C304",
+            "#C6C603"
+          ]
+        }
+      },
+      {
+        "seed": "#0A0A0A",
+        "expect": {
+          "bg": "#14110A",
+          "bgSubtle": "#18150D",
+          "bgInset": "#1C1911",
+          "surface": "#1F1C13",
+          "surfaceRaised": "#2B271C",
+          "text": "#EFEDE7",
+          "textSecondary": "#B9B4A6",
+          "textTertiary": "#948F81",
+          "codeBg": "#0D0B06",
+          "codeHeaderBg": "#1A170F",
+          "primary": "#AEA489",
+          "primaryHover": "#C2BAA4",
+          "primaryActive": "#968C71",
+          "accent": "#AFB9A0",
+          "onPrimary": "#221A03"
+        },
+        "adjusted": "lightened",
+        "light": {
+          "ink": "#95770B",
+          "textSafe": "#765D09",
+          "fill": "#D3A808",
+          "fillText": "#D3A802",
+          "fillPressed": "#C09906",
+          "gradStart": "#E6B80B",
+          "gradEnd": "#CFA512",
+          "soft": "#F3ECD8",
+          "accent": "#759B05",
+          "bgTop": "#F8F6F0",
+          "bgBottom": "#F3F0E7",
+          "pill": "#F5F2E7",
+          "onPrimary": "#221A03",
+          "mode": "bright"
+        },
+        "bubble": {
+          "dark": [
+            "#AFB9A0",
+            "#AFB69C",
+            "#AFB297",
+            "#AFAF93",
+            "#AEAB90",
+            "#AEA88C",
+            "#AEA489"
+          ],
+          "light": [
+            "#CFA512",
+            "#D3A811",
+            "#D7AB10",
+            "#DAAE0F",
+            "#DEB20E",
+            "#E2B50D",
+            "#E6B80B"
+          ]
+        }
+      }
+    ],
+    "resolveCases": [
+      {
+        "name": "custom_with_seed",
+        "stored": "custom",
+        "storedSeed": "#C084FC",
+        "renders": "custom",
+        "seed": "#C084FC",
+        "pushToCloud": true,
+        "pushSeed": true
+      },
+      {
+        "name": "custom_without_seed_uses_default_seed",
+        "stored": "custom",
+        "storedSeed": null,
+        "renders": "custom",
+        "seed": "#60A5FA",
+        "pushToCloud": true,
+        "pushSeed": false
+      },
+      {
+        "name": "invalid_seed_falls_back_without_push",
+        "stored": "custom",
+        "storedSeed": "blue",
+        "renders": "custom",
+        "seed": "#60A5FA",
+        "pushToCloud": true,
+        "pushSeed": false,
+        "keepStoredSeed": true
+      },
+      {
+        "name": "lowercase_seed_is_accepted",
+        "stored": "custom",
+        "storedSeed": "#c084fc",
+        "renders": "custom",
+        "seed": "#C084FC",
+        "pushToCloud": true,
+        "pushSeed": true
+      },
+      {
+        "name": "seed_without_custom_palette_is_kept_but_unused",
+        "stored": "dark-ocean",
+        "storedSeed": "#C084FC",
+        "renders": "dark-ocean",
+        "seed": null,
+        "pushToCloud": true,
+        "pushSeed": true
+      }
+    ]
+  },
+  "light": {
+    "$comment": "Light-appearance brand colors per palette. Every palette, preset or custom, applies in both appearances: dark uses `palettes`, light uses these brand colors on the existing white light surfaces. `ink` = text/icons/strokes on the light page; `textSafe` = body-size text; `fill*` / `grad*` = filled shapes that carry `onPrimary` text; `soft` = tinted chip background; `bgTop` / `bgBottom` = page background gradient; `pill` = model pill background; `accent` = second brand color (name gradient end, glows). The default palette keeps the hand-tuned light values below; every other entry is generated by the light-brand derivation that each client reproduces from `lightBrand` cases. Tabs: the default palette keeps per-tab light colors, other palettes use `ink` for all tabs.",
+    "derivation": {
+      "$steps": [
+        "1. H = OKLCH hue of the dark palette primary; AH = hue of its accent.",
+        "2. Each key starts at fromOklch(ladder[key].L, ladder[key].C, H) (accent uses AH). The ladder is measured from the hand-tuned default light purple.",
+        "3. Darken by `step` (not below minLightness) until: ink ≥ minInkText and accent ≥ minInk on bgTop; textSafe ≥ minText on white, bgTop and soft.",
+        "4. Fill mode: bright when the OKLCH chroma of fromOklch(bright.gradStart, ladder.gradStart.C, H) is higher than at ladder.gradStart.L. Bright: onPrimary = the dark palette onPrimary; fill / fillText / fillPressed / gradStart / gradEnd start at `bright` lightness and are lightened by `step` (≤ maxLightness) until onPrimary ≥ minText. White: onPrimary = #FFFFFF; fill = ink, fillText = textSafe; fillPressed / gradStart / gradEnd darken until white ≥ minText.",
+        "5. Contrast rules (checkLight): ink ≥ minInkText and accent ≥ minInk on bgTop; textSafe ≥ minText on white / bgTop / soft; onPrimary ≥ minInk on fill (icon-only fills) and ≥ minText on fillText / fillPressed / gradStart / gradEnd."
+      ],
+      "ladder": {
+        "ink": [
+          0.612,
+          0.22
+        ],
+        "textSafe": [
+          0.491,
+          0.241
+        ],
+        "fill": [
+          0.612,
+          0.22
+        ],
+        "fillText": [
+          0.491,
+          0.241
+        ],
+        "fillPressed": [
+          0.545,
+          0.246
+        ],
+        "gradStart": [
+          0.57,
+          0.242
+        ],
+        "gradEnd": [
+          0.493,
+          0.204
+        ],
+        "soft": [
+          0.943,
+          0.028
+        ],
+        "accent": [
+          0.667,
+          0.259
+        ],
+        "bgTop": [
+          0.973,
+          0.008
+        ],
+        "bgBottom": [
+          0.955,
+          0.013
+        ],
+        "pill": [
+          0.96,
+          0.014
+        ]
+      },
+      "bright": {
+        "fill": 0.75,
+        "fillText": 0.75,
+        "fillPressed": 0.7,
+        "gradStart": 0.8,
+        "gradEnd": 0.74
+      },
+      "step": 0.01,
+      "minLightness": 0.2,
+      "maxLightness": 0.95,
+      "minInk": 3,
+      "minText": 4.5,
+      "minInkText": 3.8,
+      "$minInkText": "ink also colors small emphasis text and links, so it must not be lighter than the hand-tuned default purple #8C5FF8 on #F7F5FB (3.80); accent and icon-only fills keep minInk 3."
+    },
+    "palettes": {
+      "dark": {
+        "ink": "#8C5FF8",
+        "textSafe": "#6D28D9",
+        "fill": "#8C5FF8",
+        "fillText": "#6D28D9",
+        "fillPressed": "#7B3DEF",
+        "gradStart": "#8347F5",
+        "gradEnd": "#6B3BC7",
+        "soft": "#EDE9FE",
+        "accent": "#D946EF",
+        "bgTop": "#F7F5FB",
+        "bgBottom": "#F2EEF7",
+        "pill": "#F3F0FA",
+        "onPrimary": "#FFFFFF",
+        "mode": "white"
+      },
+      "dark-purple": {
+        "ink": "#8F5DF8",
+        "textSafe": "#6F27D8",
+        "fill": "#8F5DF8",
+        "fillText": "#6F27D8",
+        "fillPressed": "#7E3BED",
+        "gradStart": "#8547F4",
+        "gradEnd": "#6C3BC7",
+        "soft": "#EDE9FE",
+        "accent": "#D847F1",
+        "bgTop": "#F6F5FB",
+        "bgBottom": "#F0EFF8",
+        "pill": "#F2F0FB",
+        "onPrimary": "#FFFFFF",
+        "mode": "white"
+      },
+      "dark-graphite": {
+        "ink": "#0076FD",
+        "textSafe": "#025AC4",
+        "fill": "#0076FD",
+        "fillText": "#025AC4",
+        "fillPressed": "#0169E2",
+        "gradStart": "#0370EF",
+        "gradEnd": "#055BC4",
+        "soft": "#E3EDFD",
+        "accent": "#149BB8",
+        "bgTop": "#F3F6FC",
+        "bgBottom": "#EBF1F9",
+        "pill": "#ECF2FB",
+        "onPrimary": "#FFFFFF",
+        "mode": "white"
+      },
+      "dark-black": {
+        "ink": "#E42E7A",
+        "textSafe": "#B00358",
+        "fill": "#E42E7A",
+        "fillText": "#B00358",
+        "fillPressed": "#CB0667",
+        "gradStart": "#D8016D",
+        "gradEnd": "#B10759",
+        "soft": "#FEE5EB",
+        "accent": "#0298C9",
+        "bgTop": "#FBF4F6",
+        "bgBottom": "#F8EDEF",
+        "pill": "#FBEEF1",
+        "onPrimary": "#FFFFFF",
+        "mode": "white"
+      },
+      "dark-ocean": {
+        "ink": "#0E8B7C",
+        "textSafe": "#0C7064",
+        "fill": "#14C9B4",
+        "fillText": "#0EC9B4",
+        "fillPressed": "#18B7A4",
+        "gradStart": "#0FDBC4",
+        "gradEnd": "#06C5B1",
+        "soft": "#D9F3ED",
+        "accent": "#0693F0",
+        "bgTop": "#F1F8F6",
+        "bgBottom": "#E7F3F1",
+        "pill": "#E8F5F2",
+        "onPrimary": "#021614",
+        "mode": "bright"
+      },
+      "dark-forest": {
+        "ink": "#0F8D63",
+        "textSafe": "#03734F",
+        "fill": "#0DCD91",
+        "fillText": "#05CD90",
+        "fillPressed": "#06BB83",
+        "gradStart": "#13DF9E",
+        "gradEnd": "#16C98E",
+        "soft": "#DCF2E7",
+        "accent": "#779A0E",
+        "bgTop": "#F2F8F4",
+        "bgBottom": "#E9F3EE",
+        "pill": "#EAF5EF",
+        "onPrimary": "#03160C",
+        "mode": "bright"
+      },
+      "dark-sunset": {
+        "ink": "#A77201",
+        "textSafe": "#815705",
+        "fill": "#E59E08",
+        "fillText": "#E59E02",
+        "fillPressed": "#D19005",
+        "gradStart": "#F9AD0D",
+        "gradEnd": "#E09B12",
+        "soft": "#F7EAD8",
+        "accent": "#FF474D",
+        "bgTop": "#F9F5F0",
+        "bgBottom": "#F5EFE7",
+        "pill": "#F7F1E8",
+        "onPrimary": "#241005",
+        "mode": "bright"
+      }
+    }
+  },
+  "appearancePageCases": [
     {
-      "name": "tap_light",
+      "name": "segment_light",
       "before": {
         "theme": "dark",
-        "follow": false,
-        "darkPalette": "dark-ocean"
+        "darkPalette": "dark-ocean",
+        "seed": null
       },
-      "tap": "light",
+      "segment": "light",
       "after": {
         "theme": "light",
-        "darkPalette": "dark-ocean"
+        "darkPalette": "dark-ocean",
+        "seed": null
       }
     },
     {
-      "name": "tap_palette_follow_off",
+      "name": "segment_dark",
       "before": {
         "theme": "light",
-        "follow": false,
-        "darkPalette": "dark"
+        "darkPalette": "custom",
+        "seed": "#F472B6"
+      },
+      "segment": "dark",
+      "after": {
+        "theme": "dark",
+        "darkPalette": "custom",
+        "seed": "#F472B6"
+      }
+    },
+    {
+      "name": "segment_system",
+      "before": {
+        "theme": "light",
+        "darkPalette": "dark-forest",
+        "seed": null
+      },
+      "segment": "system",
+      "after": {
+        "theme": "system",
+        "darkPalette": "dark-forest",
+        "seed": null
+      }
+    },
+    {
+      "name": "tap_palette_keeps_appearance_light",
+      "before": {
+        "theme": "light",
+        "darkPalette": "dark",
+        "seed": null
+      },
+      "tap": "dark-sunset",
+      "after": {
+        "theme": "light",
+        "darkPalette": "dark-sunset",
+        "seed": null
+      }
+    },
+    {
+      "name": "tap_palette_keeps_appearance_system",
+      "before": {
+        "theme": "system",
+        "darkPalette": "dark",
+        "seed": null
+      },
+      "tap": "dark-ocean",
+      "after": {
+        "theme": "system",
+        "darkPalette": "dark-ocean",
+        "seed": null
+      }
+    },
+    {
+      "name": "tap_default_card",
+      "before": {
+        "theme": "dark",
+        "darkPalette": "dark-black",
+        "seed": null
+      },
+      "tap": "dark",
+      "after": {
+        "theme": "dark",
+        "darkPalette": "dark",
+        "seed": null
+      }
+    },
+    {
+      "name": "tap_custom_without_seed_writes_default_seed",
+      "before": {
+        "theme": "light",
+        "darkPalette": "dark",
+        "seed": null
+      },
+      "tap": "custom",
+      "after": {
+        "theme": "light",
+        "darkPalette": "custom",
+        "seed": "#60A5FA"
+      }
+    },
+    {
+      "name": "tap_custom_keeps_existing_seed",
+      "before": {
+        "theme": "dark",
+        "darkPalette": "dark-ocean",
+        "seed": "#F472B6"
+      },
+      "tap": "custom",
+      "after": {
+        "theme": "dark",
+        "darkPalette": "custom",
+        "seed": "#F472B6"
+      }
+    },
+    {
+      "name": "pick_seed_selects_custom",
+      "before": {
+        "theme": "light",
+        "darkPalette": "dark-ocean",
+        "seed": "#60A5FA"
+      },
+      "pickSeed": "#4ADE80",
+      "after": {
+        "theme": "light",
+        "darkPalette": "custom",
+        "seed": "#4ADE80"
+      }
+    },
+    {
+      "name": "tap_preset_keeps_seed",
+      "before": {
+        "theme": "dark",
+        "darkPalette": "custom",
+        "seed": "#4ADE80"
       },
       "tap": "dark-forest",
       "after": {
         "theme": "dark",
-        "darkPalette": "dark-forest"
-      }
-    },
-    {
-      "name": "tap_palette_follow_on",
-      "before": {
-        "theme": "system",
-        "follow": true,
-        "darkPalette": "dark"
-      },
-      "tap": "dark-sunset",
-      "after": {
-        "theme": "system",
-        "darkPalette": "dark-sunset"
-      }
-    },
-    {
-      "name": "turn_follow_on",
-      "before": {
-        "theme": "dark",
-        "follow": false,
-        "darkPalette": "dark-black"
-      },
-      "toggleFollow": true,
-      "after": {
-        "theme": "system",
-        "darkPalette": "dark-black"
-      }
-    },
-    {
-      "name": "turn_follow_off_uses_current_system_appearance",
-      "before": {
-        "theme": "system",
-        "follow": true,
-        "darkPalette": "dark-black",
-        "systemAppearance": "dark"
-      },
-      "toggleFollow": false,
-      "after": {
-        "theme": "dark",
-        "darkPalette": "dark-black"
+        "darkPalette": "dark-forest",
+        "seed": "#4ADE80"
       }
     }
-  ]
+  ],
+  "$appearancePageCases": "Theme page with the appearance segment (light / dark / system) on top and eight palette cards (Default, Purple … Sunset, Custom). The segment only writes `theme`; a palette card or the color picker only writes `darkPalette` / `darkPaletteCustom`. Selected card = resolved darkPalette in every appearance. Row summary: default palette → appearance name alone (Light / Dark / Follow System); other palettes → \"<appearance> · <palette name>\".",
+  "userBubbleStops": {
+    "dark": {
+      "dark": [
+        "#C4B5FD",
+        "#BFAEFD",
+        "#BAA7FC",
+        "#B5A0FC",
+        "#B099FB",
+        "#AC92FB",
+        "#A78BFA"
+      ],
+      "light": [
+        "#6B3BC7",
+        "#6F3DCF",
+        "#733FD6",
+        "#7741DE",
+        "#7B43E5",
+        "#7F45ED",
+        "#8347F5"
+      ]
+    },
+    "dark-purple": {
+      "dark": [
+        "#F0ABFC",
+        "#E5A5FC",
+        "#DA9FFC",
+        "#CE9AFC",
+        "#C195FC",
+        "#B490FB",
+        "#A78BFA"
+      ],
+      "light": [
+        "#6C3BC7",
+        "#703DCE",
+        "#743FD6",
+        "#7841DD",
+        "#7D43E5",
+        "#8145EC",
+        "#8547F4"
+      ]
+    },
+    "dark-graphite": {
+      "dark": [
+        "#7DE3FF",
+        "#77DAFE",
+        "#6FD0FF",
+        "#6EC6FD",
+        "#6BBCFD",
+        "#69B1FE",
+        "#6AA6FF"
+      ],
+      "light": [
+        "#055BC4",
+        "#055ECB",
+        "#0562D2",
+        "#0465D9",
+        "#0469E0",
+        "#036CE8",
+        "#0370EF"
+      ]
+    },
+    "dark-black": {
+      "dark": [
+        "#7DD3FC",
+        "#94C5FD",
+        "#A7B7FD",
+        "#BDA4FE",
+        "#D98EF1",
+        "#F07BCD",
+        "#FF6B9D"
+      ],
+      "light": [
+        "#B10759",
+        "#B7065C",
+        "#BE0560",
+        "#C40563",
+        "#CB0366",
+        "#D1026A",
+        "#D8016D"
+      ]
+    },
+    "dark-ocean": {
+      "dark": [
+        "#67B7FF",
+        "#51BEFA",
+        "#3AC4F2",
+        "#1FC9E8",
+        "#03CEDC",
+        "#0FD1CE",
+        "#2DD4BF"
+      ],
+      "light": [
+        "#06C5B1",
+        "#07C9B4",
+        "#09CCB7",
+        "#0AD0BA",
+        "#0CD4BE",
+        "#0ED7C1",
+        "#0FDBC4"
+      ]
+    },
+    "dark-forest": {
+      "dark": [
+        "#D9F99D",
+        "#C4F398",
+        "#AEED96",
+        "#96E794",
+        "#7CE195",
+        "#5EDA96",
+        "#34D399"
+      ],
+      "light": [
+        "#16C98E",
+        "#16CD91",
+        "#15D093",
+        "#15D496",
+        "#14D899",
+        "#14DB9B",
+        "#13DF9E"
+      ]
+    },
+    "dark-sunset": {
+      "dark": [
+        "#FF7E79",
+        "#FF8971",
+        "#FD956D",
+        "#FE9E66",
+        "#FFA75D",
+        "#FEB057",
+        "#FDBA4D"
+      ],
+      "light": [
+        "#E09B12",
+        "#E49E11",
+        "#E8A111",
+        "#ECA410",
+        "#F1A70F",
+        "#F5AA0E",
+        "#F9AD0D"
+      ]
+    }
+  }
 }

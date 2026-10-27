@@ -1,76 +1,118 @@
-/* highlight.js theme mapped to Oriveo design tokens */
+/* highlight.js mapped to the 12 "Oriveo Code" roles (color source of truth: shared/theme-contracts/code-highlight.v1.json).
+ * Every rule references only --o-code-<role> and never writes a color value; light / dark is switched by variables.css, and dark does not change with the palette.
+ * Classes without a rule (.hljs-params / .hljs-subst etc.) and unclassed text inherit .hljs's body color (the text role).
+ * Comments are upright: CJK comments would get a synthesized slant. code-highlight-contract.test.ts swaps hljs class names for roles using this file's selectors and checks them against classifyCases one by one. */
 
 .hljs {
   color: var(--o-code-text);
   background: transparent;
 }
 
-.hljs-comment,
-.hljs-quote {
-  color: var(--o-code-comment);
-  font-style: italic;
+/* $ variables (and Ruby's $ / @ sigil variables) read as properties only in languages that use sigil variables;
+ * in other languages hljs also marks the s of `let s` as .hljs-variable, and it stays an ordinary identifier in the body color (inherited from .hljs).
+ * Written before the keyword block: it has the same specificity as .hljs-variable.language_, so the latter ($this / self) still reads as a keyword. */
+.language-bash .hljs-variable,
+.language-sh .hljs-variable,
+.language-shell .hljs-variable,
+.language-php .hljs-variable,
+.language-ruby .hljs-variable,
+.language-rb .hljs-variable {
+  color: var(--o-code-property);
 }
 
+/* Keywords / literals (true / false / nil / null / None); this / self also read as keywords */
 .hljs-keyword,
+.hljs-literal,
 .hljs-selector-tag,
-.hljs-type {
+.hljs-doctag,
+.hljs-name,
+.hljs-variable.language_ {
   color: var(--o-code-keyword);
 }
 
 .hljs-string,
-.hljs-template-variable,
-.hljs-addition {
-  color: var(--o-code-string);
-}
-
-.hljs-number,
-.hljs-literal,
-.hljs-variable,
-.hljs-template-tag,
-.hljs-tag .hljs-attr {
-  color: var(--o-code-number);
-}
-
-.hljs-function,
-.hljs-title,
-.hljs-section {
-  color: var(--o-code-function);
-}
-
-.hljs-built_in,
-.hljs-name {
-  color: var(--o-code-builtin);
-}
-
-.hljs-attr,
-.hljs-attribute {
-  color: var(--o-code-attr);
-}
-
-.hljs-meta {
-  color: var(--o-code-comment);
-}
-
-.hljs-deletion {
-  color: var(--o-error);
-}
-
 .hljs-regexp,
+.hljs-char,
 .hljs-link {
   color: var(--o-code-string);
 }
 
-.hljs-symbol,
-.hljs-bullet {
-  color: var(--o-code-keyword);
-}
-
-.hljs-tag {
+.hljs-number {
   color: var(--o-code-number);
 }
 
-.hljs-emphasis {
-  font-style: italic;
+/* Functions: definitions and calls; built-in functions read as functions when called */
+.hljs-title,
+.hljs-title.function_,
+.hljs-built_in,
+.hljs-section {
+  color: var(--o-code-function);
+}
+
+/* Types: capitalized type names and constructors */
+.hljs-type,
+.hljs-title.class_ {
+  color: var(--o-code-type);
+}
+
+/* Properties: members after a dot, @ decorators / annotations, JSON keys, HTML / CSS attributes ($ variables are at the top of the file) */
+.hljs-attr,
+.hljs-attribute,
+.hljs-property,
+.hljs-meta,
+.hljs-template-variable,
+.hljs-template-tag,
+.hljs-selector-class,
+.hljs-selector-id,
+.hljs-selector-attr,
+.hljs-selector-pseudo,
+.hljs-symbol {
+  color: var(--o-code-property);
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: var(--o-code-comment);
+  font-style: normal;
+}
+
+.hljs-punctuation,
+.hljs-operator,
+.hljs-tag,
+.hljs-bullet {
+  color: var(--o-code-punctuation);
+}
+
+/* Shell built-ins (echo / cd) are called without parentheses, so they show as ordinary identifiers and not in the function color */
+.language-bash .hljs-built_in,
+.language-sh .hljs-built_in,
+.language-shell .hljs-built_in {
+  color: var(--o-code-text);
+}
+
+/* diff / patch: the whole-line role is set by the leading + / - / @@; the +++ / --- file headers are marked comment by hljs and read as hunk headers, like @@ */
+.language-diff .hljs-comment,
+.language-diff .hljs-meta,
+.language-patch .hljs-comment,
+.language-patch .hljs-meta {
+  color: var(--o-code-diff-hunk);
+}
+
+/* Added / deleted lines get a full-line background: inline-block + min-width 100% makes the background fill the code area width, and long lines extend with their content */
+.hljs-addition,
+.hljs-deletion {
+  display: inline-block;
+  min-width: 100%;
+}
+
+.hljs-addition {
+  color: var(--o-code-diff-add);
+  background-color: var(--o-code-diff-add-line);
+}
+
+.hljs-deletion {
+  color: var(--o-code-diff-delete);
+  background-color: var(--o-code-diff-delete-line);
 }
 
 .hljs-strong {

@@ -1,20 +1,39 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { BackButton } from '@oriveo/ui';
-import { DARK_PALETTE_IDS } from '@oriveo/shared';
+import {
+  CUSTOM_HUE_SLIDER,
+  DEFAULT_CUSTOM_SEED,
+  customLightBrandCssVars,
+  customPaletteCssVars,
+  deriveCustom,
+  deriveCustomLight,
+  hueSliderSeed,
+  oklch,
+  parseSeed,
+  resolvePaletteChoice,
+  type PaletteChoice,
+  type ThemeOption,
+} from '@oriveo/shared';
 import { useAppStore, getVanillaStore } from '../../../providers/StoreProvider';
 import * as preferenceOps from '../../../lib/core/preference-ops';
 import {
-  selectedSwatch,
-  swatchLabelKey,
-  themePageWrites,
-  type SystemAppearance,
-  type ThemePageAction,
-  type ThemeSwatchId,
+  APPEARANCE_SEGMENTS,
+  CUSTOM_PRESET_DOTS,
+  PALETTE_CARDS,
+  appearanceLabelKey,
+  appearancePageWrites,
+  cardLabelKey,
+  selectedCard,
+  type AppearancePageAction,
+  type PaletteCardId,
 } from './theme-page-rules';
+import { highlightCode } from '../../../lib/markdown/highlight-setup';
+import { anchoredBubbleGradient } from '../../../components/chat/user-bubble-gradient';
+import '../../../components/chat/highlight-theme.css';
 import styles from './ThemeSettings.module.css';
 
 /** Inline code sample in the preview reply; code is never localized. */
@@ -26,24 +45,61 @@ const CODE_MARK = '\u0002';
 const PREVIEW_MODEL = 'Claude Opus 5.5';
 const PREVIEW_COST = '$0.04';
 const PREVIEW_CODE_LANG = 'rust';
+const PREVIEW_CODE_SOURCE = 'let s = String::from("hi");\nlet r = &s;';
+/** Same highlight.js pass and theme CSS as chat code blocks, so the preview shows the real Oriveo Code colors. */
+const PREVIEW_CODE_HTML = highlightCode(PREVIEW_CODE_SOURCE, PREVIEW_CODE_LANG);
 /** Same shape as ReasoningBlock formatDuration for 4 s. */
 const PREVIEW_THOUGHT_DURATION = '4s';
 /** Fixed moment shown in the user bubble, formatted in the user's locale. */
 const PREVIEW_SENT_AT = new Date(2026, 9, 26, 21, 41);
 
-/** Light first, then every dark palette in contract order (dark, Purple … Sunset). */
-const SWATCHES: readonly ThemeSwatchId[] = ['light', ...DARK_PALETTE_IDS];
+/** Hue slider track: the slider's own seeds every 30°, so the track shows exactly what a drag picks. */
+const HUE_TRACK = `linear-gradient(90deg, ${Array.from({ length: 13 }, (_, i) => hueSliderSeed(Math.min(i * 30, CUSTOM_HUE_SLIDER.max))).join(', ')})`;
 
-function currentSystemAppearance(): SystemAppearance {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return 'light';
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+type Appearance = 'light' | 'dark';
+
+const DARK_QUERY = '(prefers-color-scheme: dark)';
+
+function subscribeSystemAppearance(onChange: () => void): () => void {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return () => {};
+  const mq = window.matchMedia(DARK_QUERY);
+  mq.addEventListener('change', onChange);
+  return () => mq.removeEventListener('change', onChange);
 }
 
-/** data-theme / data-palette pair that scopes the palette tokens to an element. */
-function swatchScope(swatch: ThemeSwatchId) {
-  return swatch === 'light'
-    ? { 'data-theme': 'light' }
-    : { 'data-theme': 'dark', 'data-palette': swatch };
+function systemAppearance(): Appearance {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return 'light';
+  return window.matchMedia(DARK_QUERY).matches ? 'dark' : 'light';
+}
+
+/** Appearance in effect right now (system follows the OS); cards and preview draw in it. */
+function useEffectiveAppearance(theme: ThemeOption): Appearance {
+  const system = useSyncExternalStore(subscribeSystemAppearance, systemAppearance, () => 'light' as const);
+  return theme === 'system' ? system : theme;
+}
+
+/**
+ * data-theme / data-palette (+ inline variables for custom) that scope the palette tokens to an element.
+ * Custom seeds may be a not-yet-saved drag preview, so their variables go inline instead of the global <style>.
+ */
+function paletteScope(choice: PaletteChoice, appearance: Appearance) {
+  if (choice.kind === 'preset') return { 'data-theme': appearance, 'data-palette': choice.id };
+  const vars = appearance === 'dark' ? customPaletteCssVars(choice.seed) : customLightBrandCssVars(choice.seed);
+  return { 'data-theme': appearance, 'data-palette': 'custom', style: vars as CSSProperties };
+}
+
+/** Primary / accent shown under the hue slider, in the appearance in effect (light = ink / accent). */
+function customSwatchColors(seed: string, appearance: Appearance): { primary: string; accent: string } {
+  if (appearance === 'dark') {
+    const { primary, accent } = deriveCustom(seed).palette;
+    return { primary, accent };
+  }
+  const brand = deriveCustomLight(seed);
+  return { primary: brand.ink, accent: brand.accent };
+}
+
+function seedHue(seed: string): number {
+  return Math.round(oklch(seed)[2]) % 360;
 }
 
 export function ThemeSettings() {
@@ -55,13 +111,27 @@ export function ThemeSettings() {
   const locale = useLocale();
   const router = useRouter();
   const selectedCardRef = useRef<HTMLButtonElement | null>(null);
+  const hueInputRef = useRef<HTMLInputElement | null>(null);
+  const previewRef = useRef<HTMLDivElement | null>(null);
+  const previewBubbleRef = useRef<HTMLDivElement | null>(null);
   const theme = useAppStore((s) => s.preferences.theme);
   const darkPalette = useAppStore((s) => s.preferences.darkPalette);
+  const storedSeed = useAppStore((s) => s.preferences.darkPaletteCustom);
+  const appearance = useEffectiveAppearance(theme);
+  /** Seed while the hue slider is being dragged: recolors this page only; preferences are written on release. */
+  const [draftSeed, setDraftSeed] = useState<string | null>(null);
+  /** Last slider position, kept so the thumb does not snap by the hue rounding of its own seed. */
+  const [sliderHue, setSliderHue] = useState<number | null>(null);
 
-  const follow = theme === 'system';
-  const selected = selectedSwatch(theme, darkPalette);
+  const selected: PaletteCardId = draftSeed ? 'custom' : selectedCard(darkPalette, storedSeed);
+  const customSeed = draftSeed ?? parseSeed(storedSeed) ?? DEFAULT_CUSTOM_SEED;
+  const customChoice: PaletteChoice = { kind: 'custom', seed: customSeed };
+  const shownChoice: PaletteChoice = draftSeed ? customChoice : resolvePaletteChoice(darkPalette, storedSeed);
+  const choiceOf = (card: PaletteCardId): PaletteChoice => (card === 'custom' ? customChoice : { kind: 'preset', id: card });
+  const hue = sliderHue !== null && hueSliderSeed(sliderHue) === customSeed ? sliderHue : seedHue(customSeed);
 
-  // Bring the selected card into the horizontal row on first entry only (not on every pick).
+  // Bring the selected card into the horizontal row on first entry only (not on every pick);
+  // scrolls the row itself so the page never jumps vertically.
   useEffect(() => {
     const card = selectedCardRef.current;
     const row = card?.parentElement;
@@ -69,11 +139,39 @@ export function ThemeSettings() {
     row.scrollLeft = Math.max(0, card.offsetLeft - row.offsetLeft - (row.clientWidth - card.offsetWidth) / 2);
   }, []);
 
-  const apply = (action: ThemePageAction) => {
-    const writes = themePageWrites({ theme, darkPalette }, action, currentSystemAppearance());
+  const apply = useCallback((action: AppearancePageAction) => {
     const store = getVanillaStore();
-    if (writes.darkPalette !== undefined) preferenceOps.updateDarkPalette(store, writes.darkPalette);
+    const prefs = store.getState().preferences;
+    const writes = appearancePageWrites({ theme: prefs.theme, darkPalette: prefs.darkPalette, seed: prefs.darkPaletteCustom }, action);
     if (writes.theme !== undefined) preferenceOps.updateTheme(store, writes.theme);
+    if (writes.palette !== undefined) preferenceOps.updateDarkPalette(store, writes.palette);
+  }, []);
+
+  // Release (native `change`: pointer up or a keyboard step) is the only point the slider writes preferences.
+  // React's onChange fires on every `input` event, so the commit listens to the native event.
+  const customShown = selected === 'custom';
+  useEffect(() => {
+    const input = hueInputRef.current;
+    if (!input) return;
+    const commit = () => {
+      const value = Number(input.value);
+      setSliderHue(value);
+      apply({ kind: 'pickSeed', seed: hueSliderSeed(value) });
+      setDraftSeed(null);
+    };
+    input.addEventListener('change', commit);
+    return () => input.removeEventListener('change', commit);
+  }, [apply, customShown]);
+
+  const onAppearanceKey = (event: KeyboardEvent<HTMLDivElement>) => {
+    const step = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 0;
+    if (step === 0) return;
+    event.preventDefault();
+    const rtl = getComputedStyle(event.currentTarget).direction === 'rtl' && (event.key === 'ArrowRight' || event.key === 'ArrowLeft');
+    const index = APPEARANCE_SEGMENTS.indexOf(theme);
+    const next = APPEARANCE_SEGMENTS[(index + (rtl ? -step : step) + APPEARANCE_SEGMENTS.length) % APPEARANCE_SEGMENTS.length]!;
+    apply({ kind: 'setAppearance', theme: next });
+    event.currentTarget.querySelector<HTMLButtonElement>(`[data-appearance="${next}"]`)?.focus();
   };
 
   const reply = t('themePreviewReply', { owner: OWNER_MARK, code: CODE_MARK })
@@ -90,22 +188,22 @@ export function ThemeSettings() {
 
   const sentAt = new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit' }).format(PREVIEW_SENT_AT);
 
-  const renderSwatch = (swatch: ThemeSwatchId) => {
-    const on = selected === swatch;
-    const name = t(swatchLabelKey(swatch));
+  const renderCard = (card: PaletteCardId) => {
+    const on = selected === card;
+    const name = t(cardLabelKey(card));
     return (
       <button
-        key={swatch}
+        key={card}
         ref={on ? selectedCardRef : undefined}
         type="button"
         className={styles.swatch}
         aria-pressed={on}
         aria-label={name}
-        data-swatch={swatch}
-        onClick={() => apply({ kind: 'tap', swatch })}
+        data-swatch={card}
+        onClick={() => apply({ kind: 'tap', card })}
       >
         <span className={`${styles.cardRing} ${on ? styles.cardRingOn : ''}`} aria-hidden>
-          <span className={styles.cardFace} {...swatchScope(swatch)}>
+          <span className={styles.cardFace} {...paletteScope(choiceOf(card), appearance)}>
             <span className={styles.cardGlow} />
             <span className={`${styles.cardBar} ${styles.cardBarWide}`} />
             <span className={`${styles.cardBar} ${styles.cardBarShort}`} />
@@ -119,17 +217,38 @@ export function ThemeSettings() {
     );
   };
 
+  // Preview bubble: same stops as the chat bubble, anchored on the preview card. Only re-measured when
+  // the card resizes (locale / width); writes style directly, so it never re-renders the page.
+  useEffect(() => {
+    const box = previewRef.current;
+    const bubble = previewBubbleRef.current;
+    if (!box || !bubble || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => {
+      const top = bubble.getBoundingClientRect().top - box.getBoundingClientRect().top - box.clientTop;
+      const g = anchoredBubbleGradient(box.clientHeight, top);
+      bubble.style.backgroundSize = g.backgroundSize;
+      bubble.style.backgroundPosition = g.backgroundPosition;
+    });
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, []);
+
+  const swatchColors = customSwatchColors(customSeed, appearance);
+  const adjusted = deriveCustom(customSeed).adjusted;
+  const pickedSeed = parseSeed(customSeed);
+
   return (
     <div className={styles.page}>
       <BackButton className={styles.backLink} label={tCommon('back')} onClick={() => router.push('/settings')} />
       <h1 className={styles.title}>{t('theme')}</h1>
 
       <div
+        ref={previewRef}
         className={styles.preview}
         data-testid="theme-preview"
         role="img"
         aria-label={tPages('backup.preview')}
-        {...swatchScope(selected)}
+        {...paletteScope(shownChoice, appearance)}
       >
         <div className={styles.previewGlow} aria-hidden />
         <div className={styles.previewBody} aria-hidden>
@@ -145,7 +264,7 @@ export function ThemeSettings() {
           </div>
 
           <div className={styles.previewChat}>
-            <div className={styles.previewBubble}>
+            <div ref={previewBubbleRef} className={styles.previewBubble}>
               <span>{t('themePreviewQuestion')}</span>
               <span className={styles.previewTime}>{sentAt}</span>
             </div>
@@ -163,14 +282,10 @@ export function ThemeSettings() {
                 <span>{tChat('copy')}</span>
               </div>
               <pre className={styles.previewCodeBody}>
-                <span className={styles.previewKeyword}>let</span>
-                {' s = '}
-                <span className={styles.previewType}>String</span>
-                {'::from('}
-                <span className={styles.previewString}>{'"hi"'}</span>
-                {');\n'}
-                <span className={styles.previewKeyword}>let</span>
-                {' r = &s;'}
+                <code
+                  className={`hljs language-${PREVIEW_CODE_LANG}`}
+                  dangerouslySetInnerHTML={{ __html: PREVIEW_CODE_HTML }}
+                />
               </pre>
             </div>
             <div className={styles.previewTags}>
@@ -193,29 +308,101 @@ export function ThemeSettings() {
       </div>
 
       <section className={styles.group}>
-        <h2 className={styles.groupTitle}>{t('themeSectionPalettes')}</h2>
-        <div className={styles.cardRow}>{SWATCHES.map(renderSwatch)}</div>
+        <h2 id="theme-appearance-title" className={styles.groupTitle}>{t('themeAppearance')}</h2>
+        <div
+          className={styles.segmented}
+          role="radiogroup"
+          aria-labelledby="theme-appearance-title"
+          onKeyDown={onAppearanceKey}
+        >
+          {APPEARANCE_SEGMENTS.map((option) => {
+            const on = theme === option;
+            return (
+              <button
+                key={option}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                tabIndex={on ? 0 : -1}
+                data-appearance={option}
+                className={`${styles.segment} ${on ? styles.segmentOn : ''}`}
+                onClick={() => apply({ kind: 'setAppearance', theme: option })}
+              >
+                {t(appearanceLabelKey(option))}
+              </button>
+            );
+          })}
+        </div>
       </section>
 
-      <section className={styles.followCard}>
-        <div className={styles.followText}>
-          <span id="theme-follow-system-title" className={styles.followTitle}>{t('themeSystem')}</span>
-          <span id="theme-follow-system-hint" className={styles.followHint}>
-            {t('themeFollowSystemHint')}
-          </span>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          className={styles.followSwitch}
-          aria-checked={follow}
-          aria-labelledby="theme-follow-system-title"
-          aria-describedby="theme-follow-system-hint"
-          onClick={() => apply({ kind: 'toggleFollow', on: !follow })}
-        >
-          <span className={styles.followThumb} aria-hidden />
-        </button>
+      <section className={styles.group}>
+        <h2 className={styles.groupTitle}>{t('themeSectionPalettes')}</h2>
+        <div className={styles.cardRow}>{PALETTE_CARDS.map(renderCard)}</div>
       </section>
+
+      {customShown && (
+        <section
+          className={`${styles.group} ${styles.customGroup}`}
+          data-testid="theme-custom-color"
+          {...paletteScope(customChoice, appearance)}
+        >
+          <h2 className={styles.groupTitle}>{t('themeCustomColor')}</h2>
+          <div className={styles.dotGrid}>
+            {CUSTOM_PRESET_DOTS.map((dot) => {
+              const on = pickedSeed === dot.seed;
+              return (
+                <button
+                  key={dot.seed}
+                  type="button"
+                  className={styles.dotButton}
+                  aria-pressed={on}
+                  aria-label={t(dot.labelKey)}
+                  data-seed={dot.seed}
+                  onClick={() => {
+                    setDraftSeed(null);
+                    apply({ kind: 'pickSeed', seed: dot.seed });
+                  }}
+                >
+                  <span className={`${styles.dot} ${on ? styles.dotOn : ''}`} style={{ backgroundColor: dot.seed }} aria-hidden />
+                </button>
+              );
+            })}
+          </div>
+          <input
+            ref={hueInputRef}
+            className={styles.hueSlider}
+            type="range"
+            min={CUSTOM_HUE_SLIDER.min}
+            max={CUSTOM_HUE_SLIDER.max}
+            step={1}
+            value={hue}
+            aria-label={t('themeHue')}
+            style={{ backgroundImage: HUE_TRACK }}
+            onChange={(event) => {
+              const value = Number(event.currentTarget.value);
+              setSliderHue(value);
+              setDraftSeed(hueSliderSeed(value));
+            }}
+          />
+          <div className={styles.customColors}>
+            <span className={styles.customColor}>
+              <span className={styles.customChip} style={{ backgroundColor: swatchColors.primary }} aria-hidden />
+              <span className={styles.customColorName}>{t('themePrimaryColor')}</span>
+              <span className={styles.customHex}>{swatchColors.primary}</span>
+            </span>
+            <span className={styles.customColor}>
+              <span className={styles.customChip} style={{ backgroundColor: swatchColors.accent }} aria-hidden />
+              <span className={styles.customColorName}>{t('themeAccentColor')}</span>
+              <span className={styles.customHex}>{swatchColors.accent}</span>
+            </span>
+          </div>
+          {adjusted && (
+            <p className={styles.customNotice} data-testid="theme-custom-adjusted">
+              {t(adjusted === 'lightened' ? 'themeCustomLightened' : 'themeCustomDarkened')}
+            </p>
+          )}
+        </section>
+      )}
     </div>
   );
 }

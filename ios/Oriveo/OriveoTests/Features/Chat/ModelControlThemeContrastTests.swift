@@ -135,7 +135,11 @@ struct ModelControlThemeContrastTests {
         ]), encoding: .utf8)
         // primary / onPrimary are declared as `<name>UIColor = UIColor.oriveoDynamic(` and the SwiftUI version derives from it;
         // look for the UIColor declaration first so `primary` does not land on the same-named Color.dynamic in the V2 namespace.
-        let markers = ["static let \(name)UIColor = UIColor.oriveoDynamic(", "static let \(name) = Color.dynamic("]
+        // Brand colors are declared as `oriveoBrand(` / `Color.brand(`: light is written as `light: \.<light brand field>` (the default palette takes the hand-tuned value).
+        let markers = [
+            "static let \(name)UIColor = UIColor.oriveoBrand(", "static let \(name)UIColor = UIColor.oriveoDynamic(",
+            "static let \(name) = Color.brand(", "static let \(name) = Color.dynamic(",
+        ]
         let start = try #require(
             markers.lazy.compactMap { source.range(of: $0) }.first,
             "OriveoTheme has no token \(name)"
@@ -145,6 +149,7 @@ struct ModelControlThemeContrastTests {
         let args = String(rest[..<end])
 
         func hex(_ label: String) throws -> UInt {
+            if let value = try Self.brandHex(args, label, palette) { return value }
             // A dark slot written as `dark: \.<field>` takes that palette's field value (the palette instances themselves are aligned with the JSON by OriveoDarkPalettesTests).
             if let range = args.range(of: "\(label): \\.") {
                 let field = String(args[range.upperBound...].prefix { $0.isLetter || $0.isNumber })
@@ -168,6 +173,24 @@ struct ModelControlThemeContrastTests {
             Double(value & 0x0000FF) / 255,
             alpha(theme == .light ? "lightAlpha" : "darkAlpha")
         )
+    }
+
+    /// The value of a `Color.brand` / `oriveoBrand` declaration: the light `defaultLight: 0x...` (the default palette's hand-tuned value) comes first, otherwise
+    /// `light: \.<field>` takes that palette's light brand color; dark is `darkFixed: 0x...`. Anything else returns nil and the original parsing takes over.
+    private static func brandHex(_ args: String, _ label: String, _ palette: OriveoDarkPaletteID) throws -> UInt? {
+        func literal(_ key: String) -> UInt? {
+            guard let range = args.range(of: "\(key): 0x") else { return nil }
+            return UInt(args[range.upperBound...].prefix { $0.isHexDigit }, radix: 16)
+        }
+        if label == "light" {
+            let choice = OriveoDarkPaletteChoice.preset(palette)
+            if choice.isDefaultPalette, let value = literal("defaultLight") { return value }
+            guard let range = args.range(of: "light: \\.") else { return nil }
+            let field = String(args[range.upperBound...].prefix { $0.isLetter || $0.isNumber })
+            let keyPath = try #require(OriveoLightBrandTests.fields[field], "unknown light brand field \(field)")
+            return choice.lightBrand[keyPath: keyPath]
+        }
+        return literal("darkFixed")
     }
 
     private static let controlSignature = "struct ModelOptionSegmentedControl: View {"
@@ -197,11 +220,16 @@ struct ModelControlThemeContrastTests {
     /// The same reason as for reading `OriveoTheme.swift`: bridging a dynamic color back to `UIColor` at runtime loses the dark variant.
     private static func componentColor(_ name: String, in signature: String, _ theme: Theme) throws -> RGBA {
         let body = try scopedBody(componentSource(), from: signature)
-        let marker = "static let \(name) = Color.dynamic("
-        let start = try #require(body.range(of: marker), "\(signature) has no \(name)")
-        let args = body[start.upperBound...].prefix { $0 != ")" }
-        let label = try #require(args.range(of: "\(theme.rawValue): 0x"), "\(name) lacks \(theme.rawValue)")
-        let value = try #require(UInt(args[label.upperBound...].prefix { $0.isHexDigit }, radix: 16))
+        let markers = ["static let \(name) = Color.brand(", "static let \(name) = Color.dynamic("]
+        let start = try #require(markers.lazy.compactMap { body.range(of: $0) }.first, "\(signature) has no \(name)")
+        let args = String(body[start.upperBound...].prefix { $0 != ")" })
+        let value: UInt
+        if let brand = try brandHex(args, theme.rawValue, .defaultID) {
+            value = brand
+        } else {
+            let label = try #require(args.range(of: "\(theme.rawValue): 0x"), "\(name) lacks \(theme.rawValue)")
+            value = try #require(UInt(args[label.upperBound...].prefix { $0.isHexDigit }, radix: 16))
+        }
         return (
             Double((value & 0xFF0000) >> 16) / 255,
             Double((value & 0x00FF00) >> 8) / 255,

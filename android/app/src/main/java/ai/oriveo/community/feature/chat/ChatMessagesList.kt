@@ -47,6 +47,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -58,6 +59,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import ai.oriveo.community.ui.theme.LocalUserBubbleViewport
+import ai.oriveo.community.ui.theme.UserBubbleViewport
+import ai.oriveo.community.ui.theme.userBubbleViewport
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
@@ -144,191 +148,196 @@ internal fun BoxScope.ChatMessagesList(
     // restart it (see [PointerPressTracker]). Everything it captures freezes at that moment, so the
     // callback has to be read through rememberUpdatedState to reach the current instance.
     val latestOnPointerDownChange = rememberUpdatedState(onPointerDownChange)
-    LazyColumn(
-        state = listState,
-        modifier = Modifier
-            .fillMaxSize()
-            .alpha(if (hideInitialListUntilBottomSettled) 0f else 1f)
-            // The baseline has to be block-local state (tracker). A captured parameter freezes when
-            // the block starts, and the release is then never reported.
-            .pointerInput(Unit) {
-                val tracker = PointerPressTracker()
-                awaitPointerEventScope {
-                    while (true) {
-                        val event = awaitPointerEvent(PointerEventPass.Initial)
-                        val anyPressed = event.changes.any { it.pressed }
-                        tracker.consume(anyPressed)?.let { latestOnPointerDownChange.value(it) }
+    // The user bubble gradient is anchored to the list viewport: the geometry is only read in the draw phase, so scrolling does not recompose.
+    val bubbleViewport = remember { UserBubbleViewport() }
+    CompositionLocalProvider(LocalUserBubbleViewport provides bubbleViewport) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .fillMaxSize()
+                .userBubbleViewport(bubbleViewport)
+                .alpha(if (hideInitialListUntilBottomSettled) 0f else 1f)
+                // The baseline has to be block-local state (tracker). A captured parameter freezes when
+                // the block starts, and the release is then never reported.
+                .pointerInput(Unit) {
+                    val tracker = PointerPressTracker()
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            val anyPressed = event.changes.any { it.pressed }
+                            tracker.consume(anyPressed)?.let { latestOnPointerDownChange.value(it) }
+                        }
                     }
-                }
-            },
-        contentPadding = PaddingValues(
-            top = OriveoTheme.layout.sectionGap,
-            bottom = composerOverlayHeightDp + OriveoTheme.spacing.xxl,
-        ),
-    ) {
-        itemsIndexed(
-            items = messages,
-            key = { _, msg -> msg.id },
-            contentType = { _, msg -> msg.role },
-        ) { index, message ->
-            val isStreaming = message.id == streamingMessageId
-            val previousRole = messages.getOrNull(index - 1)?.role
-            val nextRole = messages.getOrNull(index + 1)?.role
-            val topPadding = if (previousRole == message.role) {
-                OriveoTheme.spacing.sm
-            } else {
-                OriveoTheme.spacing.lg
-            }
-            val showMetadata = message.role == ChatRole.User || nextRole != ChatRole.Assistant
-            val messageMetadata = remember(
-                message.providerID,
-                message.modelID,
-                message.providerName,
-                message.modelName,
-                displayLookup,
-            ) {
-                resolveMessageDisplayMetadata(
-                    message = message,
-                    displayLookup = displayLookup,
-                )
-            }
-
-            val streamingHold = remember(message.id) { StreamingCellHold() }
-            val liveStreamingText: String? = if (isStreaming) {
-                streamingText.collectAsStateWithLifecycle().value
-            } else {
-                null
-            }
-            val liveStreamingReasoning: String? = if (isStreaming) {
-                streamingReasoning.collectAsStateWithLifecycle().value
-            } else {
-                null
-            }
-
-            val liveReasoningActive: Boolean = isStreaming &&
-                streamingReasoningActive.collectAsStateWithLifecycle().value
-            val liveStreamingActivity: StreamActivity? = if (isStreaming) {
-                streamingActivity.collectAsStateWithLifecycle().value
-            } else {
-                null
-            }
-            if (!liveStreamingText.isNullOrEmpty()) streamingHold.text = liveStreamingText
-            if (!liveStreamingReasoning.isNullOrEmpty()) streamingHold.reasoning = liveStreamingReasoning
-            val isPersistedGenerating = message.state == ChatMessageState.Generating
-            val cellStreamingText = resolveStreamingCellText(
-                live = liveStreamingText,
-                held = streamingHold.text,
-                isPersistedGenerating = isPersistedGenerating,
-            )
-            val cellStreamingReasoning = resolveStreamingCellText(
-                live = liveStreamingReasoning,
-                held = streamingHold.reasoning,
-                isPersistedGenerating = isPersistedGenerating,
-            )
-
-            val messageSavedNoteLinks = savedNoteLinksForMessage(savedNoteLinksByMessage, message.id)
-            val replacementNoteId = replacementNoteIdForSelection(
-                returnToNoteId = returnToNoteId,
-                savedNoteLinks = messageSavedNoteLinks,
-            )
-            val isPinnedAssistant = shouldApplyPinnedAssistantReserve(
-                messages = messages,
-                index = index,
-                pinnedTurnUserId = scrollController.pinnedTurnUserId,
-            )
-
-            val highlightColor by animateColorAsState(
-                targetValue = if (message.id == highlightedMessageId) {
-                    OriveoTheme.colors.primary.copy(alpha = 0.12f)
-                } else {
-                    Color.Transparent
                 },
-                animationSpec = tween(durationMillis = 320),
-                label = "noteSourceHighlight",
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(highlightColor, RoundedCornerShape(14.dp))
-                    .then(
-                        if (isPinnedAssistant && scrollController.reservePx > 0) {
-
-                            val pinnedFloorDp = with(density) {
-                                scrollController.pinnedAssistantFloorPx.toDp()
-                            }
-                            Modifier
-                                .heightIn(min = maxOf(reserveDp, pinnedFloorDp))
-                                .onSizeChanged { scrollController.reportPinnedAssistantHeight(it.height) }
-                        } else {
-                            Modifier
-                        },
-                    ),
-            ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    if (separator != null && separator.drawAboveMessageId == message.id) {
-                        CompactionSeparatorRow(separator.separator, onSeparatorClick)
-                    }
-                    MessageItemWithActions(
+            contentPadding = PaddingValues(
+                top = OriveoTheme.layout.sectionGap,
+                bottom = composerOverlayHeightDp + OriveoTheme.spacing.xxl,
+            ),
+        ) {
+            itemsIndexed(
+                items = messages,
+                key = { _, msg -> msg.id },
+                contentType = { _, msg -> msg.role },
+            ) { index, message ->
+                val isStreaming = message.id == streamingMessageId
+                val previousRole = messages.getOrNull(index - 1)?.role
+                val nextRole = messages.getOrNull(index + 1)?.role
+                val topPadding = if (previousRole == message.role) {
+                    OriveoTheme.spacing.sm
+                } else {
+                    OriveoTheme.spacing.lg
+                }
+                val showMetadata = message.role == ChatRole.User || nextRole != ChatRole.Assistant
+                val messageMetadata = remember(
+                    message.providerID,
+                    message.modelID,
+                    message.providerName,
+                    message.modelName,
+                    displayLookup,
+                ) {
+                    resolveMessageDisplayMetadata(
                         message = message,
-                        streamingText = cellStreamingText,
-                        streamingReasoning = cellStreamingReasoning,
-                        streamingReasoningActive = liveReasoningActive,
-                        streamingActivity = liveStreamingActivity,
-                        isLiveStream = isStreaming,
-                        isSendingMessage = isGenerating,
-                        isRateLimitError = isRateLimitError(message),
-                        topPadding = topPadding,
-                        showMetadata = showMetadata,
-                        isLastMessage = index == messages.lastIndex,
-                        providerNameOverride = messageMetadata.providerName,
-                        modelNameOverride = messageMetadata.modelName,
-                        isUserDragging = isDragging,
-                        onCopy = { onCopy(message) },
-                        onEdit = { onEdit(message) },
-                        onRegenerate = { onRegenerate(message.id) },
-                        onContinue = { onContinue(message.id) },
-                        onRetry = { onRetry(message.id) },
-                        onRetryWithoutLocalCustomFields = { onRetryWithoutLocalCustomFields(message.id) },
-                        onSwitchModel = onSwitchModel,
-                        offersSwitchKey = message.state == ChatMessageState.Failed &&
-                            RelaySwitchKey.options(providersById[message.providerID], message).isNotEmpty(),
-                        onSwitchKey = { onSwitchKey(message) },
-                        onShare = { onShare(message) },
-                        onSaveAsNote = { onSaveAsNote(message) },
-                        onSaveCodeAsNote = { code -> onSaveCodeAsNote(message, code) },
-                        onSaveSelection = { text -> onSaveSelectionAsNote(message, text) },
-                        onAskSelection = { selection -> onAskSelection(message, selection) },
-                        onReplaceSelection = if (message.state == ChatMessageState.Delivered && replacementNoteId != null) {
-                            onReplaceSelectionInCurrentNote?.let { callback ->
-                                { text -> callback(message, text, replacementNoteId) }
-                            }
-                        } else {
-                            null
-                        },
-                        onCrosscheck = { onCrosscheck(message) },
-                        savedNoteLinks = messageSavedNoteLinks,
-                        onOpenSavedNote = onOpenSavedNote,
+                        displayLookup = displayLookup,
                     )
-                    // coversTo is the last message: nothing follows it, so the row goes below it.
-                    if (separator != null && separator.drawAboveMessageId == null &&
-                        separator.separator.anchorMessageId == message.id
-                    ) {
-                        CompactionSeparatorRow(separator.separator, onSeparatorClick)
-                    }
-                    if (directiveSuggestion != null && directiveSuggestion.messageId == message.id) {
-                        DirectiveSuggestionRow(onAcceptDirectiveSuggestion, onIgnoreDirectiveSuggestion)
-                    }
-                    // Under the turn's assistant reply, only once it has stopped streaming.
-                    if (memorySuggestion != null && memorySuggestion.messageId == message.id &&
-                        message.role == ChatRole.Assistant && !isStreaming &&
-                        message.state != ChatMessageState.Generating
-                    ) {
-                        MemorySuggestionRow(
-                            suggestion = memorySuggestion,
-                            onIgnore = onIgnoreMemorySuggestion,
-                            onEdit = onEditMemorySuggestion,
-                            onSave = onSaveMemorySuggestion,
+                }
+
+                val streamingHold = remember(message.id) { StreamingCellHold() }
+                val liveStreamingText: String? = if (isStreaming) {
+                    streamingText.collectAsStateWithLifecycle().value
+                } else {
+                    null
+                }
+                val liveStreamingReasoning: String? = if (isStreaming) {
+                    streamingReasoning.collectAsStateWithLifecycle().value
+                } else {
+                    null
+                }
+
+                val liveReasoningActive: Boolean = isStreaming &&
+                    streamingReasoningActive.collectAsStateWithLifecycle().value
+                val liveStreamingActivity: StreamActivity? = if (isStreaming) {
+                    streamingActivity.collectAsStateWithLifecycle().value
+                } else {
+                    null
+                }
+                if (!liveStreamingText.isNullOrEmpty()) streamingHold.text = liveStreamingText
+                if (!liveStreamingReasoning.isNullOrEmpty()) streamingHold.reasoning = liveStreamingReasoning
+                val isPersistedGenerating = message.state == ChatMessageState.Generating
+                val cellStreamingText = resolveStreamingCellText(
+                    live = liveStreamingText,
+                    held = streamingHold.text,
+                    isPersistedGenerating = isPersistedGenerating,
+                )
+                val cellStreamingReasoning = resolveStreamingCellText(
+                    live = liveStreamingReasoning,
+                    held = streamingHold.reasoning,
+                    isPersistedGenerating = isPersistedGenerating,
+                )
+
+                val messageSavedNoteLinks = savedNoteLinksForMessage(savedNoteLinksByMessage, message.id)
+                val replacementNoteId = replacementNoteIdForSelection(
+                    returnToNoteId = returnToNoteId,
+                    savedNoteLinks = messageSavedNoteLinks,
+                )
+                val isPinnedAssistant = shouldApplyPinnedAssistantReserve(
+                    messages = messages,
+                    index = index,
+                    pinnedTurnUserId = scrollController.pinnedTurnUserId,
+                )
+
+                val highlightColor by animateColorAsState(
+                    targetValue = if (message.id == highlightedMessageId) {
+                        OriveoTheme.colors.primary.copy(alpha = 0.12f)
+                    } else {
+                        Color.Transparent
+                    },
+                    animationSpec = tween(durationMillis = 320),
+                    label = "noteSourceHighlight",
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(highlightColor, RoundedCornerShape(14.dp))
+                        .then(
+                            if (isPinnedAssistant && scrollController.reservePx > 0) {
+
+                                val pinnedFloorDp = with(density) {
+                                    scrollController.pinnedAssistantFloorPx.toDp()
+                                }
+                                Modifier
+                                    .heightIn(min = maxOf(reserveDp, pinnedFloorDp))
+                                    .onSizeChanged { scrollController.reportPinnedAssistantHeight(it.height) }
+                            } else {
+                                Modifier
+                            },
+                        ),
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        if (separator != null && separator.drawAboveMessageId == message.id) {
+                            CompactionSeparatorRow(separator.separator, onSeparatorClick)
+                        }
+                        MessageItemWithActions(
+                            message = message,
+                            streamingText = cellStreamingText,
+                            streamingReasoning = cellStreamingReasoning,
+                            streamingReasoningActive = liveReasoningActive,
+                            streamingActivity = liveStreamingActivity,
+                            isLiveStream = isStreaming,
+                            isSendingMessage = isGenerating,
+                            isRateLimitError = isRateLimitError(message),
+                            topPadding = topPadding,
+                            showMetadata = showMetadata,
+                            isLastMessage = index == messages.lastIndex,
+                            providerNameOverride = messageMetadata.providerName,
+                            modelNameOverride = messageMetadata.modelName,
+                            isUserDragging = isDragging,
+                            onCopy = { onCopy(message) },
+                            onEdit = { onEdit(message) },
+                            onRegenerate = { onRegenerate(message.id) },
+                            onContinue = { onContinue(message.id) },
+                            onRetry = { onRetry(message.id) },
+                            onRetryWithoutLocalCustomFields = { onRetryWithoutLocalCustomFields(message.id) },
+                            onSwitchModel = onSwitchModel,
+                            offersSwitchKey = message.state == ChatMessageState.Failed &&
+                                RelaySwitchKey.options(providersById[message.providerID], message).isNotEmpty(),
+                            onSwitchKey = { onSwitchKey(message) },
+                            onShare = { onShare(message) },
+                            onSaveAsNote = { onSaveAsNote(message) },
+                            onSaveCodeAsNote = { code -> onSaveCodeAsNote(message, code) },
+                            onSaveSelection = { text -> onSaveSelectionAsNote(message, text) },
+                            onAskSelection = { selection -> onAskSelection(message, selection) },
+                            onReplaceSelection = if (message.state == ChatMessageState.Delivered && replacementNoteId != null) {
+                                onReplaceSelectionInCurrentNote?.let { callback ->
+                                    { text -> callback(message, text, replacementNoteId) }
+                                }
+                            } else {
+                                null
+                            },
+                            onCrosscheck = { onCrosscheck(message) },
+                            savedNoteLinks = messageSavedNoteLinks,
+                            onOpenSavedNote = onOpenSavedNote,
                         )
+                        // coversTo is the last message: nothing follows it, so the row goes below it.
+                        if (separator != null && separator.drawAboveMessageId == null &&
+                            separator.separator.anchorMessageId == message.id
+                        ) {
+                            CompactionSeparatorRow(separator.separator, onSeparatorClick)
+                        }
+                        if (directiveSuggestion != null && directiveSuggestion.messageId == message.id) {
+                            DirectiveSuggestionRow(onAcceptDirectiveSuggestion, onIgnoreDirectiveSuggestion)
+                        }
+                        // Under the turn's assistant reply, only once it has stopped streaming.
+                        if (memorySuggestion != null && memorySuggestion.messageId == message.id &&
+                            message.role == ChatRole.Assistant && !isStreaming &&
+                            message.state != ChatMessageState.Generating
+                        ) {
+                            MemorySuggestionRow(
+                                suggestion = memorySuggestion,
+                                onIgnore = onIgnoreMemorySuggestion,
+                                onEdit = onEditMemorySuggestion,
+                                onSave = onSaveMemorySuggestion,
+                            )
+                        }
                     }
                 }
             }

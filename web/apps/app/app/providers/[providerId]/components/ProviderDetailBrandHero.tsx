@@ -8,6 +8,7 @@ import { ProviderIcon } from '../../../../components/ProviderIcon';
 import { relayIconSource } from '../../../../components/relay-avatar';
 import { PROVIDER_BRAND_COLORS } from '../../../../lib/constants/provider-brand-colors';
 import { useIsDarkTheme } from '../../../../lib/hooks/useIsDarkTheme';
+import { useLightBrandColors } from '../../../../lib/hooks/useLightBrandColors';
 import { getProviderInstanceDisplayName } from '../../../../lib/core/providers/provider-display';
 import { getEffectiveStatusKind, type EffectiveStatusKind } from '../../../../lib/core/providers/provider-status';
 import { resolveProviderWatermark } from '../../../../components/providers/provider-brand-watermark';
@@ -108,7 +109,9 @@ export function ProviderDetailBrandHero({
   // Brand color: the same hsbAdjusted treatment as ProviderHeroCard; relay falls back to the primary purple.
   const brandPair = PROVIDER_BRAND_COLORS[provider.kind] ?? PROVIDER_BRAND_COLORS.relay;
   const isDark = useIsDarkTheme();
-  const rawBrand = isRelay ? '#8C5FF8' : brandPair.light;
+  // In light mode Relay uses the current palette's light-mode ink (default palette = hand-tuned purple)
+  const lightInk = useLightBrandColors().ink;
+  const rawBrand = isRelay ? lightInk : brandPair.light;
   // In dark mode Relay follows the current palette's primary: 70% primary mixed with mid-gray, approximating a subdued hsbAdjusted(0.62, 0.88)
   const subduedBrand = isRelay && isDark
     ? 'color-mix(in srgb, var(--o-primary) 70%, gray)'

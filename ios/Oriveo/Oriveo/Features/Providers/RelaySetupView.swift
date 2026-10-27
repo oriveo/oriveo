@@ -526,7 +526,7 @@ struct RelaySetupOrbIcon: View {
 
             Image(systemName: systemImage)
                 .font(.system(size: size * 0.32, weight: .semibold))
-                .foregroundStyle(Color.white)
+                .foregroundStyle(tone == .primary ? Color.brand(defaultLight: 0xFFFFFF, light: \.onPrimary, darkFixed: 0xFFFFFF) : Color.white)
 
             if let badgeSystemImage {
                 Circle()
@@ -552,8 +552,8 @@ struct RelaySetupOrbIcon: View {
         case .primary:
             return LinearGradient(
                 colors: [
-                    Color.dynamic(light: 0xA78BFA, dark: \.accent),
-                    Color.dynamic(light: 0x7C3AED, dark: \.primaryActive)
+                    Color.brand(defaultLight: OriveoLightBrand.DefaultLight.lavender, light: \.fill, dark: \.accent),
+                    Color.brand(defaultLight: 0x7C3AED, light: \.fillText, dark: \.primaryActive)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -604,8 +604,12 @@ func relaySetupFeatureItems() -> [HeroIconTextItem] {
             id: "endpoint",
             title: L10n.tr("Request URL", table: .providers),
             systemImage: "point.bottomleft.forward.to.point.topright.scurvepath",
-            gradientColors: [Color.dynamic(light: 0x818CF8, dark: \.primary), Color.dynamic(light: 0x5B21B6, dark: \.primaryActive)],
-            shadowColor: Color.dynamic(light: 0x4338CA, dark: 0x000000, lightAlpha: 0.10, darkAlpha: 0.12)
+            gradientColors: [
+                Color.brand(defaultLight: 0x818CF8, light: \.fill, dark: \.primary),
+                Color.brand(defaultLight: 0x5B21B6, light: \.fillText, dark: \.primaryActive),
+            ],
+            shadowColor: Color.brand(defaultLight: 0x4338CA, light: \.textSafe, lightAlpha: 0.10, darkFixed: 0x000000, darkAlpha: 0.12),
+            symbolColor: Color.brand(defaultLight: 0xFFFFFF, light: \.onPrimary, darkFixed: 0xF8FAFF)
         ),
         HeroIconTextItem(
             id: "model",

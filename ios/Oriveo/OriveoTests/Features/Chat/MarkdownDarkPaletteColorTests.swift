@@ -22,7 +22,7 @@ struct MarkdownDarkPaletteColorTests {
     private static func traits(_ style: UIUserInterfaceStyle, _ palette: OriveoDarkPaletteID = .darkForest) -> UITraitCollection {
         UITraitCollection { traits in
             traits.userInterfaceStyle = style
-            traits.oriveoDarkPalette = palette
+            traits.oriveoDarkPalette = .preset(palette)
         }
     }
 
@@ -37,7 +37,7 @@ struct MarkdownDarkPaletteColorTests {
     static func rgba(_ color: Color, _ style: ColorScheme, _ palette: OriveoDarkPaletteID = .darkForest) -> (hex: UInt, alpha: Double) {
         var env = EnvironmentValues()
         env.colorScheme = style
-        env.oriveoDarkPalette = palette
+        env.oriveoDarkPalette = .preset(palette)
         return rgba(UIColor(cgColor: color.resolve(in: env).cgColor), traits(.light))
     }
 
@@ -109,7 +109,7 @@ struct MarkdownDarkPaletteColorTests {
         #expect(grid.hex == 0xCBD5E1 && grid.alpha == 0.25)
         #expect(Self.rgba(MarkdownAttributedStringRenderer.tableSeparatorTextColor, light).hex == 0xCBD5E1)
         #expect(Self.rgba(MarkdownMessageView.tableBorder, .light).hex == 0xD1D5DB)
-        #expect(Self.rgba(MarkdownCodeBlockPalette.markdownTableBorder, .light).hex == 0x334155)
-        #expect(Self.rgba(MarkdownCodeBlockPalette.markdownInlineBackground, .light).hex == 0x1B2740)
+        #expect(Self.rgba(MarkdownCodeBlockPalette.markdownTableBorder, .light).hex == 0xD4D4D8)
+        #expect(Self.rgba(MarkdownCodeBlockPalette.markdownInlineBackground, .light).hex == 0x000000)
     }
 }

@@ -4,7 +4,7 @@
  */
 
 import type { Provider, Conversation, ChatMessage, Folder, Skill, SkillUsage, Note, NoteFolder } from '@oriveo/shared';
-import { isValidProviderKind, parseQuoteContext } from '@oriveo/shared';
+import { isValidProviderKind, parseQuoteContext, parseSeed } from '@oriveo/shared';
 import { parseBudgetCap } from '@oriveo/core/context/budget';
 import type { AppPreference } from '@oriveo/shared';
 import type {
@@ -298,9 +298,12 @@ export async function executeImport(
     const { theme, language } = backupFile.data.preferences;
     const backupDarkPalette = (backupFile.data.preferences as { darkPalette?: unknown }).darkPalette;
     const darkPalette = typeof backupDarkPalette === 'string' ? backupDarkPalette : undefined;
+    const backupSeed = (backupFile.data.preferences as { darkPaletteCustom?: unknown }).darkPaletteCustom;
+    // A valid seed is uppercased, an invalid string is stored as-is (rendering uses the default seed), and a non-string / missing value means unset
+    const darkPaletteCustom = typeof backupSeed === 'string' ? (parseSeed(backupSeed) ?? backupSeed) : undefined;
     const memoryPatch = memoryPreferencesFromBackup(backupFile.data.preferences);
     const hasMemory = Object.keys(memoryPatch).length > 0;
-    if (theme || darkPalette || language || hasMemory) {
+    if (theme || darkPalette || darkPaletteCustom || language || hasMemory) {
       const currentPreferences = currentImportPreferences(store, expectedUID);
       // Only known fields are taken: other keys in the backup never reach preferences. theme in the
       // backup is user data, so treat it as an explicit choice once restored.
@@ -310,6 +313,7 @@ export async function executeImport(
         ...(darkPalette
           ? { darkPalette, darkPaletteSetByUser: true }
           : { darkPalette: undefined, darkPaletteSetByUser: undefined }),
+        darkPaletteCustom,
         ...(language ? { language } : {}),
         ...memoryPatch,
       };

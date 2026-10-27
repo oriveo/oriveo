@@ -3,11 +3,12 @@ import { join } from 'node:path';
 import { act, render, renderHook } from '@testing-library/react';
 import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { DARK_PALETTE_IDS, resolveDarkPaletteId } from '@oriveo/shared';
+import { DARK_PALETTE_IDS, customLightBrandCssVars, customPaletteCssVars, deriveCustom, deriveCustomLight, resolveDarkPaletteId } from '@oriveo/shared';
 import { ThemeInitScript } from './ThemeInitScript';
 import { applyDarkPalette, useDarkPalette, useTheme } from '../lib/hooks/useTheme';
 import { setPreference } from '../lib/infra/storage/preferences';
 import { THEME_COLOR_DARK_DEFAULT, THEME_COLOR_LIGHT } from '../lib/theme/theme-color';
+import { CUSTOM_PALETTE_STYLE_ID, CUSTOM_PALETTE_VARS_CACHE_KEY } from '../lib/theme/custom-palette-style';
 
 const REPO_ROOT = join(process.cwd(), '../../..');
 const contract = JSON.parse(
@@ -17,6 +18,7 @@ const contract = JSON.parse(
   order: string[];
   palettes: Record<string, { bg: string }>;
   resolveCases: Array<{ name: string; stored: unknown; renders: string }>;
+  custom: { defaultSeed: string; resolveCases: Array<{ name: string; stored: string; storedSeed: string | null; seed: string | null }> };
 };
 
 /** Take the inline script ThemeInitScript actually injects and run it (the same code as the production first frame). */
@@ -31,6 +33,7 @@ function runInitScript() {
 function resetRoot() {
   delete document.documentElement.dataset.theme;
   delete document.documentElement.dataset.palette;
+  document.getElementById(CUSTOM_PALETTE_STYLE_ID)?.remove();
   localStorage.clear();
 }
 
@@ -217,5 +220,117 @@ describe('theme_color_follows_current_bg', () => {
     expect(metaColor()).toBe(contract.palettes['dark-ocean'].bg.toUpperCase());
     rerender({ t: 'light' });
     expect(metaColor()).toBe(THEME_COLOR_LIGHT.toUpperCase());
+  });
+});
+
+describe('custom palette rendering and first frame', () => {
+  const CSS = readFileSync(join(REPO_ROOT, 'web/packages/ui/src/tokens/variables.css'), 'utf8');
+  const withSeed = contract.custom.resolveCases.find((c) => c.name === 'custom_with_seed')!;
+  const rootVar = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim().toUpperCase();
+  let tokens: HTMLStyleElement;
+  beforeEach(() => {
+    tokens = document.createElement('style');
+    tokens.textContent = CSS;
+    document.head.appendChild(tokens);
+  });
+  afterEach(() => tokens.remove());
+
+  it('applyDarkPalette(custom, seed): dark uses the derived values, light is unaffected, switching back to a preset removes the section', () => {
+    document.documentElement.dataset.theme = 'dark';
+    expect(applyDarkPalette(withSeed.stored, withSeed.storedSeed)).toBe('custom');
+    const { palette } = deriveCustom(withSeed.seed!);
+    expect(document.documentElement.dataset.palette).toBe('custom');
+    expect(rootVar('--o-bg')).toBe(palette.bg);
+    expect(rootVar('--o-primary')).toBe(palette.primary);
+    expect(rootVar('--o-on-primary')).toBe(palette.onPrimary);
+    // First-frame cache
+    expect(JSON.parse(localStorage.getItem(CUSTOM_PALETTE_VARS_CACHE_KEY)!)).toEqual({
+      seed: withSeed.seed,
+      vars: customPaletteCssVars(withSeed.seed!),
+      lightVars: customLightBrandCssVars(withSeed.seed!),
+    });
+    // Light: the neutral background is unchanged, and the brand-color family follows this seed's light derivation
+    document.documentElement.dataset.theme = 'light';
+    expect(rootVar('--o-bg')).toBe(THEME_COLOR_LIGHT.toUpperCase());
+    const light = deriveCustomLight(withSeed.seed!);
+    expect(rootVar('--o-primary')).toBe(light.ink);
+    expect(rootVar('--o-primary-text-safe')).toBe(light.fillText);
+    expect(rootVar('--o-brand-grad-start')).toBe(light.gradStart);
+    document.documentElement.dataset.theme = 'dark';
+    applyDarkPalette('dark-ocean');
+    expect(document.getElementById(CUSTOM_PALETTE_STYLE_ID)).toBeNull();
+    expect(rootVar('--o-bg')).toBe(contract.palettes['dark-ocean'].bg.toUpperCase());
+  });
+
+  it('an invalid / missing seed renders with the default seed', () => {
+    document.documentElement.dataset.theme = 'dark';
+    applyDarkPalette('custom', 'blue');
+    expect(rootVar('--o-bg')).toBe(deriveCustom(contract.custom.defaultSeed).palette.bg);
+  });
+
+  it('ThemeInitScript: with custom and a matching cached seed the cache is applied (theme-color included)', () => {
+    const meta = document.createElement('meta');
+    meta.name = 'theme-color';
+    document.head.appendChild(meta);
+    try {
+      document.documentElement.dataset.theme = 'dark';
+      applyDarkPalette(withSeed.stored, withSeed.storedSeed);
+      document.getElementById(CUSTOM_PALETTE_STYLE_ID)?.remove();
+      delete document.documentElement.dataset.palette;
+      setPreference('preferences', {
+        theme: 'dark', language: 'system', sendShortcut: 'enter',
+        darkPalette: withSeed.stored, darkPaletteSetByUser: true, darkPaletteCustom: withSeed.storedSeed!.toLowerCase(),
+      });
+      runInitScript();
+      const { palette } = deriveCustom(withSeed.seed!);
+      expect(document.documentElement.dataset.palette).toBe('custom');
+      expect(rootVar('--o-bg')).toBe(palette.bg);
+      expect(rootVar('--o-accent')).toBe(palette.accent);
+      expect((meta.getAttribute('content') ?? '').toUpperCase()).toBe(palette.bg);
+      document.documentElement.dataset.theme = 'light';
+      expect(rootVar('--o-primary')).toBe(deriveCustomLight(withSeed.seed!).ink);
+    } finally {
+      meta.remove();
+    }
+  });
+
+  it('ThemeInitScript: with no cache or a mismatched seed the default dark section applies first', () => {
+    localStorage.setItem('oriveo.guest.preferences', JSON.stringify({ theme: 'dark', darkPalette: 'custom', darkPaletteCustom: '#C084FC' }));
+    runInitScript();
+    expect(document.documentElement.dataset.palette).toBeUndefined();
+    expect(document.getElementById(CUSTOM_PALETTE_STYLE_ID)).toBeNull();
+    localStorage.setItem(CUSTOM_PALETTE_VARS_CACHE_KEY, JSON.stringify({ seed: '#60A5FA', vars: customPaletteCssVars('#60A5FA'), lightVars: customLightBrandCssVars('#60A5FA') }));
+    runInitScript();
+    expect(document.documentElement.dataset.palette).toBeUndefined();
+    expect(rootVar('--o-bg')).toBe(contract.palettes[contract.defaultId].bg.toUpperCase());
+    // An old cache (no lightVars) is not applied even when the seed matches: a light section missing the brand variables would break the shared derivations
+    localStorage.setItem(CUSTOM_PALETTE_VARS_CACHE_KEY, JSON.stringify({ seed: '#C084FC', vars: customPaletteCssVars('#C084FC') }));
+    runInitScript();
+    expect(document.documentElement.dataset.palette).toBeUndefined();
+    expect(document.getElementById(CUSTOM_PALETTE_STYLE_ID)).toBeNull();
+  });
+
+  it('ThemeInitScript: invalid variable names / values in the cache are not spliced into the style', () => {
+    localStorage.setItem('oriveo.guest.preferences', JSON.stringify({ theme: 'dark', darkPalette: 'custom' }));
+    localStorage.setItem(CUSTOM_PALETTE_VARS_CACHE_KEY, JSON.stringify({
+      seed: contract.custom.defaultSeed,
+      vars: { '--o-bg': '#123456', '--o-text': 'red}body{x:1', 'color': '#FFFFFF' },
+      lightVars: { '--o-primary': '#654321', '--o-brand-accent': 'url(x)', '--O-X': '#FFFFFF' },
+    }));
+    runInitScript();
+    expect(document.getElementById(CUSTOM_PALETTE_STYLE_ID)?.textContent).toBe(
+      "[data-theme='dark'][data-palette='custom']{--o-bg:#123456;}[data-theme='light'][data-palette='custom']{--o-primary:#654321;}",
+    );
+  });
+
+  it('light preset palettes: brand-color family == fixture light.palettes, and the default palette keeps its hand-tuned section', () => {
+    const lightJson = (contract as unknown as { light: { palettes: Record<string, Record<string, string>> } }).light.palettes;
+    document.documentElement.dataset.theme = 'light';
+    applyDarkPalette('dark-ocean');
+    expect(rootVar('--o-primary')).toBe(lightJson['dark-ocean'].ink);
+    expect(rootVar('--o-primary-text')).toBe(lightJson['dark-ocean'].onPrimary);
+    expect(rootVar('--o-bg')).toBe(THEME_COLOR_LIGHT.toUpperCase());
+    applyDarkPalette('dark');
+    expect(rootVar('--o-primary')).toBe('#8B5CF6');
   });
 });

@@ -401,7 +401,7 @@ struct VoiceConversationOrb: View {
     /// Logo colors: blue, purple, magenta, cyan.
     static let palette: [Color] = [
         Color(hex: 0x4F7BFF),
-        Color.dynamic(light: 0x8B5CF6, dark: \.primary),
+        Color.brand(defaultLight: OriveoLightBrand.DefaultLight.homePurple, light: \.ink, dark: \.primary),
         Color(hex: 0xE04FC0),
         Color(hex: 0x38D6E8)
     ]

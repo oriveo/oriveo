@@ -379,7 +379,7 @@ private fun LiquidGlassTabItem(
     ) {
         Icon(
             imageVector = if (selected) {
-                OriveoTabBarIcons.selected(item.glyph, isDark, OriveoTheme.colors.let { it.primary to it.accent })
+                OriveoTabBarIcons.selected(item.glyph, isDark, OriveoTheme.colors.let { it.primary to it.accent }, OriveoTheme.lightBrand)
             } else {
                 OriveoTabBarIcons.template(item.glyph)
             },

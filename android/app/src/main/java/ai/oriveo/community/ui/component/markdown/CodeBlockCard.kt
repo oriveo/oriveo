@@ -52,8 +52,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -62,8 +66,10 @@ import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import ai.oriveo.community.R
 import ai.oriveo.community.ui.theme.OriveoBorderWidth
@@ -235,20 +241,23 @@ fun StreamingCodeBlockCard(
                 .fillMaxWidth()
                 .let { if (isTruncated) it.height(PREVIEW_HEIGHT) else it },
         ) {
+            val highlighted = remember(previewText, language, mdColors) {
+                highlightStreamingCode(previewText, language, mdColors)
+            }
+            var textLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .diffLineBackgrounds(highlighted, { textLayout }, CODE_PAD, mdColors)
                     .horizontalScroll(rememberScrollState())
                     .padding(CODE_PAD),
                 verticalAlignment = Alignment.Bottom,
             ) {
 
-                val highlighted = remember(previewText, language, mdColors) {
-                    highlightStreamingCode(previewText, language, mdColors)
-                }
                 Text(
                     text = highlighted,
                     style = OriveoTheme.typography.code.copy(color = mdColors.codeBlockFg),
+                    onTextLayout = { textLayout = it },
                 )
                 Spacer(modifier = Modifier.width(2.dp))
                 StreamingCodeCursor(color = mdColors.codeBlockFg)
@@ -309,7 +318,7 @@ private fun CodeBlockHeader(
 
         if (onSaveAsNote != null) {
             HeaderPillButton(
-                icon = { Icon(Icons.AutoMirrored.Outlined.NoteAdd, contentDescription = null, modifier = Modifier.size(11.dp), tint = mdColors.codeBlockFg) },
+                icon = { Icon(Icons.AutoMirrored.Outlined.NoteAdd, contentDescription = null, modifier = Modifier.size(11.dp), tint = mdColors.codeBlockHeaderText) },
                 label = stringResource(R.string.notes_chat_save_as_note),
                 mdColors = mdColors,
                 onClick = { onSaveAsNote(code) },
@@ -318,7 +327,7 @@ private fun CodeBlockHeader(
 
         if (isTruncated) {
             HeaderPillButton(
-                icon = { Icon(Icons.Outlined.OpenInFull, contentDescription = null, modifier = Modifier.size(11.dp), tint = mdColors.codeBlockFg) },
+                icon = { Icon(Icons.Outlined.OpenInFull, contentDescription = null, modifier = Modifier.size(11.dp), tint = mdColors.codeBlockHeaderText) },
                 label = stringResource(R.string.code_block_expand),
                 mdColors = mdColors,
                 onClick = onExpand,
@@ -352,7 +361,7 @@ private fun LanguageCapsule(language: String, mdColors: MarkdownColors) {
         Text(
             text = finalText,
             style = OriveoTheme.typography.footnote,
-            color = mdColors.codeBlockFg,
+            color = mdColors.codeBlockHeaderText,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -379,7 +388,7 @@ private fun CopyPillButton(code: String, mdColors: MarkdownColors) {
                 imageVector = if (copied) Icons.Outlined.Check else Icons.Outlined.ContentCopy,
                 contentDescription = null,
                 modifier = Modifier.size(11.dp),
-                tint = mdColors.codeBlockFg,
+                tint = mdColors.codeBlockHeaderText,
             )
         },
         label = stringResource(if (copied) R.string.copied else R.string.copy),
@@ -413,7 +422,7 @@ private fun HeaderPillButton(
         Text(
             text = label,
             style = OriveoTheme.typography.footnote,
-            color = mdColors.codeBlockFg,
+            color = mdColors.codeBlockHeaderText,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -432,16 +441,21 @@ private fun SyntaxCodePreview(
         MarkdownRenderCache.highlightCode(code, language, mdColors)
     }
 
+    var textLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .let { if (isTruncated) it.height(PREVIEW_HEIGHT) else it },
+            .let { if (isTruncated) it.height(PREVIEW_HEIGHT) else it }
+            .clipToBounds(),
     ) {
         Text(
             text = highlighted,
             style = OriveoTheme.typography.code.copy(color = mdColors.codeBlockFg),
+            onTextLayout = { textLayout = it },
             modifier = Modifier
                 .fillMaxWidth()
+                .diffLineBackgrounds(highlighted, { textLayout }, CODE_PAD, mdColors)
                 .horizontalScroll(rememberScrollState())
                 .padding(CODE_PAD),
         )
@@ -583,11 +597,14 @@ private fun CodeBlockViewerSheet(
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState()),
                 ) {
+                    var textLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
                     Text(
                         text = highlighted,
                         style = OriveoTheme.typography.code.copy(color = mdColors.codeBlockFg),
+                        onTextLayout = { textLayout = it },
                         modifier = Modifier
                             .fillMaxWidth()
+                            .diffLineBackgrounds(highlighted, { textLayout }, OriveoTheme.spacing.xl, mdColors)
                             .horizontalScroll(rememberScrollState())
                             .padding(OriveoTheme.spacing.xl),
                     )
@@ -607,6 +624,44 @@ internal fun highlightStreamingCode(
     return buildAnnotatedString {
         append(SyntaxHighlighter.highlight(code.substring(0, lastNewline), language, colors))
         append(code.substring(lastNewline))
+    }
+}
+
+/**
+ * Whole-line background of added / deleted diff lines (shared by the static card, the streaming card and the full-screen viewer).
+ *
+ * It sits outside the horizontal scroll (at the viewport-width layer) and, for each line range annotated with [SyntaxHighlighter.DIFF_LINE_TAG],
+ * takes the line top / bottom from the TextLayoutResult and paints across the whole code area width; [contentTop] is the top padding of the code text relative to this layer.
+ * The layout is only read inside the draw cache, so a layout change only rebuilds the draw cache and does not trigger recomposition.
+ */
+private fun Modifier.diffLineBackgrounds(
+    highlighted: AnnotatedString,
+    layout: () -> TextLayoutResult?,
+    contentTop: Dp,
+    colors: MarkdownColors,
+): Modifier = drawWithCache {
+    val ranges = highlighted.getStringAnnotations(SyntaxHighlighter.DIFF_LINE_TAG, 0, highlighted.length)
+    val result = layout()
+    val top = contentTop.toPx()
+    val rects = if (result == null || ranges.isEmpty()) {
+        emptyList()
+    } else {
+        val textLength = result.layoutInput.text.length
+        ranges.filter { it.start < textLength }.map { range ->
+            val firstLine = result.getLineForOffset(range.start)
+            val lastLine = result.getLineForOffset((range.end - 1).coerceIn(range.start, textLength - 1))
+            val color = if (range.item == SyntaxHighlighter.DIFF_LINE_ADD) {
+                colors.syntaxDiffAddLine
+            } else {
+                colors.syntaxDiffDeleteLine
+            }
+            Triple(color, top + result.getLineTop(firstLine), top + result.getLineBottom(lastLine))
+        }
+    }
+    onDrawBehind {
+        for ((color, lineTop, lineBottom) in rects) {
+            drawRect(color = color, topLeft = Offset(0f, lineTop), size = Size(size.width, lineBottom - lineTop))
+        }
     }
 }
 

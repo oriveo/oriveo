@@ -51,6 +51,8 @@ func makeStreamingCodePreview(
     return StreamingCodePreview(text: previewText, lineCount: lineCount, isTruncated: true)
 }
 
+/// Code block colors: the 12 syntax roles equal `shared/theme-contracts/code-highlight.v1.json` (Oriveo Code) value for value.
+/// Syntax colors are one fixed set per appearance and do not follow the dark palette; only the code block backgrounds (codeBg / codeHeaderBg) follow the current dark palette.
 enum MarkdownCodeBlockPalette {
     private static func dynamicUIColor(light: UInt, dark: UInt, lightAlpha: CGFloat = 1, darkAlpha: CGFloat = 1) -> UIColor {
         UIColor { trait in
@@ -65,38 +67,52 @@ enum MarkdownCodeBlockPalette {
         }
     }
 
-    static let background = Color.dynamic(light: 0x0B1220, dark: 0x050814)
-    static let surface = Color.dynamic(light: 0x111A2E, dark: \.codeBg)
-    /// Header bar background: same as surface in light mode; the current palette's codeHeaderBg in dark mode.
-    static let headerBackground = OriveoTheme.Palette.codeBlockHeaderBg
-    static let border = Color.dynamic(light: 0x8C5FF8, dark: \.primary, lightAlpha: 0.22, darkAlpha: 0.20)
-    static let foreground = Color.dynamic(light: 0xE7EEF8, dark: 0xEAF1FB)
-    static let secondary = Color.dynamic(light: 0xC7D2E0, dark: 0xC7D2E0)
-    static let markdownLink = Color.dynamic(light: 0xA5B4FC, dark: \.accent)
-    /// Inline code background in the code block Markdown preview: in dark mode it matches chat inline code (MarkdownAttributedStringRenderer.codeBg, white at 7%); light mode is unchanged.
-    static let markdownInlineBackground = Color.dynamic(light: 0x1B2740, dark: 0xFFFFFF, darkAlpha: 0.07)
-    /// Table border in the code block Markdown preview: dark mode uses the palette border (white at 10%); light mode is unchanged.
-    static let markdownTableBorder = Color.dynamic(light: 0x334155, dark: 0xFFFFFF, darkAlpha: 0.10)
+    // MARK: Code block background and border
+    /// Code area background: #F4F4F5 in light mode, the current palette codeBg in dark mode.
+    static let backgroundUIColor = UIColor.oriveoDynamic(light: 0xF4F4F5, dark: \.codeBg)
+    /// Language capsule background: same as the header bar in light mode, the current palette codeBg in dark mode.
+    static let surfaceUIColor = UIColor.oriveoDynamic(light: 0xE4E4E7, dark: \.codeBg)
+    /// Header bar background: #E4E4E7 in light mode, the current palette codeHeaderBg in dark mode.
+    static let headerBackgroundUIColor = UIColor.oriveoDynamic(light: 0xE4E4E7, dark: \.codeHeaderBg)
+    static let borderUIColor = UIColor.oriveoBrand(light: \.ink, lightAlpha: 0.22, dark: \.primary, darkAlpha: 0.20)
+    /// Body text = the contract `text` role.
+    static let foregroundUIColor = dynamicUIColor(light: 0x18181B, dark: 0xE4E4E7)
+    /// Language capsule / line count / header button text: the contract `headerText` in light mode, unchanged in dark mode.
+    static let secondaryUIColor = dynamicUIColor(light: 0x52525B, dark: 0xC7D2E0)
 
-    static let keyword = Color.dynamic(light: 0xD8B4FE, dark: 0xD8B4FE)
-    static let string = Color.dynamic(light: 0xA7F3D0, dark: 0xA7F3D0)
-    static let comment = Color.dynamic(light: 0x94A3B8, dark: 0x94A3B8)
-    static let number = Color.dynamic(light: 0xFDE68A, dark: 0xFDE68A)
-    static let type = Color.dynamic(light: 0x7DD3FC, dark: 0x7DD3FC)
-    static let variable = Color.dynamic(light: 0x5EEAD4, dark: 0x5EEAD4)
+    static let background = Color(uiColor: backgroundUIColor)
+    static let surface = Color(uiColor: surfaceUIColor)
+    static let headerBackground = Color(uiColor: headerBackgroundUIColor)
+    static let border = Color(uiColor: borderUIColor)
+    static let foreground = Color(uiColor: foregroundUIColor)
+    static let secondary = Color(uiColor: secondaryUIColor)
+    static let markdownLink = Color.brand(defaultLight: 0x7C3AED, light: \.textSafe, dark: \.accent)
+    /// Inline code background in the code block Markdown preview: in dark mode it matches chat inline code (MarkdownAttributedStringRenderer.codeBg, white at 7%); black at 6% in light mode.
+    static let markdownInlineBackground = Color.dynamic(light: 0x000000, dark: 0xFFFFFF, lightAlpha: 0.06, darkAlpha: 0.07)
+    /// Table border in the code block Markdown preview: dark mode uses the palette border (white at 10%); #D4D4D8 in light mode.
+    static let markdownTableBorder = Color.dynamic(light: 0xD4D4D8, dark: 0xFFFFFF, darkAlpha: 0.10)
 
-    static let backgroundUIColor = dynamicUIColor(light: 0x0B1220, dark: 0x050814)
-    static let surfaceUIColor = UIColor.oriveoDynamic(light: 0x111A2E, dark: \.codeBg)
-    static let headerBackgroundUIColor = OriveoTheme.Palette.codeBlockHeaderBgUIColor
-    static let borderUIColor = UIColor.oriveoDynamic(light: 0x8C5FF8, dark: \.primary, lightAlpha: 0.22, darkAlpha: 0.20)
-    static let foregroundUIColor = dynamicUIColor(light: 0xE7EEF8, dark: 0xEAF1FB)
-    static let secondaryUIColor = dynamicUIColor(light: 0xC7D2E0, dark: 0xC7D2E0)
-    static let keywordUIColor = dynamicUIColor(light: 0xD8B4FE, dark: 0xD8B4FE)
-    static let stringUIColor = dynamicUIColor(light: 0xA7F3D0, dark: 0xA7F3D0)
-    static let commentUIColor = dynamicUIColor(light: 0x94A3B8, dark: 0x94A3B8)
-    static let numberUIColor = dynamicUIColor(light: 0xFDE68A, dark: 0xFDE68A)
-    static let typeUIColor = dynamicUIColor(light: 0x7DD3FC, dark: 0x7DD3FC)
-    static let variableUIColor = dynamicUIColor(light: 0x5EEAD4, dark: 0x5EEAD4)
+    // MARK: Syntax roles (`text` is the foreground)
+    static let keywordUIColor = dynamicUIColor(light: 0x7C3AED, dark: 0xCBA6F7)
+    static let stringUIColor = dynamicUIColor(light: 0x13773A, dark: 0xA6E3A1)
+    static let numberUIColor = dynamicUIColor(light: 0xB5400C, dark: 0xFAB387)
+    static let functionUIColor = dynamicUIColor(light: 0x1D4ED8, dark: 0x89B4FA)
+    static let typeUIColor = dynamicUIColor(light: 0x8F5B00, dark: 0xF9E2AF)
+    static let propertyUIColor = dynamicUIColor(light: 0x0E7490, dark: 0x89DCEB)
+    static let commentUIColor = dynamicUIColor(light: 0x6B6B76, dark: 0x9399B2)
+    static let punctuationUIColor = dynamicUIColor(light: 0x52525B, dark: 0xA6ADC8)
+    static let diffAddUIColor = dynamicUIColor(light: 0x13773A, dark: 0xA6E3A1)
+    static let diffDeleteUIColor = dynamicUIColor(light: 0xB91C1C, dark: 0xF38BA8)
+    static let diffHunkUIColor = dynamicUIColor(light: 0x0E7490, dark: 0x89DCEB)
+    /// Full-line background of diff added / removed lines: the contract diffAddLine / diffDeleteLine colors at an alpha, laid over the code area background.
+    static let diffAddLineUIColor = dynamicUIColor(light: 0x10B981, dark: 0x6EE7A1, lightAlpha: 0.10, darkAlpha: 0.12)
+    static let diffDeleteLineUIColor = dynamicUIColor(light: 0xEF4444, dark: 0xF8978F, lightAlpha: 0.10, darkAlpha: 0.12)
+
+    static let keyword = Color(uiColor: keywordUIColor)
+    static let string = Color(uiColor: stringUIColor)
+    static let comment = Color(uiColor: commentUIColor)
+    static let number = Color(uiColor: numberUIColor)
+    static let type = Color(uiColor: typeUIColor)
 }
 
 struct CodeBlockCard: View {
@@ -153,7 +169,7 @@ struct CodeBlockCard: View {
 
                     Text((language?.isEmpty == false ? language! : L10n.tr("Code")).uppercased())
                         .font(OriveoTheme.Typography.footnote)
-                        .foregroundStyle(codeForeground)
+                        .foregroundStyle(codeSecondary)
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
@@ -184,7 +200,7 @@ struct CodeBlockCard: View {
                         Text(copied ? L10n.tr("Copied") : L10n.tr("Copy"))
                             .font(OriveoTheme.Typography.footnote)
                     }
-                    .foregroundStyle(codeForeground)
+                    .foregroundStyle(codeSecondary)
                     .contentShape(.hoverEffect, Capsule(style: .continuous))
                     .hoverEffect(.highlight)
                 }
@@ -200,7 +216,7 @@ struct CodeBlockCard: View {
                             Text(L10n.tr("Expand"))
                                 .font(OriveoTheme.Typography.footnote)
                         }
-                        .foregroundStyle(codeForeground)
+                        .foregroundStyle(codeSecondary)
                         .contentShape(.hoverEffect, Capsule(style: .continuous))
                         .hoverEffect(.highlight)
                     }
@@ -416,9 +432,11 @@ nonisolated enum SyntaxHighlighter {
 
         let string: NSRegularExpression
         let variable: NSRegularExpression
+        let attribute: NSRegularExpression
         let number: NSRegularExpression
-        let type: NSRegularExpression
         let word: NSRegularExpression
+        let punctuation: NSRegularExpression
+        let jsonKeyColon: NSRegularExpression
         let cStyleComment: NSRegularExpression
         let hashComment: NSRegularExpression
         let htmlComment: NSRegularExpression
@@ -428,7 +446,14 @@ nonisolated enum SyntaxHighlighter {
         let commentColor = MarkdownCodeBlockPalette.commentUIColor
         let numberColor = MarkdownCodeBlockPalette.numberUIColor
         let typeColor = MarkdownCodeBlockPalette.typeUIColor
-        let variableColor = MarkdownCodeBlockPalette.variableUIColor
+        let functionColor = MarkdownCodeBlockPalette.functionUIColor
+        let propertyColor = MarkdownCodeBlockPalette.propertyUIColor
+        let punctuationColor = MarkdownCodeBlockPalette.punctuationUIColor
+        let diffAddColor = MarkdownCodeBlockPalette.diffAddUIColor
+        let diffDeleteColor = MarkdownCodeBlockPalette.diffDeleteUIColor
+        let diffHunkColor = MarkdownCodeBlockPalette.diffHunkUIColor
+        let diffAddLineColor = MarkdownCodeBlockPalette.diffAddLineUIColor
+        let diffDeleteLineColor = MarkdownCodeBlockPalette.diffDeleteLineUIColor
 
         let keywords: Set<String> = [
             "if", "else", "elif", "for", "while", "do", "switch", "case", "break", "continue",
@@ -449,14 +474,19 @@ nonisolated enum SyntaxHighlighter {
         private init() {
             string = try! NSRegularExpression(pattern: #""(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'"#)
             variable = try! NSRegularExpression(pattern: #"\$[A-Za-z_][A-Za-z0-9_]*"#)
+            attribute = try! NSRegularExpression(pattern: #"@[A-Za-z_][A-Za-z0-9_]*"#)
             number = try! NSRegularExpression(pattern: #"\b(?:0x[\da-fA-F]+|\d+\.?\d*(?:[eE][+-]?\d+)?)\b"#)
-            type = try! NSRegularExpression(pattern: #"\b[A-Z][a-zA-Z0-9_]*\b"#)
             word = try! NSRegularExpression(pattern: #"\b[a-zA-Z_]\w*\b"#)
+            punctuation = try! NSRegularExpression(pattern: #"[{}\[\]()<>,;:.=+\-*/%!&|^~?]"#)
+            jsonKeyColon = try! NSRegularExpression(pattern: #"\G[ \t]*:"#)
             cStyleComment = try! NSRegularExpression(pattern: #"//[^\n]*|/\*[\s\S]*?\*/"#, options: .dotMatchesLineSeparators)
             hashComment = try! NSRegularExpression(pattern: #"(?m)(?:^|(?<=\s))#[^\n]*$"#)
             htmlComment = try! NSRegularExpression(pattern: #"<!--[\s\S]*?-->"#, options: .dotMatchesLineSeparators)
         }
     }
+
+    /// Full-line background color of diff added / removed lines (the value is a UIColor). `CodeLineBackgroundDecorator` draws it behind the text across the text view's full width.
+    static let lineBackgroundKey = NSAttributedString.Key("oriveo.codeLineBackground")
 
     static func highlight(_ code: String, language: String?, baseColor: UIColor) -> NSAttributedString {
         let baseAttrs: [NSAttributedString.Key: Any] = [
@@ -488,16 +518,18 @@ nonisolated enum SyntaxHighlighter {
 
     static func blockCommentDelimiters(for language: String?) -> (open: String, close: String)? {
         switch commentStyle(for: language) {
-        case .hash: return nil
+        case .none, .hash: return nil
         case .html: return ("<!--", "-->")
         case .cStyle: return ("/*", "*/")
         }
     }
 
-    private enum CommentStyle { case hash, html, cStyle }
+    private enum CommentStyle { case none, hash, html, cStyle }
 
     private static func commentStyle(for language: String?) -> CommentStyle {
         switch language?.lowercased() ?? "" {
+        case "diff", "patch":
+            return .none
         case "python", "py", "ruby", "rb", "yaml", "yml", "bash", "sh", "shell", "zsh",
              "toml", "dockerfile", "makefile", "r", "perl", "pl":
             return .hash
@@ -508,6 +540,13 @@ nonisolated enum SyntaxHighlighter {
         }
     }
 
+    private static func isJSONLanguage(_ language: String?) -> Bool {
+        switch language?.lowercased() ?? "" {
+        case "json", "jsonc", "json5": return true
+        default: return false
+        }
+    }
+
     private static func compute(
         _ code: String,
         language: String?,
@@ -515,68 +554,218 @@ nonisolated enum SyntaxHighlighter {
     ) -> NSAttributedString {
         let p = Patterns.shared
         let attributed = NSMutableAttributedString(string: code, attributes: baseAttrs)
+        let style = commentStyle(for: language)
+        if style == .none {
+            applyDiffLines(code, to: attributed, patterns: p)
+            return attributed
+        }
+
+        let ns = code as NSString
         let fullRange = NSRange(location: 0, length: attributed.length)
-        var protectedRanges: [NSRange] = []
+        // Already-colored ranges: later rules only check whether a match starts inside one (same rule as before); IndexSet lookups are O(log n)
+        var protected = IndexSet()
+        func isFree(_ range: NSRange) -> Bool { !protected.contains(range.location) }
+        func paint(_ range: NSRange, _ color: UIColor) {
+            attributed.addAttribute(.foregroundColor, value: color, range: range)
+            protected.insert(integersIn: range.location ..< NSMaxRange(range))
+        }
 
+        // 1. Strings; in the JSON family a string before a colon is an object key = property
+        let isJSON = isJSONLanguage(language)
         for match in p.string.matches(in: code, range: fullRange) {
-            attributed.addAttribute(.foregroundColor, value: p.stringColor, range: match.range)
-            protectedRanges.append(match.range)
+            let end = NSMaxRange(match.range)
+            let isKey = isJSON && p.jsonKeyColon.firstMatch(
+                in: code, options: .anchored, range: NSRange(location: end, length: ns.length - end)
+            ) != nil
+            paint(match.range, isKey ? p.propertyColor : p.stringColor)
         }
 
-        let commentRegexes: [NSRegularExpression]
-        switch commentStyle(for: language) {
-        case .hash: commentRegexes = [p.hashComment]
-        case .html: commentRegexes = [p.htmlComment]
-        case .cStyle: commentRegexes = [p.cStyleComment]
+        // 2. Comments (style depends on the language; the language table lives only in commentStyle(for:))
+        let commentRegex: NSRegularExpression
+        switch style {
+        case .hash: commentRegex = p.hashComment
+        case .html: commentRegex = p.htmlComment
+        case .cStyle, .none: commentRegex = p.cStyleComment
         }
-        for regex in commentRegexes {
-            for match in regex.matches(in: code, range: fullRange)
-            where !isProtected(match.range, by: protectedRanges) {
-                attributed.addAttribute(.foregroundColor, value: p.commentColor, range: match.range)
-                protectedRanges.append(match.range)
+        for match in commentRegex.matches(in: code, range: fullRange) where isFree(match.range) {
+            paint(match.range, p.commentColor)
+        }
+
+        // 3. `$var` and `@attr` / decorators = property
+        for regex in [p.variable, p.attribute] {
+            for match in regex.matches(in: code, range: fullRange) where isFree(match.range) {
+                paint(match.range, p.propertyColor)
             }
         }
 
-        for match in p.variable.matches(in: code, range: fullRange)
-        where !isProtected(match.range, by: protectedRanges) {
-            attributed.addAttribute(.foregroundColor, value: p.variableColor, range: match.range)
-            protectedRanges.append(match.range)
+        // 4. Numbers
+        for match in p.number.matches(in: code, range: fullRange) where isFree(match.range) {
+            paint(match.range, p.numberColor)
         }
 
-        for match in p.number.matches(in: code, range: fullRange)
-        where !isProtected(match.range, by: protectedRanges) {
-            attributed.addAttribute(.foregroundColor, value: p.numberColor, range: match.range)
-        }
-
-        for match in p.word.matches(in: code, range: fullRange)
-        where !isProtected(match.range, by: protectedRanges) {
-            let word = (code as NSString).substring(with: match.range)
+        // 5. Identifiers: keyword > capitalized type > function followed by `(` > member after `.` > body color (left uncolored)
+        for match in p.word.matches(in: code, range: fullRange) where isFree(match.range) {
+            let word = ns.substring(with: match.range)
+            let end = NSMaxRange(match.range)
             if p.keywords.contains(word) {
-                attributed.addAttribute(.foregroundColor, value: p.keywordColor, range: match.range)
-                protectedRanges.append(match.range)
-            } else if !isTypeLike(word) {
-                attributed.addAttribute(.foregroundColor, value: p.variableColor, range: match.range)
+                paint(match.range, p.keywordColor)
+            } else if isTypeLike(word) {
+                paint(match.range, p.typeColor)
+            } else if end < ns.length, ns.character(at: end) == 0x28 /* ( */ {
+                paint(match.range, p.functionColor)
+            } else if match.range.location > 0, ns.character(at: match.range.location - 1) == 0x2E /* . */ {
+                paint(match.range, p.propertyColor)
             }
         }
 
-        for match in p.type.matches(in: code, range: fullRange)
-        where !isProtected(match.range, by: protectedRanges) {
-            let word = (code as NSString).substring(with: match.range)
-            if !p.keywords.contains(word) {
-                attributed.addAttribute(.foregroundColor, value: p.typeColor, range: match.range)
-            }
+        // 6. Brackets, separators, operators
+        for match in p.punctuation.matches(in: code, range: fullRange) where isFree(match.range) {
+            attributed.addAttribute(.foregroundColor, value: p.punctuationColor, range: match.range)
         }
 
         return attributed
     }
 
-    private static func isProtected(_ range: NSRange, by protectedRanges: [NSRange]) -> Bool {
-        protectedRanges.contains { NSLocationInRange(range.location, $0) }
+    /// diff / patch lines get their role from the line prefix: `+++` / `---` / `@@` → diffHunk, `+` → diffAdd, `-` → diffDelete, anything else the body color.
+    /// Added / removed lines also carry `lineBackgroundKey` for the full-line background. Only the line's own prefix is looked at, so streaming line by line and the final full pass agree.
+    private static func applyDiffLines(_ code: String, to attributed: NSMutableAttributedString, patterns p: Patterns) {
+        let ns = code as NSString
+        var lineStart = 0
+        while lineStart <= ns.length {
+            let searchRange = NSRange(location: lineStart, length: ns.length - lineStart)
+            let newline = ns.range(of: "\n", range: searchRange)
+            let lineEnd = newline.location == NSNotFound ? ns.length : newline.location
+            let lineRange = NSRange(location: lineStart, length: lineEnd - lineStart)
+            if lineRange.length > 0 {
+                let line = ns.substring(with: lineRange)
+                if line.hasPrefix("+++") || line.hasPrefix("---") || line.hasPrefix("@@") {
+                    attributed.addAttribute(.foregroundColor, value: p.diffHunkColor, range: lineRange)
+                } else if line.hasPrefix("+") {
+                    attributed.addAttribute(.foregroundColor, value: p.diffAddColor, range: lineRange)
+                    attributed.addAttribute(lineBackgroundKey, value: p.diffAddLineColor, range: lineRange)
+                } else if line.hasPrefix("-") {
+                    attributed.addAttribute(.foregroundColor, value: p.diffDeleteColor, range: lineRange)
+                    attributed.addAttribute(lineBackgroundKey, value: p.diffDeleteLineColor, range: lineRange)
+                }
+            }
+            guard newline.location != NSNotFound else { break }
+            lineStart = newline.location + newline.length
+        }
     }
 
     private static func isTypeLike(_ word: String) -> Bool {
         guard let first = word.unicodeScalars.first else { return false }
         return CharacterSet.uppercaseLetters.contains(first)
+    }
+}
+
+
+// MARK: - Full-line background of code lines (diff added / removed lines)
+
+/// Draws the lines marked by `SyntaxHighlighter.lineBackgroundKey` as bands spanning the text view's full width, behind the text.
+/// Shared by the static card, the streaming card and the SwiftUI code view: the host `ChatPassiveTextView.codeLineBackgrounds` holds it,
+/// and in the text view's layoutSubviews it takes line rects from TextKit 2 layout fragments (falling back to the layoutManager on a TextKit 1 stack).
+/// Nothing is recomputed when the content / width did not change (layoutSubviews is hot while scrolling, so only one comparison is done).
+@MainActor
+final class CodeLineBackgroundDecorator {
+    private let canvas = UIView()
+    private var stripes: [UIView] = []
+    private var needsUpdate = true
+    private var lastWidth: CGFloat = -1
+    private var lastLength = -1
+
+    init() {
+        canvas.isUserInteractionEnabled = false
+        canvas.backgroundColor = .clear
+    }
+
+    /// Call after the content or attributes change (streaming line-by-line coloring, a full rewrite).
+    func invalidate(in textView: UITextView) {
+        needsUpdate = true
+        textView.setNeedsLayout()
+    }
+
+    func layout(in textView: UITextView) {
+        if canvas.superview !== textView {
+            textView.insertSubview(canvas, at: 0)
+            needsUpdate = true
+        } else if textView.subviews.first !== canvas {
+            textView.sendSubviewToBack(canvas)
+        }
+        let width = max(textView.bounds.width, textView.contentSize.width)
+        let length = textView.textStorage.length
+        guard needsUpdate || abs(width - lastWidth) > 0.5 || length != lastLength else { return }
+        needsUpdate = false
+        lastWidth = width
+        lastLength = length
+
+        let bands = Self.lineBands(in: textView)
+        let height = max(textView.contentSize.height, textView.bounds.height)
+        canvas.frame = CGRect(x: 0, y: 0, width: width, height: height)
+        canvas.isHidden = bands.isEmpty
+        while stripes.count < bands.count {
+            let stripe = UIView()
+            stripe.isUserInteractionEnabled = false
+            canvas.addSubview(stripe)
+            stripes.append(stripe)
+        }
+        for (index, stripe) in stripes.enumerated() {
+            guard index < bands.count else {
+                stripe.isHidden = true
+                continue
+            }
+            let band = bands[index]
+            stripe.isHidden = false
+            stripe.backgroundColor = band.color
+            stripe.frame = CGRect(x: 0, y: band.minY, width: width, height: band.maxY - band.minY)
+        }
+    }
+
+    #if DEBUG
+    /// Test seam: the bands currently laid out (in text view coordinates).
+    var _testStripeFrames: [CGRect] {
+        stripes.filter { !$0.isHidden && !canvas.isHidden }.map { canvas.convert($0.frame, to: canvas.superview) }
+    }
+    #endif
+
+    private static func lineBands(in textView: UITextView) -> [(minY: CGFloat, maxY: CGFloat, color: UIColor)] {
+        let storage = textView.textStorage
+        guard storage.length > 0 else { return [] }
+        var bands: [(minY: CGFloat, maxY: CGFloat, color: UIColor)] = []
+        let topInset = textView.textContainerInset.top
+        storage.enumerateAttribute(
+            SyntaxHighlighter.lineBackgroundKey,
+            in: NSRange(location: 0, length: storage.length)
+        ) { value, range, _ in
+            guard let color = value as? UIColor, range.length > 0,
+                  let extent = verticalExtent(of: range, in: textView) else { return }
+            bands.append((extent.minY + topInset, extent.maxY + topInset, color))
+        }
+        return bands
+    }
+
+    /// The vertical extent of the paragraphs containing the character range (in text container coordinates).
+    private static func verticalExtent(of range: NSRange, in textView: UITextView) -> (minY: CGFloat, maxY: CGFloat)? {
+        if let layoutManager = textView.textLayoutManager {
+            guard let content = layoutManager.textContentManager,
+                  let start = content.location(content.documentRange.location, offsetBy: range.location),
+                  let end = content.location(start, offsetBy: range.length) else { return nil }
+            var minY = CGFloat.greatestFiniteMagnitude
+            var maxY = -CGFloat.greatestFiniteMagnitude
+            layoutManager.enumerateTextLayoutFragments(from: start, options: [.ensuresLayout]) { fragment in
+                guard fragment.rangeInElement.location.compare(end) == .orderedAscending else { return false }
+                let frame = fragment.layoutFragmentFrame
+                minY = min(minY, frame.minY)
+                maxY = max(maxY, frame.maxY)
+                return true
+            }
+            return minY < maxY ? (minY, maxY) : nil
+        }
+        // TextKit 1 stack (only views that explicitly use makeTextKit1 get here; touching layoutManager on a TextKit 2 view downgrades it)
+        let layoutManager = textView.layoutManager
+        let glyphRange = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+        let rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textView.textContainer)
+        return rect.isEmpty ? nil : (rect.minY, rect.maxY)
     }
 }
 
@@ -596,7 +785,7 @@ private struct CodeTextDisplay: UIViewRepresentable {
         Coordinator()
     }
 
-    func makeUIView(context: Context) -> UITextView {
+    func makeUIView(context: Context) -> ChatPassiveTextView {
         let tv = ChatPassiveTextView()
         tv.isEditable = false
         tv.isScrollEnabled = false
@@ -605,12 +794,13 @@ private struct CodeTextDisplay: UIViewRepresentable {
         tv.textContainerInset = .zero
         tv.textContainer.lineFragmentPadding = 0
         tv.font = .monospacedSystemFont(ofSize: 14, weight: .regular)
+        tv.codeLineBackgrounds = CodeLineBackgroundDecorator()
         tv.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         tv.setContentHuggingPriority(.required, for: .vertical)
         return tv
     }
 
-    func updateUIView(_ tv: UITextView, context: Context) {
+    func updateUIView(_ tv: ChatPassiveTextView, context: Context) {
         let resolvedTextColor = UIColor(textColor)
         tv.textColor = resolvedTextColor
         tv.isSelectable = renderMode == .highlighted
@@ -641,10 +831,11 @@ private struct CodeTextDisplay: UIViewRepresentable {
         context.coordinator.lastText = text
         context.coordinator.lastLanguage = language
         context.coordinator.lastRenderMode = renderMode
+        tv.codeLineBackgrounds?.invalidate(in: tv)
         tv.invalidateIntrinsicContentSize()
     }
 
-    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: ChatPassiveTextView, context: Context) -> CGSize? {
         let width = proposal.width ?? CGFloat.greatestFiniteMagnitude
         return uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
     }
@@ -695,7 +886,7 @@ struct StreamingCodeBlockCard: View {
 
                     Text((language?.isEmpty == false ? language! : L10n.tr("Code")).uppercased())
                         .font(OriveoTheme.Typography.footnote)
-                        .foregroundStyle(codeForeground)
+                        .foregroundStyle(codeSecondary)
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)

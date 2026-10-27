@@ -586,7 +586,7 @@ struct ModelOptionSegmentedControl: View {
 
     /// Text and icon of the selected segment. Light mode uses the text-safe purple; dark mode one step brighter, since the selected segment
     /// is brighter than the track there and the dark value of `primaryTextSafe` on it reaches only about 3:1.
-    static let selectedLabel = Color.dynamic(light: 0x6D28D9, dark: 0xD4C8FF)
+    static let selectedLabel = Color.brand(defaultLight: 0x6D28D9, light: \.textSafe, darkFixed: 0xD4C8FF)
 
     /// Background of the selected segment: a layer of white over the track. Opaque in light mode, a raised white surface; in dark mode only a thin layer,
     /// one step brighter than the track, which together with the shadow reads as raised rather than recessed.
@@ -604,8 +604,8 @@ struct ModelOptionSegmentedControl: View {
 struct ModelOptionCalloutButtonLabel: View {
     let title: String
 
-    static let fill = Color.dynamic(light: 0x6D28D9, dark: 0x6D28D9)
-    static let label = Color.dynamic(light: 0xFFFFFF, dark: 0xFFFFFF)
+    static let fill = Color.brand(defaultLight: 0x6D28D9, light: \.fillText, darkFixed: 0x6D28D9)
+    static let label = Color.brand(defaultLight: 0xFFFFFF, light: \.onPrimary, darkFixed: 0xFFFFFF)
 
     var body: some View {
         Text(title)

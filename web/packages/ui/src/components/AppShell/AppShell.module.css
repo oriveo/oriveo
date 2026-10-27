@@ -224,7 +224,7 @@
   height: 38px;
   border: 1px solid transparent;
   border-radius: 10px;
-  background: var(--o-primary);
+  background: var(--o-primary-fill-text);
   color: var(--o-primary-text);
   font-size: var(--o-text-sm);
   font-weight: var(--o-weight-semibold);
@@ -244,7 +244,7 @@
 }
 
 .newChatBtn:active {
-  background: var(--o-primary-active);
+  background: color-mix(in srgb, var(--o-primary-fill-text) 88%, black);
   transform: scale(0.99);
   transition-duration: 80ms;
 }

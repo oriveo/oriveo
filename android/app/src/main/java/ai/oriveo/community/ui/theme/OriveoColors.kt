@@ -215,6 +215,44 @@ val LightOriveoColors = OriveoColors(
     capImageGenBorder = Color(0xFFC4B5FD),
 )
 
+// ── Light brand colors ──
+
+/**
+ * The hand-tuned brand colors of the default palette (`dark`) in the light appearance, value for value as in `dark-palettes.v1.json#light.palettes.dark`.
+ * The first seven come from [LightOriveoColors]; the gradient ends / second brand color / page background / capsule fill are the hand-tuned values of the original home page and bubble.
+ */
+internal val DefaultLightBrand = OriveoLightBrand(
+    ink = LightOriveoColors.primary,
+    textSafe = LightOriveoColors.primaryTextSafe,
+    fill = LightOriveoColors.primary,
+    fillText = LightOriveoColors.primaryTextSafe,
+    fillPressed = LightOriveoColors.primaryPressed,
+    gradStart = Color(0xFF8347F5),
+    gradEnd = Color(0xFF6B3BC7),
+    onPrimary = LightOriveoColors.onPrimary,
+    soft = LightOriveoColors.primarySoft,
+    accent = Color(0xFFD946EF),
+    bgTop = Color(0xFFF7F5FB),
+    bgBottom = Color(0xFFF2EEF7),
+    pill = Color(0xFFF3F0FA),
+    mode = OriveoLightBrand.Mode.White,
+)
+
+/**
+ * Hand-tuned point colors of the default palette in light (not among the thirteen light-brand fields): the default palette keeps them value for value,
+ * and every other palette swaps them for a brand key through [OriveoLightBrand.tuned].
+ */
+internal object DefaultLightBrandTuned {
+    /** The home page's light purple (accent / send button / soft glow / shadow / conversation row accent / home tab). */
+    val homeViolet = Color(0xFF8B5CF6)
+
+    /** Lavender of the home focus aurora ring. */
+    val ringLavender = Color(0xFFA78BFA)
+
+    /** Pale purple at the end of the home aurora ring / the start of the section rule. */
+    val lavender = Color(0xFFC4B5FD)
+}
+
 // ── Dark Mode ──
 // Machine mirror of the 7 dark palettes: `shared/theme-contracts/dark-palettes.v1.json` (aligned value by value across the three platforms).
 // Change the JSON first before editing any dark value here, and keep the other platforms aligned.
