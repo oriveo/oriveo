@@ -123,7 +123,7 @@ describe('webSearch shots shared manifest', () => {
     const chat = (page: string) => data.webSearchShotPlan(page as never, manifest, searchTurn).chat!;
     // Board 11: stopped at the first request: the activity row is service name + query, not finished yet
     const searching = chat('webSearchChatSearching');
-    expect(searching).toMatchObject({ phase: 'searching', activity: { serviceName: 'DeepSeek', query: 'DeepSeek 搜索 API 价格' }, finish: null });
+    expect(searching).toMatchObject({ phase: 'searching', activity: { serviceName: 'DeepSeek', query: 'DeepSeek \u641C\u7D22 API \u4EF7\u683C' }, finish: null });
     expect(webSearchChatMessages(searching)[1]).toMatchObject({ role: 'assistant', state: 'generating', text: '' });
     // Board 12: one search with three sources, numbered 1-3 into the message sources
     const answer = chat('webSearchChatAnswer');

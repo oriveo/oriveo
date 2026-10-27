@@ -75,7 +75,7 @@ const PLAN_INPUT: PlanExternalSearchInput = {
   toolCall: 'supported',
   host: { library: false, mcp: false, memoryTools: false, continuationKind: 'tool_loop' },
   thinking: { on: false, protocol: 'openai_chat', continuationStateAvailable: true },
-  userText: 'Oriveo 联网搜索',
+  userText: 'Oriveo web search',
   B: 100_000,
   today: '2026-10-27',
 };
@@ -118,13 +118,13 @@ describe('external search turn (production path)', () => {
     const entry = createWebSearchEntry(reply);
     expect(entry.definition).toMatchObject({ function: { name: 'web_search' } });
     const outcome = await entry.execute(
-      { id: 'call_1', type: 'function', function: { name: 'web_search', arguments: JSON.stringify({ query: 'Oriveo 联网搜索' }) } },
+      { id: 'call_1', type: 'function', function: { name: 'web_search', arguments: JSON.stringify({ query: 'Oriveo web search' }) } },
       { callID: 'call_1', stepNumber: 1, legIndex: 0, signal: new AbortController().signal },
     );
     // What upstream received is the golden request shape (the key exists only within this request)
     expect(upstreamCalls).toHaveLength(1);
     expect(upstreamCalls[0].headers.Authorization).toBe('Bearer sk-test-0000');
-    expect(outcome.content.startsWith('<oriveo-web provider="DeepSeek" query="Oriveo 联网搜索"')).toBe(true);
+    expect(outcome.content.startsWith('<oriveo-web provider="DeepSeek" query="Oriveo web search"')).toBe(true);
     const ids = [...outcome.content.matchAll(/<result id="(\d+)"/g)].map((m) => Number(m[1]));
     expect(ids[0]).toBe(3);
     expect(ids.length).toBeGreaterThan(0);
@@ -137,7 +137,7 @@ describe('external search turn (production path)', () => {
     expect(searchCitations.map((c) => c.index)).toEqual(ids);
     expect(searchCitations[0]).toMatchObject({
       url: deepseekNormal.expect.results[0].url,
-      query: 'Oriveo 联网搜索',
+      query: 'Oriveo web search',
       serviceId: 'svc-ds',
       serviceName: 'DeepSeek',
       retrievedAt: '2026-10-27T08:00:00.000Z',
@@ -152,7 +152,7 @@ describe('external search turn (production path)', () => {
   it('pre-search: query = original text, pre-send check failure gives sent:false and no billing, the finalize error card carries serviceId and the replacement service', async () => {
     stubUpstream(200, deepseekNormal.body);
     const turn = planExternalSearchTurn(context('external_presearch', 'stale.example'), PLAN_INPUT);
-    expect(turn?.plan.presearch).toEqual({ query: 'Oriveo 联网搜索', count: 5 });
+    expect(turn?.plan.presearch).toEqual({ query: 'Oriveo web search', count: 5 });
     const reply = startExternalSearchReply({
       turn: turn!,
       B: 100_000,
@@ -230,7 +230,7 @@ describe('external search turn (production path)', () => {
   it('resend after edit carries no previous sources: previousResultsPersisted:false, no reuse, searches as usual', () => {
     const turn = planExternalSearchTurn(context('external_presearch'), { ...PLAN_INPUT, regenerate: { action: 'edit_resend' } });
     expect(turn?.plan.reuse).toBe(false);
-    expect(turn?.plan.presearch).toEqual({ query: 'Oriveo 联网搜索', count: 5 });
+    expect(turn?.plan.presearch).toEqual({ query: 'Oriveo web search', count: 5 });
   });
 
   it('internal resend reuse within this turn: produced sources rebuild the envelope via reuse, numbering identical, no request sent, this reply facts and sources unchanged', async () => {
@@ -245,7 +245,7 @@ describe('external search turn (production path)', () => {
       execute: createExternalSearchExecutor(turn!.binding, { uid: 'u1', connections: CONNECTIONS, fetchImpl: routeFetch }),
       track,
     });
-    const first = await reply.search('Oriveo 联网搜索', null);
+    const first = await reply.search('Oriveo web search', null);
     const before = reply.finish();
     const calls = upstreamCalls.length;
     track.mockClear();

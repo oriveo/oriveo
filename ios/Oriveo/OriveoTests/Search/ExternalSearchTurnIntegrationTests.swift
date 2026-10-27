@@ -92,7 +92,7 @@ struct ExternalSearchTurnIntegrationTests {
     @Test("Tool path: the web_search executor returns an <oriveo-web envelope, ids follow the library numbering; persisted source numbers match, facts are observed")
     func toolPathDeliversEnvelopeAndPersistsSources() async throws {
         DeepSeekGoldenProtocol.reset(body: try #require(try Self.goldenCase("deepseek.normal")["body"]).encodedData())
-        let plan = try Self.plan(path: .externalTool, userText: "Oriveo 联网搜索")
+        let plan = try Self.plan(path: .externalTool, userText: "Oriveo web search")
         #expect(plan.requestHasWebSearchTool)
         let tool = try #require(plan.webSearchTool)
         var events: [SearchTelemetryEvent] = []
@@ -110,7 +110,7 @@ struct ExternalSearchTurnIntegrationTests {
         #expect(entry.definition?.function.name == "web_search")
 
         let outcome = try await entry.execute(
-            ToolLoopToolCall(id: "call-1", function: .init(name: "web_search", arguments: #"{"query":"Oriveo 联网搜索"}"#)),
+            ToolLoopToolCall(id: "call-1", function: .init(name: "web_search", arguments: #"{"query":"Oriveo web search"}"#)),
             context: ToolExecutionContext(callID: "call-1", stepNumber: 1, legIndex: 0)
         )
 
@@ -136,7 +136,7 @@ struct ExternalSearchTurnIntegrationTests {
         let expected = try Self.goldenResultCount()
         #expect(web.count == expected)
         #expect(web.map(\.index) == Array(2..<(2 + expected)).map { Optional($0) })
-        #expect(web.allSatisfy { $0.serviceId == "stored-deepseek" && $0.query == "Oriveo 联网搜索" })
+        #expect(web.allSatisfy { $0.serviceId == "stored-deepseek" && $0.query == "Oriveo web search" })
         #expect((message.citations ?? []).contains { $0.source == "library" && $0.index == 1 })
         let record = try #require(message.capabilityExecution?.externalSearch)
         #expect(record.facts.state == "observed")
@@ -154,8 +154,8 @@ struct ExternalSearchTurnIntegrationTests {
     @Test("Pre-search: the user's verbatim text is the query, and the <oriveo-web segment follows <oriveo-library> into [D]")
     func presearchLandsAfterLibraryInDynamicBlock() async throws {
         DeepSeekGoldenProtocol.reset(body: try #require(try Self.goldenCase("deepseek.normal")["body"]).encodedData())
-        let plan = try Self.plan(path: .externalPresearch, userText: "Oriveo 联网搜索")
-        #expect(plan.presearch?.query == "Oriveo 联网搜索")
+        let plan = try Self.plan(path: .externalPresearch, userText: "Oriveo web search")
+        #expect(plan.presearch?.query == "Oriveo web search")
         #expect(!plan.requestHasWebSearchTool)
         let turn = ExternalSearchTurn(
             plan: plan, context: try Self.context(path: .externalPresearch), windowTokens: 128_000, rhoHi: 0.5,
@@ -169,7 +169,7 @@ struct ExternalSearchTurnIntegrationTests {
 
         let snapshot = ChatRequestSnapshot(
             conversation: ChatRequestConversationSnapshot(id: UUID(), useMemory: false, skillID: nil),
-            messages: [TestFactories.makeMessage(role: .user, text: "Oriveo 联网搜索")],
+            messages: [TestFactories.makeMessage(role: .user, text: "Oriveo web search")],
             preferences: ChatRequestPreferencesSnapshot(), skill: nil,
             sendPath: .send(excludingMessageID: nil)
         )

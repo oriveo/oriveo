@@ -83,7 +83,7 @@ class SearchReplyRunnerProductionPathTest {
                 service = b.service,
                 toolCall = "supported",
                 host = SearchToolHostInput(continuationKind = "tool_loop"),
-                userText = "Oriveo 联网搜索",
+                userText = "Oriveo web search",
                 b = 64_000,
                 today = "2026-10-27",
             ),
@@ -105,7 +105,7 @@ class SearchReplyRunnerProductionPathTest {
         val runner = runner("external_tool", tracked)
         val entry = WebSearchToolEntry(WEB_SEARCH_TOOL, runner)
         val outcome = entry.execute(
-            ToolLoopToolCall("call_1", function = ToolLoopToolCallFunction("web_search", """{"query":"Oriveo 联网搜索"}""")),
+            ToolLoopToolCall("call_1", function = ToolLoopToolCallFunction("web_search", """{"query":"Oriveo web search"}""")),
             ToolExecutionContext(callId = "call_1", stepNumber = 1, legIndex = 0),
         )
         assertEquals(1, requests.size)
@@ -121,27 +121,27 @@ class SearchReplyRunnerProductionPathTest {
             assertTrue(outcome.content.contains("id=\"${c.index}\""))
             assertEquals("external_search", c.source)
             assertEquals("local-service-1", c.serviceId)
-            assertEquals("Oriveo 联网搜索", c.query)
+            assertEquals("Oriveo web search", c.query)
         }
         assertEquals("observed", fact(finish).state)
         assertEquals("external_search", fact(finish).source)
         // Analytics reports the catalog id as service, not the local record id
         assertEquals("deepseek", tracked.single { it.event == "search_executed" }.props["service"])
         // The compact history record is derived from the persisted sources
-        assertTrue(searchedRecordLineFor(citations)!!.contains("\"Oriveo 联网搜索\""))
+        assertTrue(searchedRecordLineFor(citations)!!.contains("\"Oriveo web search\""))
     }
 
     @Test
     fun `presearch delivery goes into D right after the library envelope`() = runBlocking {
         val runner = runner("external_presearch", mutableListOf())
-        val delivered = runner.search("Oriveo 联网搜索", 5).content
+        val delivered = runner.search("Oriveo web search", 5).content
         val plan = ContextAssembler.assemble(
             ContextAssembleInput(
                 purpose = RequestPurpose.CHAT,
                 window = ContextWindowInput(W = 128_000, windowKind = ContextWindowKind.TOTAL, maxOutput = ContextMaxOutput(model = 8_000)),
                 conversation = ContextConversation(id = "c1", useMemory = false),
                 history = emptyList(),
-                current = "Oriveo 联网搜索",
+                current = "Oriveo web search",
                 dynamic = ContextDynamicInput(library = listOf(ContextLibraryEntry(citation = 1, title = "A", text = "alpha")), web = delivered),
             ),
         )

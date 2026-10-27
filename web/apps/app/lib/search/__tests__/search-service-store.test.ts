@@ -106,7 +106,7 @@ describe('search service store', () => {
   it('key is normalized before saving: leading / trailing whitespace trimmed; non-compliant writes nothing', async () => {
     expect(await savePresetSearchService(UID, presetService(), { key: '  sk-abc123\n' })).toEqual({ ok: true });
     expect(await readSearchServiceKey(UID, 'svc-preset')).toBe('sk-abc123');
-    expect(await saveCustomSearchService(UID, customService(), { key: 'tvly-密钥' })).toEqual({ ok: false, error: 'key_invalid' });
+    expect(await saveCustomSearchService(UID, customService(), { key: 'tvly-\u5BC6\u94A5' })).toEqual({ ok: false, error: 'key_invalid' });
     expect(await savePresetSearchService(UID, presetService({ boundHost: 'api.moonshot.ai' }), { key: ' \t ' })).toEqual({ ok: false, error: 'key_empty' });
     expect((await listSearchServices(UID)).map((s) => [s.id, s.kind === 'preset' ? s.boundHost : null])).toEqual([['svc-preset', 'api.moonshot.cn']]);
     // Host re-confirmed (saved with the new boundHost, no key): the key is rebound and kept

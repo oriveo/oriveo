@@ -142,7 +142,7 @@ class ExternalSearchChatPresentationTest {
         val emoji = "\uD83D\uDE00"
         assertEquals(emoji.repeat(40), searchQueryChipText(emoji.repeat(40)))
         assertEquals(emoji.repeat(40) + "…", searchQueryChipText(emoji.repeat(41)))
-        assertEquals("中".repeat(40) + "…", searchQueryChipText("中".repeat(41)))
+        assertEquals("\u4E2D".repeat(40) + "…", searchQueryChipText("\u4E2D".repeat(41)))
     }
 
     @Test

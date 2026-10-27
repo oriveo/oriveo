@@ -64,7 +64,7 @@ struct ExternalSearchTurnResendTests {
             upstreamRejection: upstreamRejection,
             regenerateAction: regenerateAction,
             previousResultsPersisted: previousResultsPersisted,
-            userText: "Oriveo 联网搜索",
+            userText: "Oriveo web search",
             windowTokens: 128_000,
             today: "2026-10-27"
         ))
@@ -140,7 +140,7 @@ struct ExternalSearchTurnResendTests {
                 toolCall: .unknown, library: library, mcp: mcp, upstreamRejection: SearchUpstreamRejection(status: mapped.status, leg: 0)
             )
             #expect(!replanned.requestHasWebSearchTool, "library=\(library) mcp=\(mcp)")
-            #expect(replanned.presearch?.query == "Oriveo 联网搜索", "library=\(library) mcp=\(mcp)")
+            #expect(replanned.presearch?.query == "Oriveo web search", "library=\(library) mcp=\(mcp)")
         }
     }
 

@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Debug direct-entry pages for the web search page family: used to capture screenshots; nothing from this file exists in Release builds.
 ///
-/// Usage: `xcrun simctl launch <udid> com.kenny.oriveo -AUTO_OPEN_PAGE <page name> -SHOTS_PROBE`; page names are in `Shot`.
+/// Usage: `xcrun simctl launch <udid> ai.oriveo.community -AUTO_OPEN_PAGE <page name> -SHOTS_PROBE`; page names are in `Shot`.
 /// Data is read only from the shared cross-platform manifest `shared/test-fixtures/shots/webSearch.v1.json`, all in memory: service list, default id, connections,
 /// finished test results. No real storage writes, no key reads, no network, no test searches; the catalog uses the built-in snapshot (adopted in a temporary cache directory).
 ///

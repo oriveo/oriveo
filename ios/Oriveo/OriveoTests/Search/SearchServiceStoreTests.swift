@@ -81,7 +81,7 @@ struct SearchServiceStoreTests {
         defer { try? FileManager.default.removeItem(at: directory) }
         let service = StoredSearchService(id: "s1", kind: .custom, name: "x", address: "https://a.example/search", protocolID: "searxng")
         await #expect(throws: SearchServiceStoreError.invalidKey("key_invalid")) {
-            try await store.save(service, key: "tvly-密钥")
+            try await store.save(service, key: "tvly-\u{5BC6}\u{94A5}")
         }
         #expect(await store.services().isEmpty)
         #expect(credentials.accounts().isEmpty)

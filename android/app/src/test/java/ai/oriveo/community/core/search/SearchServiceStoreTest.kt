@@ -51,7 +51,7 @@ class SearchServiceStoreTest {
     fun `invalid key is not stored and leaves the previous key untouched`() {
         store.save(uid, custom)
         store.setKey(uid, "c1", "tok")
-        assertEquals("key_invalid", store.setKey(uid, "c1", "tvly-密钥").error)
+        assertEquals("key_invalid", store.setKey(uid, "c1", "tvly-\u5BC6\u94A5").error)
         assertEquals("key_empty", store.setKey(uid, "c1", " \t ").error)
         assertEquals("tok", store.key(uid, "c1"))
     }

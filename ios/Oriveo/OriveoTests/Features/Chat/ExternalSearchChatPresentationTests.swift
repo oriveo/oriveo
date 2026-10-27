@@ -248,7 +248,7 @@ struct ExternalSearchChatPresentationTests {
         let long = String(repeating: "x", count: 45) + "\nsecond line"
         #expect(ExternalSearchActivityTrail.chipText(long) == String(repeating: "x", count: 40) + "…")
         #expect(ExternalSearchActivityTrail.chipText("  short  \nmore") == "short")
-        #expect(ExternalSearchActivityTrail.chipText("\n   \n  第二行才是查询  \n第三行") == "第二行才是查询")
+        #expect(ExternalSearchActivityTrail.chipText("\n   \n  second line is the query  \nthird line") == "second line is the query")
         // Truncate by grapheme: a composed emoji counts as one.
         let family = String(repeating: "👨‍👩‍👧", count: 41)
         #expect(ExternalSearchActivityTrail.chipText(family) == String(repeating: "👨‍👩‍👧", count: 40) + "…")

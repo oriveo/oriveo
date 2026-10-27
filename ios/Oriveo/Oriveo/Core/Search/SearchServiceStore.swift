@@ -69,7 +69,7 @@ nonisolated private struct SearchKeyRecord: Codable {
 }
 
 actor SearchServiceStore {
-    static let keychainService = "com.kenny.oriveo.search-key"
+    static let keychainService = "ai.oriveo.community.search-key"
 
     private let directory: URL
     private let credentials: any McpCredentialStorage

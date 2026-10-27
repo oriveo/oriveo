@@ -108,11 +108,9 @@ describe('(1) before sending only the cached catalog is used', () => {
 });
 
 describe('(2) panel and send share one facts set, the combined entry decides in one place', () => {
-  it('form by providerFormOf: subscription Grok / other subscriptions / hosted / free / official', () => {
+  it('form by providerFormOf: subscription Grok / other subscriptions / official', () => {
     expect(webSearchRouteForm({ kind: 'grok', authMode: 'subscription' } as Provider)).toBe('subscription_grok');
     expect(webSearchRouteForm({ kind: 'openAI', authMode: 'subscription' } as Provider)).toBe('subscription_codex');
-    expect(webSearchRouteForm({ kind: 'oriveoAI' } as Provider)).toBe('managed');
-    expect(webSearchRouteForm({ kind: 'oriveoFree' } as Provider)).toBe('free');
     expect(webSearchRouteForm({ kind: 'openAI', authMode: 'apiKey' } as Provider)).toBe('byok');
   });
 
@@ -141,8 +139,6 @@ describe('(2) panel and send share one facts set, the combined entry decides in 
     expect(armed).toMatchObject({ nativeWeb: 'withdrawn_or_rejected', nativeFieldsSuppressed: true, toggleOn: true });
     const notArmed = externalSearchSendState({ provider, model, data, stored: null, nativeRejected: true, webOn: true });
     expect(notArmed).toMatchObject({ armHint: true, nativeFieldsSuppressed: false, toggleOn: false });
-    const free = { id: 'p2', kind: 'oriveoFree', models: [] } as unknown as Provider;
-    expect(externalSearchSendState({ provider: free, model, data, stored: null, nativeRejected: false, webOn: true })?.nativeFieldsSuppressed).toBe(false);
   });
 
   it('send and panel share the same panelWritable definition: no runtime identity -> the per-conversation choice has no effect and fields are not suppressed', () => {
@@ -307,12 +303,10 @@ describe('external arming, production path', () => {
 });
 
 describe('reusable connection = official BYOK (by providerFormOf, not by comparing kind)', () => {
-  it('hosted / free / relay / subscription login / no key all do not count', () => {
+  it('relay / subscription login / no key all do not count', () => {
     const p = (over: Partial<Provider>) => ({ id: over.kind ?? 'x', models: [], apiKey: 'sk-1', ...over }) as Provider;
     const out = searchConnectionsFromProviders([
       p({ id: 'ds', kind: 'deepseek' }),
-      p({ id: 'ai', kind: 'oriveoAI' }),
-      p({ id: 'free', kind: 'oriveoFree' }),
       p({ id: 'relay', kind: 'relay' }),
       p({ id: 'sub', kind: 'openAI', authMode: 'subscription' }),
       p({ id: 'nokey', kind: 'moonshot', apiKey: '' }),
