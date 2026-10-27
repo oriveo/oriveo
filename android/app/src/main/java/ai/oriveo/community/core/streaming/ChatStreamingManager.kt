@@ -109,6 +109,14 @@ class ChatStreamingManager(
                 convId?.let { sessions[it]?.outputs?.streamingActivity } ?: flowOf(null)
             }
 
+    /** Display state of the external search activity row (service name plus query chips) for the conversation on screen; re-subscribes the same way as [streamingActivityFlow]. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun streamingExternalSearchFlow(activeConversationId: StateFlow<String?>): Flow<ai.oriveo.community.core.search.ExternalSearchActivityState?> =
+        combine(activeConversationId, sessionsVersion) { convId, _ -> convId }
+            .flatMapLatest { convId ->
+                convId?.let { sessions[it]?.outputs?.streamingExternalSearch } ?: flowOf(null)
+            }
+
     fun isBusyStreaming(conversationId: String): Boolean =
         sessions.containsKey(conversationId)
 
@@ -177,6 +185,7 @@ class ChatStreamingManager(
                             onUserMessageCreated = request.onUserMessageCreated,
                             memoryPropose = request.memoryPropose,
                             memorySearch = request.memorySearch,
+                            externalSearch = request.externalSearch,
                         )
                     } finally {
 
@@ -295,4 +304,6 @@ data class StreamRequest(
     val memoryPropose: ai.oriveo.community.core.memory.MemoryProposeSendHook? = null,
     // search_memory state of a chat send in tool mode (requestOptions carries the tool after propose_memory).
     val memorySearch: ai.oriveo.community.core.memory.MemorySearchTurn? = null,
+    // External web search inputs of this send (route.path is an external path); null keeps the outbound request unchanged.
+    val externalSearch: ai.oriveo.community.core.search.ExternalSearchSend? = null,
 )

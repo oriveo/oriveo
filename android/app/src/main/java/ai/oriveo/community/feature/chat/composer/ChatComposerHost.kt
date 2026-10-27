@@ -92,6 +92,7 @@ internal fun ChatComposerHost(
     onNavigateToProviderSetup: () -> Unit,
     onNavigateToVoiceSettings: () -> Unit = {},
     onNavigateToProviderDetail: (providerId: String) -> Unit,
+    onNavigateToWebSearchFromChat: (conversationId: String?, oneTap: ai.oriveo.community.core.search.OneTapReuseTarget?) -> Unit = { _, _ -> },
     onNavigateToConnectionWebSearch: (providerId: String) -> Unit = {},
     /** "Test capability" for a rejected web template: opens this model's advanced page in this connection. */
     onNavigateToRelayModelAdvanced: (providerId: String, modelId: String) -> Unit = { _, _ -> },
@@ -361,6 +362,7 @@ internal fun ChatComposerHost(
             providerKind = activeProvider?.kind,
             onNavigateToProviderSetup = onNavigateToProviderSetup,
             onNavigateToProviderDetail = onNavigateToProviderDetail,
+            onNavigateToWebSearchFromChat = onNavigateToWebSearchFromChat,
             onNavigateToConnectionWebSearch = onNavigateToConnectionWebSearch,
             onNavigateToRelayModelAdvanced = onNavigateToRelayModelAdvanced,
             onNavigateToSkillEdit = onNavigateToSkillEdit,

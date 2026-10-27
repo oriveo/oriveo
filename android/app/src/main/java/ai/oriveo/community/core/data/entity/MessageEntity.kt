@@ -62,6 +62,12 @@ data class MessageEntity(
     val unhandledToolCallsJson: String? = null,
     /** Stable key for the notice shown when a tool call could not be executed. */
     val toolFallbackNotice: String? = null,
+    /** External search error card as JSON. Local only; never synced or exported. */
+    val searchErrorCardJson: String? = null,
+    /** Stable key of a one-off external search notice. Local only. */
+    val searchNotice: String? = null,
+    /** Title line of the external search sources card as JSON. Local only. */
+    val searchSourcesLineJson: String? = null,
     /**
      * Whether a "retry without the custom fields" action should be offered.
      *

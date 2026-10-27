@@ -101,6 +101,8 @@ class ChatViewModel(
     private val memoryAccountId: () -> String = { "" },
     private val readAloudController: ai.oriveo.community.core.voice.ReadAloudController? = null,
     private val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.IO,
+    /** Local search facts behind the web search card; null (tests etc.) = external search not wired, requests go out unchanged. */
+    private val modelControlsWebSearch: ai.oriveo.community.feature.chat.modelcontrols.ModelControlsWebSearch? = null,
 ) : ViewModel() {
     val generationParameterDraftSessionId: String = generateUuidString()
     private val generationParameterSettingsStore = GenerationParameterSettingsStore.from(context)
@@ -143,6 +145,15 @@ class ChatViewModel(
         capabilityEvidencePartition = providerRepository::currentCapabilityPartitionId,
         capabilityEvidenceIdentity = { p, modelId, partitionId -> providerRepository.capabilityEvidenceIdentity(p, modelId, partitionId) },
         toolCallMemoryVerdict = providerRepository::toolCallMemoryVerdict,
+        webSearchSnapshot = modelControlsWebSearch?.let { webSearch ->
+            { provider, model, conversationId ->
+                // Before the conversation exists the preview uses the draft id: its source lives in memory
+                webSearch.snapshot(provider, model, conversationId, draft = conversationId == generationParameterDraftSessionId)
+            }
+        },
+        externalSearchBinding = modelControlsWebSearch?.let { webSearch ->
+            { snapshot, serviceId -> webSearch.searchBinding(snapshot, serviceId) }
+        },
     )
     val mcpCoordinator = ChatMcpCoordinator(
         scope = viewModelScope,
@@ -229,6 +240,7 @@ class ChatViewModel(
     private var newChatSelectionOnce: ActiveModelSelection? = null
     private var composerAttemptKind: ContextConfirmAttempt = ContextConfirmAttempt.SEND
     private val sendCommandCoordinator = ChatSendCommandCoordinator(
+        adoptSearchSourceDraft = modelControlsWebSearch?.let { webSearch -> webSearch::adoptDraft },
         viewModelScope = viewModelScope,
         appPreferencesRepository = appPreferencesRepository,
         providerRepository = providerRepository,
@@ -361,6 +373,11 @@ class ChatViewModel(
     /** The activity observed in progress on the wire, such as a web search. Transient: it falls back to null when the stream ends. */
     val streamingActivity: StateFlow<StreamActivity?> = chatStreamingManager
         .streamingActivityFlow(activeConversationId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    /** External search activity row (service name + query chips); only read while [streamingActivity] is ExternalSearch. */
+    val streamingExternalSearch: StateFlow<ai.oriveo.community.core.search.ExternalSearchActivityState?> = chatStreamingManager
+        .streamingExternalSearchFlow(activeConversationId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     /**
@@ -678,6 +695,58 @@ class ChatViewModel(
         retryCoordinator.regenerateMessage(messageId)
     }
 
+    /** "Regenerate and search again" (menu item / retry-style buttons on the error card): regenerate.action = re_search. */
+    fun regenerateWithSearch(messageId: String) {
+        retryCoordinator.regenerateMessage(messageId, reSearch = true)
+    }
+
+    /**
+     * Error card secondary button "Answer with X": sends pick_service for this conversation and the current model,
+     * then regenerates and searches again.
+     */
+    fun answerWithSearchService(messageId: String, serviceId: String, serviceName: String) {
+        val webSearch = modelControlsWebSearch ?: return
+        val provider = activeProvider() ?: return
+        val model = activeModelId?.let { id -> ProviderSelectionSnapshot.selectedModel(provider, id) } ?: return
+        val conversationId = activeConversationId.value ?: return
+        viewModelScope.launch {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching {
+                    webSearch.update(
+                        provider, model, conversationId, draft = false,
+                        event = ai.oriveo.community.core.search.SearchSourceEvent.PickService(serviceId, serviceName),
+                    )
+                }
+            }
+            regenerateWithSearch(messageId)
+        }
+    }
+
+    /** Error card "Answer with X": only shown while X still exists on this device. */
+    suspend fun searchServiceExists(serviceId: String): Boolean {
+        val webSearch = modelControlsWebSearch ?: return false
+        val provider = activeProvider() ?: return false
+        val model = activeModelId?.let { id -> ProviderSelectionSnapshot.selectedModel(provider, id) } ?: return false
+        val conversationId = activeConversationId.value ?: return false
+        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { webSearch.snapshot(provider, model, conversationId).services.any { it.saved.id == serviceId } }.getOrDefault(false)
+        }
+    }
+
+    /** Error card "Top up": the pricing page of the service's chosen region (regionLinks.pricing); null when the service or catalog is gone. */
+    suspend fun searchServicePricingUrl(serviceId: String): String? {
+        val webSearch = modelControlsWebSearch ?: return null
+        val provider = activeProvider() ?: return null
+        val model = activeModelId?.let { id -> ProviderSelectionSnapshot.selectedModel(provider, id) } ?: return null
+        val conversationId = activeConversationId.value ?: return null
+        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                val item = webSearch.snapshot(provider, model, conversationId).services.firstOrNull { it.saved.id == serviceId }
+                item?.entry?.let { ai.oriveo.community.core.search.SearchCatalog.regionLinks(it, item.saved.regionId).pricing }
+            }.getOrNull()
+        }
+    }
+
     fun retryMessage(messageId: String) {
         retryCoordinator.retryMessage(messageId)
     }
@@ -893,6 +962,7 @@ fun saveConversationInstructions(opened: String, edited: String) = conversationS
             isUserInitiatedExit = true
         }
     }
+
 
     override fun onCleared() {
         conversationLoadCoordinator.stop()

@@ -229,7 +229,12 @@ class McpChatToolRunner(
         }
     }
 
-    fun executor(conversationId: String, onStep: suspend (McpToolStepUpdate) -> Unit = {}): McpToolExecutor {
+    fun executor(
+        conversationId: String,
+        // Placed before onStep so existing trailing lambdas still bind to onStep
+        forceOnceConfirmation: () -> Boolean = { false },
+        onStep: suspend (McpToolStepUpdate) -> Unit = {},
+    ): McpToolExecutor {
         val config = runtimeConfig()
         return McpToolExecutor(
             conversationId = conversationId,
@@ -241,6 +246,7 @@ class McpChatToolRunner(
             authPause = authPauses,
             onNeedsAuth = ::markNeedsAuth,
             revalidate = { tool -> revalidate(conversationId, tool) },
+            forceOnceConfirmation = forceOnceConfirmation,
         )
     }
 
@@ -286,6 +292,9 @@ class McpChatToolRunner(
         }
     }
 
+    /** MCP loop step count sent by the server (effective value, at most 8); used as planSearchTurn's serverMaxSteps when external search and MCP are both on. */
+    fun serverMaxSteps(): Int = runtimeConfig().effectiveMaxSteps
+
     /** Runs the tool loop for one answer. */
     internal suspend fun run(
         conversationId: String,
@@ -303,6 +312,12 @@ class McpChatToolRunner(
         proposeEntry: ToolRegistryEntry? = null,
         // In tool mode, the search_memory entry; registered after propose_memory.
         searchEntry: ToolRegistryEntry? = null,
+        // The external search web_search entry (registered last); with only search on, the plan is empty and the loop has just it and the memory tools.
+        webSearchEntry: ToolRegistryEntry? = null,
+        // External search tool host (plan.toolHost): steps, failure breaker and fixed phrases follow it; null keeps MCP behavior.
+        searchHost: ai.oriveo.community.core.search.SearchToolHost? = null,
+        // Defaults to null rather than a lambda so tests that stub with default arguments still match
+        forceOnceConfirmation: (() -> Boolean)? = null,
     ): ToolCallLoop.Result {
         val legRunner = ProviderToolLegRunner(
             client = httpClient,
@@ -313,7 +328,10 @@ class McpChatToolRunner(
             json = json,
             requestOptions = transport.options,
         )
-        return makeLoop(plan, executor(conversationId, onStep), legRunner, runtimeConfig(), proposeEntry, searchEntry, onUnhandledToolCalls)
+        return makeLoop(
+            plan, executor(conversationId, forceOnceConfirmation ?: { false }, onStep), legRunner, runtimeConfig(), proposeEntry, searchEntry,
+            webSearchEntry = webSearchEntry, searchHost = searchHost, onUnhandledToolCalls = onUnhandledToolCalls,
+        )
             .run(transport.toolLoopMessages(toolLoopMessagesFrom(transport.messages, provider, model, json)), onProgress)
     }
 
@@ -378,15 +396,25 @@ class McpChatToolRunner(
             proposeEntry: ToolRegistryEntry? = null,
             // search_memory goes after propose_memory and likewise records no step.
             searchEntry: ToolRegistryEntry? = null,
+            // web_search goes last (same order as plan.toolHost.tools: mcp, memory, web_search).
+            webSearchEntry: ToolRegistryEntry? = null,
+            searchHost: ai.oriveo.community.core.search.SearchToolHost? = null,
             // Names outside the lookup table are not executed; the caller shows them with the existing notice card.
             onUnhandledToolCalls: suspend (List<ToolLoopToolCall>) -> Unit,
         ): ToolCallLoop = ToolCallLoop(
-            registry = ToolRegistry(McpToolBridge.entries(plan, executor) + listOfNotNull(proposeEntry, searchEntry)),
+            registry = ToolRegistry(McpToolBridge.entries(plan, executor) + listOfNotNull(proposeEntry, searchEntry, webSearchEntry)),
             legRunner = legRunner,
             // Neutral shape; each protocol's wire shape is translated by the protocol adapter in the leg runner.
             adapter = OpenAIChatToolAdapter(),
-            limits = McpToolBridge.limits(runtimeConfig),
-            prompts = McpToolBridge.prompts,
+            limits = searchHost?.takeIf { webSearchEntry != null }?.let { host ->
+                ToolCallLoop.Limits(
+                    maxSteps = host.maxSteps ?: ToolCallLoop.Limits.DefaultMaxSteps,
+                    // A null breaker means off (when MCP is also on)
+                    maxConsecutiveToolFailures = host.consecutiveFailureBreaker ?: Int.MAX_VALUE,
+                )
+            } ?: McpToolBridge.limits(runtimeConfig),
+            // Search alone uses the loop's neutral default phrases; with MCP also on, the MCP wording stays
+            prompts = if (webSearchEntry != null && searchHost?.prompts == "neutral") ToolCallLoop.Prompts() else McpToolBridge.prompts,
             onUnhandledToolCalls = onUnhandledToolCalls,
         )
     }

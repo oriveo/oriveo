@@ -102,6 +102,35 @@ data class NonUsdCost(
     val costSource: String,
 )
 
+/** Target of the "switch to another service" secondary action on an external search error card. */
+@Immutable
+@Serializable
+data class SearchMessageSwitchTarget(val id: String, val name: String)
+
+/** External search error card (finishSearchReply.errorCard plus serviceId); newer fields have defaults so older rows still decode. */
+@Immutable
+@Serializable
+data class SearchMessageErrorCard(
+    val errorClass: String,
+    val headline: String,
+    val primaryAction: String,
+    val secondaryAction: String? = null,
+    val serviceName: String,
+    val serviceId: String? = null,
+    val switchTo: SearchMessageSwitchTarget? = null,
+)
+
+/** Title line of the external search sources card (finishSearchReply.sourcesLine); newer fields have defaults so older rows still decode. */
+@Immutable
+@Serializable
+data class SearchMessageSourcesLine(
+    val searchCount: Int,
+    val serviceName: String,
+    val sourceCount: Int,
+    val reused: Boolean = false,
+    val custom: Boolean = false,
+)
+
 /** One message in a conversation. */
 @Immutable
 @Serializable
@@ -158,6 +187,18 @@ data class ChatMessage(
     val unhandledToolCalls: List<UnhandledToolCall> = emptyList(),
     @kotlinx.serialization.Transient
     val toolFallbackNotice: String? = null,
+    /**
+     * Error card shown when every external search failed (the whole finishSearchReply.errorCard).
+     * Local diagnostics: stored in Room, @Transient keeps it out of sync and export.
+     */
+    @kotlinx.serialization.Transient
+    val searchErrorCard: SearchMessageErrorCard? = null,
+    /** One-off external search notice (finishSearchReply.notice, e.g. tools_rejected); local diagnostics, as above. */
+    @kotlinx.serialization.Transient
+    val searchNotice: String? = null,
+    /** Title line of the sources card (finishSearchReply.sourcesLine); local diagnostics: stored in Room, @Transient keeps it out of sync and export. */
+    @kotlinx.serialization.Transient
+    val searchSourcesLine: SearchMessageSourcesLine? = null,
     /**
      * Execution facts are local message diagnostics. Room persists their coarse owner/state
      * facts; @Transient keeps the cloud-sync and export envelopes free of

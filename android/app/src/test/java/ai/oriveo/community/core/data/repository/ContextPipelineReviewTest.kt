@@ -80,6 +80,79 @@ class ContextPipelineReviewTest {
     }
 
     @Test
+    fun overflow_resend_reuses_this_turn_external_search_without_calling_the_executor() = runTest {
+        // Internal resend within this turn (over-window recovery) rebuilds the result already obtained this turn via reuse: no new request, no extra charge
+        var executions = 0
+        val service = ai.oriveo.community.core.search.SearchTurnService(id = "s1", name = "DeepSeek", protocol = "catalog")
+        val search = ai.oriveo.community.core.search.ExternalSearchSend(
+            path = "external_presearch",
+            toolCall = "unsupported",
+            modelKey = "anthropic-1:${MODEL.id}",
+            binding = ai.oriveo.community.core.search.ExternalSearchBinding(
+                service = service,
+                otherServices = emptyList(),
+                defaultCount = 5,
+                execute = { _, _ ->
+                    executions++
+                    ai.oriveo.community.core.search.SearchCallOutcome.Results(
+                        listOf(ai.oriveo.community.core.search.SearchResultItem(title = "W1", url = "https://a.example.com/1", snippet = "one")),
+                        1,
+                    )
+                },
+            ),
+        )
+        val harness = Harness(anthropicProvider(), chatReplies = listOf(anthropicOverflow(), anthropicSuccess(inputTokens = null)))
+        harness.send("Next question", existing = history(), externalSearch = search)
+
+        assertEquals("overflow resends once: ${harness.requests}", 2, harness.chatBodies().size)
+        assertEquals("the resend does not call the executor again", 1, executions)
+        harness.chatBodies().forEach { body ->
+            assertTrue("both requests carry the web results in [D]", body.toString().contains("oriveo-web"))
+        }
+        val delivered = harness.lastAssistantUpdate()
+        assertEquals(ChatMessageState.Delivered, delivered.state)
+        val web = delivered.citations.orEmpty().filter { it.source == "external_search" }
+        assertEquals(listOf("https://a.example.com/1"), web.map { it.url })
+        // Sources line and message facts keep this turn's actual values: searched once, not marked as "reusing the previous search"
+        val line = delivered.searchSourcesLine!!
+        assertFalse("internal resend is not a reused search", line.reused)
+        assertEquals(1, line.searchCount)
+        assertEquals(1, line.sourceCount)
+        assertEquals("observed", delivered.capabilityExecutionResults.single { it.source == "external_search" }.state)
+    }
+
+    @Test
+    fun history_search_record_line_skips_the_retry_target_and_stands_alone_on_empty_text() {
+        val web = ai.oriveo.community.core.model.Citation(url = "https://a.example.com/1", title = "W1", index = 1, source = "external_search", query = "q1")
+        val answered = message("a1", ChatRole.Assistant, "Answer").copy(citations = listOf(web))
+        val empty = message("a2", ChatRole.Assistant, "").copy(citations = listOf(web))
+        val raw = listOf(message("u1", ChatRole.User, "first"), answered, message("u2", ChatRole.User, "second"), empty, message("u3", ChatRole.User, "now"))
+        fun project(exclude: String?) = ChatContextProjector.project(
+            request = ChatContextRequest(ContextConversation(id = CONVERSATION_ID, useMemory = false)),
+            rawMessages = raw,
+            window = ai.oriveo.community.core.context.ContextWindowInput(
+                W = 128_000, windowKind = ai.oriveo.community.core.context.ContextWindowKind.TOTAL,
+                maxOutput = ai.oriveo.community.core.context.ContextMaxOutput(model = 8_000),
+            ),
+            rhoHi = 1.0,
+            recordExcludeId = exclude,
+        )!!.messages.associate { it.id to it.text }
+        val all = project(null)
+        val line = ai.oriveo.community.core.search.searchedRecordLineFor(listOf(web))!!
+        assertEquals("Answer\n\n$line", all["a1"])
+        assertEquals("empty body carries only the record line", line, all["a2"])
+        assertEquals("retry target gets no record line", "", project("a2")["a2"].orEmpty())
+    }
+
+    @Test
+    fun search_thinking_on_means_the_request_carries_a_reasoning_tier() {
+        assertFalse(ai.oriveo.community.core.search.searchThinkingOn(ai.oriveo.community.core.model.ReasoningMode.Automatic))
+        assertFalse(ai.oriveo.community.core.search.searchThinkingOn(ai.oriveo.community.core.model.ReasoningMode.Fast))
+        assertTrue(ai.oriveo.community.core.search.searchThinkingOn(ai.oriveo.community.core.model.ReasoningMode.Balanced))
+        assertTrue(ai.oriveo.community.core.search.searchThinkingOn(ai.oriveo.community.core.model.ReasoningMode.Max))
+    }
+
+    @Test
     fun rho_skipped_on_context_window_exceeded() = runTest {
         val harness = Harness(anthropicProvider(), chatReplies = listOf(anthropicWindowExceeded(inputTokens = 900)))
         harness.send("Hello there")
@@ -435,6 +508,7 @@ class ContextPipelineReviewTest {
             attemptKind: ContextConfirmAttempt = ContextConfirmAttempt.SEND,
             conversation: Conversation = CONVERSATION,
             streamOutputs: ConversationStreamingOutputs = outputs(),
+            externalSearch: ai.oriveo.community.core.search.ExternalSearchSend? = null,
         ) {
             runCatching {
                 repository.sendMessage(
@@ -449,6 +523,7 @@ class ContextPipelineReviewTest {
                     userMessageAlreadyInHistory = userMessageAlreadyInHistory,
                     appendToAssistant = appendToAssistant,
                     attemptKind = attemptKind,
+                    externalSearch = externalSearch,
                 )
             }.exceptionOrNull()?.let { if (it is AssertionError) throw it }
         }

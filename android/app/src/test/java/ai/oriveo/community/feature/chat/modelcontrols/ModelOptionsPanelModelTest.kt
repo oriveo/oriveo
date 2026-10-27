@@ -199,6 +199,294 @@ class ModelOptionsPanelModelTest {
         }
     }
 
+    // -- external search web card --
+
+    private fun webSearchSnapshot(
+        services: Int,
+        oneTap: Boolean = false,
+        stored: ai.oriveo.community.core.search.SearchSourceStored? = null,
+    ): WebSearchPanelSnapshot {
+        val items = (1..services).map { n ->
+            val saved = ai.oriveo.community.core.search.SavedSearchService(id = "s$n", kind = "custom", name = "DeepSeek", keySource = "none")
+            ai.oriveo.community.feature.settings.websearch.WebSearchServiceItem(
+                saved, "DeepSeek", ai.oriveo.community.core.search.SearchRowState("ready", "custom", "none", null), n == 1, false, null, null,
+            )
+        }
+        val target = ai.oriveo.community.core.search.OneTapReuseTarget("deepseek", "cn", "c-deepseek", "DeepSeek").takeIf { oneTap }
+        return WebSearchPanelSnapshot(items, items.firstOrNull()?.saved?.id, stored, target, "DeepSeek".takeIf { oneTap }, "supported")
+    }
+
+    /** Same path as the panel: facts -> resolveWebSearchState -> shape resolver. */
+    private fun webShape(
+        provider: Provider,
+        presentation: CapabilityControlPresentation,
+        snapshot: WebSearchPanelSnapshot?,
+        intents: List<String> = emptyList(),
+        web: ai.oriveo.community.core.model.CapabilityWebPreference = ai.oriveo.community.core.model.CapabilityWebPreference.Off,
+        rejected: Boolean = false,
+        writable: Boolean = true,
+        model: AIModel = AIModel(id = "m1", name = "M1"),
+    ): ModelOptionCapabilityShape {
+        val state = snapshot?.let {
+            ai.oriveo.community.core.search.resolveWebSearchState(
+                it.stateInput(
+                    ModelOptionsPanelInput.webSearchFacts(provider, model, presentation, rejected, null, it.toolCall),
+                    writable,
+                    web != ai.oriveo.community.core.model.CapabilityWebPreference.Off,
+                    webSearchModelKey(provider, model),
+                ),
+            )
+        }
+        return ModelOptionCapabilityShape.resolve(
+            ModelOptionCapabilityShape.Input(
+                capability = ModelOptionCapabilityShape.Capability.Web,
+                presentation = presentation,
+                availableIntents = intents,
+                selectedIntent = ModelOptionsPanelInput.webIntent(web),
+                connection = ModelOptionsPanelInput.connectionCategory(provider.kind),
+                isWritable = writable,
+                rejectedIntents = if (rejected) setOf(ModelOptionCapabilityShape.AUTOMATIC) else emptySet(),
+                webSearch = state,
+            ),
+        )
+    }
+
+    private val on = ai.oriveo.community.core.model.CapabilityWebPreference.Automatic
+
+    @Test
+    fun `one selectable service on a model that cannot search gives the external toggle reading Search with DeepSeek once armed`() {
+        val provider = Provider(id = "c1", kind = ProviderKind.OpenAI)
+        val model = AIModel(id = "m1", name = "M1")
+        // Row state goes through the production functions (searchServiceRowState -> searchServiceSelectable)
+        val row = ai.oriveo.community.core.search.SearchSettings.searchServiceRowState(
+            service = ai.oriveo.community.core.search.SearchRowServiceInput(
+                kind = "custom", serviceId = null, regionId = null, boundHost = null, keySource = "own", connectionRef = null, hasKey = true,
+            ),
+            catalogAvailable = true, entry = null, withdrawn = false, connections = emptyList(),
+        )
+        assertTrue(ai.oriveo.community.core.search.searchServiceSelectable(row.status))
+        // External was picked once for this conversation x this model (pick_service)
+        val armed = ai.oriveo.community.core.search.updateSearchSource(
+            null, webSearchModelKey(provider, model), ai.oriveo.community.core.search.SearchSourceEvent.PickService("s1", "DeepSeek"),
+        )
+        val shape = webShape(provider, CapabilityControlPresentation.Unsupported, webSearchSnapshot(1, stored = armed), web = on)
+        val toggle = shape as ModelOptionCapabilityShape.ToggleWithSource
+        assertTrue(toggle.isOn)
+        assertEquals("external_tool", toggle.route.path)
+        val status = toggle.card.status!!
+        assertEquals("Search with DeepSeek", englishText(ModelOptionsRender.searchCardTextRes(status.key), ModelOptionsRender.searchCardArgs(status.key, status.args)))
+        assertEquals(ModelOptionCapabilityShape.Escape.PickSearchSource, ModelOptionsRender.searchCardEscape(toggle.card.link!!.action))
+    }
+
+    @Test
+    fun `web on from a native model then switching to a model that cannot search shows the card off and sends nothing`() {
+        val provider = Provider(id = "c1", kind = ProviderKind.OpenAI)
+        val auto = listOf(ModelOptionCapabilityShape.AUTOMATIC)
+        // Native model: conversation web is on and uses the model's own search
+        val native = webShape(provider, CapabilityControlPresentation.AutomaticAvailable, webSearchSnapshot(1), auto, web = on)
+            as ModelOptionCapabilityShape.ToggleWithSource
+        assertTrue(native.isOn)
+        assertEquals("native", native.route.path)
+        // Switch to a model that cannot search natively: conversation web is still on, but external was never picked on this model -> the card shows off and this turn does not search
+        val other = AIModel(id = "m2", name = "M2")
+        val state = ai.oriveo.community.core.search.resolveWebSearchState(
+            webSearchSnapshot(1).stateInput(
+                ModelOptionsPanelInput.webSearchFacts(provider, other, CapabilityControlPresentation.Unsupported, false, null, "supported"),
+                true, true, webSearchModelKey(provider, other),
+            ),
+        )
+        assertTrue(state.armHint)
+        assertFalse(state.toggleOn)
+        assertEquals("none", state.route.path)
+        assertFalse("not external; outbound request unchanged (a model without native search carries no web fields anyway)", state.nativeFieldsSuppressed)
+        val card = webShape(provider, CapabilityControlPresentation.Unsupported, webSearchSnapshot(1), web = on, model = other)
+            as ModelOptionCapabilityShape.ToggleWithSource
+        assertFalse(card.isOn)
+        assertEquals("card.offUseService", card.card.status!!.key)
+    }
+
+    @Test
+    fun `panel that cannot persist keeps toggle rows as before but still offers actions on no-service rows`() {
+        val byok = Provider(id = "c1", kind = ProviderKind.OpenAI)
+        assertEquals(
+            ModelOptionCapabilityShape.Disclosure(ModelOptionCapabilityShape.DisclosureStatus.ModelCannotSearch),
+            webShape(byok, CapabilityControlPresentation.Unsupported, webSearchSnapshot(1), writable = false),
+        )
+        val none = webShape(byok, CapabilityControlPresentation.Unsupported, webSearchSnapshot(0), writable = false)
+            as ModelOptionCapabilityShape.Disclosure
+        assertEquals("add_search_service", none.searchCard!!.cta!!.action)
+    }
+
+    @Test
+    fun `no service and native rejected keeps the original toggle and its status, only adding actions`() {
+        val byok = Provider(id = "c1", kind = ProviderKind.OpenAI)
+        val auto = listOf(ModelOptionCapabilityShape.AUTOMATIC)
+        val before = webShape(byok, CapabilityControlPresentation.AutomaticAvailable, null, auto, web = on, rejected = true)
+        val shape = webShape(byok, CapabilityControlPresentation.AutomaticAvailable, webSearchSnapshot(0), auto, web = on, rejected = true)
+        val toggle = shape as ModelOptionCapabilityShape.Toggle
+        assertEquals((before as ModelOptionCapabilityShape.Toggle).copy(searchCard = toggle.searchCard), toggle)
+        assertNull("status copy is not rewritten", toggle.searchCard!!.status)
+        assertEquals("add_search_service", toggle.searchCard!!.cta!!.action)
+    }
+
+    @Test
+    fun `one tap detail replaces the card body instead of stacking`() {
+        val byok = Provider(id = "c1", kind = ProviderKind.OpenAI)
+        val shape = webShape(byok, CapabilityControlPresentation.Unknown, webSearchSnapshot(0, oneTap = true))
+        val tile = ModelOptionsTiles.capabilityTile(ModelOptionCapabilityShape.Capability.Web, shape)
+        assertNull(tile.searchCard!!.status)
+        assertEquals("card.reuseDetail", tile.searchCard!!.notes.single().key)
+        assertEquals("DeepSeek", tile.searchCard!!.notes.single().args["name"])
+        assertTrue(tile.bodyRes != null)
+    }
+
+    @Test
+    fun `draft conversation keeps its source in memory and writes it once under the real id`() = kotlinx.coroutines.test.runTest {
+        val store = ai.oriveo.community.core.search.SearchServiceStore(ai.oriveo.community.testing.TestSharedPreferences())
+        store.save(ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID, ai.oriveo.community.core.search.SavedSearchService(id = "s1", kind = "custom", name = "DeepSeek", keySource = "none"))
+        val webSearch = StoreModelControlsWebSearch(
+            store, ai.oriveo.community.core.search.SearchCatalogRepository(ai.oriveo.community.testing.TestSharedPreferences(), { error("no fetch") }, { null }, emptyMap()),
+            { emptyList() }, { _, _ -> null },
+        )
+        val provider = Provider(id = "c1", kind = ProviderKind.OpenAI)
+        val model = AIModel(id = "m1", name = "M1")
+        webSearch.update(provider, model, "draft-1", true, ai.oriveo.community.core.search.SearchSourceEvent.PickService("s1", "DeepSeek"))
+        assertNull("draft id is not persisted", store.conversationSource(ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID, "draft-1"))
+        assertEquals("external", webSearch.snapshot(provider, model, "draft-1", draft = true).stored?.methods?.get("c1:m1"))
+        webSearch.adoptDraft("draft-1", "conv-1")
+        assertEquals("s1", store.conversationSource(ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID, "conv-1")?.serviceId)
+        // Turning the external switch off: disarm clears only the external choice for this model and keeps the service
+        webSearch.update(provider, model, "conv-1", false, ai.oriveo.community.core.search.SearchSourceEvent.Disarm)
+        assertNull(store.conversationSource(ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID, "conv-1")?.methods?.get("c1:m1"))
+        assertEquals("s1", store.conversationSource(ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID, "conv-1")?.serviceId)
+    }
+
+    private fun stateFor(
+        snapshot: WebSearchPanelSnapshot,
+        presentation: CapabilityControlPresentation = CapabilityControlPresentation.Unsupported,
+        webOn: Boolean = false,
+        model: AIModel = AIModel(id = "m1", name = "M1"),
+    ): ai.oriveo.community.core.search.WebSearchState {
+        val provider = Provider(id = "c1", kind = ProviderKind.OpenAI)
+        return ai.oriveo.community.core.search.resolveWebSearchState(
+            snapshot.stateInput(
+                ModelOptionsPanelInput.webSearchFacts(provider, model, presentation, false, null, snapshot.toolCall),
+                true, webOn, webSearchModelKey(provider, model),
+            ),
+        )
+    }
+
+    private val armedOnM1 = ai.oriveo.community.core.search.SearchSourceStored(mapOf("c1:m1" to "external"), "s1", "DeepSeek")
+
+    @Test
+    fun `external armed on a model that cannot search goes external with the chip lit even when conversation web is off`() {
+        val state = stateFor(webSearchSnapshot(1, stored = armedOnM1), webOn = false)
+        assertEquals("external_tool", state.route.path)
+        assertTrue("send goes external: native / relay fields are suppressed", state.nativeFieldsSuppressed)
+        assertEquals(true, state.chipLit)
+    }
+
+    @Test
+    fun `closing the external switch only disarms this model and leaves conversation web alone`() {
+        val state = stateFor(webSearchSnapshot(1, stored = armedOnM1), webOn = true)
+        // The panel takes the toggleControls = external branch: it only sends disarm and does not persist (conversation web unchanged)
+        assertEquals("external", state.toggleControls)
+        val next = ai.oriveo.community.core.search.updateSearchSource(armedOnM1, "c1:m1", ai.oriveo.community.core.search.SearchSourceEvent.Disarm)
+        assertNull(next?.methods?.get("c1:m1"))
+        val after = stateFor(webSearchSnapshot(1, stored = next), webOn = true)
+        assertFalse(after.toggleOn)
+        assertTrue("conversation web is still on; the card hints that external is not turned on yet", after.armHint)
+    }
+
+    @Test
+    fun `deleting the chosen service turns external off and shows the fallback note`() {
+        val gone = ai.oriveo.community.core.search.SearchSourceStored(mapOf("c1:m1" to "external"), "s-gone", "Exa")
+        val state = stateFor(webSearchSnapshot(1, stored = gone), webOn = false)
+        assertEquals("default", state.source.method)
+        assertFalse(state.toggleOn)
+        assertEquals("card.fallbackNotice", state.card.notes.first().key)
+        assertEquals("Exa", state.card.notes.first().args["from"])
+    }
+
+    @Test
+    fun `catalog unavailable keeps the chosen service and explains it in a note`() {
+        val saved = ai.oriveo.community.core.search.SavedSearchService(id = "s1", kind = "preset", serviceId = "deepseek", name = "DeepSeek")
+        val item = ai.oriveo.community.feature.settings.websearch.WebSearchServiceItem(
+            saved, "DeepSeek", ai.oriveo.community.core.search.SearchRowState("catalog_unavailable", "preset", "own", null), true, true, null, null,
+        )
+        val snapshot = WebSearchPanelSnapshot(listOf(item), "s1", armedOnM1, null, null, "supported")
+        val state = stateFor(snapshot)
+        assertEquals("external", state.source.method)
+        assertTrue(state.toggleOn)
+        assertTrue(state.card.notes.any { it.key == "row.catalogUnavailable" })
+        assertEquals(R.string.web_search_row_catalog_unavailable, ModelOptionsRender.searchCardTextRes("row.catalogUnavailable"))
+    }
+
+    private fun storeBackedWebSearch(): Pair<ai.oriveo.community.core.search.SearchServiceStore, StoreModelControlsWebSearch> {
+        val store = ai.oriveo.community.core.search.SearchServiceStore(ai.oriveo.community.testing.TestSharedPreferences())
+        return store to StoreModelControlsWebSearch(
+            store, ai.oriveo.community.core.search.SearchCatalogRepository(ai.oriveo.community.testing.TestSharedPreferences(), { error("no fetch") }, { null }, emptyMap()),
+            { emptyList() }, { _, _ -> null },
+        )
+    }
+
+    private fun customService(id: String) =
+        ai.oriveo.community.core.search.SavedSearchService(id = id, kind = "custom", name = "Svc $id", keySource = "none")
+
+    @Test
+    fun `adding from the model options panel picks the new service and writes external for this model`() = kotlinx.coroutines.test.runTest {
+        val (store, webSearch) = storeBackedWebSearch()
+        val returns = ai.oriveo.community.core.search.WebSearchChatReturn
+        val provider = Provider(id = "c1", kind = ProviderKind.OpenAI)
+        val model = AIModel(id = "m1", name = "M1")
+        store.save(ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID, customService("s-old"))
+        // Leave via "Add search service" in the panel -> add one in settings -> settle on leaving settings -> picked up back in chat
+        returns.leave(ai.oriveo.community.core.search.WebSearchChatReturn.Pending("conv-1", false, true, setOf("s-old")))
+        store.save(ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID, customService("s-new"))
+        returns.finish(store.services(ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID).map { it.id })
+        val back = requireNotNull(returns.consume("conv-1"))
+        assertEquals("s-new", back.addedServiceId)
+        webSearch.pickAdded(provider, model, "conv-1", false, back.addedServiceId!!)
+        val stored = store.conversationSource(ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID, "conv-1")
+        assertEquals("external", stored?.methods?.get("c1:m1"))
+        assertEquals("s-new", stored?.serviceId)
+    }
+
+    @Test
+    fun `adding directly in settings does not change the conversation choice`() {
+        val (store, _) = storeBackedWebSearch()
+        val returns = ai.oriveo.community.core.search.WebSearchChatReturn
+        returns.consume("conv-1")
+        store.save(ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID, customService("s-new"))
+        // Adding directly in settings: there is no record started from the panel, so settling does nothing
+        returns.finish(store.services(ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID).map { it.id })
+        assertNull(returns.consume("conv-1"))
+        assertNull(store.conversationSource(ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID, "conv-1"))
+    }
+
+    @Test
+    fun `leaving settings before adding voids the record so a later direct add is not picked`() {
+        val (store, _) = storeBackedWebSearch()
+        val returns = ai.oriveo.community.core.search.WebSearchChatReturn
+        returns.leave(ai.oriveo.community.core.search.WebSearchChatReturn.Pending("conv-1", true, true, emptySet()))
+        // Leaving settings before adding: settles as "no new service" and the record is voided
+        returns.finish(store.services(ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID).map { it.id })
+        assertNull(returns.consume("conv-1")?.addedServiceId)
+        // Then add directly in settings
+        store.save(ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID, customService("s-later"))
+        returns.finish(store.services(ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID).map { it.id })
+        assertNull(returns.consume("conv-1"))
+        assertNull(store.conversationSource(ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID, "conv-1"))
+    }
+
+    /** English copy: R.string id -> resource name -> the entry in res/values/strings_web_search.xml, with %n$s substituted. */
+    private fun englishText(resId: Int, args: List<String>): String {
+        val name = R.string::class.java.fields.first { it.getInt(null) == resId }.name
+        val xml = java.io.File("src/main/res/values/strings_web_search.xml").readText()
+        val raw = Regex("""<string name="$name">(.*?)</string>""").find(xml)!!.groupValues[1].replace("\\'", "'")
+        return String.format(raw, *args.toTypedArray())
+    }
+
     // -- shape to copy slots --
 
     @Test

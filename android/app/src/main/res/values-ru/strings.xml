@@ -62,7 +62,7 @@
     <string name="stop">Остановить</string>
     <string name="type_a_message">Введите сообщение…</string>
     <string name="ai_is_answering">ИИ отвечает…</string>
-    <string name="regenerate">Регенерировать</string>
+    <string name="regenerate">Сгенерировать заново</string>
     <string name="continue_generating">Продолжить</string>
     <string name="edit_message">Изменить</string>
     <string name="model_switcher">Модель</string>
@@ -84,7 +84,7 @@
     <string name="message_failed">Отправить не удалось</string>
     <string name="message_failed_body">Запрос не был завершен корректно. Повторите попытку сейчас или отредактируйте последнее сообщение пользователя перед повторной отправкой.</string>
     <string name="message_interrupted">Ответ прерван</string>
-    <string name="message_interrupted_body">Частичный ответ сохранён. Нажмите Продолжить генерацию, чтобы продолжить с места остановки, или Регенерировать для запроса нового полного ответа.</string>
+    <string name="message_interrupted_body">Частичный ответ сохранён. Нажмите Продолжить генерацию, чтобы продолжить с места остановки, или Сгенерировать заново для запроса нового полного ответа.</string>
     <string name="web_search">Поиск в интернете</string>
     <string name="export_conversation">Экспортный разговор</string>
     <string name="chat_export_markdown_ready">Лист общего доступа открыт для экспорта Markdown.</string>

@@ -168,7 +168,8 @@ internal class ChatRetryCoordinator(
         customRetryWithoutFieldsCode = marker,
     )
 
-    fun regenerateMessage(messageId: String) {
+    /** [reSearch] = "regenerate and search again" (regenerate.action = re_search): do not reuse the previous search results. */
+    fun regenerateMessage(messageId: String, reSearch: Boolean = false) {
         if (selectionRemoved()) return
         val conv = currentConversation() ?: return
         val assistantMsg = conv.messages.find { it.id == messageId } ?: return
@@ -207,6 +208,8 @@ internal class ChatRetryCoordinator(
             } else {
                 conv.messages.take(conv.messages.indexOf(lastUser) + 1)
             }
+            // Record the intent at the last moment before sending, so no earlier bail-out leaves an unclaimed re_search behind
+            if (reSearch) ai.oriveo.community.core.search.ExternalSearchReSearchIntents.mark(conv.id)
             launchSend.launch(
                 conversation = conv,
                 provider = provider,

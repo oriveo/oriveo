@@ -272,6 +272,23 @@ class ContextPipelineCompactionCoordinatorTest {
     }
 
     @Test
+    fun `coordinator_pre_send_reuses_row_landed_before_it_arrived`() = runBlocking {
+        // Send arrives a step late: pre-compaction already finished and persisted its row (send did not wait for it), the span after that row is empty -> hand back that row so the send rebuilds from it instead of the in-memory fallback.
+        aiPref = true
+        outputs = mutableListOf(VALID)
+        val coordinator = coordinator()
+        val landed = coordinator.compact(CONV, ContextCompactionTrigger.PRE_SEND, ctx())
+        assertEquals(CompactOutcome.SUMMARY, landed.outcome)
+
+        val late = coordinator.compact(CONV, ContextCompactionTrigger.PRE_SEND, ctx())
+
+        assertEquals(CompactOutcome.NOOP, late.outcome)
+        assertEquals(landed.row, late.row)
+        assertEquals(1, requests.size)
+        assertEquals(1, store.list(ACCOUNT, CONV).size)
+    }
+
+    @Test
     fun `coordinator_saved_row_uploads_when_bound`() = runBlocking {
         aiPref = true
         outputs = mutableListOf(VALID)
@@ -352,7 +369,8 @@ class ContextPipelineCompactionCoordinatorTest {
         val result = coordinator().compact(CONV, ContextCompactionTrigger.PRE_SEND, ctx())
 
         assertEquals(CompactOutcome.NOOP, result.outcome)
-        assertNull(result.row)
+        // The send path hands back the existing stored row for rebuilding (this is how a late send picks up the row just persisted), without writing a new row.
+        assertEquals(previous, result.row)
         assertEquals(listOf(previous), store.list(ACCOUNT, CONV))
         assertTrue(uploads.isEmpty())
     }

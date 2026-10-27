@@ -77,19 +77,39 @@ class McpAddServerUiTest {
     // ── Settings entry ─────────────────────────────────────────
 
     @Test
-    fun `settings shows the mcp servers row with its counts and opens the server list`() {
+    fun `settings shows web search and mcp servers side by side with counts`() {
         var opened = 0
+        var webSearchOpened = 0
         render {
             SettingsToolsSectionContent(
                 mcpSummary = McpSettingsEntrySummary(serverCount = 4, attentionCount = 1),
                 onNavigateToMcpServers = { opened += 1 },
+                webSearchValue = "Tavily",
+                onNavigateToWebSearch = { webSearchOpened += 1 },
             )
         }
         composeRule.onNodeWithText(text(R.string.mcp_settings_section)).assertIsDisplayed()
+        composeRule.onNodeWithText("Tavily").assertIsDisplayed()
+        composeRule.onNodeWithText(text(R.string.web_search_entry_title)).performClick()
+        composeRule.waitForIdle()
+        assertEquals(1, webSearchOpened)
         composeRule.onNodeWithText(text(R.string.mcp_settings_entry_count_attention, plural(R.plurals.mcp_settings_entry_count, 4), plural(R.plurals.mcp_settings_entry_attention, 1))).assertIsDisplayed()
         composeRule.onNodeWithText(text(R.string.mcp_servers_title)).performClick()
         composeRule.waitForIdle()
         assertEquals(1, opened)
+    }
+
+    @Test
+    fun `with the mcp master switch off only web search is shown`() {
+        render {
+            SettingsToolsSectionContent(
+                mcpSummary = McpSettingsEntrySummary(serverCount = 2, attentionCount = 0),
+                onNavigateToMcpServers = {},
+                mcpEnabled = false,
+            )
+        }
+        composeRule.onNodeWithText(text(R.string.web_search_entry_title)).assertIsDisplayed()
+        composeRule.onAllNodesWithText(text(R.string.mcp_servers_title)).assertCountEquals(0)
     }
 
     @Test

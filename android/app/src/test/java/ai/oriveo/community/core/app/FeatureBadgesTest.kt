@@ -69,6 +69,16 @@ class FeatureBadgesTest {
     }
 
     @Test
+    fun `web search badge is independent of the memory badge`() = runTest {
+        val repository = AppPreferencesRepository(FakePreferenceDao())
+        repository.markFeatureBadgeSeen(FeatureBadges.SETTINGS_WEB_SEARCH)
+
+        assertFalse(repository.featureBadgeUnseen(FeatureBadges.SETTINGS_WEB_SEARCH).first())
+        assertTrue(repository.featureBadgeUnseen(memoryId).first())
+        assertEquals("settings.webSearch.2026-10", FeatureBadges.SETTINGS_WEB_SEARCH)
+    }
+
+    @Test
     fun `seen key is device scoped`() {
         assertTrue(AppPreferenceKeys.FEATURE_BADGES_SEEN in AppPreferenceKeys.DEVICE_SCOPED_KEYS)
         assertFalse(AppPreferenceKeys.isUserState(AppPreferenceKeys.FEATURE_BADGES_SEEN))

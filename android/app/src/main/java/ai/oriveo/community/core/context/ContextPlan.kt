@@ -107,6 +107,11 @@ data class ContextDynamicInput(
     /** Ranked L3 hits; kept in rank order while the envelope fits recallMax. */
     val recall: List<ContextRecallEntry> = emptyList(),
     val library: List<ContextLibraryEntry>? = null,
+    /**
+     * External web search delivery for this message (presearch or reuse): the `<oriveo-web>` envelope or the fixed
+     * no-result line, placed verbatim right after `<oriveo-library>`. null = no external search in [D].
+     */
+    val web: String? = null,
     val attachmentGuide: String? = null,
     /** null renders exactly as before; VOICE appends <oriveo-delivery> last in [D]. */
     val delivery: ContextDelivery? = null,

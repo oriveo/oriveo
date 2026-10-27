@@ -217,6 +217,7 @@ internal fun EnhancedComposer(
     onNavigateToProviderSetup: () -> Unit,
 
     onNavigateToProviderDetail: (providerId: String) -> Unit = {},
+    onNavigateToWebSearchFromChat: (conversationId: String?, oneTap: ai.oriveo.community.core.search.OneTapReuseTarget?) -> Unit = { _, _ -> },
     /** Relay web search settings page (Detail > Web search). */
     onNavigateToConnectionWebSearch: (providerId: String) -> Unit = {},
     /** "Test capability" for a rejected web template: opens this model's advanced page in this connection. */
@@ -332,6 +333,16 @@ internal fun EnhancedComposer(
         }
     }
     var showModelControls by remember { mutableStateOf(false) }
+    /** This opening of model options lands directly on the "Search method" page (the external search error card's "Switch service"). */
+    var modelControlsOpensSearchMethod by remember { mutableStateOf(false) }
+    LaunchedEffect(generationParameterConversationId) {
+        ai.oriveo.community.feature.chat.modelcontrols.WebSearchMethodOpenRequests.requests.collect { conversationId ->
+            if (conversationId == generationParameterConversationId) {
+                modelControlsOpensSearchMethod = true
+                showModelControls = true
+            }
+        }
+    }
 
     var modelBehaviorRevision by remember { mutableIntStateOf(0) }
     var selectedControlWeb by remember(generationParameterProvider?.id, currentModel?.id, generationParameterConversationId) {
@@ -591,6 +602,45 @@ internal fun EnhancedComposer(
         } else 0
     }
     val hasModelBehaviorOverride = modelBehaviorOverrideCount > 0
+    // When not registered (test hosts with only some dependencies), the web search card keeps its previous behavior.
+    val koin = org.koin.compose.getKoin()
+    val modelControlsWebSearch = remember(koin) { koin.getOrNull<ai.oriveo.community.feature.chat.modelcontrols.ModelControlsWebSearch>() }
+    val webSearchStoreRevision = modelControlsWebSearch?.revision?.collectAsState()?.value
+    // Back from the settings page opened by the web search card (one-tap enable / add a search service): return to the
+    // model options panel whether the test passed, failed or was cancelled; a newly added service means setup succeeded,
+    // so send pick_service (when arms is true). Consumed when the lifecycle resumes, no polling.
+    val composerResumed = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle.currentStateFlow
+        .collectAsState().value.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)
+    val webSearchReturn by ai.oriveo.community.core.search.WebSearchChatReturn.changes.collectAsState()
+    LaunchedEffect(composerResumed, webSearchReturn, generationParameterConversationId, generationParameterProvider?.id, currentModel?.id) {
+        if (!composerResumed) return@LaunchedEffect
+        val provider = generationParameterProvider ?: return@LaunchedEffect
+        val model = currentModel ?: return@LaunchedEffect
+        val back = ai.oriveo.community.core.search.WebSearchChatReturn.consume(generationParameterConversationId) ?: return@LaunchedEffect
+        val webSearch = modelControlsWebSearch
+        val added = back.addedServiceId
+        if (webSearch != null && back.arms && added != null) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { webSearch.pickAdded(provider, model, generationParameterConversationId, !isExistingConversation, added) }
+            }
+        }
+        showModelControls = true
+    }
+    // Composer web search chip preview: the same background read as sending (read-only) + resolveWebSearchState;
+    // recomputed when the source, the service list (revision), the model or the conversation changes.
+    val webSearchChipSnapshot by androidx.compose.runtime.produceState<ai.oriveo.community.feature.chat.modelcontrols.WebSearchPanelSnapshot?>(
+        null, modelControlsWebSearch, generationParameterProvider?.id, currentModel?.id, generationParameterConversationId,
+        showModelControls, webSearchStoreRevision,
+    ) {
+        val provider = generationParameterProvider
+        val model = currentModel
+        val webSearch = modelControlsWebSearch
+        value = if (provider == null || model == null || webSearch == null) null else {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { webSearch.snapshot(provider, model, generationParameterConversationId, !isExistingConversation) }.getOrNull()
+            }
+        }
+    }
     if (showModelControls) {
         ModelControlsEntrySheet(
             provider = generationParameterProvider,
@@ -629,10 +679,23 @@ internal fun EnhancedComposer(
             onOpenRelayModelAdvanced = { modelId ->
                 generationParameterProvider?.id?.let { onNavigateToRelayModelAdvanced(it, modelId) }
             },
+            webSearch = modelControlsWebSearch,
+            webSearchDraft = !isExistingConversation,
+            opensSearchMethod = modelControlsOpensSearchMethod,
+            // arms = whether passing writes web search for this conversation (not when the panel cannot persist): without it no conversation id is passed.
+            onOpenWebSearchFromChat = { oneTap, arms, serviceIdsBefore ->
+                ai.oriveo.community.core.search.WebSearchChatReturn.leave(
+                    ai.oriveo.community.core.search.WebSearchChatReturn.Pending(
+                        generationParameterConversationId, oneTap != null, arms, serviceIdsBefore,
+                    ),
+                )
+                onNavigateToWebSearchFromChat(generationParameterConversationId.takeIf { arms }, oneTap)
+            },
             onNavigateToProviderSetup = onNavigateToProviderSetup,
             onSelectModel = onSelectModel,
             onDismiss = {
                 showModelControls = false
+                modelControlsOpensSearchMethod = false
 
                 modelBehaviorRevision += 1
             },
@@ -682,6 +745,22 @@ internal fun EnhancedComposer(
             )
         }
     }.orEmpty()
+    // Same combined entry point as sending and the panel
+    val webSearchChipState = webSearchChipSnapshot?.let { snap ->
+        val provider = generationParameterProvider ?: return@let null
+        val model = currentModel ?: return@let null
+        val relayFact = ai.oriveo.community.feature.chat.modelcontrols.ModelOptionsPanelInput.relayWeb(provider, model, webPreference = selectedControlWeb)
+        ai.oriveo.community.core.search.resolveWebSearchState(
+            snap.stateInput(
+                facts = ai.oriveo.community.feature.chat.modelcontrols.ModelOptionsPanelInput.webSearchFacts(
+                    provider, model, webPresentation, "web" in dormantCapabilityOwners, relayFact, snap.toolCall,
+                ),
+                panelWritable = modelControlRuntimeIdentity != null,
+                webOn = ai.oriveo.community.feature.chat.modelcontrols.ModelOptionsPanelInput.webSearchOn(selectedControlWeb, relayFact),
+                modelKey = ai.oriveo.community.feature.chat.modelcontrols.webSearchModelKey(provider, model),
+            ),
+        )
+    }
     val outboundCapabilityDecision = ChatCapabilityOutboundDecision.resolve(
         requested = CapabilityPreferenceValues(selectedControlWeb, selectedControlReasoning),
         controls = runtimeModelControls,
@@ -694,7 +773,8 @@ internal fun EnhancedComposer(
         ),
     )
     val hasReasoningHighlight = outboundCapabilityDecision.hasReasoningSelection
-    val hasWebHighlight = outboundCapabilityDecision.hasWebSelection
+    // The chip highlight only reads chipLit; when null (previous shape) fall back to the previous liveness
+    val hasWebHighlight = webSearchChipState?.chipLit ?: outboundCapabilityDecision.hasWebSelection
     val activeCapabilityIcons = buildList {
         if (hasWebHighlight) add(Icons.Outlined.Language)
         if (hasReasoningHighlight) add(Icons.Outlined.Psychology)

@@ -241,7 +241,9 @@ internal fun ChatScreenContent(
     onNavigateToVoiceSettings: () -> Unit = {},
 
     onNavigateToProviderDetail: (providerId: String) -> Unit = {},
+    onNavigateToWebSearchFromChat: (conversationId: String?, oneTap: ai.oriveo.community.core.search.OneTapReuseTarget?) -> Unit = { _, _ -> },
     onNavigateToConnectionWebSearch: (providerId: String) -> Unit = {},
+    onNavigateToWebSearchService: (serviceId: String?, edit: Boolean) -> Unit = { _, _ -> },
     /** "Test capability" for a rejected web template: opens this model's advanced page in this connection. */
     onNavigateToRelayModelAdvanced: (providerId: String, modelId: String) -> Unit = { _, _ -> },
     onNavigateToSkillEdit: () -> Unit = {},
@@ -369,6 +371,23 @@ internal fun ChatScreenContent(
     var switchKeyMessage by remember { mutableStateOf<ChatMessage?>(null) }
     val onSwitchKey = remember { { message: ChatMessage -> switchKeyMessage = message } }
     val mcpToolStepsHost = ai.oriveo.community.feature.chat.mcp.rememberMcpToolStepsHost(viewModel.mcpCoordinator)
+    // External web search activity line and error-card navigation reach the message cells through a CompositionLocal
+    val currentWebSearchServiceNav by androidx.compose.runtime.rememberUpdatedState(onNavigateToWebSearchService)
+    val currentConversationIdForSearch by androidx.compose.runtime.rememberUpdatedState(conversation?.id)
+    val externalSearchHost = remember(viewModel) {
+        object : ai.oriveo.community.feature.chat.components.ExternalSearchChatHost {
+            override val activity = viewModel.streamingExternalSearch
+            override fun openService(serviceId: String?, edit: Boolean) = currentWebSearchServiceNav(serviceId, edit)
+            override fun openSearchMethod() {
+                currentConversationIdForSearch?.let(ai.oriveo.community.feature.chat.modelcontrols.WebSearchMethodOpenRequests::request)
+            }
+            override fun regenerateWithSearch(messageId: String) = viewModel.regenerateWithSearch(messageId)
+            override fun answerWith(messageId: String, target: ai.oriveo.community.core.model.SearchMessageSwitchTarget) =
+                viewModel.answerWithSearchService(messageId, target.id, target.name)
+            override suspend fun pricingUrl(serviceId: String): String? = viewModel.searchServicePricingUrl(serviceId)
+            override suspend fun serviceExists(serviceId: String): Boolean = viewModel.searchServiceExists(serviceId)
+        }
+    }
     val onShareMessage = remember(viewModel, context) { { message: ChatMessage -> viewModel.shareMessage(message, context) } }
     val onSaveMessageAsNote = remember(viewModel) { { message: ChatMessage -> viewModel.noteCoordinator.saveMessageAsNote(message.id) } }
     val onSaveSelectionAsNote = remember(viewModel) {
@@ -727,6 +746,7 @@ internal fun ChatScreenContent(
                         ai.oriveo.community.feature.chat.mcp.LocalMcpToolStepsHost provides mcpToolStepsHost,
                         ai.oriveo.community.feature.chat.components.LocalRelayAvatarProviders provides providersById,
                         LocalMemoryUsedOpener provides openMemoryUsed,
+                        ai.oriveo.community.feature.chat.components.LocalExternalSearchChatHost provides externalSearchHost,
                     ) {
                     ChatMessagesList(
                         messages = messages,
@@ -806,6 +826,7 @@ internal fun ChatScreenContent(
             onNavigateToProviderSetup = onNavigateToProviderSetup,
             onNavigateToVoiceSettings = onNavigateToVoiceSettings,
             onNavigateToProviderDetail = onNavigateToProviderDetail,
+            onNavigateToWebSearchFromChat = onNavigateToWebSearchFromChat,
             onNavigateToConnectionWebSearch = onNavigateToConnectionWebSearch,
             onNavigateToRelayModelAdvanced = onNavigateToRelayModelAdvanced,
             onNavigateToSkillEdit = onNavigateToSkillEdit,

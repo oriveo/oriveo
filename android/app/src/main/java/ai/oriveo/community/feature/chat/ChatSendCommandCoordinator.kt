@@ -57,6 +57,8 @@ internal class ChatSendCommandCoordinator(
     private val capabilityPreferenceStore: CapabilityPreferenceStore? = null,
     private val localCustomFragmentStore: LocalCapabilityCustomFragmentStore? = null,
     private val generationParameterDraftSessionId: () -> String = { "" },
+    /** External search: a draft conversation's in-memory search source is written once under the real conversation id on its first send. */
+    private val adoptSearchSourceDraft: ((draftId: String, conversationId: String) -> Unit)? = null,
     /**
      * When a new conversation becomes a real one, moves the MCP server switches flipped while it
      * was a draft over to it. Must complete before the send.
@@ -69,7 +71,7 @@ internal class ChatSendCommandCoordinator(
      * over. Returns null when unknown, and the pre-send check falls back to blocking only if every possible route
      * fails.
      */
-    private val resolveAttachmentSendOptions: (
+    private val resolveAttachmentSendOptions: suspend (
         provider: Provider,
         modelId: String,
     ) -> AttachmentSendPreflight.SendOptions? = { _, _ -> null },
@@ -495,6 +497,11 @@ internal class ChatSendCommandCoordinator(
     ) {
         val runtimeModelId = selectedModel.id
         adoptMcpDraft(conv.id)
+        adoptSearchSourceDraft?.let { adopt ->
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { adopt(generationParameterDraftSessionId(), conv.id) }
+            }
+        }
         val modelControlIdentity = ModelControlRuntimeIdentityResolver.resolve(provider, selectedModel)
         generationParameterSettingsStore?.migrateSession(
             providerID = provider.id,

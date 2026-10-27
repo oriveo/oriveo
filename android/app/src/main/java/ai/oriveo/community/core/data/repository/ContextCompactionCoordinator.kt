@@ -215,8 +215,11 @@ class ContextCompactionCoordinator(
             previous?.coversTo,
         )
         if (span.action == CheckpointAction.NOOP) {
-            // After waiting, the row the other compaction just saved is handed back so the send re-projects with it.
-            return ContextCompactionResult(CompactOutcome.NOOP, previous.takeIf { waited }, emptyList())
+            // The send re-projects with the latest row: after waiting for the other compaction, and also when the send
+            // arrives a step late and the pre-compaction already finished (it never waited). Pre-compaction
+            // (fallback = false) and manual compaction keep the old rule.
+            val sendPath = fallback && trigger != ContextCompactionTrigger.MANUAL
+            return ContextCompactionResult(CompactOutcome.NOOP, previous.takeIf { waited || sendPath }, emptyList())
         }
 
         var failures: List<List<String>> = emptyList()

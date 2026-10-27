@@ -174,10 +174,15 @@ private fun ColumnScope.SummaryPage(
             text = stringResource(R.string.mcp_confirm_allow_once),
             onClick = { onChoose(McpConfirmationChoice.Once) },
         )
-        McpSecondaryButton(
-            text = stringResource(R.string.mcp_confirm_allow_conversation),
-            onClick = { onChoose(McpConfirmationChoice.Conversation) },
-        )
+        // When this turn read web content every write action is confirmed on its own: hide "this conversation" and add a note
+        if (request.onceOnly) {
+            McpFootnote(text = stringResource(R.string.web_search_chat_mcp_once_only))
+        } else {
+            McpSecondaryButton(
+                text = stringResource(R.string.mcp_confirm_allow_conversation),
+                onClick = { onChoose(McpConfirmationChoice.Conversation) },
+            )
+        }
         McpQuietButton(
             text = stringResource(R.string.mcp_confirm_decline),
             onClick = { onChoose(McpConfirmationChoice.Deny) },

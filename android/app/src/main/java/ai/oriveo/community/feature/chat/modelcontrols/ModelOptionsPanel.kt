@@ -212,7 +212,9 @@ internal fun ModelOptionCapabilityRow(
                     checked = ModelOptionsTiles.webIsOn(shape) ||
                         (shape as? ModelOptionCapabilityShape.Toggle)?.isOn == true,
                     onCheckedChange = actions.onToggle,
-                    enabled = actions.toggleEnabled && (shape as? ModelOptionCapabilityShape.RelayWebToggle)?.enabled != false,
+                    enabled = actions.toggleEnabled && (shape as? ModelOptionCapabilityShape.RelayWebToggle)?.enabled != false &&
+                        ((shape as? ModelOptionCapabilityShape.ToggleWithSource)?.native as? ModelOptionCapabilityShape.RelayWebToggle)
+                            ?.enabled != false,
                     modifier = Modifier.semantics { contentDescription = title },
                 )
                 ModelOptionsTiles.Corner.Levels -> Text(
@@ -259,9 +261,61 @@ internal fun ModelOptionCapabilityRow(
                     modifier = Modifier.heightIn(min = 44.dp),
                 ) { Text(stringResource(ModelOptionsRender.escapeRes(escape))) }
             }
+            // Native search with "search on every message" available: the timing segments reuse the original switch (only shown when using the model's own search).
+            is ModelOptionCapabilityShape.ToggleWithSource -> (shape.native as? ModelOptionCapabilityShape.ToggleWithTiming)
+                ?.takeIf { shape.route.path == "native" }
+                ?.let { timing ->
+                    Segments(
+                        options = timing.timings,
+                        selected = timing.selectedTiming,
+                        label = { ModelOptionsRender.timingLabelRes(it) },
+                        level = { null },
+                        onSelect = actions.onSelectTiming,
+                    )
+                }
             else -> Unit
         }
+        tile.searchCard?.let { card -> WebSearchCardExtras(card, actions.onEscape) }
     }
+}
+
+/** The external search part of the web card: hints / explanations, the "Search method" link, the primary and secondary actions, all taken from webSearchCardPresentation. */
+@Composable
+private fun WebSearchCardExtras(
+    card: ai.oriveo.community.core.search.WebSearchCardPresentation,
+    onEscape: (ModelOptionCapabilityShape.Escape) -> Unit,
+) {
+    // Notes replace the body line in OptionTileFrame and are not repeated here. Order matches iOS: source link -> primary CTA button -> secondary link.
+    card.link?.let { WebSearchCardLink(it, onEscape) }
+    card.cta?.let { cta ->
+        val escape = ModelOptionsRender.searchCardEscape(cta.action) ?: return@let
+        ai.oriveo.community.ui.component.OriveoPrimaryButton(
+            text = webSearchCardText(cta.key, cta.args),
+            onClick = { onEscape(escape) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+    card.secondary?.let { WebSearchCardLink(it, onEscape) }
+}
+
+@Composable
+private fun WebSearchCardLink(
+    link: ai.oriveo.community.core.search.WebSearchCardAction,
+    onEscape: (ModelOptionCapabilityShape.Escape) -> Unit,
+) {
+    val escape = ModelOptionsRender.searchCardEscape(link.action) ?: return
+    TextButton(
+        colors = modelControlTextButtonColors(),
+        onClick = { onEscape(escape) },
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 0.dp),
+        modifier = Modifier.heightIn(min = 44.dp),
+    ) { Text(webSearchCardText(link.key, link.args)) }
+}
+
+@Composable
+private fun webSearchCardText(key: String, args: Map<String, String?>): String {
+    val positional = ModelOptionsRender.searchCardArgs(key, args)
+    return stringResource(ModelOptionsRender.searchCardTextRes(key), *positional.toTypedArray())
 }
 
 /** Vision / file info card: read-only, with a check / question / x at the top right. */
@@ -299,8 +353,18 @@ private fun OptionTileFrame(
         }
         Spacer(Modifier.height(6.dp))
         Text(title, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = colors.textPrimary)
-        Text(stringResource(tile.statusRes), fontSize = 12.5.sp, color = colors.textSecondary)
-        tile.bodyRes?.let { Text(stringResource(it), fontSize = 12.sp, color = colors.textTertiary) }
+        Text(
+            tile.searchCard?.status?.let { webSearchCardText(it.key, it.args) } ?: stringResource(tile.statusRes),
+            fontSize = 12.5.sp,
+            color = colors.textSecondary,
+        )
+        // Web card notes replace the body and are all shown in order without truncation; they use the secondary color so the fallback notice is not in the faintest tertiary grey.
+        val notes = tile.searchCard?.notes.orEmpty()
+        if (notes.isNotEmpty()) {
+            notes.forEach { Text(webSearchCardText(it.key, it.args), fontSize = 12.sp, color = colors.textSecondary) }
+        } else {
+            tile.bodyRes?.let { Text(stringResource(it), fontSize = 12.sp, color = colors.textTertiary) }
+        }
         extra()
     }
 }

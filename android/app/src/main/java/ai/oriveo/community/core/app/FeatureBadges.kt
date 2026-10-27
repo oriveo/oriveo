@@ -10,8 +10,12 @@ object FeatureBadges {
     /** The "Memory" row in Settings, leading to the memory settings screen. */
     const val SETTINGS_MEMORY = "settings.memory.2026-10"
 
+    /** The "Tools & Connections > Web Search" cell in Settings, leading to the web search page. */
+    const val SETTINGS_WEB_SEARCH = "settings.webSearch.2026-10"
+
     val REGISTERED_IDS: List<String> = listOf(
         SETTINGS_MEMORY,
+        SETTINGS_WEB_SEARCH,
     )
 
     /** Registered and not yet seen: show the badge. */

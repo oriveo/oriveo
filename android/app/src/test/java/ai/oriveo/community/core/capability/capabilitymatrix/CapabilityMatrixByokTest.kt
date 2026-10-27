@@ -220,6 +220,63 @@ class CapabilityMatrixByokTest {
         assertTrue(resolver.supportsImage(o3Provider, o3))
     }
 
+    /**
+     * External search: cold start (new instance, no cache), model options panel never opened, external service chosen this session ->
+     * the source is read right before sending, so the request for a natively web-capable model carries no native web field. Control: without reading the source the field is still sent.
+     */
+    @Test
+    fun external_search_source_read_at_send_time_drops_native_web_fields() = runTest {
+        loadOfficialMetadata()
+        val model = AIModel(id = ANTHROPIC_MODEL, name = ANTHROPIC_MODEL)
+        val provider = Provider(id = "official-anthropic", kind = ProviderKind.Anthropic, apiKey = "byok-key", models = listOf(model))
+        val identity = requireNotNull(ModelControlRuntimeIdentityResolver.resolve(provider, model))
+        var payload: String? = null
+        val preferences = CapabilityPreferenceStore({ payload }, { payload = it })
+        preferences.setConversation(
+            CapabilityPreferenceValues(CapabilityWebPreference.Automatic, null),
+            provider.id, identity.canonicalModelId, "conversation-1", identity.storageIdentity,
+        )
+        val searchStore = ai.oriveo.community.core.search.SearchServiceStore(ai.oriveo.community.testing.TestSharedPreferences())
+        searchStore.save(ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID, ai.oriveo.community.core.search.SavedSearchService(id = "s1", kind = "custom", name = "DeepSeek", keySource = "none"))
+        searchStore.setConversationSource(
+            ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID, "conversation-1",
+            ai.oriveo.community.core.search.SearchSourceStored(mapOf("${provider.id}:${model.id}" to "external"), "s1", "DeepSeek"),
+        )
+        // Cold start: new instance, catalog is local only (no cached catalog here = catalog unavailable, no network request)
+        val webSearch = ai.oriveo.community.feature.chat.modelcontrols.StoreModelControlsWebSearch(
+            store = searchStore,
+            catalog = ai.oriveo.community.core.search.SearchCatalogRepository(
+                ai.oriveo.community.testing.TestSharedPreferences(), { error("send path must not fetch the catalog") }, { null }, emptyMap(),
+            ),
+            connections = { emptyList() },
+            toolCallVerdict = { _, _ -> true },
+        )
+        val coordinator = ChatSendCoordinator(
+            chatStreamingManager = mockk<ChatStreamingManager>(relaxed = true),
+            applicationScope = this,
+            pinnedNotesResolver = { emptyList() },
+            pendingPinnedNoteIds = { emptyList() },
+            generationParameterSettingsStore = GenerationParameterSettingsStore(readPayload = { null }, writePayload = {}),
+            capabilityPreferenceStore = preferences,
+        )
+        suspend fun bodyWith(snapshot: ai.oriveo.community.feature.chat.modelcontrols.WebSearchPanelSnapshot?): JsonObject {
+            val dispatch = coordinator.resolveCapabilityDispatch(
+                provider = provider,
+                modelId = model.id,
+                conversationId = "conversation-1",
+                skillId = null,
+                appendToAssistant = null,
+                webSearchSnapshot = snapshot,
+            )
+            return anthropicBody(ANTHROPIC_MODEL, web = dispatch.customTypedPreferences.web)
+        }
+        assertTrue("Control: native web field is unchanged when the source is not read", bodyWith(null).toString().contains("web_search"))
+        val snapshot = webSearch.snapshot(provider, model, "conversation-1")
+        assertEquals("external", snapshot.stored?.methods?.get("${provider.id}:${model.id}"))
+        val body = bodyWith(snapshot)
+        assertFalse("External path carries no native web field: $body", body.toString().contains("web_search"))
+    }
+
     // ── helpers ──
 
     /** Sends one streaming request through the production AnthropicService and returns the first request body. */

@@ -90,6 +90,10 @@ const val LOCAL_PARTITION_ID = "local"
  *   the USD part only) and `conversations` gains the nullable `nonUsdCostTotals` (JSON totals per non-USD currency).
  *   Existing rows are not backfilled: a null currency means the message cost was USD. See [MIGRATION_5_6].
  *
+ * v7: external web search. `messages` gains the nullable `searchErrorCardJson` (the search error card as JSON),
+ *   `searchNotice` (a one-off notice key) and `searchSourcesLineJson` (the title line of the sources card, as JSON).
+ *   All three are local only and are not backfilled. See [MIGRATION_6_7].
+ *
  * `exportSchema = true` plus the checked-in Room schema JSON serve as an anchor for future diffs.
  */
 @Database(
@@ -119,7 +123,7 @@ const val LOCAL_PARTITION_ID = "local"
         MemoryItemEntity::class,
         MemoryCandidateEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true,
 )
 abstract class OriveoDatabase : RoomDatabase() {
@@ -362,6 +366,18 @@ abstract class OriveoDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v6 to v7: local diagnostics for external web search (error card JSON, one-off notice, sources line JSON).
+         * Nullable columns without defaults; older rows read null.
+         */
+        val MIGRATION_6_7: Migration = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `messages` ADD COLUMN `searchErrorCardJson` TEXT")
+                db.execSQL("ALTER TABLE `messages` ADD COLUMN `searchNotice` TEXT")
+                db.execSQL("ALTER TABLE `messages` ADD COLUMN `searchSourcesLineJson` TEXT")
+            }
+        }
+
         /** Every registered migration, from v1 up to the current version. Production and tests both open the database through this list, so a new version is added in one place. */
         fun allMigrations(): Array<Migration> = arrayOf(
             MIGRATION_1_2,
@@ -369,6 +385,7 @@ abstract class OriveoDatabase : RoomDatabase() {
             MIGRATION_3_4,
             MIGRATION_4_5,
             MIGRATION_5_6,
+            MIGRATION_6_7,
         )
     }
 }

@@ -141,7 +141,7 @@ class ChatRepositoryMcpTest {
     ) {
         val remaining = ArrayDeque(legs)
         coEvery {
-            mcpRunner.run(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+            mcpRunner.run(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
         } coAnswers {
             // The production `McpChatToolRunner.run` simply hands the caller's onStep to the executor; this does the same, so step callbacks come from the real executor.
             val executor = McpToolExecutor(
@@ -616,6 +616,137 @@ class ChatRepositoryMcpTest {
         verify(exactly = 0) { providerService.sendMessageStream(any(), any(), any(), any(), any(), any(), any(), any()) }
         assertTrue(negativeCache.entries().isEmpty())
         verify(exactly = 0) { memory.record(any(), any(), any(), observedToolCall = false, reason = any()) }
+    }
+
+    // -- A first leg carrying web_search is rejected: reroute to presearch by upstreamRejection --------
+
+    private var searchExecutions = 0
+
+    private fun externalSearch(toolCall: String) = ai.oriveo.community.core.search.ExternalSearchSend(
+        path = "external_tool",
+        toolCall = toolCall,
+        modelKey = "official-openai:$MANUAL_MODEL",
+        binding = ai.oriveo.community.core.search.ExternalSearchBinding(
+            service = ai.oriveo.community.core.search.SearchTurnService(id = "s1", name = "DeepSeek", protocol = "catalog"),
+            otherServices = emptyList(),
+            defaultCount = 5,
+            execute = { _, _ ->
+                searchExecutions++
+                ai.oriveo.community.core.search.SearchCallOutcome.Results(
+                    listOf(ai.oriveo.community.core.search.SearchResultItem(title = "W1", url = "https://a.example.com/1", snippet = "one")),
+                    1,
+                )
+            },
+        ),
+    )
+
+    @Test
+    fun `web_search first leg 400 on the mcp loop reroutes to presearch without the bare-retry branch`() = runTest {
+        arrange()
+        ai.oriveo.community.core.search.SearchToolsRejectionMemory.clearForTest()
+        every { mcpRunner.serverMaxSteps() } returns 8
+        val providerService = stubBareResend()
+        val sent = slot<List<ChatMessage>>()
+        every {
+            providerService.sendMessageStream(any(), any(), capture(sent), any(), any(), any(), any(), any())
+        } returns kotlinx.coroutines.flow.flowOf(
+            ai.oriveo.community.core.model.StreamEvent.Delta("Bare answer"),
+            ai.oriveo.community.core.model.StreamEvent.Done(ai.oriveo.community.core.model.ProviderChatResult(text = "Bare answer")),
+        )
+        // The error body does not look like "tools unsupported": rejected with 400 only because it carried web_search
+        coEvery {
+            mcpRunner.run(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } throws ToolsUnsupportedError(
+            // Same shape as the leg runner: the error mapped by SseParser.mapHttpError carries httpStatus
+            ProviderServiceError.Upstream(400, "bad request").also { it.httpStatus = 400 },
+            webSearchRejection = true,
+        )
+        val official = officialProviderWithManualModel()
+
+        repository().sendMessage(
+            conversation = conversation().copy(providerID = official.id, providerKind = official.kind, modelID = MANUAL_MODEL),
+            text = "Weather?", provider = official, modelID = MANUAL_MODEL,
+            existingMessages = emptyList(), outputs = outputs(), externalSearch = externalSearch("unknown"),
+        )
+
+        val updates = mutableListOf<ChatMessage>()
+        coVerify { conversationRepository.updateMessage(eq("conversation-1"), capture(updates)) }
+        val delivered = updates.last()
+        assertEquals(delivered.errorDetail, ChatMessageState.Delivered, delivered.state)
+        assertEquals("one presearch (query = the user's text)", 1, searchExecutions)
+        assertTrue("presearch results go into this turn's [D]", sent.captured.last().text.contains("<oriveo-web "))
+        assertEquals("tools_rejected", delivered.searchNotice)
+        assertTrue(delivered.citations.orEmpty().any { it.source == "external_search" })
+        // Not the old branch: no connection memory and no negative cache entry are written
+        verify(exactly = 0) { memory.record(any(), any(), any(), observedToolCall = false, reason = any()) }
+        assertTrue(negativeCache.entries().isEmpty())
+        assertTrue(ai.oriveo.community.core.search.SearchToolsRejectionMemory.rejectedBefore("conversation-1", "official-openai:$MANUAL_MODEL"))
+        ai.oriveo.community.core.search.SearchToolsRejectionMemory.clearForTest()
+    }
+
+    @Test
+    fun `web_search first leg 400 that is a context overflow goes to overflow handling, not the tools rejection`() = runTest {
+        arrange()
+        ai.oriveo.community.core.search.SearchToolsRejectionMemory.clearForTest()
+        every { mcpRunner.serverMaxSteps() } returns 8
+        val providerService = stubBareResend()
+        coEvery {
+            mcpRunner.run(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } throws ToolsUnsupportedError(
+            ProviderServiceError.Upstream(400, "context too long").also {
+                it.httpStatus = 400
+                it.rawBody = """{"error":{"code":"context_length_exceeded","message":"This model's maximum context length is 8192 tokens."}}"""
+            },
+            webSearchRejection = true,
+        )
+        val official = officialProviderWithManualModel()
+        val updates = mutableListOf<ChatMessage>()
+        coEvery { conversationRepository.updateMessage(eq("conversation-1"), capture(updates)) } returns Unit
+
+        repository().sendMessage(
+            conversation = conversation().copy(providerID = official.id, providerKind = official.kind, modelID = MANUAL_MODEL),
+            text = "Weather?", provider = official, modelID = MANUAL_MODEL,
+            existingMessages = emptyList(), outputs = outputs(), externalSearch = externalSearch("unknown"),
+        )
+
+        // The rejection check rules out context overflow first: no presearch reroute, nothing remembered, no notice, no resend without tools
+        assertEquals(0, searchExecutions)
+        assertTrue(!ai.oriveo.community.core.search.SearchToolsRejectionMemory.rejectedBefore("conversation-1", "official-openai:$MANUAL_MODEL"))
+        assertEquals(null, updates.last().searchNotice)
+        verify(exactly = 0) { providerService.sendMessageStream(any(), any(), any(), any(), any(), any(), any(), any()) }
+        verify(exactly = 0) { memory.record(any(), any(), any(), observedToolCall = false, reason = any()) }
+        assertEquals(ChatMessageState.Failed, updates.last().state)
+    }
+
+    @Test
+    fun `web_search 400 that cannot be rerouted fails as a normal error`() = runTest {
+        arrange()
+        ai.oriveo.community.core.search.SearchToolsRejectionMemory.clearForTest()
+        every { mcpRunner.serverMaxSteps() } returns 8
+        val providerService = stubBareResend()
+        coEvery {
+            mcpRunner.run(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } throws ToolsUnsupportedError(
+            // Same shape as the leg runner: the error mapped by SseParser.mapHttpError carries httpStatus
+            ProviderServiceError.Upstream(400, "bad request").also { it.httpStatus = 400 },
+            webSearchRejection = true,
+        )
+        val official = officialProviderWithManualModel()
+        val updates = mutableListOf<ChatMessage>()
+        coEvery { conversationRepository.updateMessage(eq("conversation-1"), capture(updates)) } returns Unit
+
+        // Catalog evidence says tool calls are supported: upstreamRejection does not reroute
+        repository().sendMessage(
+            conversation = conversation().copy(providerID = official.id, providerKind = official.kind, modelID = MANUAL_MODEL),
+            text = "Weather?", provider = official, modelID = MANUAL_MODEL,
+            existingMessages = emptyList(), outputs = outputs(), externalSearch = externalSearch("supported"),
+        )
+
+        assertEquals(ChatMessageState.Failed, updates.last().state)
+        assertEquals(0, searchExecutions)
+        verify(exactly = 0) { providerService.sendMessageStream(any(), any(), any(), any(), any(), any(), any(), any()) }
+        verify(exactly = 0) { memory.record(any(), any(), any(), observedToolCall = false, reason = any()) }
+        ai.oriveo.community.core.search.SearchToolsRejectionMemory.clearForTest()
     }
 
     // -- propose_memory inside the MCP loop --------------------------------
