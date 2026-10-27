@@ -1,0 +1,12 @@
+{
+  "$comment": "Settings home grid cases shared by every client.",
+  "schema": "oriveo.settings-home/v1",
+  "gridCases": [
+    { "name": "grid_four_items_two_by_two", "count": 4, "columns": 2, "rows": 2 },
+    { "name": "grid_three_items_one_by_three", "count": 3, "columns": 3, "rows": 1 },
+    { "name": "grid_two_items_one_by_two", "count": 2, "columns": 2, "rows": 1 },
+    { "name": "grid_one_item_full_row", "count": 1, "columns": 1, "rows": 1 },
+    { "name": "grid_zero_items_hidden", "count": 0, "columns": 0, "rows": 0 }
+  ],
+  "gridLineAlpha": { "$comment": "Dark grid line color = primary @ (0.18 + 0.16 x glowK)", "base": 0.18, "perGlowK": 0.16, "light": "rgba(0,0,0,0.10)" }
+}

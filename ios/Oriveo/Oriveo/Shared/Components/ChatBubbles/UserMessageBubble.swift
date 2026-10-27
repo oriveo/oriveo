@@ -8,6 +8,9 @@ struct UserMessageBubble: View {
 
     @Environment(\.colorScheme) private var colorScheme
 
+    /// Bubble body text color: on top of the brand gradient, white in light mode and the current palette onPrimary in dark mode (a dynamic UIColor handed straight to the UITextView).
+    static let textUIColor = OriveoTheme.Palette.onPrimaryUIColor
+
     private var bubbleShape: UnevenRoundedRectangle {
         UnevenRoundedRectangle(
             topLeadingRadius: 20,
@@ -42,8 +45,8 @@ struct UserMessageBubble: View {
                 SelectableTextLabel(
                     text: message.text,
                     fontSize: 16,
-                    textColor: .white,
-                    tintColor: .white
+                    textColor: Self.textUIColor,
+                    tintColor: Self.textUIColor
                 )
             }
         }

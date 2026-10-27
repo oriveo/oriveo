@@ -40,13 +40,13 @@
 
 /* Inline code */
 .inlineCode {
-  background: var(--o-code-bg);
+  background: var(--o-code-inline-bg);
   border: 1px solid var(--o-code-border);
   border-radius: 4px;
   padding: 1px 5px;
   font-size: 0.86em;
   font-family: var(--o-font-mono);
-  color: var(--o-code-text);
+  color: var(--o-code-inline-text);
 }
 
 /* Links */

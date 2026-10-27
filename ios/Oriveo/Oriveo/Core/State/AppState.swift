@@ -2688,6 +2688,11 @@ final class AppState {
         AppPreferencesStore.save(preferences)
     }
 
+    func updateDarkPalette(_ id: OriveoDarkPaletteID) {
+        preferences.darkPalette = id.rawValue
+        AppPreferencesStore.save(preferences)
+    }
+
     func updateLanguage(_ language: LanguageOption) {
         preferences.language = language
         AppPreferencesStore.save(preferences)

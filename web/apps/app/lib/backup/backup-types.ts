@@ -40,10 +40,11 @@ export interface BackupData {
    * Same shape as iOS / Android: theme / language are always present; memory fields are written only when
    * they have a value -- memoryText / memoryAntiForgetText are omitted when empty, memoryAntiForgetEnabled
    * is written only when true, and memoryUpdatedAt is an ISO 8601 string.
+   * darkPalette is omitted when unset; an old backup without this key clears it to unset after restore (rendered as the default dark).
    */
   preferences?: Partial<Pick<
     AppPreference,
-    'theme' | 'language' | 'memoryText' | 'memoryAntiForgetEnabled' | 'memoryAntiForgetText' | 'memoryUpdatedAt'
+    'theme' | 'darkPalette' | 'language' | 'memoryText' | 'memoryAntiForgetEnabled' | 'memoryAntiForgetText' | 'memoryUpdatedAt'
   >>;
   lastUsedModelRef?: LastUsedModelRef | null;
   /** Full context checkpoint table; older backups lack this key. createdAt is in milliseconds, nullable fields are null. */

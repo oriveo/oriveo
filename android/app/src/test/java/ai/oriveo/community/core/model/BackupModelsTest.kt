@@ -328,6 +328,19 @@ class BackupModelsTest {
     }
 
     @Test
+    fun `BackupPreferences decodes legacy json without darkPalette`() {
+        val prefs = json.decodeFromString<BackupPreferences>("""{"theme":"dark","language":"system"}""")
+        assertEquals("dark", prefs.theme)
+        assertEquals(null, prefs.darkPalette)
+    }
+
+    @Test
+    fun `BackupPreferences round trips darkPalette`() {
+        val encoded = json.encodeToString(BackupPreferences(theme = "dark", darkPalette = "dark-ocean"))
+        assertEquals("dark-ocean", json.decodeFromString<BackupPreferences>(encoded).darkPalette)
+    }
+
+    @Test
     fun `BackupPreferences stores custom values`() {
         val prefs = BackupPreferences(theme = "dark", language = "ja")
         assertEquals("dark", prefs.theme)

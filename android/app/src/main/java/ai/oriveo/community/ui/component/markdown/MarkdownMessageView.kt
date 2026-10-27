@@ -1318,6 +1318,18 @@ private fun parseUnorderedListContent(line: String, startIndex: Int): String? {
     return line.substring(startIndex + 2).trimStart()
 }
 
+/**
+ * CommonMark §5.2: a list item may interrupt a paragraph (no blank line needed) when it is
+ * non-empty, indented < 4 columns, and — for ordered lists — starts at 1.
+ */
+private fun canInterruptParagraphAsList(line: String, startIndex: Int): Boolean {
+    if (startIndex !in 0..3) return false
+    val unordered = parseUnorderedListContent(line, startIndex)
+    if (unordered != null) return unordered.isNotBlank()
+    val ordered = parseOrderedListItem(line, startIndex) ?: return false
+    return ordered.first == "1." && ordered.second.isNotBlank()
+}
+
 private fun parseOrderedListItem(line: String, startIndex: Int): Pair<String, String>? {
     if (startIndex < 0 || !line[startIndex].isDigit()) return null
 
@@ -1537,7 +1549,8 @@ internal fun parseBlocksWithGaps(text: String): List<MarkdownBlockEntry> {
                         parseHeadingLine(paragraphLine, paragraphStart) != null ||
                         isBlockQuoteLine(paragraphLine) ||
                         isTableLine(paragraphLine, paragraphStart) ||
-                        isHorizontalRule(paragraphLine, paragraphStart, paragraphEnd)
+                        isHorizontalRule(paragraphLine, paragraphStart, paragraphEnd) ||
+                        canInterruptParagraphAsList(paragraphLine, paragraphStart)
                     ) {
                         break
                     }

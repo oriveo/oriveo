@@ -885,7 +885,7 @@ struct ChatMessageList: View, Equatable {
             Button(action: onTap) {
                 Image(systemName: "arrow.down")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(OriveoTheme.Palette.onPrimary)
                     .frame(width: 40, height: 40)
                     .background(
                         Capsule()

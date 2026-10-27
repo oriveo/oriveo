@@ -90,15 +90,24 @@
 
     <!-- Settings -->
     <string name="settings_title">설정</string>
-    <string name="appearance">외관</string>
     <string name="theme">테마</string>
     <string name="theme_system">시스템 따르기</string>
     <string name="theme_light">라이트</string>
     <string name="theme_dark">다크</string>
+    <string name="theme_follow_system_hint">시스템이 다크 모드일 때 선택한 다크 팔레트를 사용합니다.</string>
+    <string name="theme_section_palettes">팔레트</string>
+    <string name="theme_palette_purple">퍼플</string>
+    <string name="theme_palette_graphite">그래파이트</string>
+    <string name="theme_palette_black">블랙</string>
+    <string name="theme_palette_ocean">오션</string>
+    <string name="theme_palette_forest">포레스트</string>
+    <string name="theme_palette_sunset">선셋</string>
+    <string name="theme_preview_question">Rust의 소유권을 한 문단으로 설명해 주세요.</string>
+    <string name="theme_preview_reply">모든 값에는 정확히 하나의 %1$s가 있습니다. 소유자가 스코프를 벗어나면 값이 해제되며, 빌려 쓰려면 %2$s를 사용합니다.</string>
+    <string name="theme_preview_owner">소유자</string>
+    <string name="theme_summary_follow_system">시스템 따르기 · %1$s</string>
     <string name="language">언어</string>
-    <string name="data_section">데이터</string>
     <string name="backup_and_export">백업 및 내보내기</string>
-    <string name="about">정보</string>
     <string name="privacy_policy">개인정보 처리방침</string>
     <string name="terms_of_service">서비스 약관</string>
 
@@ -297,7 +306,6 @@
     <string name="provider_detail_add_model_manually">+ 수동으로 모델 ID 추가</string>
     <string name="provider_detail_badge_recent">최근</string>
     <string name="undo">실행 취소</string>
-    <string name="help_feedback">도움말 및 피드백</string>
     <string name="settings_source_code">소스 코드</string>
     <string name="settings_report_issue">문제 신고</string>
     <string name="manual_model_entry_title">폴백 모델</string>
@@ -2281,4 +2289,6 @@
     <string name="context_confirm_send">그래도 보내기</string>
     <string name="chat_last_used_model_retired_hint">지난번에 쓰던 모델의 지원이 종료되어 이제 %1$s을(를) 사용해요.</string>
     <string name="model_options_shows_thinking_fixed">사고 과정을 보여줘요 · 조절할 수 없어요</string>
+    <string name="settings_section_general">일반</string>
+    <string name="settings_section_help_about">도움말 및 정보</string>
 </resources>

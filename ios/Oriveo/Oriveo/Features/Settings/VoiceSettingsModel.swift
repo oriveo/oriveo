@@ -379,17 +379,27 @@ final class VoiceSettingsModel {
 
     // MARK: - Engine rows
 
+    /// Engine row title (system -> "System", cloud -> provider display name). The value of the Voice tile on the Settings home and the read-aloud row on the voice page share this source.
+    static func engineDisplayName(for selection: VoiceEngineSelection) -> String {
+        switch selection {
+        case .system:
+            return L10n.tr("System", table: .voice)
+        case .cloud(let engine):
+            return engine.providerKind.displayName
+        }
+    }
+
     static func row(for selection: VoiceEngineSelection) -> VoiceEngineRow {
         switch selection {
         case .system:
             return VoiceEngineRow(
-                title: L10n.tr("System", table: .voice),
+                title: engineDisplayName(for: selection),
                 subtitle: L10n.tr("Built into your device, free", table: .voice),
                 isCloud: false
             )
         case .cloud(let engine):
             return VoiceEngineRow(
-                title: engine.providerKind.displayName,
+                title: engineDisplayName(for: selection),
                 subtitle: L10n.format(L10n.tr("%@ · Billed to your connection", table: .voice), engine.model),
                 isCloud: true,
                 providerKind: engine.providerKind

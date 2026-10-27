@@ -160,18 +160,26 @@
     </plurals>
     <string name="undo">Geri al</string>
     <string name="settings_title">Ayarlar</string>
-    <string name="appearance">Dış görünüş</string>
     <string name="theme">Tema</string>
-    <string name="theme_system">Sistemi Takip Et</string>
-    <string name="theme_light">Işık</string>
-    <string name="theme_dark">Karanlık</string>
+    <string name="theme_system">Sisteme göre</string>
+    <string name="theme_light">Açık</string>
+    <string name="theme_dark">Koyu</string>
+    <string name="theme_follow_system_hint">Sistem koyu moddayken seçtiğiniz koyu palet kullanılır.</string>
+    <string name="theme_section_palettes">Paletler</string>
+    <string name="theme_palette_purple">Mor</string>
+    <string name="theme_palette_graphite">Grafit</string>
+    <string name="theme_palette_black">Siyah</string>
+    <string name="theme_palette_ocean">Okyanus</string>
+    <string name="theme_palette_forest">Orman</string>
+    <string name="theme_palette_sunset">Gün Batımı</string>
+    <string name="theme_preview_question">Rust\'taki sahiplik kavramını tek paragrafta açıkla.</string>
+    <string name="theme_preview_reply">Her değerin yalnızca bir %1$s vardır. Sahibi kapsam dışına çıktığında değer serbest bırakılır; ödünç almak için %2$s kullanılır.</string>
+    <string name="theme_preview_owner">sahibi</string>
+    <string name="theme_summary_follow_system">Sisteme göre · %1$s</string>
     <string name="language">Dil</string>
-    <string name="data_section">Veri</string>
     <string name="backup_and_export">Yedekleme ve Dışa Aktarma</string>
-    <string name="about">Hakkında</string>
     <string name="privacy_policy">Gizlilik Politikası</string>
     <string name="terms_of_service">Hizmet Şartları</string>
-    <string name="help_feedback">Yardım ve Geri Bildirim</string>
     <string name="settings_source_code">Kaynak Kodu</string>
     <string name="settings_report_issue">Sorun Bildir</string>
     <string name="snackbar_provider_ready">Sağlayıcı hazır. Artık sohbete başlayabilirsiniz.</string>
@@ -2273,4 +2281,6 @@
     <string name="context_confirm_send">Yine de gönder</string>
     <string name="chat_last_used_model_retired_hint">Son kullandığınız model kullanımdan kaldırıldı. Artık %1$s kullanılıyor.</string>
     <string name="model_options_shows_thinking_fixed">Düşünme sürecini gösterir · ayarlanamaz</string>
+    <string name="settings_section_general">Genel</string>
+    <string name="settings_section_help_about">Yardım ve Bilgi</string>
 </resources>

@@ -183,7 +183,7 @@ private final class ReadAloudProgressRingView: UIView {
 
         layer.addSublayer(stopLayer)
         updateColors()
-        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: ReadAloudProgressRingView, _) in
+        registerForTraitChanges(OriveoDarkPaletteTrait.colorAppearanceTraits) { (view: ReadAloudProgressRingView, _) in
             view.updateColors()
         }
     }

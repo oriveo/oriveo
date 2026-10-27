@@ -140,11 +140,18 @@ nonisolated enum MarkdownAttributedStringRenderer {
     private static let textColor = UIColor(OriveoTheme.Palette.textPrimary)
     private static let secondaryColor = UIColor(OriveoTheme.Palette.textSecondary)
     private static let linkColor = UIColor(OriveoTheme.Palette.primary)
-    private static let codeFg = UIColor(Color.dynamic(light: 0x0F172A, dark: 0xE2E8F0))
-    private static let codeBg = UIColor(Color.dynamic(light: 0xE2E8F0, dark: 0x1E293B))
+    /// Inline code: in dark mode the text is the current palette accent (the secondary-color information layer) on a 7% white background; light mode is unchanged. Shared with MarkdownMessageView.
+    static let codeFg = UIColor.oriveoDynamic(light: 0x0F172A, dark: \.accent)
+    static let codeBg = UIColor { trait in
+        trait.userInterfaceStyle == .dark
+            ? UIColor(oriveoHex: 0xFFFFFF, alpha: 0.07)
+            : UIColor(oriveoHex: 0xE2E8F0)
+    }
 
-    private static let tableBorderColor = UIColor(Color.dynamic(light: 0xCBD5E1, dark: 0x475569))
-    private static let tableHeaderBg = UIColor(Color.dynamic(light: 0xF1F5F9, dark: 0x1E293B))
+    // Table colors
+    static let tableHeaderBg = UIColor.oriveoDynamic(light: 0xF1F5F9, dark: \.surfaceRaised)
+    /// Separators drawn as text in a table (`·`, the "─ ─ ─" and field names in card mode): a line color of 10% white would fade to invisible, so dark mode uses the palette's tertiary text color; light mode keeps the original line color.
+    static let tableSeparatorTextColor = UIColor.oriveoDynamic(light: 0xCBD5E1, dark: \.textTertiary)
 
     private static let baseParagraphStyle: NSParagraphStyle = {
         OriveoTheme.Typography.chatParagraphStyle(displayScale: OriveoTheme.Typography.currentDisplayScale)
@@ -648,7 +655,6 @@ nonisolated enum MarkdownAttributedStringRenderer {
         let bodyFont = UIFont.systemFont(ofSize: 15)
         let boldFont = UIFont.systemFont(ofSize: 15, weight: .semibold)
         let headerFont = UIFont.systemFont(ofSize: 13, weight: .medium)
-        let borderColor = tableBorderColor
 
         let result = NSMutableAttributedString()
 
@@ -664,7 +670,7 @@ nonisolated enum MarkdownAttributedStringRenderer {
             for (j, cell) in headerCells.enumerated() {
                 if j > 0 {
                     headerLine.append(NSAttributedString(string: "  •  ", attributes: [
-                        .font: bodyFont, .foregroundColor: borderColor,
+                        .font: bodyFont, .foregroundColor: tableSeparatorTextColor,
                     ]))
                 }
                 headerLine.append(NSAttributedString(string: UIKitTableCard.stripMarkdown(cell), attributes: [
@@ -682,7 +688,7 @@ nonisolated enum MarkdownAttributedStringRenderer {
                 for (j, cell) in row.enumerated() where j < colCount {
                     if j > 0 {
                         rowLine.append(NSAttributedString(string: "  •  ", attributes: [
-                            .font: bodyFont, .foregroundColor: borderColor,
+                            .font: bodyFont, .foregroundColor: tableSeparatorTextColor,
                         ]))
                     }
                     rowLine.append(NSAttributedString(string: UIKitTableCard.stripMarkdown(cell), attributes: [
@@ -700,7 +706,7 @@ nonisolated enum MarkdownAttributedStringRenderer {
             for (i, row) in dataRows.enumerated() {
                 if i > 0 {
                     let divider = NSMutableAttributedString(string: "\n─ ─ ─\n", attributes: [
-                        .font: headerFont, .foregroundColor: borderColor,
+                        .font: headerFont, .foregroundColor: tableSeparatorTextColor,
                     ])
                     divider.addAttribute(.paragraphStyle, value: dividerPara, range: NSRange(location: 0, length: divider.length))
                     result.append(divider)
@@ -721,7 +727,7 @@ nonisolated enum MarkdownAttributedStringRenderer {
 
                     let kvLine = NSMutableAttributedString()
                     kvLine.append(NSAttributedString(string: header, attributes: [
-                        .font: headerFont, .foregroundColor: borderColor,
+                        .font: headerFont, .foregroundColor: tableSeparatorTextColor,
                     ]))
                     kvLine.append(NSAttributedString(string: "  ", attributes: [.font: headerFont]))
                     kvLine.append(NSAttributedString(string: value, attributes: [

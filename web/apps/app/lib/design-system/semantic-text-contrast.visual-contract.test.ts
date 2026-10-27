@@ -1,6 +1,7 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { DARK_PALETTE_IDS } from '@oriveo/shared';
 
 import { WEB_ROOT, collectSourceCssFiles } from './source-css-files';
 import {
@@ -284,5 +285,39 @@ describe('repository scan: no new bare semantic color used as body text', () => 
       LEGACY_UNTRIAGED.includes(key),
     );
     expect(overlap, `these sites appear in both the fixed list and the frozen baseline:\n  ${overlap.join('\n  ')}`).toEqual([]);
+  });
+});
+
+/**
+ * The 7 dark palettes: the [data-palette] sections beyond the default section override only 15 color values,
+ * so the text variants and each registered site must be re-measured on every palette instead of passing only on the default dark.
+ */
+describe('per-palette measurement of the 7 dark palettes', () => {
+  it('every palette section exists and really overrides the background (an unreadable section means runtime switching has no effect)', () => {
+    const backgrounds = new Set(DARK_PALETTE_IDS.map((id) => readThemeTokens(id).dark.get('--o-bg')));
+    expect(backgrounds.size).toBe(DARK_PALETTE_IDS.length);
+  });
+
+  it.each(DARK_PALETTE_IDS)('%s: every text variant reaches AA 4.5:1 on --o-surface and --o-bg-subtle', (palette) => {
+    const paletteTokens = readThemeTokens(palette);
+    const failures: string[] = [];
+    for (const variant of Object.values(TEXT_VARIANT_OF)) {
+      for (const backdrop of REQUIRED_BACKDROPS) {
+        const background = parseColor(`var(${backdrop})`, 'dark', paletteTokens);
+        const ratio = contrastRatio(parseColor(`var(${variant})`, 'dark', paletteTokens), background);
+        if (ratio < AA_NORMAL_TEXT) failures.push(`${variant} on ${backdrop} = ${ratio.toFixed(4)}:1`);
+      }
+    }
+    expect(failures, `these variants fall below 4.5:1 under ${palette}:\n  ${failures.join('\n  ')}`).toEqual([]);
+  });
+
+  it.each(DARK_PALETTE_IDS)('%s: every registered text site reaches 4.5:1', (palette) => {
+    const paletteTokens = readThemeTokens(palette);
+    const failures: string[] = [];
+    for (const site of [...VERIFIED_TEXT_SITES, ...VERIFIED_NEUTRAL_TEXT_SITES]) {
+      const ratio = measureTextSite(site, 'dark', paletteTokens);
+      if (ratio < AA_NORMAL_TEXT) failures.push(`${site.id} = ${ratio.toFixed(4)}:1`);
+    }
+    expect(failures, `these sites fail under ${palette}:\n  ${failures.join('\n  ')}`).toEqual([]);
   });
 });

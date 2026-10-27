@@ -125,6 +125,8 @@ fun ReadAloudButton(
             )
         } else {
             val trackColor = colors.border
+            // CompositionLocals cannot be read inside a DrawScope, so the palette-following gradient is read during composition
+            val brandBrush = OriveoGradients.primary
             Canvas(modifier = Modifier.size(ReadAloudRingSize)) {
                 val strokePx = ReadAloudRingStroke.toPx()
                 val inset = strokePx / 2
@@ -140,7 +142,7 @@ fun ReadAloudButton(
                     style = Stroke(width = strokePx),
                 )
                 drawArc(
-                    brush = OriveoGradients.primary,
+                    brush = brandBrush,
                     startAngle = -90f,
                     sweepAngle = 360f * progress,
                     useCenter = false,
@@ -153,7 +155,7 @@ fun ReadAloudButton(
                 modifier = Modifier
                     .size(ReadAloudStopSize)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(OriveoGradients.primary),
+                    .background(brandBrush),
             )
         }
     }

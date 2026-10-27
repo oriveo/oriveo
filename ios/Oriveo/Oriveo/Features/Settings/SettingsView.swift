@@ -41,219 +41,121 @@ struct SettingsView: View {
     /// Whether the catalog leaves remote MCP switched on, and the data for the row's subtitle.
     @State private var mcpEntryEnabled = MetadataClient.shared.syncMcpRuntimeConfig().enabled
     @State private var mcpEntrySummary: McpSettingsEntrySummary?
-    private let aiColor = Color.dynamic(light: 0x8C5FF8, dark: 0xA78BFA)
-    private let dataColor = Color.dynamic(light: 0x3B82F6, dark: 0x60A5FA)
-    private let appearanceColor = OriveoTheme.Palette.warning
-    private let feedbackColor = Color.dynamic(light: 0x0EA5E9, dark: 0x38BDF8)
-    private let faqColor = Color.dynamic(light: 0x6366F1, dark: 0xA5B4FC)
-    private let ratingColor = Color.dynamic(light: 0xF59E0B, dark: 0xFBBF24)
+    /// Value of the Voice tile: the read-aloud engine name, re-read when coming back from the voice page.
+    @State private var voiceEngineName: String?
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 0) {
                 Text(L10n.tr("Settings"))
-                    .font(OriveoTheme.Typography.title1)
+                    .font(.system(size: 34, weight: .heavy))
+                    .tracking(-34 * 0.03)
                     .foregroundStyle(OriveoTheme.Palette.textPrimary)
 
-                VStack(alignment: .leading, spacing: OriveoTheme.Spacing.sm) {
-                    flatSectionHeader("AI")
+                // MARK: - AI
+                VStack(alignment: .leading, spacing: 10) {
+                    SettingsHomeSectionHeader(title: "AI")
 
-                    flatGroup {
-                        flatTapRow {
-                            appState.openMemory()
-                        } label: {
-                            SettingsRow(
-                                icon: "brain",
-                                title: L10n.tr("Memory"),
-                                value: memorySubtitle,
-                                iconColor: aiColor,
-                                showsFeatureBadge: FeatureBadges.shared.isUnseen(FeatureBadges.settingsMemory)
-                            )
-                        }
-
-                        insetHairline()
-
-                        flatTapRow {
-                            navigation.attemptNavigate(to: .contextSettings)
-                        } label: {
-                            SettingsRow(
-                                icon: "rectangle.compress.vertical",
-                                title: L10n.tr("settings_context_title", table: .settings),
-                                value: ContextDefaultCapSetting.rowValue(in: appState),
-                                iconColor: aiColor
-                            )
-                        }
-                        .accessibilityIdentifier("settings_context_row")
-
-                        insetHairline()
-
-                        flatTapRow {
-                            appState.openSkillsList()
-                        } label: {
-                            SettingsRow(
-                                icon: "lightbulb.fill",
-                                title: L10n.tr("Skills"),
-                                iconColor: aiColor
-                            )
-                        }
-
-                        insetHairline()
-
-                        flatTapRow {
-                            navigation.attemptNavigate(to: .voiceSettings)
-                        } label: {
-                            SettingsRow(
-                                icon: "waveform",
-                                title: L10n.tr("Voice", table: .voice),
-                                iconColor: aiColor
-                            )
-                        }
-                        .accessibilityIdentifier("settings_voice_row")
-                    }
+                    SettingsHomeGrid(items: [
+                        SettingsHomeGridItem(
+                            key: "memory",
+                            title: L10n.tr("Memory"),
+                            value: memorySubtitle,
+                            showsFeatureBadge: FeatureBadges.shared.isUnseen(FeatureBadges.settingsMemory),
+                            action: { appState.openMemory() }
+                        ),
+                        SettingsHomeGridItem(
+                            key: "context",
+                            title: L10n.tr("settings_context_title", table: .settings),
+                            value: ContextDefaultCapSetting.rowValue(in: appState),
+                            legacyIdentifier: "settings_context_row",
+                            action: { navigation.attemptNavigate(to: .contextSettings) }
+                        ),
+                        // Skills have no "enabled" notion (only pinned / source), so no value is shown.
+                        SettingsHomeGridItem(
+                            key: "skills",
+                            title: L10n.tr("Skills"),
+                            action: { appState.openSkillsList() }
+                        ),
+                        SettingsHomeGridItem(
+                            key: "voice",
+                            title: L10n.tr("Voice", table: .voice),
+                            value: voiceEngineName,
+                            legacyIdentifier: "settings_voice_row",
+                            action: { navigation.attemptNavigate(to: .voiceSettings) }
+                        ),
+                    ])
                 }
+                .padding(.top, 20)
 
+                // MARK: - Tools & connections
                 // With the feature switched off in the catalog the entry is hidden; existing configuration is kept.
                 if mcpEntryEnabled {
                     McpSettingsSection(
-                        iconColor: aiColor,
                         mcpSummary: mcpEntrySummary,
                         onOpenMcpServers: { navigation.attemptNavigate(to: .mcpServers) }
                     )
+                    .padding(.top, 34)
                 }
 
-                VStack(alignment: .leading, spacing: OriveoTheme.Spacing.sm) {
-                    flatSectionHeader(L10n.tr("Data", table: .settings))
+                // MARK: - General (theme, language, backup)
+                VStack(alignment: .leading, spacing: 4) {
+                    SettingsHomeSectionHeader(title: L10n.tr("General", table: .settings))
 
-                    flatGroup {
-                        flatTapRow {
-                            appState.openBackup()
-                        } label: {
-                            SettingsRow(
-                                icon: "icloud.and.arrow.up",
-                                title: L10n.tr("Backup & Import/Export"),
-                                iconColor: dataColor
-                            )
-                        }
+                    VStack(spacing: 0) {
+                        SettingsHomeListRow(
+                            key: "theme",
+                            title: L10n.tr("Theme", table: .settings),
+                            value: themeRowSummary(
+                                theme: appState.preferences.theme,
+                                darkPalette: appState.preferences.darkPalette
+                            ),
+                            showsPaletteDot: true,
+                            action: { navigation.attemptNavigate(to: .themeSettings) }
+                        )
+
+                        SettingsHomeListRow(
+                            key: "language",
+                            title: L10n.tr("Language", table: .settings),
+                            value: displayedLanguage.displayName,
+                            action: { openLanguageSettings() }
+                        )
+
+                        SettingsHomeListRow(
+                            key: "backup",
+                            title: L10n.tr("Backup & Import/Export"),
+                            isLast: true,
+                            action: { appState.openBackup() }
+                        )
                     }
                 }
+                .padding(.top, 34)
 
-                VStack(alignment: .leading, spacing: OriveoTheme.Spacing.sm) {
-                    flatSectionHeader(L10n.tr("Appearance", table: .settings))
+                // MARK: - Help & About
+                VStack(alignment: .leading, spacing: 10) {
+                    SettingsHomeSectionHeader(title: L10n.tr("Help & About", table: .settings))
 
-                    flatGroup {
-                        flatMenuRow {
-                            Picker(
-                                L10n.tr("Theme", table: .settings),
-                                selection: Binding(
-                                    get: { appState.preferences.theme },
-                                    set: { appState.updateTheme($0) }
-                                )
-                            ) {
-                                ForEach(ThemeOption.allCases) { option in
-                                    Text(option.displayName).tag(option)
-                                }
-                            }
-                            .pickerStyle(.inline)
-                        } label: {
-                            SettingsRow(
-                                icon: "circle.lefthalf.filled",
-                                title: L10n.tr("Theme", table: .settings),
-                                value: appState.preferences.theme.displayName,
-                                iconColor: appearanceColor
-                            )
-                        }
-
-                        insetHairline()
-
-                        flatTapRow {
-                            openLanguageSettings()
-                        } label: {
-                            SettingsRow(
-                                icon: "globe",
-                                title: L10n.tr("Language", table: .settings),
-                                value: displayedLanguage.displayName,
-                                iconColor: appearanceColor
-                            )
-                        }
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: OriveoTheme.Spacing.sm) {
-                    flatSectionHeader(L10n.tr("Help & Feedback", table: .settings))
-
-                    flatGroup {
-                        flatTapRow {
-                            presentedWebDestination = .sourceCode
-                        } label: {
-                            SettingsRow(
-                                icon: "chevron.left.forwardslash.chevron.right",
+                    SettingsHomeGrid(
+                        items: [
+                            SettingsHomeGridItem(
+                                key: "faq",
                                 title: L10n.tr("Source Code", table: .settings),
-                                iconColor: faqColor
-                            )
-                        }
-
-                        insetHairline()
-
-                        flatTapRow {
-                            presentedWebDestination = .issues
-                        } label: {
-                            SettingsRow(
-                                icon: "exclamationmark.bubble.fill",
+                                action: { presentedWebDestination = .sourceCode }
+                            ),
+                            SettingsHomeGridItem(
+                                key: "feedback",
                                 title: L10n.tr("Report an Issue", table: .settings),
-                                iconColor: feedbackColor
-                            )
-                        }
-                    }
+                                action: { presentedWebDestination = .issues }
+                            ),
+                        ],
+                        style: .compact
+                    )
                 }
+                .padding(.top, 34)
 
-
-                VStack(alignment: .leading, spacing: OriveoTheme.Spacing.sm) {
-                    flatSectionHeader(L10n.tr("About", table: .settings))
-
-                    flatGroup {
-                        HStack(spacing: OriveoTheme.Spacing.md) {
-                            Button(action: handleAboutTap) {
-                                Image("OriveoLogo")
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                                    .frame(width: 44, height: 44)
-                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityHidden(true)
-
-                            Button {
-                                presentedWebDestination = .releases
-                            } label: {
-                                HStack(spacing: OriveoTheme.Spacing.md) {
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text("Oriveo")
-                                            .font(OriveoTheme.Typography.title3)
-                                            .foregroundStyle(OriveoTheme.Palette.textPrimary)
-                                        Text(L10n.tr("All your models. One app.", table: .settings))
-                                            .font(OriveoTheme.Typography.caption)
-                                            .foregroundStyle(OriveoTheme.Palette.textTertiary)
-                                        Text(appVersion)
-                                            .font(OriveoTheme.Typography.footnote)
-                                            .foregroundStyle(OriveoTheme.Palette.textTertiary)
-                                    }
-
-                                    Spacer(minLength: 0)
-
-                                    Image(systemName: "chevron.forward")
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .foregroundStyle(OriveoTheme.Palette.textTertiary)
-                                }
-                                .contentShape(Rectangle())
-                                .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(L10n.tr("Changelog", table: .settings))
-                        }
-                        .padding(OriveoTheme.Spacing.lg)
-                    }
-
-                }
+                // MARK: - Footer (logo taps open the developer menu; name + version open the changelog)
+                settingsFooter
+                    .padding(.top, 38)
             }
             .padding(OriveoTheme.Spacing.xl)
             .padding(.bottom, OriveoTheme.Spacing.xxl)
@@ -261,10 +163,17 @@ struct SettingsView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("settings_screen")
-        .oriveoScreenBackground()
+        // The dark top glow is attached only to the Settings home, on top of the shared background.
+        .background(alignment: .top) { SettingsHomeTopGlow() }
+        // The Settings home shows only its own top glow; the shared background's brand glow is not layered on.
+        .oriveoScreenBackground(showsGlow: false)
         .id(appState.preferences.language)
-        // Also when coming back from MCP management: the count in the subtitle has to follow.
-        .onAppear(perform: syncMcpEntry)
+        .onAppear {
+            // Also when coming back from MCP management: the count in the subtitle has to follow.
+            syncMcpEntry()
+            // Also when coming back from the voice page: the read-aloud engine name has to follow.
+            voiceEngineName = VoiceSettingsModel.engineDisplayName(for: VoiceEngineSettings().selection(for: .tts))
+        }
         .task {
             await MetadataClient.shared.ensureInitialized()
             syncMcpEntry()
@@ -311,15 +220,50 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Footer
+
+    private var settingsFooter: some View {
+        VStack(spacing: 6) {
+            Button(action: handleAboutTap) {
+                Image("OriveoLogo")
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 40, height: 40)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .accessibilityHidden(true)
+
+            Button {
+                presentedWebDestination = .releases
+            } label: {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(verbatim: "Oriveo")
+                        .font(.system(size: 14.5, weight: .bold))
+                        .foregroundStyle(OriveoTheme.Palette.textPrimary)
+                    Text(verbatim: appVersion)
+                        .font(.system(size: 11.5, design: .monospaced))
+                        .foregroundStyle(OriveoTheme.Palette.textTertiary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(L10n.tr("Changelog", table: .settings))
+            .padding(.top, 4)
+
+            Text(L10n.tr("All your models. One app.", table: .settings))
+                .font(.system(size: 12))
+                .foregroundStyle(OriveoTheme.Palette.textSecondary)
+                .padding(.top, 2)
+        }
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity, alignment: .center)
+    }
+
     // MARK: - Helpers
 
     private var memorySubtitle: String {
-        let text = appState.preferences.memoryText
-        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return L10n.tr("Not set")
-        }
-        let preview = String(text.prefix(30))
-        return text.count > 30 ? preview + "..." : preview
+        settingsMemoryPreview(appState.preferences.memoryText) ?? L10n.tr("Not set")
     }
 
     private var appVersion: String {
@@ -423,4 +367,17 @@ struct SettingsDeveloperMenuView: View {
 #Preview {
     SettingsView()
         .environment(AppState.preview)
+}
+
+/// Preview for the Memory tile on the Settings home: the first 30 characters, with "..." when longer; nil when empty (including a list marker only).
+/// Memory is often stored as a Markdown list: leading list markers are removed and multiple lines are joined into one, so "- " does not show.
+nonisolated func settingsMemoryPreview(_ text: String) -> String? {
+    let flat = text.components(separatedBy: .newlines)
+        .map { $0.replacingOccurrences(of: #"^\s*[-*•]\s+"#, with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespaces) }
+        .filter { !$0.isEmpty }
+        .joined(separator: " ")
+    guard !flat.isEmpty else { return nil }
+    let preview = String(flat.prefix(30))
+    return flat.count > 30 ? preview + "..." : preview
 }

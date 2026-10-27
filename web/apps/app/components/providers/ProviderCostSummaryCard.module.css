@@ -107,12 +107,12 @@
   background:
     radial-gradient(
       circle 280px at -5% -5%,
-      color-mix(in srgb, #8FA0FF 12%, transparent) 0%,
+      color-mix(in srgb, var(--o-accent) 12%, transparent) 0%,
       transparent 100%
     ),
     radial-gradient(
       circle 240px at 105% 105%,
-      color-mix(in srgb, #8FA0FF 8%, transparent) 0%,
+      color-mix(in srgb, var(--o-accent) 8%, transparent) 0%,
       transparent 100%
     ),
     radial-gradient(
@@ -128,7 +128,7 @@
     linear-gradient(
       180deg,
       transparent calc(100% - 6px),
-      color-mix(in srgb, #8FA0FF 7%, transparent) 100%
+      color-mix(in srgb, var(--o-accent) 7%, transparent) 100%
     );
 }
 

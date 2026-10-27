@@ -630,6 +630,8 @@ extension View {
 private struct MainTabView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.windowNavigation) private var windowNavigation
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.oriveoDarkPalette) private var darkPalette
 
     /// This window's navigation state; a host without one injected (previews, tests) falls back
     /// to the active window.
@@ -642,25 +644,31 @@ private struct MainTabView: View {
         // contrast and reduced transparency). Only the system component gets these; a custom drawing
         // through public API cannot reproduce them.
         TabView(selection: $navigation.selectedTab) {
-            Tab(AppTab.home.title, image: Self.icon(for: .home, selected: navigation.selectedTab), value: AppTab.home) {
+            Tab(value: AppTab.home) {
                 homeTabContent
+            } label: {
+                tabLabel(.home, selected: navigation.selectedTab)
             }
 
-            Tab(AppTab.providers.title, image: Self.icon(for: .providers, selected: navigation.selectedTab), value: AppTab.providers) {
+            Tab(value: AppTab.providers) {
                 providersTabContent
+            } label: {
+                tabLabel(.providers, selected: navigation.selectedTab)
             }
 
-            Tab(AppTab.settings.title, image: Self.icon(for: .settings, selected: navigation.selectedTab), value: AppTab.settings) {
+            Tab(value: AppTab.settings) {
                 settingsTabContent
+            } label: {
+                tabLabel(.settings, selected: navigation.selectedTab)
             }
         }
-        // The selected icon and label take the current tab's colour (Home violet / Providers teal /
-        // Settings orange), and controls inside the page follow it too
+        // The selected icon and label take the current tab's colour (light: Home violet / Providers teal /
+        // Settings orange; dark: all three tabs take the current palette primary), and controls inside the page follow it too
         // The animation is scoped to the tint only: attached to the whole TabView it also animates every
         // layout change inside the tab content during the switch (on iOS 27 the Providers balance label
         // and amount slide from left to right when the balance resets to "--").
         .animation(.easeInOut(duration: 0.2)) { content in
-            content.tint(Self.tint(for: navigation.selectedTab))
+            content.tint(AppTabTint.color(for: navigation.selectedTab))
         }
         .modifier(LegacyTabBarBackground())
         .id(appState.preferences.language)
@@ -761,12 +769,62 @@ private struct MainTabView: View {
         tab == selected ? tab.tabBarSelectedIconAsset : tab.tabBarIconAsset
     }
 
-    private static func tint(for tab: AppTab) -> Color {
+    /// Light mode keeps the gradient image baked into the asset; in dark mode the selected item draws gradient-brand live from the current palette (the dark asset has fixed colors).
+    @ViewBuilder
+    private func tabLabel(_ tab: AppTab, selected: AppTab) -> some View {
+        if tab == selected, colorScheme == .dark, let image = AppTabBrandIcon.image(for: tab, palette: darkPalette) {
+            Label {
+                Text(tab.title)
+            } icon: {
+                Image(uiImage: image)
+            }
+        } else {
+            Label(tab.title, image: Self.icon(for: tab, selected: selected))
+        }
+    }
+}
+
+/// Tab tint: in light mode Home brand violet, Providers teal, Settings orange; in dark mode all three tabs take the current palette primary.
+enum AppTabTint {
+    static func color(for tab: AppTab) -> Color {
         switch tab {
-        case .providers: return OriveoTheme.Palette.tabAccentProviders
-        case .settings: return OriveoTheme.Palette.tabAccentSettings
+        case .providers: return Color.dynamic(keepingLight: OriveoTheme.Palette.tabAccentProviders, dark: \.primary)
+        case .settings: return Color.dynamic(keepingLight: OriveoTheme.Palette.tabAccentSettings, dark: \.primary)
         default: return OriveoTheme.Palette.primary
         }
+    }
+}
+
+/// Selected tab icon in dark mode: the monochrome template image is used as a mask and filled with the current palette's gradient-brand (135°, primary → accent).
+/// Drawn once per tab per palette.
+@MainActor
+enum AppTabBrandIcon {
+    private static var cache: [String: UIImage] = [:]
+
+    static func image(for tab: AppTab, palette id: OriveoDarkPaletteID) -> UIImage? {
+        let key = tab.rawValue + "|" + id.rawValue
+        if let cached = cache[key] { return cached }
+        guard let mask = UIImage(named: tab.tabBarIconAsset) else { return nil }
+        let stops = id.palette.gradientBrandStops.map { UIColor(oriveoHex: $0).cgColor }
+        guard let gradient = CGGradient(
+            colorsSpace: CGColorSpaceCreateDeviceRGB(),
+            colors: stops as CFArray,
+            locations: [0, 1]
+        ) else { return nil }
+        let size = mask.size
+        let rendered = UIGraphicsImageRenderer(size: size).image { context in
+            // Same direction and length as the gradient line (2,2)→(22,22) on the asset's 24 grid: 135°, top-left to bottom-right
+            context.cgContext.drawLinearGradient(
+                gradient,
+                start: CGPoint(x: size.width * 2 / 24, y: size.height * 2 / 24),
+                end: CGPoint(x: size.width * 22 / 24, y: size.height * 22 / 24),
+                options: [.drawsBeforeStartLocation, .drawsAfterEndLocation]
+            )
+            mask.draw(in: CGRect(origin: .zero, size: size), blendMode: .destinationIn, alpha: 1)
+        }
+        .withRenderingMode(.alwaysOriginal)
+        cache[key] = rendered
+        return rendered
     }
 }
 

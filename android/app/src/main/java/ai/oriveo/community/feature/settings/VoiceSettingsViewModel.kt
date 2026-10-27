@@ -293,11 +293,7 @@ class VoiceSettingsViewModel(
         return UiText.Dynamic(locale.getDisplayName(locale).ifEmpty { tag })
     }
 
-    // The cloud value is the provider display name (not the connection name); the small text carries the model id.
-    private fun engineLabel(selection: VoiceEngineSelection): UiText = when (selection) {
-        VoiceEngineSelection.System -> UiText.Resource(R.string.voice_engine_system)
-        is VoiceEngineSelection.Cloud -> UiText.Dynamic(selection.providerKind.displayName)
-    }
+    private fun engineLabel(selection: VoiceEngineSelection): UiText = voiceEngineLabel(selection)
 
     private fun realtimeLabel(selection: VoiceEngineSelection): UiText = when (selection) {
         VoiceEngineSelection.System -> UiText.Resource(R.string.voice_realtime_follow_model)
@@ -323,4 +319,13 @@ class VoiceSettingsViewModel(
 
     private fun capitalized(id: String): String =
         id.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() }
+}
+
+/**
+ * Value of the engine row: System -> "System", cloud -> the provider display name (not the connection name). Matches iOS VoiceSettingsModel.row(for:);
+ * the "Voice" cell on the settings home takes the same value for the read-aloud (TTS) direction.
+ */
+internal fun voiceEngineLabel(selection: VoiceEngineSelection): UiText = when (selection) {
+    VoiceEngineSelection.System -> UiText.Resource(R.string.voice_engine_system)
+    is VoiceEngineSelection.Cloud -> UiText.Dynamic(selection.providerKind.displayName)
 }

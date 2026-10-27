@@ -264,7 +264,8 @@ final class AssistantStreamingCodeRenderer {
 
     private func setup() {
         let codeBg = MarkdownCodeBlockPalette.backgroundUIColor
-        let headerBg = MarkdownCodeBlockPalette.surfaceUIColor
+        let headerBg = MarkdownCodeBlockPalette.headerBackgroundUIColor
+        let capsuleBg = MarkdownCodeBlockPalette.surfaceUIColor
         let borderColor = MarkdownCodeBlockPalette.borderUIColor
         let textFg = MarkdownCodeBlockPalette.foregroundUIColor
         let secondaryFg = MarkdownCodeBlockPalette.secondaryUIColor
@@ -292,7 +293,7 @@ final class AssistantStreamingCodeRenderer {
         contentContainer.addSubview(headerBar)
 
         let capsule = UIView()
-        capsule.backgroundColor = headerBg
+        capsule.backgroundColor = capsuleBg
         capsule.layer.cornerRadius = 12
         capsule.layer.cornerCurve = .continuous
         capsule.translatesAutoresizingMaskIntoConstraints = false

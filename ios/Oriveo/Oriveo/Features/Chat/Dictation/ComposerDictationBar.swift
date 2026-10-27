@@ -148,7 +148,7 @@ struct ComposerDictationBar: View {
         } label: {
             Image(systemName: "arrow.up")
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(canSend ? Color.white : OriveoTheme.Palette.textTertiary)
+                .foregroundStyle(canSend ? OriveoTheme.Palette.onPrimary : OriveoTheme.Palette.textTertiary)
                 .frame(width: 40, height: 40)
                 .background(
                     Circle()

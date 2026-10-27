@@ -74,7 +74,8 @@ import kotlinx.coroutines.launch
 
 /** Gap left between the jumped-to message and the top of the viewport, matching search-jump spacing. */
 private val PIN_TOP_GAP = 16.dp
-/** Fixed dark chip fill for the tooltip regardless of theme, so it never washes out on a light background. */
+/** Fixed dark chip fill for the light-theme tooltip, so it never washes out on a white background; dark themes use the palette's surfaceRaised. */
+// dark-palette-guard: keep (d) light branch
 private val OUTLINE_TOOLTIP_FILL = Color(0xFF1F212B)
 /** Delay before the rail collapses back to its idle state after interaction ends. */
 private const val RAIL_COLLAPSE_DELAY_MS = 600L
@@ -365,7 +366,7 @@ internal fun BoxScope.ChatOutlineRail(
                                 modifier = Modifier
                                     .widthIn(min = 80.dp, max = tooltipMaxWidthDp(widthDp).dp)
                                     .shadow(10.dp, RoundedCornerShape(12.dp))
-                                    .background(OUTLINE_TOOLTIP_FILL, RoundedCornerShape(12.dp))
+                                    .background(if (OriveoTheme.isDark) OriveoTheme.colors.surfaceElevated else OUTLINE_TOOLTIP_FILL, RoundedCornerShape(12.dp))
                                     .border(0.5.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
                                     .padding(horizontal = 12.dp, vertical = 7.dp),
                             ) {

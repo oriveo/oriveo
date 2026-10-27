@@ -1,8 +1,8 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Settings } from './Settings';
 import { useMcpStore } from '../../lib/core/mcp/mcp-store';
-import styles from './Settings.module.css';
+import gridStyles from './SettingsGrid.module.css';
 import { FEATURE_BADGES_SEEN_KEY, FEATURE_BADGE_IDS, markSeen } from '../../lib/core/feature-badges';
 
 const mocks = vi.hoisted(() => ({
@@ -12,22 +12,17 @@ const mocks = vi.hoisted(() => ({
 }));
 
 type MockState = {
-  account: {
-    email: string;
-    name: string;
-    avatarURL?: string;
-  } | null;
   preferences: {
     theme: 'system' | 'light' | 'dark';
     language: string;
     sendShortcut: 'cmdEnter' | 'enter';
     memoryText: string;
+    darkPalette?: string;
   };
   setPreferences: typeof mocks.setPreferences;
 };
 
 let mockState: MockState = {
-  account: null,
   preferences: {
     theme: 'system',
     language: 'system',
@@ -68,10 +63,6 @@ vi.mock('../../components/MenuSelect', () => ({
       ))}
     </div>
   ),
-}));
-
-vi.mock('../../components/common/UserAvatar', () => ({
-  UserAvatar: () => <div data-testid="user-avatar" />,
 }));
 
 const metadataMock = vi.hoisted(() => {
@@ -115,20 +106,57 @@ describe('Settings', () => {
     mocks.routerRefresh.mockReset();
     mocks.setPreferences.mockReset();
     mockState = {
-      account: null,
-      preferences: {
+          preferences: {
         theme: 'system',
         language: 'system',
         sendShortcut: 'cmdEnter',
         memoryText: '',
       },
-      setPreferences: mocks.setPreferences,
+          setPreferences: mocks.setPreferences,
     };
     metadataMock.state.enabled = true;
     metadataMock.state.version = 0;
     metadataMock.state.listeners.clear();
     metadataMock.isRuntimeFeatureEnabled.mockReset();
     metadataMock.isRuntimeFeatureEnabled.mockImplementation(() => metadataMock.state.enabled);
+  });
+
+  const cellOf = (entry: string) =>
+    document.querySelector(`[data-settings-entry="${entry}"]`) as HTMLElement | null;
+  const gridOf = (heading: string) =>
+    screen.getByRole('heading', { name: heading }).parentElement?.querySelector(`.${gridStyles.grid}`) as HTMLElement | null;
+
+  it('grid icons are the two-tone SVGs: they do not follow the theme color and have no backing plate', () => {
+    render(<Settings />);
+
+    expect(cellOf('memory')?.querySelector('svg[data-settings-icon="memory"]')).toBeTruthy();
+    expect(cellOf('mcp')?.querySelector('svg[data-settings-icon="mcp"]')).toBeTruthy();
+  });
+
+  it('the AI group renders 3 cells (memory, context, skills) and the help group 2 cells linking to the repository', () => {
+    render(<Settings />);
+
+    const ai = gridOf('aiSection')!;
+    expect(ai.dataset.columns).toBe('3');
+    expect(ai.dataset.rows).toBe('1');
+    expect(
+      Array.from(ai.querySelectorAll('[data-settings-entry]')).map((cell) => cell.getAttribute('data-settings-entry')),
+    ).toEqual(['memory', 'context', 'skills']);
+
+    const help = gridOf('helpAboutSection')!;
+    expect(help.dataset.columns).toBe('2');
+    expect(help.querySelectorAll('[data-settings-entry]')).toHaveLength(2);
+    expect(cellOf('feedback')?.getAttribute('href')).toMatch(/\/issues$/);
+    expect(cellOf('docs')?.getAttribute('href')).toMatch(/#readme$/);
+  });
+
+  it('the footer shows the version, tagline and source link', () => {
+    render(<Settings />);
+
+    expect(screen.getByText('aboutTagline')).toBeTruthy();
+    expect(screen.getByText('footerPoem')).toBeTruthy();
+    expect(screen.getByText(/^V\d/)).toBeTruthy();
+    expect(screen.getByText('sourceCode').closest('a')?.getAttribute('target')).toBe('_blank');
   });
 
   it('renders the newly supported language options with native labels', () => {
@@ -142,27 +170,27 @@ describe('Settings', () => {
     expect(screen.getByText('Русский')).toBeTruthy();
   });
 
-  it('renders memory content in the trailing area instead of the title column', () => {
+  it('memory preview strips list markers and joins lines', () => {
+    mockState.preferences.memoryText = '- Be concise\n* Use English';
+
+    render(<Settings />);
+
+    const value = cellOf('memory')?.querySelector(`.${gridStyles.value}`);
+    expect(value?.textContent).toBe('Be concise Use English');
+  });
+
+  it('renders memory content in the value line instead of the title', () => {
     mockState.preferences.memoryText = 'Keep answers concise';
 
-    const { container } = render(<Settings />);
+    render(<Settings />);
 
-    const memoryRow = screen
-      .getByText('settingsEntry')
-      .closest(`.${styles.navRow}`);
+    const memoryCell = cellOf('memory');
+    const title = memoryCell?.querySelector(`.${gridStyles.title}`);
+    const value = memoryCell?.querySelector(`.${gridStyles.value}`);
 
-    expect(memoryRow).toBeTruthy();
-
-    const infoColumn = memoryRow?.querySelector(`.${styles.navRowInfo}`);
-    const trailingArea = memoryRow?.querySelector(`.${styles.navRowTrailing}`);
-
-    expect(infoColumn).toBeTruthy();
-    expect(infoColumn?.textContent).toContain('settingsEntry');
-    expect(infoColumn?.textContent).not.toContain('Keep answers concise');
-
-    expect(trailingArea).toBeTruthy();
-    expect(trailingArea?.textContent).toContain('Keep answers concise');
-    expect(container.querySelector(`.${styles.navRowTrailing}`)).toBeTruthy();
+    expect(title?.textContent).toContain('settingsEntry');
+    expect(title?.textContent).not.toContain('Keep answers concise');
+    expect(value?.textContent).toContain('Keep answers concise');
   });
 
   it('does not render a new badge on the AI section when memory has not been seen', () => {
@@ -205,6 +233,42 @@ describe('Settings', () => {
     expect(screen.queryByText('customRequestFieldsEnableScope')).toBeNull();
   });
 
+  describe('General > theme row', () => {
+    const themeRow = () => document.querySelector('[data-settings-entry="theme"]') as HTMLElement;
+
+    it('click / Enter opens the theme page, and the settings page itself no longer has a light/dark dropdown', () => {
+      render(<Settings />);
+      expect(screen.queryByTestId('menu-theme')).toBeNull();
+      fireEvent.click(themeRow());
+      expect(mocks.routerPush).toHaveBeenCalledWith('/settings/theme');
+      fireEvent.keyDown(themeRow(), { key: 'Enter' });
+      expect(mocks.routerPush).toHaveBeenCalledTimes(2);
+    });
+
+    it('trailing summary: Light / palette name / Follow System · palette name', () => {
+      mockState.preferences.theme = 'light';
+      mockState.preferences.darkPalette = 'dark-ocean';
+      const { unmount } = render(<Settings />);
+      expect(themeRow().textContent).toContain('themeLight');
+      unmount();
+
+      mockState.preferences.theme = 'dark';
+      const second = render(<Settings />);
+      expect(themeRow().textContent).toContain('themePaletteOcean');
+      second.unmount();
+
+      mockState.preferences.theme = 'system';
+      mockState.preferences.darkPalette = undefined;
+      render(<Settings />);
+      expect(themeRow().textContent).toContain('themeSummaryFollowSystem');
+    });
+
+    it('has no palette debug section', () => {
+      render(<Settings />);
+      expect(screen.queryByTestId('dark-palette-debug')).toBeNull();
+    });
+  });
+
   describe('MCP servers entry', () => {
     const entry = () => document.querySelector('[data-settings-entry="mcp"]');
     const record = (id: string) => ({
@@ -237,13 +301,15 @@ describe('Settings', () => {
       expect(entry()?.textContent).toBe('entryTitleentryCountAttention');
     });
 
-    it('with the master switch off (enabled = false from the model catalog), the row is hidden; it follows a config update', () => {
+    it('with the master switch off (enabled = false from the model catalog), the whole group is hidden; it follows a config update', () => {
       metadataMock.state.mcpEnabled = false;
       render(<Settings />);
       expect(entry()).toBeNull();
+      expect(screen.queryByRole('heading', { name: 'toolsSection' })).toBeNull();
       metadataMock.state.mcpEnabled = true;
       emitMetadataVersionChange();
       expect(entry()).not.toBeNull();
+      expect(gridOf('toolsSection')?.dataset.columns).toBe('1');
     });
   });
 });

@@ -21,7 +21,7 @@ interface ProviderCostSummaryCardProps {
 const CHART_PALETTE_HUES = [15, 160, 275, 55, 215, 330, 130, 245, 35, 190, 300, 355];
 
 /**
- * Brand hue, matching --o-primary #8C5FF8 at roughly 257 degrees. The provider with the largest
+ * Brand hue, matching the light-mode brand purple at roughly 257 degrees. The provider with the largest
  * share (index 0) is anchored to it, tying the card's visual weight to the brand color.
  */
 const BRAND_HUE = 257;

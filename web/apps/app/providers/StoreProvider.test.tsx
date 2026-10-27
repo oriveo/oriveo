@@ -24,6 +24,7 @@ vi.mock('../lib/core/telemetry', () => ({
 
 vi.mock('../lib/hooks/useTheme', () => ({
   useTheme: vi.fn(),
+  useDarkPalette: vi.fn(),
 }));
 
 vi.mock('../components/Skeleton', () => ({

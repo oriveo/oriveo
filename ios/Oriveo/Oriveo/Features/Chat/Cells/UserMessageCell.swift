@@ -13,10 +13,7 @@ private final class GradientBubbleView: UIView {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        gradientLayer.colors = [
-            UIColor(Color.dynamic(light: 0x8347F5, dark: 0x8347F5)).cgColor,
-            UIColor(Color.dynamic(light: 0x6B3BC7, dark: 0x6B3BC7)).cgColor,
-        ]
+        // Gradient colors come from OriveoTheme.Palette.primaryGradientColors (dark mode = the current palette gradient-brand)
         gradientLayer.startPoint = CGPoint(x: 0, y: 0)
         gradientLayer.endPoint = CGPoint(x: 1, y: 1)
 
@@ -26,6 +23,12 @@ private final class GradientBubbleView: UIView {
         layer.addSublayer(borderLayer)
 
         layer.mask = maskLayer
+        applyColors()
+
+        // CGColor does not follow the trait: re-resolve it when switching light/dark or the dark palette.
+        registerForTraitChanges(OriveoDarkPaletteTrait.colorAppearanceTraits) { (view: GradientBubbleView, _: UITraitCollection) in
+            view.applyColors()
+        }
     }
 
     @available(*, unavailable)
@@ -42,15 +45,11 @@ private final class GradientBubbleView: UIView {
         onPathChanged?(path)
     }
 
-    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
-        super.traitCollectionDidChange(previousTraitCollection)
-        if traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) {
-            gradientLayer.colors = [
-                UIColor(Color.dynamic(light: 0x8347F5, dark: 0x8347F5)).cgColor,
-                UIColor(Color.dynamic(light: 0x6B3BC7, dark: 0x6B3BC7)).cgColor,
-            ]
-            borderLayer.strokeColor = UIColor(OriveoTheme.Palette.hairline).cgColor
+    private func applyColors() {
+        gradientLayer.colors = OriveoTheme.Palette.primaryGradientUIColors.map {
+            $0.resolvedColor(with: traitCollection).cgColor
         }
+        borderLayer.strokeColor = UIColor(OriveoTheme.Palette.hairline).resolvedColor(with: traitCollection).cgColor
     }
 
     /// UnevenRoundedRect: topLeading=20, topTrailing=20, bottomLeading=20, bottomTrailing=6
@@ -307,6 +306,10 @@ final class UserMessageCell: UICollectionViewCell {
         setupViews()
         bubbleView.addInteraction(UIContextMenuInteraction(delegate: self))
         bubbleView.addInteraction(UIDragInteraction(delegate: textDragSource))
+        // The shadow color (primaryGlow) is re-resolved with light/dark and the dark palette.
+        registerForTraitChanges(OriveoDarkPaletteTrait.colorAppearanceTraits) { (cell: UserMessageCell, _: UITraitCollection) in
+            cell.updateShadow()
+        }
     }
 
     @available(*, unavailable)
@@ -315,13 +318,6 @@ final class UserMessageCell: UICollectionViewCell {
     override func layoutSubviews() {
         super.layoutSubviews()
         updateShadow()
-    }
-
-    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
-        super.traitCollectionDidChange(previousTraitCollection)
-        if traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) {
-            updateShadow()
-        }
     }
 
     override func prepareForReuse() {
@@ -439,7 +435,7 @@ final class UserMessageCell: UICollectionViewCell {
                 text: folded ? UserMessageFold.preview(of: text) : text,
                 attributes: [
                     .font: userFont,
-                    .foregroundColor: UIColor.white,
+                    .foregroundColor: Self.bubbleTextColor,
                     .paragraphStyle: userParagraph,
                 ]
             )
@@ -527,6 +523,22 @@ final class UserMessageCell: UICollectionViewCell {
 
     var bubbleFrameForTesting: CGRect { shadowHost.frame }
 
+    /// Bubble body text color: on top of the brand gradient, white in light mode and the current palette onPrimary in dark mode.
+    static let bubbleTextColor = OriveoTheme.Palette.onPrimaryUIColor
+    /// Secondary note inside the bubble (the not-sent hint): the body text color at 82%.
+    static let bubbleSecondaryTextColor: UIColor = {
+        let base = bubbleTextColor
+        return UIColor { trait in base.resolvedColor(with: trait).withAlphaComponent(0.82) }
+    }()
+
+    /// For unit tests: the two gradient end colors of the bubble (CGColor resolved for the current trait).
+    var bubbleGradientColorsForTesting: [CGColor] {
+        ((bubbleView.layer as? CAGradientLayer)?.colors as? [CGColor]) ?? []
+    }
+
+    /// For unit tests: the text color of the bubble body textView.
+    var bubbleTextColorForTesting: UIColor? { textView.textColor }
+
     /// The "not sent to this model" caption text when shown; nil when hidden.
     var notSentToModelCaptionForTesting: String? { notSentRow.isHidden ? nil : notSentLabel.text }
 
@@ -578,8 +590,8 @@ final class UserMessageCell: UICollectionViewCell {
         textView.backgroundColor = .clear
         textView.textContainerInset = .zero
         textView.textContainer.lineFragmentPadding = 0
-        textView.textColor = .white
-        textView.tintColor = .white
+        textView.textColor = Self.bubbleTextColor
+        textView.tintColor = Self.bubbleTextColor
         // No non-contiguous layout: on a non-scrolling text view whose height is measured outside, it lays out the
         // middle at estimated positions, and the usedRect estimate can make contentSize larger than the bounds and
         // scroll programmatically when a selection reaches the edge. The host and soft breaks already fix the stall.
@@ -594,7 +606,7 @@ final class UserMessageCell: UICollectionViewCell {
         textHost.setContentHuggingPriority(.required, for: .vertical)
         notSentLabel.font = UIFont.preferredFont(forTextStyle: .caption2)
         notSentLabel.adjustsFontForContentSizeCategory = true
-        notSentLabel.textColor = UIColor.white.withAlphaComponent(0.82)
+        notSentLabel.textColor = Self.bubbleSecondaryTextColor
         notSentLabel.textAlignment = .natural
         notSentLabel.numberOfLines = 0
         notSentLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -617,7 +629,7 @@ final class UserMessageCell: UICollectionViewCell {
             withConfiguration: UIImage.SymbolConfiguration(pointSize: 11, weight: .semibold)
         )
         fullTextConfig.imagePadding = 5
-        fullTextConfig.baseForegroundColor = .white
+        fullTextConfig.baseForegroundColor = Self.bubbleTextColor
         fullTextConfig.baseBackgroundColor = UIColor.white.withAlphaComponent(0.18)
         fullTextConfig.cornerStyle = .capsule
         fullTextConfig.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 11, bottom: 6, trailing: 12)
@@ -760,7 +772,7 @@ final class UserMessageCell: UICollectionViewCell {
     /// one step lower intensity, so the bubble floats in light instead of dripping it downward.
     private func updateShadow() {
         let isDark = traitCollection.userInterfaceStyle == .dark
-        shadowHost.layer.shadowColor = UIColor(OriveoTheme.Palette.primaryGlow).cgColor
+        shadowHost.layer.shadowColor = OriveoTheme.Palette.primaryGlowUIColor.resolvedColor(with: traitCollection).cgColor
         shadowHost.layer.shadowOpacity = isDark ? 0.7 : 0.9
         shadowHost.layer.shadowRadius = isDark ? 22 : 10
         shadowHost.layer.shadowOffset = CGSize(width: 0, height: isDark ? 4 : 6)
@@ -975,8 +987,8 @@ final class DirectiveSuggestionBarView: UIView {
         config.attributedTitle = attributed
         if prominent {
             // AccentColor is empty, so an untinted filled button falls back to system blue.
-            config.baseBackgroundColor = UIColor(OriveoTheme.Palette.primary)
-            config.baseForegroundColor = .white
+            config.baseBackgroundColor = OriveoTheme.Palette.primaryUIColor
+            config.baseForegroundColor = OriveoTheme.Palette.onPrimaryUIColor
         }
         button.configuration = config
     }
@@ -1096,8 +1108,8 @@ final class MemorySuggestionBarView: UIView {
         config.attributedTitle = attributed
         if prominent {
             // AccentColor is empty, so an untinted filled button falls back to system blue.
-            config.baseBackgroundColor = UIColor(OriveoTheme.Palette.primary)
-            config.baseForegroundColor = .white
+            config.baseBackgroundColor = OriveoTheme.Palette.primaryUIColor
+            config.baseForegroundColor = OriveoTheme.Palette.onPrimaryUIColor
         }
         button.configuration = config
     }

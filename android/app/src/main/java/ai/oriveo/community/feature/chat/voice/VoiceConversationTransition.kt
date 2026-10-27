@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import ai.oriveo.community.core.voice.conversation.ConversationStatusKey
 import ai.oriveo.community.ui.component.isReduceMotionEnabled
+import ai.oriveo.community.ui.theme.OriveoColors
 import ai.oriveo.community.ui.theme.OriveoTheme
 import kotlin.math.roundToInt
 
@@ -189,7 +190,7 @@ fun VoiceConversationSwitcher(
             Icon(
                 imageVector = Icons.Rounded.GraphicEq,
                 contentDescription = null,
-                tint = ghostGlyphTint(OriveoTheme.isDark),
+                tint = ghostGlyphTint(OriveoTheme.colors, OriveoTheme.isDark),
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .offset {
@@ -216,5 +217,5 @@ fun Modifier.voiceEntryAnchor(): Modifier {
 
 private val GhostSize = 18.dp
 
-/** The flying ≋ crosses the page background, not the purple button: deep purple in light, light purple in dark. */
-private fun ghostGlyphTint(isDark: Boolean): Color = if (isDark) Color(0xFFC4B5FD) else Color(0xFF6D28D9)
+/** The flying ≋ crosses the page background, not the purple button: deep purple in light, the palette accent in dark. */
+private fun ghostGlyphTint(colors: OriveoColors, isDark: Boolean): Color = if (isDark) colors.accent else Color(0xFF6D28D9)

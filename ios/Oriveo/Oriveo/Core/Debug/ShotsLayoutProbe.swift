@@ -30,7 +30,9 @@ enum ShotsLayoutProbe {
         var stableSince = Date()
         var nodes: [Node] = []
         var timedOut = true
+        // The grid-style Settings home is taller than one screen; allow scrolling to the bottom to capture the lower half
         let scrollToBottom = MemoryShots.isScrollToBottomRequested
+            || (page == "settings" && CommandLine.arguments.contains("-SHOTS_SCROLL_BOTTOM"))
         while Date().timeIntervalSince(start) < timeout {
             try? await Task.sleep(nanoseconds: 250_000_000)
             // -SHOTS_SCROLL_BOTTOM: scroll to the bottom once the page has content; if it moved again, restart the stability window and write the layout tree only after scrolling settles

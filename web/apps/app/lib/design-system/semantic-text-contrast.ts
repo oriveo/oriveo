@@ -128,17 +128,28 @@ function collectDeclarations(source: string): Map<string, string> {
  * `[data-theme='dark']`, with no `prefers-color-scheme` fallback. The dark block redefines only
  * part of the tokens and inherits the rest from the light block.
  */
-export function readThemeTokens(): ThemeTokens {
+export function readThemeTokens(palette?: string): ThemeTokens {
   const source = stripComments(readFileSync(join(WEB_ROOT, TOKENS_FILE), 'utf8'));
   const darkStart = source.indexOf("[data-theme='dark']");
-  if (darkStart < 0) throw new Error(`${TOKENS_FILE}   [data-theme='dark']  `);
+  if (darkStart < 0) throw new Error(`${TOKENS_FILE} has no [data-theme='dark'] block`);
+  // The default dark section ends at the first closing brace; the [data-palette] sections after it must not leak into the default dark.
+  const darkEnd = source.indexOf('}', darkStart);
   const light = collectDeclarations(source.slice(0, darkStart));
-  return { light, dark: new Map([...light, ...collectDeclarations(source.slice(darkStart))]) };
+  const dark = new Map([...light, ...collectDeclarations(source.slice(darkStart, darkEnd))]);
+  if (palette !== undefined && palette !== 'dark') {
+    const selector = `[data-theme='dark'][data-palette='${palette}']`;
+    const paletteStart = source.indexOf(selector);
+    if (paletteStart < 0) throw new Error(`${TOKENS_FILE} has no ${selector} block`);
+    for (const [name, value] of collectDeclarations(source.slice(paletteStart, source.indexOf('}', paletteStart)))) {
+      dark.set(name, value);
+    }
+  }
+  return { light, dark };
 }
 
 /** Evaluates a CSS color expression to RGBA. Supports hex, rgb(a), `var()` chains and `color-mix(in srgb ...)`. */
 export function parseColor(raw: string, theme: Theme, tokens: ThemeTokens, depth = 0): Rgba {
-  if (depth > 16) throw new Error(`var()  ${raw}`);
+  if (depth > 16) throw new Error(`var() chain too deep, likely a circular reference: ${raw}`);
   const value = raw.trim();
 
   const named = NAMED_COLORS[value];
@@ -164,14 +175,14 @@ export function parseColor(raw: string, theme: Theme, tokens: ThemeTokens, depth
     const resolved = tokens[theme].get(reference[1]);
     // No value means the name does not exist in the design system: in production the whole declaration is IACVT, or always hits the literal fallback.
     if (resolved !== undefined) return parseColor(resolved, theme, tokens, depth + 1);
-    if (reference[2]) throw new Error(`${reference[1]}   ${theme}   fallback ${reference[2]} `);
-    throw new Error(`${reference[1]}   ${theme}   IACVT`);
+    if (reference[2]) throw new Error(`${reference[1]} is not defined in the ${theme} theme (only the literal fallback ${reference[2]} remains)`);
+    throw new Error(`${reference[1]} is not defined in the ${theme} theme, so the whole declaration would be IACVT`);
   }
 
   const mix = /^color-mix\(\s*in\s+srgb\s*,\s*([\s\S]+)\)$/.exec(value);
   if (mix) {
     const operands = splitTopLevel(mix[1]);
-    if (operands.length !== 2) throw new Error(`color-mix  ${value}`);
+    if (operands.length !== 2) throw new Error(`color-mix only supports two operands: ${value}`);
     const [firstColor, firstPercent] = splitPercentage(operands[0]);
     const [secondColor, secondPercent] = splitPercentage(operands[1]);
     let weightA = firstPercent;
@@ -191,7 +202,7 @@ export function parseColor(raw: string, theme: Theme, tokens: ThemeTokens, depth
     return [channels[0], channels[1], channels[2], alpha];
   }
 
-  throw new Error(` /  KNOWN_GAPS ${value}`);
+  throw new Error(`Cannot evaluate color expression (forms that cannot be statically evaluated, such as gradients and filters, must be registered in KNOWN_GAPS): ${value}`);
 }
 
 /** source-over compositing: flattens a translucent foreground onto an opaque background. */
@@ -245,9 +256,9 @@ export function readRuleBody(file: string, selector: string): string {
   const bodies = [...readCss(file).matchAll(/([^{}]+)\{([^{}]*)\}/g)]
     .filter((match) => normalizeSelector(match[1]) === wanted)
     .map((match) => match[2]);
-  if (bodies.length === 0) throw new Error(`${file}   \`${selector}\` `);
+  if (bodies.length === 0) throw new Error(`${file} has no rule \`${selector}\` (is the registry stale?)`);
   if (bodies.length > 1) {
-    throw new Error(`${file}   \`${selector}\`   ${bodies.length}  `);
+    throw new Error(`${file} has \`${selector}\` ${bodies.length} times (media-query override?); the registry must point at exactly one rule`);
   }
   return bodies[0];
 }
@@ -256,7 +267,7 @@ export function readRuleBody(file: string, selector: string): string {
 export function readDeclaration(file: string, selector: string, property: string): string {
   const body = readRuleBody(file, selector);
   const match = new RegExp(`(?:^|;)\\s*${property}\\s*:\\s*([^;]+)`).exec(body);
-  if (!match) throw new Error(`${file} \`${selector}\`   ${property}`);
+  if (!match) throw new Error(`${file} \`${selector}\` does not declare ${property}`);
   return match[1].trim();
 }
 
@@ -297,7 +308,7 @@ export const VERIFIED_TEXT_SITES: readonly TextSite[] = [
     file: 'apps/app/app/settings/backup/BackupPage.module.css',
     selector: '.resultTitle',
     layers: ['var(--o-bg)', { selector: '.section' }, { selector: '.resultCard' }],
-    note: ' /  --o-success 2.41:1 ',
+    note: 'Import/export success card title; was --o-success at 2.41:1 after the phantom names were fixed.',
   },
   {
     id: 'backup-success-message',
@@ -336,7 +347,7 @@ export const VERIFIED_NEUTRAL_TEXT_SITES: readonly TextSite[] = [
     // --o-surface-card-from stop. The other stop (--o-surface) is lighter and only more
     // forgiving for dark text, so this end is the worst case.
     layers: ['var(--o-bg)', 'var(--o-surface-card-from)', { selector: '.manualSourceToken' }],
-    note: '  chip  chip   --o-surface   --o-bg-subtle  --o-text-tertiary   4.42:1 ',
+    note: 'Source chip on handwritten notes; after the chip background moved from --o-surface to --o-bg-subtle, --o-text-tertiary dropped to 4.42:1.',
   },
 
   // ── Tier pills in the model options panel (light and dark measured separately) ──
@@ -350,7 +361,7 @@ export const VERIFIED_NEUTRAL_TEXT_SITES: readonly TextSite[] = [
     selector: '.modelControlPill',
     // The pill sits inside the capability card (--o-bg-subtle) with --o-surface as its own fill.
     layers: ['var(--o-bg)', 'var(--o-surface)', 'var(--o-bg-subtle)', { selector: '.modelControlPill' }],
-    note: '  --o-text-tertiary   4.40:1  --o-text-secondary ',
+    note: 'Unselected tier text; --o-text-tertiary is only 4.40:1 in light mode, so it uses --o-text-secondary.',
   },
   {
     id: 'model-control-pill-selected',
@@ -361,8 +372,8 @@ export const VERIFIED_NEUTRAL_TEXT_SITES: readonly TextSite[] = [
       { selector: ".modelControlPill[data-active='true']" },
     ],
     note:
-      '  pill accent  ** **——  --o-primary ' +
-      '  4.23:1  text-safe  ',
+      'Selected pill: text on the accent fill. **The two themes must be computed separately**: in light mode white on the original --o-primary ' +
+      'is only 4.23:1, so the fill uses the text-safe variant; in dark mode it is dark text on the lightened purple, where the original value already passes.',
   },
   // ── Explanatory text inside the panel ──
   //
@@ -378,7 +389,7 @@ export const VERIFIED_NEUTRAL_TEXT_SITES: readonly TextSite[] = [
     file: 'apps/app/components/chat/InputComposer.module.css',
     selector: '.modelControlNote',
     layers: ['var(--o-bg)', 'var(--o-surface)', 'var(--o-bg-subtle)'],
-    note: ' tertiary   --o-bg-subtle   4.40:1  secondary ',
+    note: 'Description sentences in the capability card and read-only banner; tertiary is only 4.40:1 on --o-bg-subtle, so it uses secondary.',
   },
   {
     id: 'model-control-note-on-surface',
@@ -386,28 +397,28 @@ export const VERIFIED_NEUTRAL_TEXT_SITES: readonly TextSite[] = [
     selector: '.modelControlNote',
     // The alternative-model page and the reload-failure sentences sit straight on the popover surface, with no card layer.
     layers: ['var(--o-bg)', 'var(--o-surface)'],
-    note: ' ',
+    note: 'The same rule used on the popover surface (top of the candidate page, reload-failure message).',
   },
   {
     id: 'model-control-subtitle',
     file: 'apps/app/components/chat/InputComposer.module.css',
     selector: '.modelControlsSubtitle',
     layers: ['var(--o-bg)', 'var(--o-surface)'],
-    note: '  -   note  ',
+    note: 'Page header "provider · protocol"; same family and color as the note, so the header does not get its own gray.',
   },
   {
     id: 'model-control-navigation-subtitle',
     file: 'apps/app/components/chat/InputComposer.module.css',
     selector: '.modelControlNavigationSubtitle',
     layers: ['var(--o-bg)', 'var(--o-surface)', { selector: '.modelControlNavigationRow' }],
-    note: '  Token   --o-bg-subtle  tertiary   4.40:1 ',
+    note: 'Subtitle "Temperature, max tokens, etc." on a navigation row over --o-bg-subtle; 4.40:1 with tertiary.',
   },
   {
     id: 'model-control-scope-upgrade-note',
     file: 'apps/app/components/chat/InputComposer.module.css',
     selector: '.modelControlScopeUpgradeNote',
     layers: ['var(--o-bg)', { selector: '.modelControlsFooter' }],
-    note: ' 11px   secondary ',
+    note: '"Applied to this conversation"; 11px text needs more margin, so it is also raised to secondary.',
   },
 
   // Badges are the only text in the panel that sits on a semantic color background: a 12% (20%
@@ -421,7 +432,7 @@ export const VERIFIED_NEUTRAL_TEXT_SITES: readonly TextSite[] = [
       'var(--o-bg)', 'var(--o-surface)', 'var(--o-bg-subtle)',
       { selector: ".modelControlBadge[data-tone='manual']" },
     ],
-    note: '  /   Oriveo   /  warning   12%   --o-warning-text ',
+    note: '"Manual / Managed by Oriveo / Custom" badge: --o-warning-text on the 12% warning tint.',
   },
   {
     id: 'model-control-badge-unavailable',
@@ -431,7 +442,7 @@ export const VERIFIED_NEUTRAL_TEXT_SITES: readonly TextSite[] = [
       'var(--o-bg)', 'var(--o-surface)', 'var(--o-bg-subtle)',
       { selector: ".modelControlBadge[data-tone='unavailable']" },
     ],
-    note: ' error   12%   --o-error-text ',
+    note: '"Not ready" badge: --o-error-text on the 12% error tint.',
   },
 ];
 
@@ -456,7 +467,7 @@ export const KNOWN_GAPS: readonly KnownGap[] = [
     id: 'primary-fill-with-primary-text',
     foreground: 'var(--o-primary-text)',
     layers: ['var(--o-surface)', 'var(--o-primary)'],
-    measured: { light: 4.2344, dark: 6.8896 },
+    measured: { light: 4.2344, dark: 6.9305 },
     reason:
       'Primary fill with primary text on .btnPrimary and similar CTAs. Contrast is accepted as a known gap.',
   },
@@ -469,7 +480,7 @@ export const KNOWN_GAPS: readonly KnownGap[] = [
       'color-mix(in srgb, var(--o-primary) 14%, transparent)',
       'color-mix(in srgb, var(--o-primary) 22%, transparent)',
     ],
-    measured: { light: 4.0233, dark: 2.7284 },
+    measured: { light: 4.0233, dark: 2.7889 },
     reason:
       'Primary text on a card with a glow overlay. Contrast is accepted as a known gap.',
   },
@@ -491,7 +502,6 @@ export const LEGACY_UNTRIAGED: readonly string[] = [
   'apps/app/app/providers/new/ProviderSetup.module.css {.progress}',
   'apps/app/app/providers/relay/new/RelaySetup.module.css {.fieldError}',
   'apps/app/app/providers/relay/new/RelaySetup.module.css {.statusCard > strong}',
-  'apps/app/app/settings/Settings.module.css {.signInLink}',
   'apps/app/app/skills/edit/SkillEditPage.module.css {.addStarterBtn}',
   'apps/app/app/skills/edit/SkillEditPage.module.css {.inlineActionBtn}',
   'apps/app/app/welcome/Welcome.module.css {.errorMsg}',
@@ -527,7 +537,7 @@ export function resolveBackground(
   tokens: ThemeTokens,
 ): Rgba {
   const bottom = resolveLayer(layers[0], fallbackFile, theme, tokens);
-  if (bottom[3] < 1) throw new Error(' ');
+  if (bottom[3] < 1) throw new Error('The bottom background layer must be opaque, otherwise the composite depends on things outside the page');
   let result: Rgba = bottom;
   for (const layer of layers.slice(1)) result = composite(resolveLayer(layer, fallbackFile, theme, tokens), result);
   return result;

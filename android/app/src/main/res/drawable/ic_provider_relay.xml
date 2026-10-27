@@ -25,6 +25,7 @@
                 android:type="linear"
                 android:startX="6" android:startY="6"
                 android:endX="26" android:endY="26">
+                <!-- dark-palette-guard: keep (e) Provider logo -->
                 <item android:offset="0" android:color="#A78BFA"/>
                 <item android:offset="0.55" android:color="#7C3AED"/>
                 <item android:offset="1" android:color="#5B21B6"/>
@@ -39,6 +40,7 @@
                 android:type="linear"
                 android:startX="6" android:startY="6"
                 android:endX="26" android:endY="26">
+                <!-- dark-palette-guard: keep (e) Provider logo -->
                 <item android:offset="0" android:color="#A78BFA"/>
                 <item android:offset="0.55" android:color="#7C3AED"/>
                 <item android:offset="1" android:color="#5B21B6"/>
@@ -53,6 +55,7 @@
                 android:type="linear"
                 android:startX="6" android:startY="6"
                 android:endX="26" android:endY="26">
+                <!-- dark-palette-guard: keep (e) Provider logo -->
                 <item android:offset="0" android:color="#A78BFA"/>
                 <item android:offset="0.55" android:color="#7C3AED"/>
                 <item android:offset="1" android:color="#5B21B6"/>
@@ -67,6 +70,7 @@
                 android:type="linear"
                 android:startX="6" android:startY="6"
                 android:endX="26" android:endY="26">
+                <!-- dark-palette-guard: keep (e) Provider logo -->
                 <item android:offset="0" android:color="#A78BFA"/>
                 <item android:offset="0.55" android:color="#7C3AED"/>
                 <item android:offset="1" android:color="#5B21B6"/>

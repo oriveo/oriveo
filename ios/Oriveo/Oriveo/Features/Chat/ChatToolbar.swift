@@ -374,7 +374,7 @@ struct ChatToolbar: View {
 
                     Image(systemName: "brain")
                         .font(.system(size: 19, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(OriveoTheme.Palette.onPrimary)
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
@@ -418,9 +418,9 @@ struct ChatToolbar: View {
                     MemoryPopoverActionLabel(
                         title: L10n.tr("View/edit full memory", table: .chat),
                         systemImage: "square.and.pencil",
-                        foreground: .white,
+                        foreground: OriveoTheme.Palette.onPrimary,
                         iconBackground: .white.opacity(0.16),
-                        iconForeground: .white
+                        iconForeground: OriveoTheme.Palette.onPrimary
                     )
                 }
                 .buttonStyle(MemoryPopoverCardButtonStyle(tone: .primary))

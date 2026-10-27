@@ -159,18 +159,26 @@
     </plurals>
     <string name="undo">เลิกทำ</string>
     <string name="settings_title">การตั้งค่า</string>
-    <string name="appearance">รูปร่าง</string>
     <string name="theme">ธีม</string>
-    <string name="theme_system">ติดตามระบบ</string>
-    <string name="theme_light">แสงสว่าง</string>
+    <string name="theme_system">ตามระบบ</string>
+    <string name="theme_light">สว่าง</string>
     <string name="theme_dark">มืด</string>
+    <string name="theme_follow_system_hint">เมื่อระบบอยู่ในโหมดมืด จะใช้ชุดสีโทนมืดที่คุณเลือก</string>
+    <string name="theme_section_palettes">ชุดสี</string>
+    <string name="theme_palette_purple">ม่วง</string>
+    <string name="theme_palette_graphite">กราไฟต์</string>
+    <string name="theme_palette_black">ดำ</string>
+    <string name="theme_palette_ocean">มหาสมุทร</string>
+    <string name="theme_palette_forest">ป่าไม้</string>
+    <string name="theme_palette_sunset">ตะวันตกดิน</string>
+    <string name="theme_preview_question">ช่วยอธิบาย ownership ของ Rust ในย่อหน้าเดียว</string>
+    <string name="theme_preview_reply">ทุกค่ามี%1$sได้เพียงหนึ่งเดียว เมื่อเจ้าของออกนอกขอบเขต ค่านั้นจะถูกทิ้ง หากต้องการยืมให้ใช้ %2$s</string>
+    <string name="theme_preview_owner">เจ้าของ</string>
+    <string name="theme_summary_follow_system">ตามระบบ · %1$s</string>
     <string name="language">ภาษา</string>
-    <string name="data_section">ข้อมูล</string>
     <string name="backup_and_export">สำรองข้อมูลและส่งออก</string>
-    <string name="about">เกี่ยวกับ</string>
     <string name="privacy_policy">นโยบายความเป็นส่วนตัว</string>
     <string name="terms_of_service">ข้อกำหนดในการให้บริการ</string>
-    <string name="help_feedback">ความช่วยเหลือและข้อเสนอแนะ</string>
     <string name="settings_source_code">ซอร์สโค้ด</string>
     <string name="settings_report_issue">รายงานปัญหา</string>
     <string name="snackbar_provider_ready">ผู้ให้บริการพร้อมแล้ว คุณสามารถเริ่มแชทได้เลย</string>
@@ -2235,4 +2243,6 @@
     <string name="context_confirm_send">ส่งเลย</string>
     <string name="chat_last_used_model_retired_hint">โมเดลที่ใช้ล่าสุดยุติการให้บริการแล้ว ตอนนี้ใช้ %1$s</string>
     <string name="model_options_shows_thinking_fixed">แสดงกระบวนการคิด · ปรับไม่ได้</string>
+    <string name="settings_section_general">ทั่วไป</string>
+    <string name="settings_section_help_about">ความช่วยเหลือและข้อมูล</string>
 </resources>

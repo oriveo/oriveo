@@ -218,7 +218,8 @@ enum BackupService {
             memoryText: preferences.memoryText.isEmpty ? nil : preferences.memoryText,
             memoryAntiForgetEnabled: preferences.memoryAntiForgetEnabled ? true : nil,
             memoryAntiForgetText: preferences.memoryAntiForgetText.isEmpty ? nil : preferences.memoryAntiForgetText,
-            memoryUpdatedAt: preferences.memoryUpdatedAt.map { ISO8601DateFormatter().string(from: $0) }
+            memoryUpdatedAt: preferences.memoryUpdatedAt.map { ISO8601DateFormatter().string(from: $0) },
+            darkPalette: preferences.darkPalette
         )
 
         let backupFolders = folders.isEmpty ? nil : folders.map { BackupFolder(from: $0) }
@@ -638,6 +639,10 @@ enum BackupService {
                 }
                 result.restoredPreferences = true
             }
+            // darkPalette is overwritten by the backup the same way as theme: write it when present; an old backup without the field clears it to unset
+            let restoredDarkPalette = prefs.darkPalette
+            await MainActor.run { appState.preferences.darkPalette = restoredDarkPalette }
+            result.restoredPreferences = true
             if AppLanguagePreferencePolicy.shouldApplySyncedLanguage(
                 storedPreference: AppPreferencesStore.savedLanguage
             ), let language = LanguageOption(rawValue: prefs.language) {

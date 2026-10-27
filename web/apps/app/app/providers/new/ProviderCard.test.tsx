@@ -65,6 +65,37 @@ describe('ProviderShowcaseCard', () => {
     expect(card.getAttribute('data-selected')).toBe('true');
   });
 
+  it('unregistered brands use palette tokens instead of literal colors in dark mode and keep the original values in light mode', () => {
+    const { rerender } = render(
+      <ProviderShowcaseCard kind="unregisteredKind" displayName="Custom" selected={false} isDark onSelect={() => {}} />,
+    );
+    const card = screen.getByText('Custom').closest('button')!;
+    expect(card.style.getPropertyValue('--card-bg')).toBe('var(--o-surface)');
+    expect(card.style.getPropertyValue('--card-accent')).toBe('var(--o-primary)');
+
+    rerender(
+      <ProviderShowcaseCard kind="unregisteredKind" displayName="Custom" selected={false} isDark={false} onSelect={() => {}} />,
+    );
+    expect(card.style.getPropertyValue('--card-bg').toUpperCase()).toBe('#F4F4F5');
+    expect(card.style.getPropertyValue('--card-accent').toUpperCase()).toBe('#8B5CF6');
+  });
+
+  it('checkmark color on the accent fill: unregistered brands use on-primary in dark mode, while light mode and registered brands keep white', () => {
+    const { rerender } = render(
+      <ProviderShowcaseCard kind="unregisteredKind" displayName="Custom" selected isDark onSelect={() => {}} />,
+    );
+    const card = screen.getByText('Custom').closest('button')!;
+    expect(card.style.getPropertyValue('--card-on-accent')).toBe('var(--o-on-primary)');
+
+    rerender(
+      <ProviderShowcaseCard kind="unregisteredKind" displayName="Custom" selected isDark={false} onSelect={() => {}} />,
+    );
+    expect(card.style.getPropertyValue('--card-on-accent').toLowerCase()).toBe('#ffffff');
+
+    rerender(<ProviderShowcaseCard kind="openAI" displayName="Custom" selected isDark onSelect={() => {}} />);
+    expect(card.style.getPropertyValue('--card-on-accent').toLowerCase()).toBe('#ffffff');
+  });
+
   it('invokes onSelect when clicked', () => {
     const onSelect = vi.fn();
     render(

@@ -198,3 +198,10 @@ export {
   type SentryExceptionLike,
   type SentryStackFrameLike,
 } from './sentry';
+export {
+  DARK_PALETTE_IDS,
+  DEFAULT_DARK_PALETTE_ID,
+  isDarkPaletteId,
+  resolveDarkPaletteId,
+} from './theme/dark-palettes';
+export type { DarkPaletteId } from './theme/dark-palettes';

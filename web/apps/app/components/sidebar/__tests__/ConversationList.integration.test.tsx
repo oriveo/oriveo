@@ -281,6 +281,11 @@ describe('ConversationList key integration paths', () => {
     fireEvent.click(screen.getByRole('button', { name: 'batchDelete (1)' }));
     // Nothing is deleted until the confirmation dialog is answered
     expect(mockDeleteConversations).not.toHaveBeenCalled();
+    // The cancel button uses common.cancel and no longer borrows the edit mode "Done" (exitEditMode)
+    const dialog = screen.getByRole('button', { name: 'batchDelete' }).closest('[role="dialog"], [role="alertdialog"]') as HTMLElement | null;
+    expect(dialog).toBeTruthy();
+    expect(within(dialog!).getByRole('button', { name: 'cancel' })).toBeTruthy();
+    expect(within(dialog!).queryByRole('button', { name: 'exitEditMode' })).toBeNull();
     // ConfirmDialog confirm button, matched by the exact name 'batchDelete' to tell it apart from the toolbar 'batchDelete (1)'
     fireEvent.click(screen.getByRole('button', { name: 'batchDelete' }));
 

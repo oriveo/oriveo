@@ -77,7 +77,7 @@ fun FolderRow(
     val colors = OriveoTheme.colors
 
     Column(modifier = modifier) {
-            // Folder header: the same card face as the home conversation groups (radius 20 / dark #221F35 / light pure white); tap to expand or collapse, long press for the menu
+            // Folder header: the same card face as the home conversation groups (radius 20 / dark = palette surface / light pure white); tap to expand or collapse, long press for the menu
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

@@ -256,24 +256,21 @@ enum McpHealthCopy {
 
 /// The "Tools & connections" group in Settings, holding the MCP servers row.
 struct McpSettingsSection: View {
-    let iconColor: Color
     let mcpSummary: McpSettingsEntrySummary?
     let onOpenMcpServers: @MainActor () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: OriveoTheme.Spacing.sm) {
-            flatSectionHeader(L10n.tr("Tools & connections", table: .mcp))
+        VStack(alignment: .leading, spacing: 10) {
+            SettingsHomeSectionHeader(title: L10n.tr("Tools & connections", table: .mcp))
 
-            flatGroup {
-                flatTapRow(action: onOpenMcpServers) {
-                    SettingsRow(
-                        icon: "wrench.adjustable.fill",
-                        title: L10n.tr("MCP servers", table: .mcp),
-                        subtitle: McpHealthCopy.settingsSubtitle(mcpSummary),
-                        iconColor: iconColor
-                    )
-                }
-            }
+            SettingsHomeGrid(items: [
+                SettingsHomeGridItem(
+                    key: "mcp",
+                    title: L10n.tr("MCP servers", table: .mcp),
+                    value: McpHealthCopy.settingsSubtitle(mcpSummary),
+                    action: onOpenMcpServers
+                ),
+            ])
         }
     }
 }

@@ -90,15 +90,24 @@
 
     <!-- Settings -->
     <string name="settings_title">設定</string>
-    <string name="appearance">外観</string>
     <string name="theme">テーマ</string>
     <string name="theme_system">システムに従う</string>
     <string name="theme_light">ライト</string>
     <string name="theme_dark">ダーク</string>
+    <string name="theme_follow_system_hint">システムがダークモードのときは、選択したダーク配色を使用します。</string>
+    <string name="theme_section_palettes">配色</string>
+    <string name="theme_palette_purple">パープル</string>
+    <string name="theme_palette_graphite">グラファイト</string>
+    <string name="theme_palette_black">ブラック</string>
+    <string name="theme_palette_ocean">オーシャン</string>
+    <string name="theme_palette_forest">フォレスト</string>
+    <string name="theme_palette_sunset">サンセット</string>
+    <string name="theme_preview_question">Rust の所有権を一段落で説明して。</string>
+    <string name="theme_preview_reply">どの値にも%1$sはちょうど1つだけです。所有者がスコープを抜けると値は破棄され、借用するには %2$s を使います。</string>
+    <string name="theme_preview_owner">所有者</string>
+    <string name="theme_summary_follow_system">システムに従う · %1$s</string>
     <string name="language">言語</string>
-    <string name="data_section">データ</string>
     <string name="backup_and_export">バックアップと書き出し</string>
-    <string name="about">このアプリについて</string>
     <string name="privacy_policy">プライバシーポリシー</string>
     <string name="terms_of_service">利用規約</string>
 
@@ -297,7 +306,6 @@
     <string name="provider_detail_add_model_manually">+ モデルIDを手動で追加</string>
     <string name="provider_detail_badge_recent">最近</string>
     <string name="undo">元に戻す</string>
-    <string name="help_feedback">ヘルプとフィードバック</string>
     <string name="settings_source_code">ソースコード</string>
     <string name="settings_report_issue">問題を報告</string>
     <string name="manual_model_entry_title">フォールバックモデル</string>
@@ -2280,4 +2288,6 @@
     <string name="context_confirm_send">それでも送信</string>
     <string name="chat_last_used_model_retired_hint">前回使っていたモデルは提供終了となったため、%1$s に切り替えました。</string>
     <string name="model_options_shows_thinking_fixed">思考過程を表示 · 調整はできません</string>
+    <string name="settings_section_general">一般</string>
+    <string name="settings_section_help_about">ヘルプと情報</string>
 </resources>

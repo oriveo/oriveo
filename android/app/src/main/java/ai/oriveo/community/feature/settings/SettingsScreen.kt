@@ -28,6 +28,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.em
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import ai.oriveo.community.core.app.resolve
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
@@ -94,7 +98,6 @@ import ai.oriveo.community.R
 import ai.oriveo.community.core.model.LanguageOption
 import ai.oriveo.community.core.model.ThemeOption
 import ai.oriveo.community.feature.chat.ContextCapPresentation
-import ai.oriveo.community.ui.component.UserAvatarImage
 import ai.oriveo.community.ui.component.FlatGroup
 import ai.oriveo.community.ui.component.FlatSectionHeader
 import ai.oriveo.community.ui.component.FlatTapRow
@@ -104,7 +107,6 @@ import ai.oriveo.community.ui.component.OriveoWebDestination
 import ai.oriveo.community.ui.component.OriveoSettingsRow
 import ai.oriveo.community.ui.component.FeatureBadgeDot
 import ai.oriveo.community.ui.component.openOriveoWebPage
-import ai.oriveo.community.ui.theme.DarkOriveoColors
 import ai.oriveo.community.ui.theme.OriveoScreenBackground
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.opacity
@@ -116,6 +118,7 @@ import org.koin.androidx.compose.koinViewModel
 fun SettingsScreen(
     onNavigateToMemory: () -> Unit = {},
     onNavigateToContextSettings: () -> Unit = {},
+    onNavigateToThemeSettings: () -> Unit = {},
     onNavigateToMcpServers: () -> Unit = {},
     onNavigateToBackup: () -> Unit = {},
     onNavigateToSkills: () -> Unit = {},
@@ -123,24 +126,28 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = koinViewModel(),
 ) {
     val theme by viewModel.theme.collectAsStateWithLifecycle()
+    val darkPalette by viewModel.darkPalette.collectAsStateWithLifecycle()
     val language by viewModel.language.collectAsStateWithLifecycle()
     val memoryText by viewModel.memoryText.collectAsStateWithLifecycle()
     val showMemoryFeatureBadge by viewModel.memoryFeatureBadgeVisible.collectAsStateWithLifecycle()
     val contextAISummaryEnabled by viewModel.contextAISummaryEnabled.collectAsStateWithLifecycle()
     val contextDefaultCap by viewModel.contextDefaultCap.collectAsStateWithLifecycle()
+    val voiceEngineLabel by viewModel.voiceEngineLabel.collectAsStateWithLifecycle()
     val colors = OriveoTheme.colors
+    val isDark = OriveoTheme.isDark
     val context = LocalContext.current
     val resources = LocalResources.current
 
+    // Re-read the read-aloud engine every time the page returns to the foreground: it may have changed on the voice page.
+    LifecycleResumeEffect(viewModel) {
+        viewModel.refreshVoiceEngineLabel()
+        onPauseOrDispose { }
+    }
+
+    // Semantic icon colors kept for the two rows in the developer menu
     val aiColor = colors.primary
     val dataColor = colors.info
-    val appearanceColor = colors.warning
-    val feedbackColor = colors.info
-    val faqColor = colors.primary
-    val rateColor = colors.warning
-    val updateColor = colors.info
 
-    var showThemePicker by remember { mutableStateOf(false) }
     var showLanguagePicker by remember { mutableStateOf(false) }
     var aboutTapCount by remember { mutableStateOf(0) }
     var showApiEndpointDialog by remember { mutableStateOf(false) }
@@ -156,6 +163,8 @@ fun SettingsScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         OriveoScreenBackground()
+        // The dark top glow belongs to the settings home only; the shared background stays untouched.
+        SettingsHomeTopGlow()
 
         Scaffold(
             containerColor = Color.Transparent,
@@ -164,7 +173,11 @@ fun SettingsScreen(
                     title = {
                         Text(
                             text = stringResource(R.string.settings_title),
-                            style = OriveoTheme.typography.title1,
+                            style = OriveoTheme.typography.title1.copy(
+                                fontSize = 34.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = (-0.03).em,
+                            ),
                             color = OriveoTheme.colors.textPrimary,
                         )
                     },
@@ -187,218 +200,200 @@ fun SettingsScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = layout.screenH)
                     .padding(bottom = OriveoTheme.layout.tabBarOverlay),
-                verticalArrangement = Arrangement.spacedBy(layout.sectionGap),
             ) {
-                Spacer(modifier = Modifier.height(OriveoTheme.spacing.xs))
-                Column(verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm)) {
-                    FlatSectionHeader(title = "AI")
-
-                    FlatGroup {
-                        FlatTapRow(onClick = onNavigateToMemory) {
-                            OriveoSettingsRow(
-                                icon = Icons.Outlined.Psychology,
-                                iconColor = aiColor,
-                                title = stringResource(R.string.memory_title),
-                                subtitle = memoryRowDetails.subtitle,
-                                value = memoryRowDetails.value,
-                                titleBadge = if (showMemoryFeatureBadge) {
-                                    { FeatureBadgeDot() }
-                                } else {
-                                    null
-                                },
-                            )
-                        }
-                        InsetHairline()
-                        FlatTapRow(
-                            onClick = onNavigateToContextSettings,
-                            modifier = Modifier.testTag("settings_context_row"),
-                        ) {
-                            OriveoSettingsRow(
-                                icon = Icons.Outlined.Compress,
-                                iconColor = aiColor,
-                                title = stringResource(R.string.settings_context_title),
-                                value = ContextCapPresentation.settingsRowValue(
-                                    template = stringResource(R.string.settings_context_row_value),
-                                    cap = contextDefaultCap,
-                                    mode = stringResource(
-                                        if (contextAISummaryEnabled) {
-                                            R.string.settings_context_mode_ai
-                                        } else {
-                                            R.string.settings_context_row_value_fallback
-                                        },
-                                    ),
-                                    autoLabel = stringResource(R.string.context_cap_auto),
-                                    unlimitedLabel = stringResource(R.string.context_cap_unlimited),
-                                    locale = LocalConfiguration.current.locales[0].toLanguageTag(),
+                // AI grid: memory, context, skills, voice (2x2)
+                Spacer(modifier = Modifier.height(20.dp))
+                SettingsSectionTitle(text = "AI")
+                Spacer(modifier = Modifier.height(10.dp))
+                SettingsGrid(
+                    items = listOf(
+                        SettingsGridItem(
+                            key = "memory",
+                            icon = R.drawable.ic_settings_memory,
+                            title = stringResource(R.string.memory_title),
+                            tag = "settings_memory_tile",
+                            value = memoryRowDetails.value,
+                            showBadge = showMemoryFeatureBadge,
+                            onClick = onNavigateToMemory,
+                        ),
+                        SettingsGridItem(
+                            key = "context",
+                            icon = R.drawable.ic_settings_context,
+                            title = stringResource(R.string.settings_context_title),
+                            // The context cell keeps the tag and testTag of the old row (E2E locator).
+                            tag = "settings_context_row",
+                            value = ContextCapPresentation.settingsRowValue(
+                                template = stringResource(R.string.settings_context_row_value),
+                                cap = contextDefaultCap,
+                                mode = stringResource(
+                                    if (contextAISummaryEnabled) {
+                                        R.string.settings_context_mode_ai
+                                    } else {
+                                        R.string.settings_context_row_value_fallback
+                                    },
                                 ),
-                            )
-                        }
-                        InsetHairline()
-                        FlatTapRow(onClick = onNavigateToSkills) {
-                            OriveoSettingsRow(
-                                icon = Icons.Outlined.Lightbulb,
-                                iconColor = aiColor,
-                                title = stringResource(R.string.skills_title),
-                            )
-                        }
-                        InsetHairline()
-                        FlatTapRow(
+                                autoLabel = stringResource(R.string.context_cap_auto),
+                                unlimitedLabel = stringResource(R.string.context_cap_unlimited),
+                                locale = LocalConfiguration.current.locales[0].toLanguageTag(),
+                            ),
+                            onClick = onNavigateToContextSettings,
+                        ),
+                        // Skills have no "enabled" notion, so no value is shown.
+                        SettingsGridItem(
+                            key = "skills",
+                            icon = R.drawable.ic_settings_skills,
+                            title = stringResource(R.string.skills_title),
+                            tag = "settings_skills_tile",
+                            onClick = onNavigateToSkills,
+                        ),
+                        SettingsGridItem(
+                            key = "voice",
+                            icon = R.drawable.ic_settings_voice,
+                            title = stringResource(R.string.voice_settings_title),
+                            // The voice cell keeps the tag and testTag of the old row.
+                            tag = "settings_voice_row",
+                            value = voiceEngineLabel?.resolve(context),
                             onClick = onNavigateToVoiceSettings,
-                            modifier = Modifier.testTag("settings_voice_row"),
-                        ) {
-                            OriveoSettingsRow(
-                                icon = Icons.Outlined.GraphicEq,
-                                iconColor = aiColor,
-                                title = stringResource(R.string.voice_settings_title),
-                            )
-                        }
-                    }
-                }
+                        ),
+                    ),
+                )
 
+                // Tools & connections: the MCP servers cell (hidden entirely while the MCP master switch is off)
+                Spacer(modifier = Modifier.height(34.dp))
                 ai.oriveo.community.feature.mcp.SettingsToolsSection(
-                    iconColor = aiColor,
                     onNavigateToMcpServers = onNavigateToMcpServers,
                 )
 
-                Column(verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm)) {
-                    FlatSectionHeader(title = stringResource(R.string.data_section))
-
-                    FlatGroup {
-                        FlatTapRow(onClick = onNavigateToBackup) {
-                            OriveoSettingsRow(
-                                icon = Icons.Filled.CloudUpload,
-                                iconColor = dataColor,
-                                title = stringResource(R.string.backup_and_export),
-                            )
-                        }
-                    }
+                // General: theme, language, backup and export/import
+                Spacer(modifier = Modifier.height(34.dp))
+                SettingsSectionTitle(text = stringResource(R.string.settings_section_general))
+                Spacer(modifier = Modifier.height(4.dp))
+                Column {
+                    SettingsListRow(
+                        iconRes = R.drawable.ic_settings_theme,
+                        title = stringResource(R.string.theme),
+                        onClick = onNavigateToThemeSettings,
+                        showDivider = true,
+                        value = themeSummaryLabel(
+                            theme = theme,
+                            darkPalette = darkPalette,
+                            lightLabel = stringResource(R.string.theme_light),
+                            paletteLabel = { resources.getString(darkPaletteNameRes(it)) },
+                            followSystemLabel = { resources.getString(R.string.theme_summary_follow_system, it) },
+                        ),
+                        // The color dot only shows in dark.
+                        leadingValueDot = if (isDark) settingsThemeDotBrush(colors.primary, colors.accent) else null,
+                    )
+                    SettingsListRow(
+                        iconRes = R.drawable.ic_settings_language,
+                        title = stringResource(R.string.language),
+                        onClick = { showLanguagePicker = true },
+                        showDivider = true,
+                        value = languageSummaryLabel(
+                            language = language,
+                            systemLabel = stringResource(R.string.theme_system),
+                        ),
+                    )
+                    SettingsListRow(
+                        iconRes = R.drawable.ic_settings_backup,
+                        title = stringResource(R.string.backup_and_export),
+                        onClick = onNavigateToBackup,
+                        showDivider = false,
+                    )
                 }
 
-                Column(verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm)) {
-                    FlatSectionHeader(title = stringResource(R.string.appearance))
-
-                    FlatGroup {
-                        FlatTapRow(onClick = { showThemePicker = true }) {
-                            OriveoSettingsRow(
-                                icon = Icons.Filled.Brightness6,
-                                iconColor = appearanceColor,
-                                title = stringResource(R.string.theme),
-                                value = themeSummaryLabel(
-                                    theme = theme,
-                                    systemLabel = stringResource(R.string.theme_system),
-                                    lightLabel = stringResource(R.string.theme_light),
-                                    darkLabel = stringResource(R.string.theme_dark),
-                                ),
-                            )
-                        }
-                        InsetHairline()
-                        FlatTapRow(onClick = { showLanguagePicker = true }) {
-                            OriveoSettingsRow(
-                                icon = Icons.Filled.Language,
-                                iconColor = appearanceColor,
-                                title = stringResource(R.string.language),
-                                value = languageSummaryLabel(
-                                    language = language,
-                                    systemLabel = stringResource(R.string.theme_system),
-                                ),
-                            )
-                        }
-                    }
-                }
-
-                Column(verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm)) {
-                    FlatSectionHeader(title = stringResource(R.string.help_feedback))
-
-                    FlatGroup {
-                        FlatTapRow(
-                            onClick = { context.openOriveoWebPage(OriveoWebDestination.SourceCode) },
-                        ) {
-                            OriveoSettingsRow(
-                                icon = Icons.AutoMirrored.Filled.HelpOutline,
-                                iconColor = faqColor,
-                                title = stringResource(R.string.settings_source_code),
-                            )
-                        }
-                        InsetHairline()
-                        FlatTapRow(
+                // Help & about: report an issue, source code (1x2)
+                Spacer(modifier = Modifier.height(34.dp))
+                SettingsSectionTitle(text = stringResource(R.string.settings_section_help_about))
+                Spacer(modifier = Modifier.height(10.dp))
+                SettingsGrid(
+                    style = SettingsGridStyle.Compact,
+                    items = listOf(
+                        SettingsGridItem(
+                            key = "issue",
+                            icon = R.drawable.ic_settings_feedback,
+                            title = stringResource(R.string.settings_report_issue),
+                            tag = "settings_issue_tile",
                             onClick = { context.openOriveoWebPage(OriveoWebDestination.Issues) },
-                        ) {
-                            OriveoSettingsRow(
-                                icon = Icons.Filled.Email,
-                                iconColor = feedbackColor,
-                                title = stringResource(R.string.settings_report_issue),
-                            )
-                        }
-                    }
-                }
+                        ),
+                        SettingsGridItem(
+                            key = "source",
+                            icon = R.drawable.ic_settings_faq,
+                            title = stringResource(R.string.settings_source_code),
+                            tag = "settings_source_code_tile",
+                            onClick = { context.openOriveoWebPage(OriveoWebDestination.SourceCode) },
+                        ),
+                    ),
+                )
 
-                Column(verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm)) {
-                    FlatSectionHeader(title = stringResource(R.string.about))
-
-                    FlatGroup {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    context.openOriveoWebPage(OriveoWebDestination.Changelog)
+                // Footer: logo, name + version, tagline, legal links
+                Spacer(modifier = Modifier.height(38.dp))
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    // Footer logo: ten taps open the developer options; it stays out of the accessibility tree.
+                    val logoInteraction = remember { MutableInteractionSource() }
+                    Image(
+                        painter = rememberBrandPainter(R.drawable.ic_oriveo_logo, 40.dp),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable(
+                                interactionSource = logoInteraction,
+                                indication = null,
+                            ) {
+                                val result = registerAboutLogoTap(aboutTapCount)
+                                aboutTapCount = result.nextCount
+                                if (result.shouldRevealEndpoint) {
+                                    showDeveloperMenu = true
                                 }
-                                .padding(OriveoTheme.spacing.lg),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            val logoInteraction = remember { MutableInteractionSource() }
-                            Image(
-                                painter = rememberBrandPainter(R.drawable.ic_oriveo_logo, 44.dp),
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .clickable(
-                                        interactionSource = logoInteraction,
-                                        indication = null,
-                                    ) {
-                                        val result = registerAboutLogoTap(aboutTapCount)
-                                        aboutTapCount = result.nextCount
-                                        if (result.shouldRevealEndpoint) {
-                                            showDeveloperMenu = true
-                                        }
-                                    }
-                                    .clearAndSetSemantics {},
-                            )
-                            Spacer(modifier = Modifier.width(OriveoTheme.spacing.md))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = stringResource(R.string.app_name),
-                                    style = OriveoTheme.typography.title3,
-                                    color = colors.textPrimary,
-                                )
-                                Text(
-                                    text = stringResource(R.string.app_tagline),
-                                    style = OriveoTheme.typography.caption,
-                                    color = colors.textTertiary,
-                                )
                             }
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                contentDescription = null,
-                                tint = colors.textTertiary,
-                                modifier = Modifier.size(18.dp),
-                            )
-                        }
-                    }
-
-                    // The legal links are a light footer: centred small grey text with a
-                    // separator dot. They sit outside the card, so no hairline above them.
+                            .clearAndSetSemantics {},
+                    )
+                    // The "name + version" line opens the changelog.
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm, Alignment.CenterHorizontally),
+                        modifier = Modifier
+                            .padding(top = 4.dp)
+                            .clickable {
+                                context.openOriveoWebPage(OriveoWebDestination.Changelog)
+                            },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.app_name),
+                            style = OriveoTheme.typography.body.copy(fontSize = 14.5.sp, fontWeight = FontWeight.Bold),
+                            color = colors.textPrimary,
+                        )
+                        Text(
+                            text = formatAppVersion(
+                                versionName = BuildConfig.VERSION_NAME,
+                                versionCode = BuildConfig.VERSION_CODE,
+                            ),
+                            style = OriveoTheme.typography.code.copy(fontSize = 11.5.sp),
+                            color = colors.textTertiary,
+                        )
+                    }
+                    Text(
+                        text = stringResource(R.string.app_tagline),
+                        modifier = Modifier.padding(top = 2.dp),
+                        style = OriveoTheme.typography.footnote.copy(fontSize = 12.sp),
+                        color = colors.textSecondary,
+                    )
+                    // Legal links: centered small grey text with a separator dot, no row or rule.
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         val privacyInteraction = remember { MutableInteractionSource() }
                         val termsInteraction = remember { MutableInteractionSource() }
                         Text(
                             text = stringResource(R.string.privacy_policy),
-                            style = OriveoTheme.typography.footnote,
+                            style = OriveoTheme.typography.footnote.copy(fontSize = 12.sp),
                             color = colors.textTertiary,
                             modifier = Modifier.clickable(
                                 interactionSource = privacyInteraction,
@@ -407,12 +402,12 @@ fun SettingsScreen(
                         )
                         Text(
                             text = "·",
-                            style = OriveoTheme.typography.footnote,
+                            style = OriveoTheme.typography.footnote.copy(fontSize = 12.sp),
                             color = colors.textTertiary,
                         )
                         Text(
                             text = stringResource(R.string.terms_of_service),
-                            style = OriveoTheme.typography.footnote,
+                            style = OriveoTheme.typography.footnote.copy(fontSize = 12.sp),
                             color = colors.textTertiary,
                             modifier = Modifier.clickable(
                                 interactionSource = termsInteraction,
@@ -497,48 +492,6 @@ fun SettingsScreen(
         )
     }
 
-    if (showThemePicker) {
-        OriveoModalBottomSheet(
-            onDismissRequest = { showThemePicker = false },
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-            dragHandle = { OriveoSheetDragHandle() },
-        ) {
-            Column(modifier = Modifier.padding(OriveoTheme.spacing.lg)) {
-                Text(stringResource(R.string.theme), style = OriveoTheme.typography.title2)
-                Spacer(modifier = Modifier.height(OriveoTheme.spacing.lg))
-                ThemeOption.entries.forEach { option ->
-                    val label = themeSummaryLabel(
-                        theme = option,
-                        systemLabel = stringResource(R.string.theme_system),
-                        lightLabel = stringResource(R.string.theme_light),
-                        darkLabel = stringResource(R.string.theme_dark),
-                    )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                viewModel.setTheme(option)
-                                showThemePicker = false
-                            }
-                            .padding(vertical = OriveoTheme.spacing.md),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(
-                            selected = option == theme,
-                            onClick = {
-                                viewModel.setTheme(option)
-                                showThemePicker = false
-                            },
-                        )
-                        Spacer(modifier = Modifier.width(OriveoTheme.spacing.md))
-                        Text(label, style = OriveoTheme.typography.caption)
-                    }
-                }
-                Spacer(modifier = Modifier.height(OriveoTheme.layout.sectionGap))
-            }
-        }
-    }
-
     if (showLanguagePicker) {
         OriveoModalBottomSheet(
             onDismissRequest = { showLanguagePicker = false },
@@ -595,69 +548,5 @@ internal fun registerAboutLogoTap(currentCount: Int): AboutLogoTapResult {
         AboutLogoTapResult(nextCount = 0, shouldRevealEndpoint = true)
     } else {
         AboutLogoTapResult(nextCount = nextCount, shouldRevealEndpoint = false)
-    }
-}
-
-@Composable
-private fun AccountHubProfileRow(
-    title: String,
-    subtitle: String,
-    avatarURL: String?,
-    avatarLocalID: String?,
-    fallbackName: String,
-    onClick: () -> Unit,
-) {
-    val colors = OriveoTheme.colors
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 4.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(52.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(58.dp)
-                    .background(colors.primary.copy(alpha = 0.10f), RoundedCornerShape(29.dp))
-                    .blur(8.dp),
-            )
-            UserAvatarImage(
-                size = 50.dp,
-                avatarURL = avatarURL,
-                avatarLocalID = avatarLocalID,
-                fallbackName = fallbackName,
-                modifier = Modifier.border(
-                    1.dp,
-                    if (OriveoTheme.colors.backgroundBase == DarkOriveoColors.backgroundBase)
-                        OriveoTheme.colors.cardHighlight.opacity(5.25f)
-                    else Color.White.copy(alpha = 0.42f),
-                    RoundedCornerShape(25.dp)
-                ),
-            )
-        }
-        Spacer(modifier = Modifier.width(14.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = OriveoTheme.typography.title3,
-                color = colors.textPrimary,
-            )
-            Text(
-                text = subtitle,
-                style = OriveoTheme.typography.caption,
-                color = colors.textSecondary,
-            )
-        }
-        Icon(
-            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = null,
-            tint = colors.textTertiary,
-            modifier = Modifier.size(18.dp),
-        )
     }
 }

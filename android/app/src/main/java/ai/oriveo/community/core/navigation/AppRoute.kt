@@ -41,6 +41,8 @@ sealed interface AppRoute {
     /** Inbox of suggested memory candidates, entered from the row on the memory page. */
     @Serializable data object MemoryInbox : AppRoute
     @Serializable data object ContextSettings : AppRoute
+    /** Settings > Theme (follow system, preview, light / dark palette swatches). */
+    @Serializable data object ThemeSettings : AppRoute
     @Serializable data object VoiceSettings : AppRoute
     /** Remote MCP: the server list, adding a server, and a server's details. */
     @Serializable data object McpServers : AppRoute

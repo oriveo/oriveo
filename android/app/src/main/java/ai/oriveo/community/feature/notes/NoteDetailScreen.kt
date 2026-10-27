@@ -588,8 +588,9 @@ private fun Modifier.brandImmersiveCard(radius: androidx.compose.ui.unit.Dp): Mo
     val primary = OriveoTheme.colors.primary
     val shadowColor = OriveoTheme.colors.shadow
     val shape = RoundedCornerShape(radius)
-    val gradientTop = if (isDark) Color(0xFF1E2230) else Color(0xFFFFFFFF)
-    val gradientBottom = if (isDark) Color(0xFF232845) else Color(0xFFF1EBFD)
+    // The dark card face follows the current palette: surface -> surfaceElevated
+    val gradientTop = if (isDark) OriveoTheme.colors.surface else Color(0xFFFFFFFF)
+    val gradientBottom = if (isDark) OriveoTheme.colors.surfaceElevated else Color(0xFFF1EBFD)
 
     val topHighlight = if (isDark) Color.White.copy(alpha = 0.04f) else Color.White.copy(alpha = 0.275f)
     return this
@@ -717,7 +718,7 @@ private fun NoteTagsSection(
                     Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(OriveoRadius.full))
-                            .background(if (isDark) Color(0xFF2A2F3A) else Color(0xFFF0F1F4))
+                            .background(if (isDark) OriveoTheme.colors.surfaceElevated else Color(0xFFF0F1F4))
                             .border(
                                 1.dp,
                                 if (isDark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.08f),

@@ -49,7 +49,12 @@ struct CodeBlockViewTests {
         #expect(Self.resolvedHex(MarkdownCodeBlockPalette.backgroundUIColor, .light) == 0x0B1220)
         #expect(Self.resolvedHex(MarkdownCodeBlockPalette.backgroundUIColor, .dark) == 0x050814)
         #expect(Self.resolvedHex(MarkdownCodeBlockPalette.surfaceUIColor, .light) == 0x111A2E)
-        #expect(Self.resolvedHex(MarkdownCodeBlockPalette.surfaceUIColor, .dark) == 0x0B1020)
+        #expect(Self.resolvedHex(MarkdownCodeBlockPalette.surfaceUIColor, .dark) == OriveoDarkPalettes.dark.codeBg)
+        // Header bar: light mode keeps the same value as surface; dark mode takes the palette codeHeaderBg
+        #expect(Self.resolvedHex(MarkdownCodeBlockPalette.headerBackgroundUIColor, .light) == 0x111A2E)
+        #expect(Self.resolvedHex(MarkdownCodeBlockPalette.headerBackgroundUIColor, .dark) == OriveoDarkPalettes.dark.codeHeaderBg)
+        #expect(Self.resolvedHex(MarkdownCodeBlockPalette.borderUIColor, .light) == 0x8C5FF8)
+        #expect(Self.resolvedHex(MarkdownCodeBlockPalette.borderUIColor, .dark) == OriveoDarkPalettes.dark.primary)
     }
 
     @Test("Syntax Palette Uses Balanced Editor Accents")

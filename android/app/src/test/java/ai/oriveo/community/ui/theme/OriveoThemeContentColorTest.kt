@@ -3,6 +3,7 @@ package ai.oriveo.community.ui.theme
 import androidx.compose.ui.graphics.Color
 import java.io.File
 import kotlin.math.pow
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -54,12 +55,14 @@ class OriveoThemeContentColorTest {
      * question needs to be re-decided, not silently deleted.
      */
     @Test
-    fun `palette surfaces never match the material color scheme so contentColorFor always misses`() {
-        assertNotEquals(
-            "the dark surface now matches the M3 ColorScheme, so the premise behind contentColorFor missing has changed",
-            colorSchemeSurface("darkColorScheme"),
-            DarkOriveoColors.surface,
-        )
+    fun `light surfaces miss the material scheme and dark scheme hits with the same content color`() {
+        // The dark ColorScheme is derived from the palette instance (darkColorSchemeOf), so surface hits;
+        // the content color it yields must be textPrimary, the same as the explicitly provided one, or text inside M3 containers would differ from text outside.
+        for (palette in DarkPaletteId.entries) {
+            val scheme = darkColorSchemeOf(palette.colors)
+            assertEquals("${palette.id} M3 surface should equal the palette surface", palette.colors.surface, scheme.surface)
+            assertEquals("${palette.id} M3 onSurface should equal textPrimary", palette.colors.textPrimary, scheme.onSurface)
+        }
         assertNotEquals(
             "the light surface now matches the M3 ColorScheme, so the premise behind contentColorFor missing has changed",
             colorSchemeSurface("lightColorScheme"),

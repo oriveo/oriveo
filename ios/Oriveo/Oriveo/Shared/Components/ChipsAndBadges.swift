@@ -482,7 +482,7 @@ private extension ModelCapability {
             colors = [Color.dynamic(light: 0x2DC7B4, dark: 0x2DD4BF), Color.dynamic(light: 0x0891B2, dark: 0x0F766E)]
             shadowColor = Color.dynamic(light: 0x0F766E, dark: 0x000000, lightAlpha: 0.14, darkAlpha: 0.12)
         case .imageGen:
-            colors = [Color.dynamic(light: 0x9B6BFF, dark: 0xA78BFA), Color.dynamic(light: 0x6D28D9, dark: 0x7C3AED)]
+            colors = [Color.dynamic(light: 0x9B6BFF, dark: \.primary), Color.dynamic(light: 0x6D28D9, dark: \.primaryActive)]
             shadowColor = Color.dynamic(light: 0x6D28D9, dark: 0x000000, lightAlpha: 0.14, darkAlpha: 0.12)
         case .nativePdf:
             colors = [Color.dynamic(light: 0x94A3B8, dark: 0x94A3B8), Color.dynamic(light: 0x64748B, dark: 0x64748B)]
@@ -938,7 +938,7 @@ extension ProviderKind {
         case .mistral:
             return Color.dynamic(light: 0xFFF2E8, dark: 0x2D1D10)
         case .siliconFlow:
-            return Color.dynamic(light: 0xF3ECFF, dark: 0x1E1245)
+            return Color.dynamic(light: 0xF3ECFF, dark: \.primary, darkAlpha: 0.15)
         default:
             return Color.dynamic(light: 0xFFFFFF, dark: 0x1E2433)
         }
@@ -975,7 +975,7 @@ extension ProviderKind {
         case .mistral:
             return Color.dynamic(light: 0xFA500F, dark: 0xFF8205)
         case .siliconFlow:
-            return Color.dynamic(light: 0x7C3AED, dark: 0xA78BFA)
+            return Color.dynamic(light: 0x7C3AED, dark: \.primary)
         case .relay:
             return Color.dynamic(light: 0x64748B, dark: 0x94A3B8)
         }

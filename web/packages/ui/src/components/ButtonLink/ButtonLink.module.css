@@ -20,11 +20,11 @@
 .primary {
   color: var(--o-primary-text);
   background: linear-gradient(135deg, var(--o-primary) 0%, var(--o-primary-active) 100%);
-  box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--o-primary) 30%, transparent);
 }
 
 .primary:hover {
-  box-shadow: 0 12px 32px rgba(139, 92, 246, 0.4);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--o-primary) 40%, transparent);
 }
 
 .secondary {

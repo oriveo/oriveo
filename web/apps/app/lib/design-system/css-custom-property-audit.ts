@@ -114,6 +114,12 @@ export const ALLOWED: readonly AllowedCustomProperty[] = [
     files: ['apps/app/app/providers/new/ProviderCard.module.css'],
     reason: 'Per-provider card accent set as an inline style by app/providers/new/ProviderCard.tsx.',
   },
+  {
+    name: 'card-on-accent',
+    kind: 'injected',
+    files: ['apps/app/app/providers/new/ProviderCard.module.css'],
+    reason: 'Checkmark color on the accent fill, set as an inline style by app/providers/new/ProviderCard.tsx: on-primary for unregistered brands in dark mode, white otherwise.',
+  },
   ...(['seg-c', 'seg-c-dark'] as const).map((name) => ({
     name,
     kind: 'injected' as const,
@@ -273,7 +279,6 @@ function levenshtein(a: string, b: string): number {
  * offer the wrong answer. These pairs were resolved by hand once and pinned here.
  */
 export const KNOWN_ALIASES: Readonly<Record<string, string>> = {
-  'o-accent': 'o-primary',
   'o-surface-2': 'o-surface-raised',
   'o-surface-elevated': 'o-surface-raised',
   'o-surface-subtle': 'o-bg-subtle',
@@ -287,7 +292,6 @@ export const KNOWN_ALIASES: Readonly<Record<string, string>> = {
   'o-danger': 'o-error',
   'o-status-error': 'o-error',
   'o-status-success': 'o-success',
-  'o-on-primary': 'o-primary-text',
   'o-mono': 'o-font-mono',
   'font-mono': 'o-font-mono',
   'o-weight-bold': 'o-weight-semibold',

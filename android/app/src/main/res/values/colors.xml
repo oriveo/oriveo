@@ -1,4 +1,4 @@
 <resources>
-    <!-- Cold-start window background, matching Compose OriveoColors.background in the dark theme -->
-    <color name="window_background_dark">#FF090E1B</color>
+    <!-- Cold-start window background, matching backgroundBase of the default dark palette (JSON dark) -->
+    <color name="window_background_dark">#FF111113</color>
 </resources>

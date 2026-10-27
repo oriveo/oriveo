@@ -81,7 +81,7 @@
    * This is the mirror of the rule that gives semantic colours a text variant: there the
    * text moves, here the fill under the text moves. --o-primary-text is already at the
    * white / near-black extreme, so the only remaining move is to darken the fill one step.
-   * Measured with --o-primary-text on this colour: 7.10:1 light, 6.89:1 dark; the raw
+   * Measured with --o-primary-text on this colour: 7.10:1 light, 6.93:1 dark; the raw
    * --o-primary value gives only 4.23:1 in light mode.
    * --o-primary itself is untouched: fills, icons and strokes that carry no text keep the
    * saturated original. */
@@ -154,6 +154,9 @@
   --o-code-header-bg: #E4E4E7;
   --o-code-text: #18181B;
   --o-code-border: rgba(0, 0, 0, 0.06);
+  /* Inline code: light mode reuses the code block background and body text color (values unchanged); the dark section switches to a white 7% background + secondary-color text */
+  --o-code-inline-bg: var(--o-code-bg);
+  --o-code-inline-text: var(--o-code-text);
 
   /* ── Syntax Highlighting ── */
   --o-code-keyword: #7C3AED;
@@ -170,6 +173,15 @@
 
   /* ── Gradient ── */
   --o-gradient-brand: linear-gradient(135deg, #8B5CF6, #7C3AED, #6D28D9);
+  /* User bubble: purple background with white text in light mode (carried over unchanged from MessageBubble); the dark section uses the current palette's gradient + onPrimary */
+  --o-user-bubble-bg: linear-gradient(135deg, color-mix(in srgb, var(--o-primary) 96%, white) 0%, var(--o-primary-active) 100%);
+  --o-user-bubble-fg: #fff;
+  --o-user-bubble-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.05),
+    0 6px 16px color-mix(in srgb, var(--o-primary) 22%, transparent),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.18);
+  /* Chat outline rail tooltip: a fixed dark chip in light mode (carried over from ChatOutlineRail); the dark section follows the palette */
+  --o-chat-outline-tooltip-bg: #1f212b;
   --o-gradient-surface: linear-gradient(180deg, var(--o-bg) 0%, var(--o-bg-subtle) 100%);
 
   /* ── Glow ── */
@@ -502,7 +514,7 @@
   /* Model control segmented pill:
      the selected state is an accent fill plus --o-primary-text, and each theme has to be
      measured separately. --o-primary-text-safe is exactly the fill that passes in both,
-     at 7.10:1 light / 6.89:1 dark. Using --o-primary directly gives only 4.23:1 in light,
+     at 7.10:1 light / 6.93:1 dark. Using --o-primary directly gives only 4.23:1 in light,
      and darkening the dark theme too drops it to 4.43:1 - the direction is inverted, so
      the fill resolves to this single token instead of two hand-written purples.
      No [data-theme] override in a CSS Module: see the note in CitationsBlock.module.css,
@@ -583,12 +595,14 @@
 }
 
 /*
- * Dark theme. After changing any dark value, run `node scripts/verify-design-tokens.mjs`.
+ * Dark theme. The values below are the default dark palette; the other palettes are the
+ * [data-palette] sections further down, and all of them are pinned to
+ * shared/theme-contracts/dark-palettes.v1.json by the dark-palettes test.
  *
  * Design principles:
- * - no pure black (L*~9, #0F1218), which reads cheap and makes glows harsh
+ * - no pure black (L*~9, #111113), which reads cheap and makes glows harsh
  * - four surface steps (bg / bg-subtle / surface / surface-raised) express depth by luminance
- * - text is not pure white (#ECEEF2): still AAA contrast, but not glaring
+ * - text is not pure white (#EDEDEF): still AAA contrast, but not glaring
  * - borders use translucent white so they adapt to whatever is underneath
  * - brand purple is desaturated and lightened (OKLCH L~0.69 C~0.14, #A78BFA)
  * - translucent scrims deepen to 0.72
@@ -604,34 +618,35 @@
   /* -- Detail row icon palette: Tailwind 400 in dark; leading icons of connection detail rows -- */
   --o-row-teal: #2DD4BF;
   --o-row-cyan: #22D3EE;
+  /* Detail row icon category colors */
   --o-row-indigo: #818CF8;
   --o-row-orange: #FB923C;
   --o-row-rose: #FB7185;
 
   /* ── Background - four steps ── */
-  --o-bg: #0F1218;
-  --o-bg-subtle: #14181F;
-  --o-bg-inset: #181C24;
+  --o-bg: #111113;
+  --o-bg-subtle: #151517;
+  --o-bg-inset: #19191C;
 
   /* ── Surface ── */
-  --o-surface: #1B1F2A;
-  --o-surface-raised: #252937;
-  --o-surface-card-from: #252937;
-  --o-surface-overlay: rgba(15, 18, 24, 0.88);
+  --o-surface: #1C1C1F;
+  --o-surface-raised: #27272B;
+  --o-surface-card-from: var(--o-surface-raised);
+  --o-surface-overlay: color-mix(in srgb, var(--o-bg) 88%, transparent);
 
   /* See the light theme note: dark has to use raised, inset is only 1.026:1 on the dialog background. */
   --o-token-usage-card-bg: var(--o-surface-raised);
 
   /* ── Text - not pure white ── */
-  --o-text: #ECEEF2;
-  --o-text-secondary: #B4BAC6;
-  --o-text-tertiary: #8B919E;
+  --o-text: #EDEDEF;
+  --o-text-secondary: #B3B3BA;
+  --o-text-tertiary: #8E8E96;
   /* See the note on the light theme token. The dark tertiary is 5.63:1 on the track and
    * already passes, but the two themes must hold two real values: one number in both means
    * the dark theme was never measured on its own.
    * Measured: 6.78:1 on --o-bg-subtle, 6.27:1 on --o-surface. */
   --o-text-disabled-on-control: #9AA0AC;
-  --o-text-inverse: #0F1218;
+  --o-text-inverse: var(--o-bg);
 
   /* ── Border - translucent white, adapts to whatever is underneath ── */
   --o-border: rgba(255, 255, 255, 0.10);
@@ -640,19 +655,29 @@
   /* ── Primary - brand purple, desaturated and lightened for dark ── */
   --o-primary: #A78BFA;
   --o-primary-hover: #C4B5FD;
-  --o-primary-active: #8B5CF6;
-  --o-primary-subtle: rgba(167, 139, 250, 0.12);
-  --o-primary-text: #0F1218;
+  --o-primary-active: #9370F7;
+  --o-primary-subtle: color-mix(in srgb, var(--o-primary) 15%, transparent);
+  --o-primary-glow: color-mix(in srgb, var(--o-primary) 35%, transparent);
+  --o-composer-border: color-mix(in srgb, var(--o-primary) 22%, transparent);
+  --o-primary-text: var(--o-bg);
+  --o-on-primary: #160B2E;
+
+  /* ── Accent - each palette brings its own; the derived subtle only references variables ── */
+  --o-accent: #C4B5FD;
+  --o-accent-subtle: color-mix(in srgb, var(--o-accent) 14%, transparent);
+
+  /* ── Glow strength - aurora alpha is multiplied by it (glowK in the shared JSON) ── */
+  --o-glow-k: 0.4;
   /* Dark --o-primary #A78BFA already reaches 6.05:1 (surface) / 6.54:1 (bg-subtle) as body
    * text, so it points back at the original: darkening it here would lower contrast. */
   --o-primary-text-on-surface: var(--o-primary);
-  /* The dark accent fill already passes - #0F1218 on #A78BFA is 6.89:1 - so it points back
+  /* The dark accent fill already passes - #111113 on #A78BFA is 6.93:1 - so it points back
    * at the original: darkening it here would drop to 4.43:1. */
   --o-primary-text-safe: var(--o-primary);
 
   /* ── Bottom navigation per-tab selected colour, desaturated and lightened for dark ── */
-  --o-tab-teal: #2dd4bf;
-  --o-tab-orange: #fb923c;
+  --o-tab-teal: var(--o-primary);
+  --o-tab-orange: var(--o-primary);
   /* Dark: the selected capsule is translucent white, picked out by the slightly grey glass bar behind it */
   --o-tab-capsule: rgba(255, 255, 255, 0.13);
 
@@ -700,11 +725,13 @@
   --o-elevation-modal: 0 4px 12px rgba(0, 0, 0, 0.5), 0 32px 80px rgba(0, 0, 0, 0.65), inset 0 1px 0 0 var(--o-hairline);
 
   /* ── Code Block ── */
-  --o-code-bg: #0C0F16;
-  --o-code-header-bg: #14181F;
+  --o-code-bg: #0B0B0D;
+  --o-code-header-bg: #17171A;
   --o-code-text: #E4E4E7;
   --o-code-border: rgba(255, 255, 255, 0.08);
-  --o-code-inline-bg: rgba(255, 255, 255, 0.06);
+  /* Inline code uses the secondary color (secondary = the second information layer); accent is overridden by each palette section, so it follows automatically */
+  --o-code-inline-bg: rgba(255, 255, 255, 0.07);
+  --o-code-inline-text: var(--o-accent);
 
   /* ── Syntax Highlighting (Catppuccin Mocha palette) ── */
   --o-code-keyword: #CBA6F7;
@@ -717,16 +744,23 @@
 
   /* ── Tag / Badge ── */
   --o-tag-bg: rgba(255, 255, 255, 0.06);
-  --o-tag-text: #B4BAC6;
+  --o-tag-text: var(--o-text-secondary);
 
   /* ── Gradient ── */
-  --o-gradient-brand: linear-gradient(135deg, #A78BFA, #8B5CF6);
+  --o-gradient-brand: linear-gradient(135deg, var(--o-primary), var(--o-accent));
+  --o-user-bubble-bg: var(--o-gradient-brand);
+  --o-user-bubble-fg: var(--o-on-primary);
+  --o-user-bubble-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.05),
+    0 6px 16px var(--o-primary-glow),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.18);
+  --o-chat-outline-tooltip-bg: var(--o-surface-raised);
   --o-gradient-surface: linear-gradient(180deg, var(--o-bg) 0%, var(--o-bg-subtle) 100%);
 
   /* ── Glow ── */
-  --o-glow-primary: 0 0 0 2px rgba(167, 139, 250, 0.15);
-  --o-glow-primary-strong: 0 0 0 3px rgba(167, 139, 250, 0.2), 0 0 16px rgba(167, 139, 250, 0.08);
-  --o-bubble-glow: 0 10px 16px rgba(124, 91, 238, 0.22);
+  --o-glow-primary: 0 0 0 2px color-mix(in srgb, var(--o-primary) 15%, transparent);
+  --o-glow-primary-strong: 0 0 0 3px color-mix(in srgb, var(--o-primary) 20%, transparent), 0 0 16px color-mix(in srgb, var(--o-primary) 8%, transparent);
+  --o-bubble-glow: 0 10px 16px color-mix(in srgb, var(--o-primary) 22%, transparent);
 
   /* ── Hairline ── */
   --o-hairline: rgba(255, 255, 255, 0.06);
@@ -735,7 +769,7 @@
   --o-glass-highlight: rgba(255, 255, 255, 0.08);
 
   /* ── Screen Background ── */
-  --o-screen-bg: linear-gradient(135deg, #0F1218, #10141C);
+  --o-screen-bg: linear-gradient(135deg, var(--o-bg), var(--o-bg-subtle));
 
   /* ── App Shell / Composer Glass (dark) ── */
   --o-composer-bg: color-mix(in srgb, var(--o-surface) 78%, transparent);
@@ -767,22 +801,22 @@
     );
   --o-chat-topbar-border: color-mix(in srgb, var(--o-primary) 10%, transparent);
   --o-chat-aurora-glow-bg:
-    radial-gradient(ellipse 110% 82% at 50% 100%, color-mix(in srgb, var(--o-primary) 23%, transparent) 0%, transparent 72%),
-    radial-gradient(ellipse 72% 66% at 14% 90%, color-mix(in srgb, #c65bf0 16%, transparent) 0%, transparent 64%),
-    radial-gradient(ellipse 66% 62% at 86% 88%, color-mix(in srgb, var(--o-primary) 15%, transparent) 0%, transparent 62%),
-    radial-gradient(ellipse 100% 68% at 50% 0%, color-mix(in srgb, var(--o-primary) 13%, transparent) 0%, transparent 66%);
+    radial-gradient(ellipse 110% 82% at 50% 100%, color-mix(in srgb, var(--o-primary) calc(26% * var(--o-glow-k)), transparent) 0%, transparent 72%),
+    radial-gradient(ellipse 72% 66% at 14% 90%, color-mix(in srgb, var(--o-accent) calc(18% * var(--o-glow-k)), transparent) 0%, transparent 64%),
+    radial-gradient(ellipse 66% 62% at 86% 88%, color-mix(in srgb, var(--o-primary) calc(16% * var(--o-glow-k)), transparent) 0%, transparent 62%),
+    radial-gradient(ellipse 100% 68% at 50% 0%, color-mix(in srgb, var(--o-accent) calc(9% * var(--o-glow-k)), transparent) 0%, transparent 66%);
   --o-chat-aurora-glow-bg-2:
-    radial-gradient(ellipse 62% 56% at 28% 72%, color-mix(in srgb, #818cf8 16%, transparent) 0%, transparent 60%),
-    radial-gradient(ellipse 58% 52% at 74% 64%, color-mix(in srgb, #c65bf0 15%, transparent) 0%, transparent 58%),
-    radial-gradient(ellipse 66% 56% at 52% 44%, color-mix(in srgb, var(--o-primary) 14%, transparent) 0%, transparent 62%);
+    radial-gradient(ellipse 62% 56% at 28% 72%, color-mix(in srgb, var(--o-accent) calc(16% * var(--o-glow-k)), transparent) 0%, transparent 60%),
+    radial-gradient(ellipse 58% 52% at 74% 64%, color-mix(in srgb, var(--o-accent) calc(15% * var(--o-glow-k)), transparent) 0%, transparent 58%),
+    radial-gradient(ellipse 66% 56% at 52% 44%, color-mix(in srgb, var(--o-primary) calc(14% * var(--o-glow-k)), transparent) 0%, transparent 62%);
   --o-chat-aurora-glow-blur: blur(15px);
-  --o-chat-aurora-halftone-dot: color-mix(in srgb, #c9b6ff 42%, transparent);
+  --o-chat-aurora-halftone-dot: color-mix(in srgb, var(--o-accent) 42%, transparent);
   --o-chat-aurora-halftone-size: 16px 16px;
   --o-chat-aurora-dot-core: 1.2px;
   --o-chat-aurora-dot-fade: 1.8px;
 
   /* ── Focus ── */
-  --o-focus-ring: 0 0 0 2px rgba(167, 139, 250, 0.5);
+  --o-focus-ring: 0 0 0 2px color-mix(in srgb, var(--o-primary) 50%, transparent);
 
   /* ── Overlay / Scrim ── */
   --o-overlay: rgba(0, 0, 0, 0.72);
@@ -840,7 +874,7 @@
   --o-ms-trigger-shadow: inset 0 1px 0 var(--o-hairline);
   --o-ms-trigger-focus-border: var(--o-primary-subtle);
   --o-ms-trigger-focus-shadow: var(--o-glow-primary);
-  --o-ms-menu-bg: color-mix(in srgb, rgba(15, 19, 26, 0.94) 100%, var(--o-surface));
+  --o-ms-menu-bg: color-mix(in srgb, var(--o-bg) 94%, transparent);
   --o-ms-menu-border: var(--o-border-strong);
   --o-ms-menu-shadow:
     var(--o-shadow-lg),
@@ -875,21 +909,21 @@
   --o-pd-usagetab-active-shadow:
     0 0 0 1px color-mix(in srgb, var(--o-primary) 36%, transparent),
     0 1px 2px rgba(0, 0, 0, 0.3);
-  --o-pd-modelrow-hover-bg: rgba(167, 139, 250, 0.06);
+  --o-pd-modelrow-hover-bg: color-mix(in srgb, var(--o-primary) 6%, transparent);
   --o-pd-toggle-off-bg: rgba(255, 255, 255, 0.12);
   --o-pd-toggle-off-hover-bg: rgba(255, 255, 255, 0.18);
   --o-pd-toggle-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.28);
   --o-pd-toggle-focus-shadow:
     inset 0 1px 2px rgba(0, 0, 0, 0.28),
     0 0 0 3px color-mix(in srgb, var(--o-primary) 20%, transparent);
-  --o-pd-toggle-on-bg: linear-gradient(135deg, rgba(167, 139, 250, 0.9) 0%, rgba(139, 92, 246, 0.78) 100%);
+  --o-pd-toggle-on-bg: linear-gradient(135deg, color-mix(in srgb, var(--o-primary) 90%, transparent) 0%, color-mix(in srgb, var(--o-primary-active) 78%, transparent) 100%);
   --o-pd-toggle-on-shadow:
     inset 0 1px 2px rgba(0, 0, 0, 0.3),
-    0 0 0 1px rgba(167, 139, 250, 0.24);
+    0 0 0 1px color-mix(in srgb, var(--o-primary) 24%, transparent);
   --o-pd-toggle-on-hover-shadow:
     inset 0 1px 2px rgba(0, 0, 0, 0.3),
-    0 0 0 1px rgba(167, 139, 250, 0.32),
-    0 8px 20px rgba(139, 92, 246, 0.28);
+    0 0 0 1px color-mix(in srgb, var(--o-primary) 32%, transparent),
+    0 8px 20px color-mix(in srgb, var(--o-primary-active) 28%, transparent);
   --o-pd-toggle-on-focus-shadow:
     inset 0 1px 2px rgba(0, 0, 0, 0.3),
     0 0 0 3px color-mix(in srgb, var(--o-primary) 28%, transparent);
@@ -937,8 +971,8 @@
   /* ── ModelSwitcher (dark) ── */
   --o-mw-overlay-bg:
     radial-gradient(at 14% 10%, color-mix(in srgb, var(--o-primary) 18%, transparent) 0%, transparent 52%),
-    radial-gradient(at 86% 90%, rgba(99, 102, 241, 0.14) 0%, transparent 58%),
-    rgba(2, 6, 23, 0.6);
+    radial-gradient(at 86% 90%, color-mix(in srgb, var(--o-accent) 14%, transparent) 0%, transparent 58%),
+    color-mix(in srgb, var(--o-bg) 60%, transparent);
   --o-mw-overlay-blur: blur(16px) saturate(140%);
   --o-mw-dropdown-border: rgba(255, 255, 255, 0.06);
   --o-mw-dropdown-shadow:
@@ -1035,9 +1069,127 @@
     ),
     radial-gradient(
       110% 90% at 100% 0%,
-      color-mix(in srgb, #b07bf0 12%, transparent),
+      color-mix(in srgb, var(--o-accent) 12%, transparent),
       transparent 58%
     );
   --o-lc-inset-bg: rgba(255, 255, 255, 0.05);
   --o-lc-divider: rgba(255, 255, 255, 0.08);
+}
+
+/* ── Dark palettes ──
+ * Source of truth: shared/theme-contracts/dark-palettes.v1.json. The default dark is written in the [data-theme='dark'] section above;
+ * the other 6 palettes override only the 15 color fields and --o-glow-k; derived tokens are computed in the default section with var() / color-mix and follow automatically.
+ * Do not nest braces inside a section (the token verifier reads up to the first closing brace). */
+[data-theme='dark'][data-palette='dark-purple'] {
+  --o-bg: #130F1D;
+  --o-bg-subtle: #171224;
+  --o-bg-inset: #1B152A;
+  --o-surface: #1E1830;
+  --o-surface-raised: #29213F;
+  --o-text: #EEEAF6;
+  --o-text-secondary: #BDB4D0;
+  --o-text-tertiary: #9A92AE;
+  --o-primary: #A78BFA;
+  --o-primary-hover: #C4B5FD;
+  --o-primary-active: #9370F7;
+  --o-accent: #F0ABFC;
+  --o-on-primary: #160B2E;
+  --o-code-bg: #0E0B17;
+  --o-code-header-bg: #1A1528;
+  --o-glow-k: 1;
+}
+
+[data-theme='dark'][data-palette='dark-graphite'] {
+  --o-bg: #1B1D21;
+  --o-bg-subtle: #1F2125;
+  --o-bg-inset: #22252A;
+  --o-surface: #25282D;
+  --o-surface-raised: #30343B;
+  --o-text: #ECEEF1;
+  --o-text-secondary: #BAC0C8;
+  --o-text-tertiary: #9CA2AC;
+  --o-primary: #6AA6FF;
+  --o-primary-hover: #94C0FF;
+  --o-primary-active: #3B82F6;
+  --o-accent: #7DE3FF;
+  --o-on-primary: #04132A;
+  --o-code-bg: #131519;
+  --o-code-header-bg: #212328;
+  --o-glow-k: 1;
+}
+
+[data-theme='dark'][data-palette='dark-black'] {
+  --o-bg: #000000;
+  --o-bg-subtle: #060607;
+  --o-bg-inset: #09090B;
+  --o-surface: #0C0C0E;
+  --o-surface-raised: #18181B;
+  --o-text: #E8E8EB;
+  --o-text-secondary: #ABABB3;
+  --o-text-tertiary: #87878F;
+  --o-primary: #FF6B9D;
+  --o-primary-hover: #FF94B8;
+  --o-primary-active: #F43F7E;
+  --o-accent: #7DD3FC;
+  --o-on-primary: #1F0410;
+  --o-code-bg: #0A0A0B;
+  --o-code-header-bg: #141416;
+  --o-glow-k: 1;
+}
+
+[data-theme='dark'][data-palette='dark-ocean'] {
+  --o-bg: #061418;
+  --o-bg-subtle: #09191E;
+  --o-bg-inset: #0B1D22;
+  --o-surface: #0D2127;
+  --o-surface-raised: #142D35;
+  --o-text: #E6F3F4;
+  --o-text-secondary: #A6C2C6;
+  --o-text-tertiary: #7F9DA2;
+  --o-primary: #2DD4BF;
+  --o-primary-hover: #5EEAD4;
+  --o-primary-active: #14B8A6;
+  --o-accent: #67B7FF;
+  --o-on-primary: #021614;
+  --o-code-bg: #041013;
+  --o-code-header-bg: #0A1B20;
+  --o-glow-k: 1;
+}
+
+[data-theme='dark'][data-palette='dark-forest'] {
+  --o-bg: #0B140F;
+  --o-bg-subtle: #0E1813;
+  --o-bg-inset: #111C16;
+  --o-surface: #132019;
+  --o-surface-raised: #1B2B22;
+  --o-text: #E8F1EB;
+  --o-text-secondary: #AEC0B4;
+  --o-text-tertiary: #86998D;
+  --o-primary: #34D399;
+  --o-primary-hover: #6EE7B7;
+  --o-primary-active: #10B981;
+  --o-accent: #D9F99D;
+  --o-on-primary: #03160C;
+  --o-code-bg: #08100C;
+  --o-code-header-bg: #101B15;
+  --o-glow-k: 1;
+}
+
+[data-theme='dark'][data-palette='dark-sunset'] {
+  --o-bg: #16100D;
+  --o-bg-subtle: #1A1310;
+  --o-bg-inset: #1E1713;
+  --o-surface: #221915;
+  --o-surface-raised: #2E221C;
+  --o-text: #F4ECE6;
+  --o-text-secondary: #C9B8AB;
+  --o-text-tertiary: #A08F82;
+  --o-primary: #FDBA4D;
+  --o-primary-hover: #FDCF7F;
+  --o-primary-active: #F59E0B;
+  --o-accent: #FF7E79;
+  --o-on-primary: #241005;
+  --o-code-bg: #100B09;
+  --o-code-header-bg: #1C1511;
+  --o-glow-k: 1;
 }

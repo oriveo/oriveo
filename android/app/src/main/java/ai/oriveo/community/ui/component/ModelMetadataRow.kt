@@ -734,7 +734,7 @@ private fun ModelCapability.toHeroIconTextItem(): HeroIconTextItem = when (this)
         title = stringResource(titleResId),
         icon = capabilityIcon(this),
         gradient = if (OriveoTheme.isDark) {
-            HeroIconGradient(Color(0xFF818CF8), Color(0xFF4F46E5))
+            HeroIconGradient(OriveoTheme.colors.capFile, Color(0xFF4F46E5))
         } else {
             HeroIconGradient(Color(0xFF7C7CF9), Color(0xFF4F46E5))
         },
@@ -756,7 +756,7 @@ private fun ModelCapability.toHeroIconTextItem(): HeroIconTextItem = when (this)
         title = stringResource(titleResId),
         icon = capabilityIcon(this),
         gradient = if (OriveoTheme.isDark) {
-            HeroIconGradient(Color(0xFFA78BFA), Color(0xFF7C3AED))
+            HeroIconGradient(OriveoTheme.colors.primary, OriveoTheme.colors.primaryActive)
         } else {
             HeroIconGradient(Color(0xFF9B6BFF), Color(0xFF6D28D9))
         },

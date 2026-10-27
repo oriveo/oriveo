@@ -12,14 +12,14 @@ struct ModelControlThemeContrastTests {
     ///
     /// **What is measured is the token the control really references**, not "the palette has a token that passes";
     /// the latter could turn green by adding a token nobody uses.
-    @Test("text of unselected segments reaches 4.5:1 in light and dark")
+    @Test("text of unselected segments reaches 4.5:1 in light and in all 7 dark palettes")
     func unselectedSegmentTextMeetsAA() throws {
         let name = try Self.controlToken("private var unselectedLabelColor: Color {")
-        for theme in [Theme.light, .dark] {
-            let track = try Self.track(theme)
-            let text = try Self.token(name, theme)
+        for (theme, palette) in Self.variants {
+            let track = try Self.track(theme, palette)
+            let text = try Self.token(name, theme, palette)
             let ratio = Self.contrast(Self.composite(text, over: track), track)
-            #expect(ratio >= 4.5, "in \(theme) the text of unselected segments (\(name)) is only \(ratio):1")
+            #expect(ratio >= 4.5, "in \(theme)·\(palette.rawValue) the text of unselected segments (\(name)) is only \(ratio):1")
         }
     }
 
@@ -28,17 +28,17 @@ struct ModelControlThemeContrastTests {
     /// In dark mode a selected segment that is "one layer brighter than the track, with the same purple as light mode" gives the purple text
     /// only about 3:1; taking the card color instead gives enough contrast but makes the selected segment darker than the track, as if recessed. So in dark mode the selected segment
     /// is brighter than the track and the text uses a purple one step brighter, and both facts are pinned together.
-    @Test("text of the selected segment reaches 4.5:1 in light and dark, and in both the selected segment is brighter than the track")
+    @Test("text of the selected segment reaches 4.5:1 in light and in all 7 dark palettes, and in all of them the selected segment is brighter than the track")
     func selectedSegmentTextMeetsAA() throws {
-        for theme in [Theme.light, .dark] {
-            let fill = try Self.selectedFill(theme)
+        for (theme, palette) in Self.variants {
+            let fill = try Self.selectedFill(theme, palette)
             let text = try Self.componentColor("selectedLabel", in: Self.controlSignature, theme)
             let ratio = Self.contrast(Self.composite(text, over: fill), fill)
-            #expect(ratio >= 4.5, "in \(theme) the text of the selected segment is only \(ratio):1")
-            let track = try Self.track(theme)
+            #expect(ratio >= 4.5, "in \(theme)·\(palette.rawValue) the text of the selected segment is only \(ratio):1")
+            let track = try Self.track(theme, palette)
             #expect(
                 Self.relativeLuminance(fill) > Self.relativeLuminance(track) + 0.01,
-                "in \(theme) the selected segment is not brighter than the track and would look recessed"
+                "in \(theme)·\(palette.rawValue) the selected segment is not brighter than the track and would look recessed"
             )
         }
     }
@@ -77,18 +77,22 @@ struct ModelControlThemeContrastTests {
         #expect(!body.contains("isEnabled"))
     }
 
-    @Test("Palette Declares Both Themes")
+    /// Every semantic token the panel uses must **really** have different values in the two themes.
+    /// The failure mode is subtle: the color looks "themed" while both slots hold the same value.
+    @Test("the semantic colors the panel uses differ between light and every dark palette")
     func paletteDeclaresBothThemes() throws {
         for name in [
             "background", "surface", "surfaceElevated", "textPrimary", "textSecondary", "textTertiary",
             "primary", "onPrimary", "warningText", "textDisabledOnControl", "primaryTextSafe",
         ] {
             let light = try Self.token(name, .light)
-            let dark = try Self.token(name, .dark)
-            #expect(
-                !Self.nearlyEqual(light, dark),
-                "\(name) declares the same value for both themes, which means there is no dark theme at all"
-            )
+            for palette in OriveoDarkPaletteID.allCases {
+                let dark = try Self.token(name, .dark, palette)
+                #expect(
+                    !Self.nearlyEqual(light, dark),
+                    "\(name) (\(palette.rawValue)) declares the same value for both themes, which means there is no dark theme at all"
+                )
+            }
         }
     }
 
@@ -112,6 +116,10 @@ struct ModelControlThemeContrastTests {
 
     // MARK: - Palette source
 
+    /// One light variant plus one variant per dark palette, 7 in total (a dark palette only changes the dark values; light mode does not depend on the palette).
+    private static let variants: [(Theme, OriveoDarkPaletteID)] =
+        [(.light, .defaultID)] + OriveoDarkPaletteID.allCases.map { (.dark, $0) }
+
     enum Theme: String, CustomStringConvertible {
         case light
         case dark
@@ -120,17 +128,28 @@ struct ModelControlThemeContrastTests {
 
     typealias RGBA = (r: Double, g: Double, b: Double, a: Double)
 
-    private static func token(_ name: String, _ theme: Theme) throws -> RGBA {
+    /// Parses `static let <name> = Color.dynamic(light:dark:lightAlpha:darkAlpha:)` from `OriveoTheme.swift`.
+    private static func token(_ name: String, _ theme: Theme, _ palette: OriveoDarkPaletteID = .defaultID) throws -> RGBA {
         let source = try String(contentsOf: findFile([
             "ios", "Oriveo", "Oriveo", "DesignSystem", "Theme", "OriveoTheme.swift",
         ]), encoding: .utf8)
-        let marker = "static let \(name) = Color.dynamic("
-        let start = try #require(source.range(of: marker), "OriveoTheme has no token \(name)")
+        // primary / onPrimary are declared as `<name>UIColor = UIColor.oriveoDynamic(` and the SwiftUI version derives from it;
+        // look for the UIColor declaration first so `primary` does not land on the same-named Color.dynamic in the V2 namespace.
+        let markers = ["static let \(name)UIColor = UIColor.oriveoDynamic(", "static let \(name) = Color.dynamic("]
+        let start = try #require(
+            markers.lazy.compactMap { source.range(of: $0) }.first,
+            "OriveoTheme has no token \(name)"
+        )
         let rest = source[start.upperBound...]
         let end = try #require(rest.firstIndex(of: ")"))
         let args = String(rest[..<end])
 
         func hex(_ label: String) throws -> UInt {
+            // A dark slot written as `dark: \.<field>` takes that palette's field value (the palette instances themselves are aligned with the JSON by OriveoDarkPalettesTests).
+            if let range = args.range(of: "\(label): \\.") {
+                let field = String(args[range.upperBound...].prefix { $0.isLetter || $0.isNumber })
+                return try #require(OriveoDarkPalettesTests.field(field, of: palette), "\(name) references an unknown palette field \(field)")
+            }
             let pattern = "\(label): 0x"
             let range = try #require(args.range(of: pattern), "\(name) is missing \(label)")
             let digits = args[range.upperBound...].prefix { $0.isHexDigit }
@@ -169,9 +188,9 @@ struct ModelControlThemeContrastTests {
     }
 
     /// Background of the selected segment: a layer of white over the track, with the strength taken from the product's own static function.
-    private static func selectedFill(_ theme: Theme) throws -> RGBA {
+    private static func selectedFill(_ theme: Theme, _ palette: OriveoDarkPaletteID = .defaultID) throws -> RGBA {
         let alpha = ModelOptionSegmentedControl.selectedFillAlpha(isDark: theme == .dark)
-        return composite((1, 1, 1, alpha), over: try track(theme))
+        return composite((1, 1, 1, alpha), over: try track(theme, palette))
     }
 
     /// Reads from the component source the declared value of `static let <name> = Color.dynamic(light:dark:)` inside a struct.
@@ -224,17 +243,22 @@ struct ModelControlThemeContrastTests {
         ]), encoding: .utf8)
     }
 
-    private static func pageSurface(_ theme: Theme) throws -> RGBA {
-        let background = try token("background", theme)
-        let surface = try token(theme == .dark ? "surfaceElevated" : "surface", theme)
+    /// The card background as actually rendered.
+    ///
+    /// Note: **in dark mode this measures `surfaceElevated`**: `ModelControlSurface` uses elevated in dark mode,
+    /// and computing against `surface` would measure a card that does not exist on screen, one step darker than reality,
+    /// so every contrast ratio on the card would come out too high.
+    private static func pageSurface(_ theme: Theme, _ palette: OriveoDarkPaletteID) throws -> RGBA {
+        let background = try token("background", theme, palette)
+        let surface = try token(theme == .dark ? "surfaceElevated" : "surface", theme, palette)
         return composite(surface, over: background)
     }
 
     /// The track of the segmented choice: `textPrimary` at very low opacity composited over the card. The opacity comes from the product's
     /// own static function; a hand-copied value would give a false green where the code changed and the assertion still measures the old value.
-    private static func track(_ theme: Theme) throws -> RGBA {
-        let page = try pageSurface(theme)
-        let textPrimary = try token("textPrimary", theme)
+    private static func track(_ theme: Theme, _ palette: OriveoDarkPaletteID = .defaultID) throws -> RGBA {
+        let page = try pageSurface(theme, palette)
+        let textPrimary = try token("textPrimary", theme, palette)
         let alpha = ModelOptionSegmentedControl.trackAlpha(isDark: theme == .dark)
         return composite((textPrimary.r, textPrimary.g, textPrimary.b, alpha), over: page)
     }

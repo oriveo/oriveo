@@ -46,18 +46,19 @@ struct ModelControlSurfaceSeparationTests {
     /// screen.
     @Test("Card and page stay separable by luminance in both themes")
     func surfaceSeparatesFromBackground() throws {
-        for (theme, floor) in [
-            ("dark", Self.minimumDarkDeltaLStar),
-            ("light", Self.minimumLightDeltaLStar),
-        ] {
-            let background = try Self.declaredToken("background", theme)
-            let surface = try Self.declaredToken(Self.surfaceToken(theme), theme)
+        // Measure each of the 7 dark palettes once (light mode does not depend on the palette, so once).
+        let variants: [(String, Double, OriveoDarkPaletteID)] =
+            OriveoDarkPaletteID.allCases.map { ("dark", Self.minimumDarkDeltaLStar, $0) }
+            + [("light", Self.minimumLightDeltaLStar, .defaultID)]
+        for (theme, floor, palette) in variants {
+            let background = try Self.declaredToken("background", theme, palette)
+            let surface = try Self.declaredToken(Self.surfaceToken(theme), theme, palette)
             // surface carries alpha (light 0.94); perceived color is the composite over background.
             let composited = Self.composite(surface, over: background)
             let delta = Self.lStar(composited) - Self.lStar(background)
             #expect(
                 delta >= floor,
-                "\(theme) theme card-vs-background ΔL* dropped to \(delta), below the floor \(floor)"
+                "\(theme == "dark" ? "dark·\(palette.rawValue)" : "light") card-vs-background ΔL* dropped to \(delta), below the floor \(floor)"
             )
         }
     }
@@ -69,11 +70,13 @@ struct ModelControlSurfaceSeparationTests {
     func tokensDeclareBothThemes() throws {
         for name in ["background", "surface", "surfaceElevated"] {
             let light = try Self.declaredToken(name, "light")
-            let dark = try Self.declaredToken(name, "dark")
-            #expect(
-                abs(Self.lStar(light) - Self.lStar(dark)) > 1,
-                "\(name) declares the same value in both themes"
-            )
+            for palette in OriveoDarkPaletteID.allCases {
+                let dark = try Self.declaredToken(name, "dark", palette)
+                #expect(
+                    abs(Self.lStar(light) - Self.lStar(dark)) > 1,
+                    "\(name) (\(palette.rawValue)) declares the same value in both themes"
+                )
+            }
         }
     }
 
@@ -103,7 +106,7 @@ struct ModelControlSurfaceSeparationTests {
 
     /// Parse `static let <name> = Color.dynamic(light:dark:lightAlpha:darkAlpha:)` from `OriveoTheme.swift`.
     private static func declaredToken(
-        _ name: String, _ theme: String
+        _ name: String, _ theme: String, _ palette: OriveoDarkPaletteID = .defaultID
     ) throws -> (r: Double, g: Double, b: Double, a: Double) {
         let source = try String(
             contentsOf: findFile([
@@ -117,9 +120,16 @@ struct ModelControlSurfaceSeparationTests {
         let end = try #require(rest.firstIndex(of: ")"))
         let args = String(rest[..<end])
 
-        let hexRange = try #require(args.range(of: "\(theme): 0x"), "\(name) is missing \(theme)")
-        let digits = args[hexRange.upperBound...].prefix { $0.isHexDigit }
-        let value = try #require(UInt(digits, radix: 16))
+        let value: UInt
+        if let fieldRange = args.range(of: "\(theme): \\.") {
+            // A dark slot written as `dark: \.<field>` takes that palette's field value (palette instances are aligned with the JSON by OriveoDarkPalettesTests).
+            let field = String(args[fieldRange.upperBound...].prefix { $0.isLetter || $0.isNumber })
+            value = try #require(OriveoDarkPalettesTests.field(field, of: palette), "\(name) references an unknown palette field \(field)")
+        } else {
+            let hexRange = try #require(args.range(of: "\(theme): 0x"), "\(name) is missing \(theme)")
+            let digits = args[hexRange.upperBound...].prefix { $0.isHexDigit }
+            value = try #require(UInt(digits, radix: 16))
+        }
 
         var alpha = 1.0
         if let alphaRange = args.range(of: "\(theme)Alpha: ") {

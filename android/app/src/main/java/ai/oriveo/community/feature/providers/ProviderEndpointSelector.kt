@@ -32,7 +32,6 @@ import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.RegionOption
 import ai.oriveo.community.ui.component.StatusPill
 import ai.oriveo.community.ui.component.StatusTone
-import ai.oriveo.community.ui.theme.DarkOriveoColors
 import ai.oriveo.community.ui.theme.OriveoSurfaceStyle
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.opacity
@@ -50,7 +49,7 @@ fun ProviderEndpointSelector(
     currentOption: RegionOption? = null,
 ) {
     val colors = OriveoTheme.colors
-    val isDark = colors.backgroundBase == DarkOriveoColors.backgroundBase
+    val isDark = OriveoTheme.isDark
     // The setup page and the detail page share one table and both list address templates with placeholders (when a template is selected the caller shows the setup field slots).
     val offered = ai.oriveo.community.feature.providers.setup.ProviderSetupCopy.regionOptions(kind)
     val options = if (currentOption == null || offered.any { it.id == currentOption.id }) {

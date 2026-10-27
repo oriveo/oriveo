@@ -7996,7 +7996,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Темный"
+            "value" : "Тёмная"
           }
         },
         "th" : {
@@ -8008,13 +8008,13 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Karanlık"
+            "value" : "Koyu"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tối tăm"
+            "value" : "Tối"
           }
         },
         "zh-Hans" : {
@@ -10027,25 +10027,25 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Следовать за системой"
+            "value" : "Как в системе"
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ติดตามระบบ"
+            "value" : "ตามระบบ"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sistemi Takip Et"
+            "value" : "Sisteme göre"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Theo dõi hệ thống"
+            "value" : "Theo hệ thống"
           }
         },
         "zh-Hans" : {
@@ -13960,7 +13960,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lampu"
+            "value" : "Terang"
           }
         },
         "ja" : {
@@ -13984,25 +13984,25 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Свет"
+            "value" : "Светлая"
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "แสงสว่าง"
+            "value" : "สว่าง"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Işık"
+            "value" : "Açık"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ánh sáng"
+            "value" : "Sáng"
           }
         },
         "zh-Hans" : {

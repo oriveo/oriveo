@@ -40,7 +40,7 @@ private val HOME_NOTES_CORNER_RADIUS = 26.dp
  * keeping only the top-right glow.
  *
  * Left: `Notes` 17/semibold + count (mono accent, centered, see AuroraTitleCount) + the latest note title (single line);
- * right: a 40dp notebook-pen line glyph (without the binding ticks) in a #C4B5FD → #EC8FEA → #8DB4FF gradient.
+ * right: a 40dp notebook-pen line glyph (without the binding ticks) in a lavender → pink → sky-blue gradient (brand illustration, see NotesNotebookLineGlyph).
  * No chevron, count badge, watermark or solid icon tile; the whole card opens the notes list.
  * The design is a 1dp stroke plus padding 16/18/16/20 (border-box), so content sits 1dp further from the outer
  * edge: 17 / 19 / 17 / 21.

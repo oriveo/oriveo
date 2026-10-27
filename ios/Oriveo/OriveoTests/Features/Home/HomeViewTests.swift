@@ -292,11 +292,11 @@ struct HomeViewTests {
         // did not match the card made the dark card look muddy. The surface now keeps only an even
         // top-to-bottom fill and the aurora moves to the top edge and outside the card.
         let themeSource = try source(named: "AuroraTheme.swift")
-        #expect(themeSource.contains("colors: [Color(hex: 0x242235), Self.darkBaseBottom]"))
+        #expect(themeSource.contains("colors: [Color.darkPalette(\\.surfaceRaised), Self.darkBaseBottom]"))
         #expect(!themeSource.contains("angleDegrees: 150"), "the dark surface no longer uses a 150° diagonal gradient")
         #expect(!themeSource.contains("Color(hex: 0x818CF8"), "no directional glow inside the dark card")
         // The pill is opaque; the grey text inside the hero shares the card's hue and is not the global tertiary
-        #expect(themeSource.contains("static let pillFill = Color.dynamic(light: 0xF3F0FA, dark: 0x2F2D3F)"))
+        #expect(themeSource.contains("static let pillFill = Color.dynamic(light: 0xF3F0FA, dark: \\.surfaceRaised)"))
         #expect(themeSource.contains("static let heroTextTertiary = Color.dynamic(light: 0x9C95AA, dark: 0x9493A8)"))
         let viewSource = try source(named: "HomeView.swift")
         #expect(viewSource.components(separatedBy: "AuroraTheme.Colors.heroTextTertiary").count - 1 == 4,

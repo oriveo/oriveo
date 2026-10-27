@@ -249,7 +249,7 @@ final class MemoryRawGutterTextView: UITextView {
         decorations.backgroundColor = .clear
         decorations.contentMode = .redraw
         insertSubview(decorations, at: 0)
-        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: MemoryRawGutterTextView, _) in
+        registerForTraitChanges(OriveoDarkPaletteTrait.colorAppearanceTraits) { (view: MemoryRawGutterTextView, _) in
             view.restyle()
         }
     }

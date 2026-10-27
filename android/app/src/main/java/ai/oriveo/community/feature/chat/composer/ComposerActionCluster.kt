@@ -75,14 +75,19 @@ internal fun ComposerActionCluster(
     val baseScale by animateFloatAsState(if (isLit || isGenerating) 1f else 0.96f, label = "sendBaseScale")
     val pressScale by animateFloatAsState(if (pressed) 0.97f else 1f, label = "sendPressScale")
 
-    // Uniform flat lavender base (same as the top bar / attachment button): light #8C5FF8@12% / dark white@10%.
+    // Uniform flat lavender base (same as the top bar / attachment button): light brand purple@12% / dark white@10%.
     val flatFill = composerFlatFill(isDark)
     val background: Brush = when {
         isGenerating -> SolidColor(colors.danger)
         isLit -> OriveoGradients.primary
         else -> SolidColor(flatFill)
     }
-    val iconTint = if (isGenerating || isLit) Color.White else colors.textTertiary
+    // While generating, the solid danger fill keeps white; the lit state sits on the brand gradient and uses onPrimary in dark
+    val iconTint = when {
+        isGenerating -> Color.White
+        isLit -> OriveoGradients.onPrimary
+        else -> colors.textTertiary
+    }
     val borderColor = if (isLit || isGenerating) colors.hairline else Color.Transparent
     val glowColor = when {
         isGenerating -> colors.danger.copy(alpha = 0.22f)
@@ -170,6 +175,7 @@ private const val GLYPH_ENTER_MILLIS = 180
 private const val GLYPH_EXIT_MILLIS = 120
 private const val GLYPH_MIN_SCALE = 0.6f
 
-/** Flat lavender base of the idle main button: light #8C5FF8 @ 12%, dark white @ 10%. */
+/** Flat lavender base of the idle main button: light brand purple @ 12%, dark white @ 10%. */
 internal fun composerFlatFill(isDark: Boolean): Color =
+    // dark-palette-guard: keep (d) light branch
     if (isDark) Color.White.copy(alpha = 0.10f) else Color(0xFF8C5FF8).copy(alpha = 0.12f)

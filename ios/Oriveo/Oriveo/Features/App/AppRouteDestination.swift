@@ -55,6 +55,9 @@ struct AppRouteDestination: View {
         case .contextSettings:
             ContextSettingsView()
                 .oriveoNavigationChrome()
+        case .themeSettings:
+            ThemeSettingsView()
+                .oriveoNavigationChrome()
         case .voiceSettings:
             VoiceSettingsView(appState: appState)
                 .oriveoNavigationChrome()

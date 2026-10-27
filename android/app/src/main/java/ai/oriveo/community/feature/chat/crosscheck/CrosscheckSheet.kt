@@ -950,7 +950,8 @@ private fun CrosscheckDockHeroButton(
                 spotColor = colors.primary.copy(alpha = 0.18f),
             )
             .clip(pillShape)
-
+            // Matches iOS CrosscheckHeroButtonStyle: gradient = primary -> primaryPressed, built in place from tokens (follows the dark palette).
+            // Not the global OriveoGradients: in light it is a fixed brand gradient and in dark it is primary -> accent, neither of which is the primary -> primaryPressed this button needs.
             .background(
                 brush = if (enabled) {
                     Brush.linearGradient(

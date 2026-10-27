@@ -50,8 +50,26 @@ describe('Chat surface visual contracts', () => {
     const css = readAppFile('components/chat/MessageBubble.module.css');
     const userBubble = cssClassBlock(css, "row[data-role='user'] .bubble");
 
-    expect(userBubble).toContain('color: #fff;');
+    // Light and dark values live in the --o-user-bubble-* tokens: purple with white text in light mode, the current palette gradient + onPrimary in dark mode
+    expect(userBubble).toContain('background: var(--o-user-bubble-bg);');
+    expect(userBubble).toContain('color: var(--o-user-bubble-fg);');
+    expect(userBubble).toContain('box-shadow: var(--o-user-bubble-shadow);');
     expect(userBubble).not.toContain('color: var(--o-primary-text)');
+  });
+
+  it('keeps MessageBubble free of literal colors so dark palettes can follow', () => {
+    // Strip comments before checking: explanatory text inside comments does not count
+    const css = readAppFile('components/chat/MessageBubble.module.css').replace(/\/\*[\s\S]*?\*\//g, '');
+    const literals = css.match(/#[0-9a-fA-F]{3,8}\b|\brgba?\(/g) ?? [];
+    expect(literals).toEqual([]);
+  });
+
+  it('styles markdown inline code through the inline-code tokens so dark palettes can follow', () => {
+    const css = readAppFile('components/chat/MarkdownRenderer.module.css');
+    const inline = cssClassBlock(css, 'inlineCode');
+
+    expect(inline).toContain('background: var(--o-code-inline-bg);');
+    expect(inline).toContain('color: var(--o-code-inline-text);');
   });
 
   it('renders sidebar conversation provider logos without an extra frame', () => {

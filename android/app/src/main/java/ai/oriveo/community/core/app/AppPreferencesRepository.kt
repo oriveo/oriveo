@@ -14,6 +14,7 @@ import ai.oriveo.community.core.model.LastUsedModelRef
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ThemeOption
 import ai.oriveo.community.core.provider.ModelSelectionUtils
+import ai.oriveo.community.ui.theme.DarkPaletteId
 import ai.oriveo.community.core.util.takeGraphemes
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -140,6 +141,12 @@ class AppPreferencesRepository(
             parseThemePreference(value) ?: ThemeOption.Dark
         }
 
+    /** Raw dark palette value (may be an unknown id); null means the user never picked one. */
+    val darkPalette: Flow<String?> = observeDeviceScoped(AppPreferenceKeys.DARK_PALETTE)
+
+    /** For rendering: a known id is used as-is; unset or unknown falls back to [DarkPaletteId.Default]. */
+    val resolvedDarkPalette: Flow<DarkPaletteId> = darkPalette.map(DarkPaletteId::fromId)
+
     val language: Flow<LanguageOption> = observeDeviceScoped(AppPreferenceKeys.LANGUAGE)
         .map { value ->
             parseLanguagePreference(value) ?: LanguageOption.System
@@ -236,6 +243,10 @@ class AppPreferencesRepository(
     suspend fun setTheme(option: ThemeOption) {
         preferenceDao.set(PreferenceEntity(AppPreferenceKeys.THEME, option.name))
 
+    }
+
+    suspend fun setDarkPalette(id: DarkPaletteId) {
+        preferenceDao.set(PreferenceEntity(AppPreferenceKeys.DARK_PALETTE, id.id))
     }
 
     suspend fun setLanguage(option: LanguageOption) {

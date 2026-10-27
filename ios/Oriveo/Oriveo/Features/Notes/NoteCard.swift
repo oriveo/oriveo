@@ -79,7 +79,7 @@ struct NoteCard: View {
             .fill(
                 LinearGradient(
                     colors: [
-                        Color.dynamic(light: 0xFEFEFC, dark: 0x252937),
+                        Color.dynamic(light: 0xFEFEFC, dark: \.surfaceRaised),
                         OriveoTheme.Palette.surface
                     ],
                     startPoint: .topLeading,

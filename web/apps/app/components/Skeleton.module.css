@@ -29,7 +29,7 @@
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(139, 92, 246, 0.06) 50%,
+    color-mix(in srgb, var(--o-primary) 6%, transparent) 50%,
     transparent 100%
   );
   animation: shimmer 1.5s ease-in-out infinite;

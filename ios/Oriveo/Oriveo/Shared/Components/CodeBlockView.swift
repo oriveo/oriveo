@@ -66,13 +66,17 @@ enum MarkdownCodeBlockPalette {
     }
 
     static let background = Color.dynamic(light: 0x0B1220, dark: 0x050814)
-    static let surface = Color.dynamic(light: 0x111A2E, dark: 0x0B1020)
-    static let border = Color.dynamic(light: 0x8C5FF8, dark: 0xC4B5FD, lightAlpha: 0.22, darkAlpha: 0.20)
+    static let surface = Color.dynamic(light: 0x111A2E, dark: \.codeBg)
+    /// Header bar background: same as surface in light mode; the current palette's codeHeaderBg in dark mode.
+    static let headerBackground = OriveoTheme.Palette.codeBlockHeaderBg
+    static let border = Color.dynamic(light: 0x8C5FF8, dark: \.primary, lightAlpha: 0.22, darkAlpha: 0.20)
     static let foreground = Color.dynamic(light: 0xE7EEF8, dark: 0xEAF1FB)
     static let secondary = Color.dynamic(light: 0xC7D2E0, dark: 0xC7D2E0)
-    static let markdownLink = Color.dynamic(light: 0xA5B4FC, dark: 0xC4B5FD)
-    static let markdownInlineBackground = Color.dynamic(light: 0x1B2740, dark: 0x111A2E)
-    static let markdownTableBorder = Color.dynamic(light: 0x334155, dark: 0x475569)
+    static let markdownLink = Color.dynamic(light: 0xA5B4FC, dark: \.accent)
+    /// Inline code background in the code block Markdown preview: in dark mode it matches chat inline code (MarkdownAttributedStringRenderer.codeBg, white at 7%); light mode is unchanged.
+    static let markdownInlineBackground = Color.dynamic(light: 0x1B2740, dark: 0xFFFFFF, darkAlpha: 0.07)
+    /// Table border in the code block Markdown preview: dark mode uses the palette border (white at 10%); light mode is unchanged.
+    static let markdownTableBorder = Color.dynamic(light: 0x334155, dark: 0xFFFFFF, darkAlpha: 0.10)
 
     static let keyword = Color.dynamic(light: 0xD8B4FE, dark: 0xD8B4FE)
     static let string = Color.dynamic(light: 0xA7F3D0, dark: 0xA7F3D0)
@@ -82,8 +86,9 @@ enum MarkdownCodeBlockPalette {
     static let variable = Color.dynamic(light: 0x5EEAD4, dark: 0x5EEAD4)
 
     static let backgroundUIColor = dynamicUIColor(light: 0x0B1220, dark: 0x050814)
-    static let surfaceUIColor = dynamicUIColor(light: 0x111A2E, dark: 0x0B1020)
-    static let borderUIColor = dynamicUIColor(light: 0x8C5FF8, dark: 0xC4B5FD, lightAlpha: 0.22, darkAlpha: 0.20)
+    static let surfaceUIColor = UIColor.oriveoDynamic(light: 0x111A2E, dark: \.codeBg)
+    static let headerBackgroundUIColor = OriveoTheme.Palette.codeBlockHeaderBgUIColor
+    static let borderUIColor = UIColor.oriveoDynamic(light: 0x8C5FF8, dark: \.primary, lightAlpha: 0.22, darkAlpha: 0.20)
     static let foregroundUIColor = dynamicUIColor(light: 0xE7EEF8, dark: 0xEAF1FB)
     static let secondaryUIColor = dynamicUIColor(light: 0xC7D2E0, dark: 0xC7D2E0)
     static let keywordUIColor = dynamicUIColor(light: 0xD8B4FE, dark: 0xD8B4FE)
@@ -204,7 +209,7 @@ struct CodeBlockCard: View {
             }
             .padding(.horizontal, OriveoTheme.Spacing.md)
             .padding(.vertical, 12)
-            .background(codeSurface)
+            .background(MarkdownCodeBlockPalette.headerBackground)
 
             if isMarkdownLanguage {
                 ScrollView(.vertical, showsIndicators: false) {
@@ -709,7 +714,7 @@ struct StreamingCodeBlockCard: View {
             }
             .padding(.horizontal, OriveoTheme.Spacing.md)
             .padding(.vertical, 12)
-            .background(codeSurface)
+            .background(MarkdownCodeBlockPalette.headerBackground)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .bottom, spacing: 0) {

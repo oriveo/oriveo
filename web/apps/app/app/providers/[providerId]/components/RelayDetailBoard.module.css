@@ -2,7 +2,7 @@
    Relay icons purple, local icons green; in-row icons are uniformly duotone currentColor. */
 
 .board {
-  --board-accent: #8b5cf6;
+  --board-accent: var(--o-primary);
   display: flex;
   flex-direction: column;
   gap: 20px;

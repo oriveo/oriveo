@@ -84,7 +84,8 @@ final class UIKitCodeBlockCard: UIView {
 
 
     static let codeBg = MarkdownCodeBlockPalette.backgroundUIColor
-    private static let headerBg = MarkdownCodeBlockPalette.surfaceUIColor
+    private static let headerBg = MarkdownCodeBlockPalette.headerBackgroundUIColor
+    private static let capsuleBg = MarkdownCodeBlockPalette.surfaceUIColor
     private static let borderColor = MarkdownCodeBlockPalette.borderUIColor
     private static let textFg = MarkdownCodeBlockPalette.foregroundUIColor
     private static let secondaryFg = MarkdownCodeBlockPalette.secondaryUIColor
@@ -245,7 +246,7 @@ final class UIKitCodeBlockCard: UIView {
         setupCodeArea()
         setupLayout()
 
-        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (self: UIKitCodeBlockCard, _) in
+        registerForTraitChanges(OriveoDarkPaletteTrait.colorAppearanceTraits) { (self: UIKitCodeBlockCard, _) in
             self.updateTraitDependentColors()
         }
     }
@@ -364,7 +365,7 @@ final class UIKitCodeBlockCard: UIView {
         headerBar.translatesAutoresizingMaskIntoConstraints = false
         contentContainer.addSubview(headerBar)
 
-        langCapsule.backgroundColor = Self.headerBg
+        langCapsule.backgroundColor = Self.capsuleBg
         langCapsule.layer.cornerRadius = 12
         langCapsule.layer.cornerCurve = .continuous
         langCapsule.translatesAutoresizingMaskIntoConstraints = false

@@ -5,7 +5,6 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -82,7 +81,6 @@ class McpAddServerUiTest {
         var opened = 0
         render {
             SettingsToolsSectionContent(
-                iconColor = Color.Magenta,
                 mcpSummary = McpSettingsEntrySummary(serverCount = 4, attentionCount = 1),
                 onNavigateToMcpServers = { opened += 1 },
             )
@@ -96,27 +94,27 @@ class McpAddServerUiTest {
 
     @Test
     fun `the subtitle says there are no servers yet when none was added`() {
-        render { SettingsToolsSectionContent(Color.Magenta, McpSettingsEntrySummary(0, 0), {}) }
+        render { SettingsToolsSectionContent(McpSettingsEntrySummary(0, 0), {}) }
         composeRule.onNodeWithText(text(R.string.mcp_servers_empty_title)).assertIsDisplayed()
     }
 
     /** Counts use plural forms: English never reads "1 servers" or "1 need attention". Asserted on literal values, rendered by the production composable. */
     @Test
     fun `counts read naturally for one - 1 server and 1 needs attention`() {
-        render { SettingsToolsSectionContent(Color.Magenta, McpSettingsEntrySummary(1, 1), {}) }
+        render { SettingsToolsSectionContent(McpSettingsEntrySummary(1, 1), {}) }
         composeRule.onNodeWithText("1 server · 1 needs attention").assertIsDisplayed()
     }
 
     @Test
     fun `a single server without attention reads 1 server`() {
-        render { SettingsToolsSectionContent(Color.Magenta, McpSettingsEntrySummary(1, 0), {}) }
+        render { SettingsToolsSectionContent(McpSettingsEntrySummary(1, 0), {}) }
         composeRule.onNodeWithText("1 server").assertIsDisplayed()
         composeRule.onAllNodesWithText("1 servers").assertCountEquals(0)
     }
 
     @Test
     fun `the subtitle only mentions attention when something needs it`() {
-        render { SettingsToolsSectionContent(Color.Magenta, McpSettingsEntrySummary(2, 0), {}) }
+        render { SettingsToolsSectionContent(McpSettingsEntrySummary(2, 0), {}) }
         composeRule.onNodeWithText(plural(R.plurals.mcp_settings_entry_count, 2)).assertIsDisplayed()
     }
 

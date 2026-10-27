@@ -3,6 +3,7 @@ import SwiftUI
 struct ChatEmptyStateAurora: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.oriveoDarkPalette) private var darkPaletteID
 
     let prominent: Bool
 
@@ -104,6 +105,18 @@ struct ChatEmptyStateAurora: View {
             )
             .blendMode(colorScheme == .dark ? .screen : .normal)
 
+            // Bottom-right glow: dark mode only (the fourth blob of the aurora formula); light mode is unchanged
+            if colorScheme == .dark {
+                RadialGradient(
+                    colors: [Color(oriveoTint: darkTints.bottomRight), .clear],
+                    center: UnitPoint(x: 0.72, y: 0.82),
+                    startRadius: 0,
+                    endRadius: maxDimension * 0.6
+                )
+                .blendMode(.screen)
+            }
+
+            // Top glow: gives the dots above something to catch light from
             RadialGradient(
                 colors: [topGlowColor, .clear],
                 center: UnitPoint(x: 0.5, y: 0.06),
@@ -116,27 +129,47 @@ struct ChatEmptyStateAurora: View {
     }
 
 
+    /// The four dark-mode glows (aurora formula): bottom primary@26%·k, bottom-left accent@18%·k, bottom-right primary@16%·k, top accent@9%·k.
+    struct DarkGlowTints: Equatable {
+        let bottom: OriveoDarkPalette.Tint
+        let bottomLeft: OriveoDarkPalette.Tint
+        let bottomRight: OriveoDarkPalette.Tint
+        let top: OriveoDarkPalette.Tint
+    }
+
+    static func darkGlowTints(for id: OriveoDarkPaletteID) -> DarkGlowTints {
+        let palette = id.palette
+        return DarkGlowTints(
+            bottom: palette.auroraBottom,
+            bottomLeft: palette.auroraBottomLeft,
+            bottomRight: palette.auroraBottomRight,
+            top: palette.auroraTop
+        )
+    }
+
+    private var darkTints: DarkGlowTints { Self.darkGlowTints(for: darkPaletteID) }
+
     private var primaryGlowColor: Color {
         colorScheme == .dark
-            ? Color(hex: 0x8C5FF8, alpha: 0.30)
+            ? Color(oriveoTint: darkTints.bottom)
             : Color(hex: 0x8C5FF8, alpha: 0.11)
     }
 
     private var accentGlowColor: Color {
         colorScheme == .dark
-            ? Color(hex: 0xC65BF0, alpha: 0.22)
+            ? Color(oriveoTint: darkTints.bottomLeft)
             : Color(hex: 0x6366F1, alpha: 0.075)
     }
 
     private var topGlowColor: Color {
         colorScheme == .dark
-            ? Color(hex: 0x7C5BEE, alpha: 0.16)
+            ? Color(oriveoTint: darkTints.top)
             : Color(hex: 0x8C5FF8, alpha: 0.05)
     }
 
     private var dotColor: Color {
         colorScheme == .dark
-            ? Color(hex: 0xC9B6FF)
+            ? Color(hex: darkPaletteID.palette.accent)
             : Color(hex: 0x8C5FF8)
     }
 }

@@ -7,7 +7,7 @@ extension View {
         return VStack(spacing: 0, content: content)
             .background(
                 shape
-                    .fill(Color.dynamic(light: 0xFFFFFF, dark: 0x252937))
+                    .fill(Color.dynamic(light: 0xFFFFFF, dark: \.surfaceRaised))
                     .shadow(
                         color: Color.dynamic(light: 0x0F172A, dark: 0x000000, lightAlpha: 0.06, darkAlpha: 0.28),
                         radius: 10,

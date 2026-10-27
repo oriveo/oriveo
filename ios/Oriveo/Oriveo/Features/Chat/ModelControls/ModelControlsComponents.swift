@@ -17,9 +17,9 @@ private struct ModelControlSurface: ViewModifier {
     let cornerRadius: CGFloat
     @Environment(\.colorScheme) private var colorScheme
 
-    /// Dark mode uses `surfaceElevated` (#252937) instead of `surface` (#1B1F2A): against the page background
-    /// #14181F the latter differs by only 3.7 in L*, and a black shadow on a near-black background is almost invisible, so the
-    /// separation in dark mode rests on that color difference alone. With the elevated color the difference is 8.6.
+    /// Dark mode uses `surfaceElevated` (the palette surfaceRaised) instead of `surface`: against the page background
+    /// the latter differs by too little in lightness, and a black shadow on a near-black background is almost invisible, so the
+    /// separation in dark mode rests on that color difference alone. With the elevated color the difference opens up by a step.
     /// Light mode stays as it is: a white card is already at the top of the range, and its separation comes from the shadow.
     private var fill: Color {
         colorScheme == .dark ? OriveoTheme.Palette.surfaceElevated : OriveoTheme.Palette.surface

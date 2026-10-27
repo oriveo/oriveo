@@ -754,6 +754,71 @@ struct BackupServiceTests {
         #expect(appState.conversations[0].folderID == folder.id)
     }
 
+    @Test("backup_restores_dark_palette")
+    @MainActor
+    func backup_restores_dark_palette() async throws {
+        defer { UserDefaults.standard.removeObject(forKey: "oriveo.preferences.darkPalette") }
+        var preferences = AppPreference(theme: .dark, themeSetByUser: true, language: .english)
+        preferences.darkPalette = OriveoDarkPaletteID.darkOcean.rawValue
+        let exported = try await BackupService.exportBackup(
+            providers: [],
+            conversations: [],
+            folders: [],
+            preferences: preferences,
+            lastUsedModelRef: nil,
+            includeKeys: false,
+            password: nil,
+            allowEmpty: true
+        )
+        let (parsed, _) = try BackupService.parseBackup(from: exported)
+        #expect(parsed.data.preferences?.darkPalette == "dark-ocean")
+
+        let appState = makeAppState(seedDemoData: false)
+        appState.preferences.darkPalette = nil
+        _ = try await BackupService.executeImport(
+            backupFile: parsed,
+            images: [:],
+            mode: .merge,
+            password: nil,
+            appState: appState
+        )
+        #expect(appState.preferences.darkPalette == "dark-ocean")
+        #expect(appState.preferences.resolvedDarkPalette == .darkOcean)
+        #expect(AppPreferencesStore.load().darkPalette == "dark-ocean")
+    }
+
+    @Test("backup_without_dark_palette_restores_default_dark")
+    @MainActor
+    func backup_without_dark_palette_restores_default_dark() async throws {
+        defer { UserDefaults.standard.removeObject(forKey: "oriveo.preferences.darkPalette") }
+        // Old backup: preferences has no darkPalette field
+        let legacyFile = try makeBackupFile(data: BackupData(
+            providers: [],
+            conversations: [],
+            preferences: BackupPreferences(theme: "dark", language: "english"),
+            lastUsedModelRef: nil
+        ))
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let rawJSON = try encoder.encode(legacyFile)
+        #expect(!String(decoding: rawJSON, as: UTF8.self).contains("darkPalette"))
+        let (parsed, _) = try BackupService.parseBackup(from: rawJSON)
+        #expect(parsed.data.preferences?.darkPalette == nil)
+
+        let appState = makeAppState(seedDemoData: false)
+        appState.preferences.darkPalette = OriveoDarkPaletteID.darkForest.rawValue
+        _ = try await BackupService.executeImport(
+            backupFile: parsed,
+            images: [:],
+            mode: .merge,
+            password: nil,
+            appState: appState
+        )
+        #expect(appState.preferences.darkPalette == nil)
+        #expect(appState.preferences.resolvedDarkPalette == .dark)
+        #expect(AppPreferencesStore.load().darkPalette == nil)
+    }
+
     @Test("Legacy Backup Without Folders Field Still Imports")
     @MainActor
     func importLegacyBackupWithoutFolders() async throws {

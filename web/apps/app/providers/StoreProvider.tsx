@@ -13,7 +13,7 @@ import React, {
 import { useStoreWithEqualityFn } from 'zustand/traditional';
 import { createAppStore, type AppStore } from '../lib/core/store/app-store';
 import { subscribeToChanges } from '../lib/core/store/persistence';
-import { useTheme } from '../lib/hooks/useTheme';
+import { useDarkPalette, useTheme } from '../lib/hooks/useTheme';
 import { bootstrapApp, type BootstrapResult } from '../lib/core/bootstrap';
 import { Skeleton } from '../components/Skeleton';
 import { trackEvent } from '../lib/core/telemetry';
@@ -42,7 +42,9 @@ const BOOTSTRAP_TIMEOUT_MS = 8000;
 
 function ThemeSyncer() {
   const theme = useAppStore((s) => s.preferences.theme);
+  const darkPalette = useAppStore((s) => s.preferences.darkPalette);
   useTheme(theme);
+  useDarkPalette(darkPalette);
   return null;
 }
 

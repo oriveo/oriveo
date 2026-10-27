@@ -652,7 +652,7 @@ private struct SetupHeroSection: View {
 
                     Image(systemName: "link.badge.plus")
                         .font(.system(size: symbolSize, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(OriveoTheme.Palette.onPrimary)
                         .shadow(color: .black.opacity(0.22), radius: 1.5, y: 1)
                 }
                 .frame(width: iconSize, height: iconSize)

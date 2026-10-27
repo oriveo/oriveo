@@ -16,6 +16,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import ai.oriveo.community.core.app.AppPreferencesRepository
 import ai.oriveo.community.core.app.AppViewModel
 import ai.oriveo.community.core.app.GlobalSnackbarManager
 import ai.oriveo.community.core.data.database.DatabaseHealth
@@ -26,6 +27,7 @@ import ai.oriveo.community.core.performance.AppJankStats
 import ai.oriveo.community.core.reachability.ServiceReachabilityMonitor
 import ai.oriveo.community.feature.storage.DatabaseBlockedDialog
 import ai.oriveo.community.feature.storage.StorageSettingsLauncher
+import ai.oriveo.community.ui.theme.DarkPaletteId
 import ai.oriveo.community.ui.theme.OriveoScreenBackground
 import ai.oriveo.community.ui.theme.OriveoTheme
 import kotlinx.coroutines.launch
@@ -35,6 +37,9 @@ import org.koin.androidx.compose.koinViewModel
 class MainActivity : AppCompatActivity() {
 
     private var appJankStats: AppJankStats? = null
+
+    private val appPreferencesRepository: AppPreferencesRepository by inject()
+
     private val reachabilityMonitor: ServiceReachabilityMonitor by inject()
     private val databaseHealthProbe: DatabaseHealthProbe by inject()
     private val globalSnackbarManager: GlobalSnackbarManager by inject()
@@ -61,8 +66,13 @@ class MainActivity : AppCompatActivity() {
                 appViewModel.markUiReady()
             }
 
+            // Dark palette preference: unset or unknown ids render as the default dark palette
+            val darkPalette by appPreferencesRepository.resolvedDarkPalette
+                .collectAsStateWithLifecycle(initialValue = DarkPaletteId.Default)
+
             OriveoTheme(
                 darkTheme = resolveDarkTheme(theme),
+                palette = darkPalette,
             ) {
                 Box(modifier = Modifier.fillMaxSize()) {
                     if (hasCompletedOnboarding == null || databaseBlocked != null) {

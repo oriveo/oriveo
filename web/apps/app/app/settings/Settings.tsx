@@ -1,8 +1,9 @@
 'use client';
 
-import { Palette, Globe, Keyboard, Brain, Lightbulb, CloudUpload, Bug, BookOpen, ChevronRight, Wrench, Layers } from 'lucide-react';
+import { useMemo } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { useRouter } from 'next/navigation';
+import { ChevronRight } from 'lucide-react';
 import { brand } from '@oriveo/config';
 import { OriveoLogo } from '@oriveo/ui';
 import {
@@ -14,23 +15,20 @@ import { useMcpStore } from '../../lib/core/mcp/mcp-store';
 import { useMcpRuntimeConfig } from '../../lib/core/mcp/use-mcp-runtime-config';
 import { getVanillaStore } from '../../providers/StoreProvider';
 import * as preferenceOps from '../../lib/core/preference-ops';
-import type { ThemeOption, LanguageOption, SendShortcut } from '@oriveo/shared';
+import type { LanguageOption, SendShortcut } from '@oriveo/shared';
 import { MenuSelect } from '../../components/MenuSelect';
 import { FeatureBadgeDot } from '../../components/FeatureBadgeDot';
 import { FEATURE_BADGE_IDS } from '../../lib/core/feature-badges';
 import { trackEvent } from '../../lib/core/telemetry';
 import { APP_VERSION } from '../../lib/version';
 import { contextRowValueText } from '../../lib/core/chat/context-visibility/cap-presentation';
+import { themeRowSummary } from './theme/theme-page-rules';
+import { SettingsGrid, type SettingsGridItem } from './SettingsGrid';
+import { SettingsIcon } from './SettingsIcons';
 import styles from './Settings.module.css';
 
-const THEME_OPTIONS: { value: ThemeOption; labelKey: string }[] = [
-  { value: 'system', labelKey: 'themeSystem' },
-  { value: 'light', labelKey: 'themeLight' },
-  { value: 'dark', labelKey: 'themeDark' },
-];
-
+// "Follow system" is localized (see languageOptions in the component); the rest are each language's own name
 const LANGUAGE_OPTIONS: { value: LanguageOption; label: string }[] = [
-  { value: 'system', label: 'System' },
   { value: 'en', label: 'English' },
   { value: 'zh-Hans', label: '简体中文' },
   { value: 'zh-Hant', label: '繁體中文' },
@@ -56,11 +54,16 @@ const SHORTCUT_OPTIONS: { value: SendShortcut; labelKey: string }[] = [
 
 export function Settings() {
   const t = useTranslations('pages.settings');
+  const languageOptions = useMemo<{ value: LanguageOption; label: string }[]>(
+    () => [{ value: 'system', label: t('themeSystem') }, ...LANGUAGE_OPTIONS],
+    [t],
+  );
+  const locale = useLocale();
   const tMemory = useTranslations('pages.memory');
   const tContext = useTranslations('pages.settings.context');
   const tContextCap = useTranslations('pages.chat.contextCap');
   const tMcp = useTranslations('mcp.settings');
-  // MCP entry: the master switch comes from the model catalog and the row is hidden while it is off.
+  // MCP entry: the master switch comes from the model catalog and the entry is hidden while it is off.
   // The subtitle shows how many servers there are and how many need attention.
   const mcpRuntimeConfig = useMcpRuntimeConfig();
   const mcpServerCount = useMcpStore((s) => s.servers.length);
@@ -74,7 +77,6 @@ export function Settings() {
       ? tMcp('entryCountAttention', { count: mcpServerCount, attention: mcpAttentionCount })
       : tMcp('entryCount', { count: mcpServerCount });
   const router = useRouter();
-  const locale = useLocale();
 
   const preferences = useAppStore((s) => s.preferences);
   const setPreferences = useAppStore((s) => s.setPreferences);
@@ -82,17 +84,80 @@ export function Settings() {
   // Context row value = "default cap · tidy mode": the cap defaults to auto, and tidy mode defaults to off (keep the original wording only)
   const contextModeValue = contextRowValueText(preferences, locale, tContext, tContextCap);
 
-  const trimmedMemoryText = preferences.memoryText?.trim() ?? '';
+  // Memory is often stored as a Markdown list: strip leading bullets and join lines so the preview never shows a "- "
+  const trimmedMemoryText = (preferences.memoryText ?? '')
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^\s*[-*•]\s+/, '').trim())
+    .filter((line) => line.length > 0)
+    .join(' ');
   const hasMemory = trimmedMemoryText.length > 0;
 
   const memoryPreview = hasMemory
     ? takeGraphemes(trimmedMemoryText, 30) + (graphemeCount(trimmedMemoryText) > 30 ? '...' : '')
     : tMemory('notSet');
 
-  const themeOptions = THEME_OPTIONS.map((option) => ({
-    value: option.value,
-    label: t(option.labelKey),
-  }));
+  const aiItems: SettingsGridItem[] = [
+    {
+      key: 'memory',
+      entry: 'memory',
+      icon: <SettingsIcon name="memory" />,
+      title: (
+        <>
+          {tMemory('settingsEntry')}
+          <FeatureBadgeDot id={FEATURE_BADGE_IDS.settingsMemory} />
+        </>
+      ),
+      value: memoryPreview,
+      onSelect: () => router.push('/settings/memory'),
+    },
+    {
+      key: 'context',
+      entry: 'context',
+      testId: 'settings-context-row',
+      icon: <SettingsIcon name="context" />,
+      title: tContext('title'),
+      value: contextModeValue,
+      onSelect: () => router.push('/settings/context'),
+    },
+    {
+      key: 'skills',
+      entry: 'skills',
+      icon: <SettingsIcon name="skills" />,
+      title: t('skills'),
+      onSelect: () => router.push('/skills'),
+    },
+  ];
+
+  // Tools and connections: only MCP servers here; while the MCP master switch is off the group is not rendered.
+  const toolItems: SettingsGridItem[] = mcpRuntimeConfig.enabled
+    ? [{
+        key: 'mcp',
+        entry: 'mcp',
+        icon: <SettingsIcon name="mcp" />,
+        title: tMcp('entryTitle'),
+        value: mcpEntrySubtitle,
+        onSelect: () => router.push('/settings/mcp'),
+      }]
+    : [];
+
+  const helpItems: SettingsGridItem[] = [
+    {
+      key: 'feedback',
+      entry: 'feedback',
+      icon: <SettingsIcon name="feedback" size={23} />,
+      title: t('reportIssue'),
+      href: `${brand.repoUrl}/issues`,
+      external: true,
+    },
+    {
+      key: 'docs',
+      entry: 'docs',
+      icon: <SettingsIcon name="faq" size={23} />,
+      title: t('documentation'),
+      href: `${brand.repoUrl}#readme`,
+      external: true,
+    },
+  ];
 
   const shortcutOptions = SHORTCUT_OPTIONS.map((option) => ({
     value: option.value,
@@ -101,256 +166,120 @@ export function Settings() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.header}>
-        <h1 className={styles.title}>{t('title')}</h1>
-        <p className={styles.subtitle}>{t('description')}</p>
-      </div>
+      <h1 className={styles.title}>{t('title')}</h1>
 
-      <div className={styles.section}>
+      {/* AI: memory, context, skills (1x3) */}
+      <section className={styles.section}>
         <h2 className={styles.sectionTitle}>{t('aiSection')}</h2>
+        <SettingsGrid items={aiItems} ariaLabel={t('aiSection')} />
+      </section>
+
+      {/* Tools and connections */}
+      {toolItems.length > 0 && (
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>{t('toolsSection')}</h2>
+          <SettingsGrid items={toolItems} ariaLabel={t('toolsSection')} />
+        </section>
+      )}
+
+      {/* General: theme, language, send shortcut, backup */}
+      <section className={styles.section}>
+        <h2 className={`${styles.sectionTitle} ${styles.sectionTitleList}`}>{t('generalSection')}</h2>
 
         <div
-          className={styles.navRow}
-          onClick={() => router.push('/settings/memory')}
+          className={`${styles.listRow} ${styles.listRowNav}`}
+          data-settings-entry="theme"
+          onClick={() => router.push('/settings/theme')}
           role="button"
           tabIndex={0}
-          onKeyDown={(e) => e.key === 'Enter' && router.push('/settings/memory')}
+          onKeyDown={(e) => e.key === 'Enter' && router.push('/settings/theme')}
         >
-          <span className={`${styles.semanticIcon} ${styles.purple}`}>
-            <Brain size={16} />
+          <span className={styles.listIcon}><SettingsIcon name="theme" size={23} /></span>
+          <span className={styles.listBody}>
+            <span className={styles.listName}>{t('theme')}</span>
+            <span className={styles.listValue}>
+              <span className={styles.themeDot} aria-hidden="true" />
+              {themeRowSummary(preferences.theme, preferences.darkPalette, t)}
+            </span>
+            <ChevronRight size={14} className={styles.listChevron} />
           </span>
-          <div className={styles.navRowInfo}>
-            <div className={styles.navRowTitle}>
-              {tMemory('settingsEntry')}
-              <FeatureBadgeDot id={FEATURE_BADGE_IDS.settingsMemory} />
-            </div>
-            {!hasMemory && <div className={styles.navRowSubtitle}>{memoryPreview}</div>}
-          </div>
-          {hasMemory && (
-            <div className={styles.navRowTrailing}>
-              <div className={styles.navRowValue}>{memoryPreview}</div>
-            </div>
-          )}
-          <ChevronRight size={14} className={styles.navRowChevron} />
         </div>
 
-        <div className={styles.divider} />
-
-        <button
-          type="button"
-          className={`${styles.navRow} ${styles.navRowButton}`}
-          onClick={() => router.push('/settings/context')}
-          data-testid="settings-context-row"
-        >
-          <span className={`${styles.semanticIcon} ${styles.purple}`}>
-            <Layers size={16} />
+        <div className={styles.listRow}>
+          <span className={styles.listIcon}><SettingsIcon name="language" size={23} /></span>
+          <span className={styles.listBody}>
+            <span className={styles.listName}>{t('language')}</span>
+            <MenuSelect
+              className={styles.rowControl}
+              value={preferences.language}
+              options={languageOptions}
+              ariaLabel={t('language')}
+              minWidth={176}
+              menuMinWidth={220}
+              onChange={(lang) => {
+                preferenceOps.updateLanguage(getVanillaStore(), lang);
+                // Force a Server Component refresh so the root layout re-reads the cookie and loads the matching locale
+                router.refresh();
+              }}
+            />
           </span>
-          <div className={styles.navRowInfo}>
-            <div className={styles.navRowTitle}>{tContext('title')}</div>
-          </div>
-          <div className={styles.navRowTrailing}>
-            <div className={styles.navRowValue}>{contextModeValue}</div>
-          </div>
-          <ChevronRight size={14} className={styles.navRowChevron} />
-        </button>
-
-        {mcpRuntimeConfig.enabled ? (
-          <>
-            <div className={styles.divider} />
-
-            <button
-              type="button"
-              className={`${styles.navRow} ${styles.navRowButton}`}
-              data-settings-entry="mcp"
-              onClick={() => router.push('/settings/mcp')}
-            >
-              <span className={`${styles.semanticIcon} ${styles.purple}`}>
-                <Wrench size={16} />
-              </span>
-              <div className={styles.navRowInfo}>
-                <div className={styles.navRowTitle}>{tMcp('entryTitle')}</div>
-                <div className={styles.navRowSubtitle}>{mcpEntrySubtitle}</div>
-              </div>
-              <ChevronRight size={14} className={styles.navRowChevron} />
-            </button>
-          </>
-        ) : null}
-
-        <div className={styles.divider} />
-
-        <div
-          className={styles.navRow}
-          onClick={() => router.push('/skills')}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => e.key === 'Enter' && router.push('/skills')}
-        >
-          <span className={`${styles.semanticIcon} ${styles.purple}`}>
-            <Lightbulb size={16} />
-          </span>
-          <div className={styles.navRowInfo}>
-            <div className={styles.navRowTitle}>{t('skills')}</div>
-          </div>
-          <ChevronRight size={14} className={styles.navRowChevron} />
         </div>
-      </div>
 
-      <div className={styles.section}>
-        <h2 className={styles.sectionTitle}>{t('dataSection')}</h2>
+        <div className={styles.listRow}>
+          <span className={styles.listIcon}><SettingsIcon name="keyboard" size={23} /></span>
+          <span className={styles.listBody}>
+            <span className={styles.listName}>{t('sendShortcut')}</span>
+            <MenuSelect
+              className={styles.rowControl}
+              value={preferences.sendShortcut}
+              options={shortcutOptions}
+              ariaLabel={t('sendShortcut')}
+              minWidth={168}
+              onChange={(sendShortcut) => {
+                setPreferences({ sendShortcut });
+                trackEvent('settings_changed', { key: 'send_shortcut', value: sendShortcut });
+              }}
+            />
+          </span>
+        </div>
+
         <div
-          className={styles.navRow}
+          className={`${styles.listRow} ${styles.listRowNav}`}
+          data-settings-entry="backup"
           onClick={() => router.push('/settings/backup')}
           role="button"
           tabIndex={0}
           onKeyDown={(e) => e.key === 'Enter' && router.push('/settings/backup')}
         >
-          <span className={`${styles.semanticIcon} ${styles.blue}`}>
-            <CloudUpload size={16} />
+          <span className={styles.listIcon}><SettingsIcon name="backup" size={23} /></span>
+          <span className={styles.listBody}>
+            <span className={styles.listName}>{t('backupImportExport')}</span>
+            <ChevronRight size={14} className={styles.listChevron} />
           </span>
-          <div className={styles.navRowInfo}>
-            <div className={styles.navRowTitle}>{t('backupImportExport')}</div>
-          </div>
-          <ChevronRight size={14} className={styles.navRowChevron} />
         </div>
-      </div>
+      </section>
 
-      <div className={styles.section}>
-        <h2 className={styles.sectionTitle}>{t('appearanceSection')}</h2>
+      {/* Help and about (1x2) */}
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>{t('helpAboutSection')}</h2>
+        <SettingsGrid items={helpItems} variant="compact" ariaLabel={t('helpAboutSection')} />
+      </section>
 
-        <div className={styles.row}>
-          <span className={styles.rowLabel}>
-            <span className={`${styles.semanticIcon} ${styles.amber}`}>
-              <Palette size={14} />
-            </span>
-            {t('theme')}
-          </span>
-          <MenuSelect
-            className={styles.rowControl}
-            value={preferences.theme}
-            options={themeOptions}
-            ariaLabel={t('theme')}
-            minWidth={156}
-            onChange={(theme) => {
-              preferenceOps.updateTheme(getVanillaStore(), theme);
-            }}
-          />
+      {/* Footer */}
+      <footer className={styles.footer}>
+        <OriveoLogo size={40} className={styles.footerLogo} />
+        <div className={styles.footerName}>
+          <span className={styles.footerAppName}>{brand.name}</span>
+          <span className={styles.footerVersion}>{`V${APP_VERSION}`}</span>
         </div>
-
-        <div className={styles.row}>
-          <span className={styles.rowLabel}>
-            <span className={`${styles.semanticIcon} ${styles.amber}`}>
-              <Globe size={14} />
-            </span>
-            {t('language')}
-          </span>
-          <MenuSelect
-            className={styles.rowControl}
-            value={preferences.language}
-            options={LANGUAGE_OPTIONS}
-            ariaLabel={t('language')}
-            minWidth={176}
-            menuMinWidth={220}
-            onChange={(lang) => {
-              preferenceOps.updateLanguage(getVanillaStore(), lang);
-              router.refresh();
-            }}
-          />
+        <div className={styles.footerTagline}>{t('aboutTagline')}</div>
+        <div className={styles.footerPoem}>{t('footerPoem')}</div>
+        <div className={styles.footerLinks}>
+          <a href={brand.repoUrl} target="_blank" rel="noopener noreferrer">
+            {t('sourceCode')}
+          </a>
         </div>
-
-        <div className={styles.row}>
-          <span className={styles.rowLabel}>
-            <span className={`${styles.semanticIcon} ${styles.amber}`}>
-              <Keyboard size={14} />
-            </span>
-            {t('sendShortcut')}
-          </span>
-          <MenuSelect
-            className={styles.rowControl}
-            value={preferences.sendShortcut}
-            options={shortcutOptions}
-            ariaLabel={t('sendShortcut')}
-            minWidth={168}
-            onChange={(sendShortcut) => {
-              setPreferences({ sendShortcut });
-              trackEvent('settings_changed', { key: 'send_shortcut', value: sendShortcut });
-            }}
-          />
-        </div>
-      </div>
-
-      <div className={styles.section}>
-        <h2 className={styles.sectionTitle}>{t('helpSection')}</h2>
-
-        <a
-          href={`${brand.repoUrl}/issues`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={styles.navRow}
-        >
-          <span className={`${styles.semanticIcon} ${styles.sky}`}>
-            <Bug size={16} />
-          </span>
-          <div className={styles.navRowInfo}>
-            <div className={styles.navRowTitle}>{t('reportIssue')}</div>
-          </div>
-          <ChevronRight size={14} className={styles.navRowChevron} />
-        </a>
-
-        <div className={styles.divider} />
-
-        <a
-          href={`${brand.repoUrl}#readme`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={styles.navRow}
-        >
-          <span className={`${styles.semanticIcon} ${styles.indigo}`}>
-            <BookOpen size={16} />
-          </span>
-          <div className={styles.navRowInfo}>
-            <div className={styles.navRowTitle}>{t('documentation')}</div>
-          </div>
-          <ChevronRight size={14} className={styles.navRowChevron} />
-        </a>
-      </div>
-
-      <div className={styles.section}>
-        <h2 className={styles.sectionTitle}>{t('aboutSection')}</h2>
-
-        <div className={styles.aboutBrand}>
-          <OriveoLogo size={44} className={styles.aboutLogo} />
-          <div>
-            <div className={styles.aboutAppName}>{brand.name}</div>
-            <div className={styles.aboutTagline}>{t('aboutTagline')}</div>
-          </div>
-        </div>
-
-        <div className={styles.divider} />
-
-        <div className={styles.aboutInfoRow}>
-          <span className={styles.aboutInfoLabel}>{t('version')}</span>
-          <span className={styles.aboutInfoValue}>{`V${APP_VERSION}`}</span>
-        </div>
-
-        <div className={styles.divider} />
-
-        <div className={styles.aboutInfoRow}>
-          <span className={styles.aboutInfoLabel}>{t('privacyPolicy')}</span>
-          <span className={styles.aboutInfoValue}>{t('privacySubtitle')}</span>
-        </div>
-
-        <div className={styles.divider} />
-
-        <a
-          href={brand.repoUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={styles.aboutLink}
-        >
-          {t('sourceCode')}
-          <ChevronRight size={14} className={styles.navRowChevron} />
-        </a>
-      </div>
+      </footer>
     </div>
   );
 }

@@ -638,11 +638,11 @@
 
 :global(html[data-theme='dark']) .groupButton:hover,
 :global(html[data-theme='dark']) .modelRow:hover:not(:disabled) {
-  background: rgba(167, 139, 250, 0.06);
+  background: color-mix(in srgb, var(--o-primary) 6%, transparent);
 }
 
 :global(html[data-theme='dark']) .groupSection[data-expanded='true'] .groupButton {
-  background: rgba(167, 139, 250, 0.10);
+  background: color-mix(in srgb, var(--o-primary) 10%, transparent);
 }
 
 :global(html[data-theme='dark']) .groupBody {

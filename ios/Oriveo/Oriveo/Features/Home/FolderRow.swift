@@ -139,7 +139,7 @@ struct FolderRow: View {
             }
             .padding(.horizontal, OriveoTheme.V2.Sp.s16)
             .padding(.vertical, 14)
-            // The same card surface as the Home conversation groups (radius 20 / dark #221F35 / light pure white)
+            // The same card surface as the Home conversation groups (radius 20 / dark: the current palette surface / light: pure white)
             .background { AuroraGroupedCard { Color.clear } }
         }
         .buttonStyle(.plain)
@@ -155,7 +155,7 @@ struct FolderRow: View {
                     Image(systemName: "tray")
                         .font(.system(size: 24, weight: .light))
                         // The empty-state icon uses full opacity: on the group card that is 5.0:1 in dark and 4.8:1 in light
-                        // (the earlier 0.72 was tuned for the old V2 surface; on the #221F35 card it dropped to about 4.4:1)
+                        // (the earlier 0.72 was tuned for the old V2 surface; on the Home group card it dropped to about 4.4:1)
                         .foregroundStyle(OriveoTheme.V2.Colors.textTertiary)
 
                     VStack(spacing: 4) {

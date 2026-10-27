@@ -82,7 +82,7 @@ struct McpPrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 16, weight: .semibold))
-            .foregroundStyle(.white)
+            .foregroundStyle(OriveoTheme.Palette.onPrimary)
             .frame(maxWidth: .infinity)
             .frame(height: McpSheetMetrics.buttonHeight)
             .background(

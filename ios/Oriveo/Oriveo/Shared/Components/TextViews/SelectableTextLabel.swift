@@ -6,8 +6,10 @@ struct SelectableTextLabel: UIViewRepresentable {
     var fontSize: CGFloat = 16
     var fontWeight: UIFont.Weight = .regular
     var usesMonospacedFont: Bool = false
-    let textColor: Color
-    var tintColor: Color?
+    /// Takes a UIColor directly: a dynamic color (including the dark palette trait) is handed to the UITextView as is and resolved by its own trait,
+    /// without a `UIColor(Color)` round trip (the round trip loses dynamic resolution on some systems).
+    let textColor: UIColor
+    var tintColor: UIColor?
 
     func makeUIView(context: Context) -> UITextView {
         let tv = ChatPassiveTextView()
@@ -24,13 +26,11 @@ struct SelectableTextLabel: UIViewRepresentable {
 
     func updateUIView(_ tv: UITextView, context: Context) {
         let resolvedFont = resolvedUIFont()
-        let resolvedTextColor = UIColor(textColor)
-        let resolvedTintColor = tintColor.map(UIColor.init)
         var changed = false
         if tv.text != text { tv.text = text; changed = true }
         if tv.font != resolvedFont { tv.font = resolvedFont; changed = true }
-        if tv.textColor != resolvedTextColor { tv.textColor = resolvedTextColor; changed = true }
-        if let resolvedTintColor, tv.tintColor != resolvedTintColor { tv.tintColor = resolvedTintColor }
+        if tv.textColor != textColor { tv.textColor = textColor; changed = true }
+        if let tintColor, tv.tintColor != tintColor { tv.tintColor = tintColor }
         if changed { tv.invalidateIntrinsicContentSize() }
     }
 

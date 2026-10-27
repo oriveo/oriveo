@@ -35,26 +35,37 @@ internal object OriveoTabBarIcons {
         OriveoTabGlyph.Settings -> settingsTemplate
     }
 
-    fun selected(glyph: OriveoTabGlyph, isDark: Boolean): ImageVector = when (glyph) {
-        OriveoTabGlyph.Home -> if (isDark) homeSelectedDark else homeSelectedLight
-        OriveoTabGlyph.Providers -> if (isDark) providersSelectedDark else providersSelectedLight
-        OriveoTabGlyph.Settings -> if (isDark) settingsSelectedDark else settingsSelectedLight
-    }
+    /** [darkBrand] = the current palette's gradient-brand endpoints (primary -> accent); the selected icons of all three tabs use it in dark. */
+    fun selected(glyph: OriveoTabGlyph, isDark: Boolean, darkBrand: Pair<Color, Color>): ImageVector =
+        if (isDark) {
+            selectedDark(glyph, darkBrand)
+        } else {
+            when (glyph) {
+                OriveoTabGlyph.Home -> homeSelectedLight
+                OriveoTabGlyph.Providers -> providersSelectedLight
+                OriveoTabGlyph.Settings -> settingsSelectedLight
+            }
+        }
 
-    /** Gradient endpoints per tab; the start color doubles as the selected label color. */
-    fun gradient(glyph: OriveoTabGlyph, isDark: Boolean): Pair<Color, Color> = when (glyph) {
-        OriveoTabGlyph.Home ->
-            if (isDark) Color(0xFFA78BFA) to Color(0xFF7DD3FC) else Color(0xFF8B5CF6) to Color(0xFF60A5FA)
-        OriveoTabGlyph.Providers ->
-            if (isDark) Color(0xFF2DD4BF) to Color(0xFF38BDF8) else Color(0xFF0D9488) to Color(0xFF0EA5E9)
-        OriveoTabGlyph.Settings ->
-            if (isDark) Color(0xFFFB923C) to Color(0xFFF472B6) else Color(0xFFEA580C) to Color(0xFFEC4899)
-    }
+    /**
+     * Gradient endpoints per tab. In dark all three tabs use the current palette's gradient-brand ([darkBrand]);
+     * light keeps iOS tabAccent*: purple for Home, teal for Providers, orange for Settings.
+     */
+    fun gradient(glyph: OriveoTabGlyph, isDark: Boolean, darkBrand: Pair<Color, Color>? = null): Pair<Color, Color> =
+        if (isDark) {
+            requireNotNull(darkBrand) { "dark tab gradient follows the current palette" }
+        } else {
+            when (glyph) {
+                OriveoTabGlyph.Home -> Color(0xFF8B5CF6) to Color(0xFF60A5FA) // dark-palette-guard: keep (d) light branch
+                OriveoTabGlyph.Providers -> Color(0xFF0D9488) to Color(0xFF0EA5E9)
+                OriveoTabGlyph.Settings -> Color(0xFFEA580C) to Color(0xFFEC4899)
+            }
+        }
 
     private val templateBrush = SolidColor(Color.Black)
 
-    private fun gradientBrush(glyph: OriveoTabGlyph, isDark: Boolean): Brush {
-        val (start, end) = gradient(glyph, isDark)
+    private fun gradientBrush(glyph: OriveoTabGlyph, isDark: Boolean, darkBrand: Pair<Color, Color>? = null): Brush {
+        val (start, end) = gradient(glyph, isDark, darkBrand)
         return Brush.linearGradient(
             colors = listOf(start, end),
             start = Offset(2f, 2f),
@@ -89,22 +100,30 @@ internal object OriveoTabBarIcons {
 
     private val homeTemplate by lazy { home("TabIconHome", templateBrush) }
     private val homeSelectedLight by lazy { home("TabIconHomeSelectedLight", gradientBrush(OriveoTabGlyph.Home, false)) }
-    private val homeSelectedDark by lazy { home("TabIconHomeSelectedDark", gradientBrush(OriveoTabGlyph.Home, true)) }
+    // The dark selected icons change with the palette: only the three icons of the latest palette are cached (rebuilt on a palette switch)
+    private var selectedDarkCache: Pair<Pair<Color, Color>, MutableMap<OriveoTabGlyph, ImageVector>>? = null
+
+    private fun selectedDark(glyph: OriveoTabGlyph, brand: Pair<Color, Color>): ImageVector {
+        val cache = selectedDarkCache?.takeIf { it.first == brand }?.second
+            ?: mutableMapOf<OriveoTabGlyph, ImageVector>().also { selectedDarkCache = brand to it }
+        return cache.getOrPut(glyph) {
+            val brush = gradientBrush(glyph, true, brand)
+            when (glyph) {
+                OriveoTabGlyph.Home -> home("TabIconHomeSelectedDark", brush)
+                OriveoTabGlyph.Providers -> strokes("TabIconProvidersSelectedDark", PROVIDERS_STARS, brush)
+                OriveoTabGlyph.Settings -> strokes("TabIconSettingsSelectedDark", SETTINGS_SLIDERS, brush)
+            }
+        }
+    }
 
     private val providersTemplate by lazy { strokes("TabIconProviders", PROVIDERS_STARS, templateBrush) }
     private val providersSelectedLight by lazy {
         strokes("TabIconProvidersSelectedLight", PROVIDERS_STARS, gradientBrush(OriveoTabGlyph.Providers, false))
     }
-    private val providersSelectedDark by lazy {
-        strokes("TabIconProvidersSelectedDark", PROVIDERS_STARS, gradientBrush(OriveoTabGlyph.Providers, true))
-    }
 
     private val settingsTemplate by lazy { strokes("TabIconSettings", SETTINGS_SLIDERS, templateBrush) }
     private val settingsSelectedLight by lazy {
         strokes("TabIconSettingsSelectedLight", SETTINGS_SLIDERS, gradientBrush(OriveoTabGlyph.Settings, false))
-    }
-    private val settingsSelectedDark by lazy {
-        strokes("TabIconSettingsSelectedDark", SETTINGS_SLIDERS, gradientBrush(OriveoTabGlyph.Settings, true))
     }
 
     /** The three dots are both filled and stroked in the SVG (inheriting the root 1.8 stroke), so the visible diameter is 1.2 + 1.8 = 3. */

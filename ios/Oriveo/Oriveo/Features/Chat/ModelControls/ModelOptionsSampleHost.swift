@@ -201,6 +201,7 @@ enum ModelOptionsSample {
 
 /// The host of a sample: a dimmed fake chat page with the panel presented over it as a real modal.
 struct ModelOptionsSampleHost: View {
+    @Environment(\.colorScheme) private var colorScheme
     let name: String
 
     @State private var path: [ModelControlsRoute] = []
@@ -266,9 +267,16 @@ struct ModelOptionsSampleHost: View {
         .accessibilityHidden(true)
     }
 
+    /// User bubble sample: in dark mode it uses gradient-brand like the real bubble; light mode keeps the plain brand violet.
+    private var userBubbleFill: AnyShapeStyle {
+        colorScheme == .dark
+            ? AnyShapeStyle(OriveoTheme.Palette.primaryGradient)
+            : AnyShapeStyle(OriveoTheme.Palette.primary)
+    }
+
     private func bubble(width: CGFloat, height: CGFloat, isUser: Bool) -> some View {
         RoundedRectangle(cornerRadius: 18, style: .continuous)
-            .fill(isUser ? OriveoTheme.Palette.userBubble : OriveoTheme.Palette.assistantBubble)
+            .fill(isUser ? userBubbleFill : AnyShapeStyle(OriveoTheme.Palette.assistantBubble))
             .frame(width: width, height: height)
             .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
     }

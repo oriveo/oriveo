@@ -933,7 +933,7 @@ struct HomeView: View {
                 isFocused: $heroFocused,
                 font: Self.heroInputFont,
                 textColor: Self.heroInputTextColor,
-                // The system caret uses the same colour as the decorative cursor (dark #C4B5FD / light #8B5CF6)
+                // The system caret uses the same colour as the decorative cursor (AuroraTheme.Colors.accentGlow: fixed violet in light mode, the current palette accent in dark mode)
                 tintColor: Self.heroInputTint,
                 // The placeholder is drawn by the decorative layer below, so VoiceOver needs an explicit name
                 accessibilityLabel: composerPlaceholder,
@@ -1086,7 +1086,7 @@ struct HomeView: View {
             // semibold is the closest match in stroke weight and area
             Image(systemName: "arrow.up")
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(AuroraTheme.Colors.onSendFill)
                 .frame(width: 44, height: 44)
                 .background(Circle().fill(AuroraTheme.Colors.sendFill))
                 .contentShape(Circle())

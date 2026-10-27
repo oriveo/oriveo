@@ -2,6 +2,7 @@ package ai.oriveo.community.feature.chat.composer
 
 import androidx.compose.ui.graphics.Color
 import ai.oriveo.community.ui.theme.DarkOriveoColors
+import ai.oriveo.community.ui.theme.DarkPaletteId
 import ai.oriveo.community.ui.theme.LightOriveoColors
 import ai.oriveo.community.ui.theme.OriveoColors
 import java.io.File
@@ -28,7 +29,12 @@ class ModelControlModalContrastTest {
     // The ModalBottomSheet's containerColor is set explicitly to OriveoTheme.colors.background;
     // the card sits on top of it (surface in light, surfaceElevated in dark, both with alpha).
     private val lightCard = composite(LightOriveoColors.surface, LightOriveoColors.background)
-    private val darkCard = composite(DarkOriveoColors.surfaceElevated, DarkOriveoColors.background)
+    private val darkCard = darkCardOf(DarkOriveoColors)
+
+    /** The 7 dark palettes computed one by one (order = `order` in `shared/theme-contracts/dark-palettes.v1.json`). */
+    private val darkPalettes = DarkPaletteId.entries.map { it.id to it.colors }
+
+    private fun darkCardOf(colors: OriveoColors) = composite(colors.surfaceElevated, colors.background)
 
     // -- Negative control: without this we can't prove switching tokens actually changed anything --
 
@@ -78,7 +84,7 @@ class ModelControlModalContrastTest {
     @Test
     fun `both status badges meet AA on their own capsule`() {
         forBothThemes { name, colors, card ->
-            val alpha = modelControlBadgeCapsuleAlpha(isDark = colors === DarkOriveoColors)
+            val alpha = modelControlBadgeCapsuleAlpha(isDark = colors !== LightOriveoColors)
             assertAA(
                 "$name \"Manual / Not ready\" badge",
                 colors.warningText,
@@ -94,12 +100,8 @@ class ModelControlModalContrastTest {
 
     @Test
     fun `the close bar label meets AA on the chrome surface`() {
-        listOf(
-            "Light" to (LightOriveoColors to LightOriveoColors.background),
-            "Dark" to (DarkOriveoColors to DarkOriveoColors.background),
-        ).forEach { (name, pair) ->
-            val (colors, background) = pair
-            assertAA("$name close bar", colors.textPrimary, composite(colors.surfaceChrome, background))
+        forBothThemes { name, colors, _ ->
+            assertAA("$name close bar", colors.textPrimary, composite(colors.surfaceChrome, colors.background))
         }
     }
 
@@ -127,14 +129,20 @@ class ModelControlModalContrastTest {
         val badgeLight = fillRatio(LightOriveoColors.warning, modelControlBadgeCapsuleAlpha(false), lightCard)
         val badgeDark = fillRatio(DarkOriveoColors.warning, modelControlBadgeCapsuleAlpha(true), darkCard)
         assertEquals("the measured light badge fill changed, please re-evaluate", 1.0982, badgeLight, 0.001)
-        assertEquals("the measured dark badge fill changed, please re-evaluate", 1.6620, badgeDark, 0.001)
+        assertEquals("the measured dark badge fill changed, please re-evaluate", 1.6706, badgeDark, 0.001)
         assertTrue("the dark capsule must not be muddier than the light one", badgeDark >= badgeLight)
 
         val pillLight = fillRatio(LightOriveoColors.textPrimary, modelControlUnselectedPillAlpha(false), lightCard)
         val pillDark = fillRatio(DarkOriveoColors.textPrimary, modelControlUnselectedPillAlpha(true), darkCard)
         assertEquals("the measured light unselected pill fill changed, please re-evaluate", 1.1283, pillLight, 0.001)
-        assertEquals("the measured dark unselected pill fill changed, please re-evaluate", 1.3372, pillDark, 0.001)
+        assertEquals("the measured dark unselected pill fill changed, please re-evaluate", 1.3344, pillDark, 0.001)
         assertTrue("the dark pill fill must not be muddier than the light one", pillDark >= pillLight)
+        // The other 6 dark palettes must not be muddier than light either
+        for ((id, colors) in darkPalettes) {
+            val card = darkCardOf(colors)
+            assertTrue("$id capsule is muddier than light", fillRatio(colors.warning, modelControlBadgeCapsuleAlpha(true), card) >= badgeLight)
+            assertTrue("$id pill fill is muddier than light", fillRatio(colors.textPrimary, modelControlUnselectedPillAlpha(true), card) >= pillLight)
+        }
     }
 
     /**
@@ -157,15 +165,17 @@ class ModelControlModalContrastTest {
             modelControlUnselectedPillLabel(LightOriveoColors, isDark = false),
             lightFill,
         )
-        val darkFill = composite(
-            DarkOriveoColors.textPrimary.copy(alpha = modelControlUnselectedPillAlpha(true)),
-            darkCard,
-        )
-        assertAA(
-            "Dark unselected pill label",
-            modelControlUnselectedPillLabel(DarkOriveoColors, isDark = true),
-            darkFill,
-        )
+        for ((id, colors) in darkPalettes) {
+            val darkFill = composite(
+                colors.textPrimary.copy(alpha = modelControlUnselectedPillAlpha(true)),
+                darkCardOf(colors),
+            )
+            assertAA(
+                "Dark $id unselected pill label",
+                modelControlUnselectedPillLabel(colors, isDark = true),
+                darkFill,
+            )
+        }
     }
 
     /**
@@ -179,7 +189,7 @@ class ModelControlModalContrastTest {
         assertEquals(Color(0xFF52525B), modelControlUnselectedPillLabel(LightOriveoColors, isDark = false))
         // Dark theme already matches on both platforms, so no separate constant is needed.
         assertEquals(DarkOriveoColors.textSecondary, modelControlUnselectedPillLabel(DarkOriveoColors, isDark = true))
-        assertEquals(Color(0xFFB4BAC6), DarkOriveoColors.textSecondary)
+        assertEquals(Color(0xFFB3B3BA), DarkOriveoColors.textSecondary)
         val lightFill = composite(
             LightOriveoColors.textPrimary.copy(alpha = modelControlUnselectedPillAlpha(false)),
             lightCard,
@@ -248,7 +258,7 @@ class ModelControlModalContrastTest {
 
     private fun forBothThemes(block: (String, OriveoColors, Color) -> Unit) {
         block("Light", LightOriveoColors, lightCard)
-        block("Dark", DarkOriveoColors, darkCard)
+        for ((id, colors) in darkPalettes) block("Dark $id", colors, darkCardOf(colors))
     }
 
     private fun fmt(ratio: Double) = "%.4f:1".format(ratio)

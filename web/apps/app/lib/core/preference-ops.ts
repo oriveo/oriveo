@@ -4,7 +4,7 @@
  */
 
 import type { StoreApi } from 'zustand';
-import type { ThemeOption, LanguageOption } from '@oriveo/shared';
+import type { DarkPaletteId, ThemeOption, LanguageOption } from '@oriveo/shared';
 import type { AppStore } from './store/app-store';
 import { getSyncAdapter } from './sync-port';
 import { setLocaleCookie } from '../i18n/locale-utils';
@@ -15,6 +15,12 @@ export function updateTheme(store: StoreApi<AppStore>, theme: ThemeOption) {
   store.getState().setPreferences({ theme, themeSetByUser: true });
   getSyncAdapter()?.didUpdatePreferences({ theme });
   trackEvent('settings_changed', { key: 'theme', value: theme });
+}
+
+export function updateDarkPalette(store: StoreApi<AppStore>, darkPalette: DarkPaletteId) {
+  store.getState().setPreferences({ darkPalette, darkPaletteSetByUser: true });
+  getSyncAdapter()?.didUpdatePreferences({ darkPalette });
+  trackEvent('settings_changed', { key: 'darkPalette', value: darkPalette });
 }
 
 export function updateLanguage(store: StoreApi<AppStore>, language: LanguageOption) {

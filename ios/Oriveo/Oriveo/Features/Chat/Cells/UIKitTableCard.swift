@@ -25,12 +25,21 @@ final class UIKitTableCard: UIView {
     private let tableData: TableData
 
 
-    private static let borderColor = UIColor(Color.dynamic(light: 0xCBD5E1, dark: 0x334155))
-    private static let headerBg = UIColor(Color.dynamic(light: 0xF1F5F9, dark: 0x1E293B))
+    /// Grid lines: light mode = slate 0xCBD5E1 x each line alpha (original values unchanged); dark mode = the palette border (JSON shared.border, white at 10%),
+    /// the same for every line, with no extra alpha. Resolved dynamically by the trait provider, so switching palettes does not rebuild. Shared with the streaming table card.
+    static func gridLineColor(lightAlpha: CGFloat = 1) -> UIColor {
+        UIColor { trait in
+            trait.userInterfaceStyle == .dark
+                ? UIColor(oriveoHex: 0xFFFFFF, alpha: 0.10)
+                : UIColor(oriveoHex: 0xCBD5E1, alpha: lightAlpha)
+        }
+    }
+    static let headerBg = UIColor.oriveoDynamic(light: 0xF1F5F9, dark: \.surfaceRaised)
     private static let headerText = UIColor(OriveoTheme.Palette.textPrimary)
     private static let cellText = UIColor(OriveoTheme.Palette.textPrimary)
-    private static let cellBg = UIColor(Color.dynamic(light: 0xFFFFFF, dark: 0x0F172A))
-    private static let altRowBg = UIColor(Color.dynamic(light: 0xF8FAFC, dark: 0x131C2E))
+    /// Cell background: dark = the palette surface; zebra rows: dark = the palette bgInset; light mode is unchanged. Shared with the streaming table card.
+    static let cellBg = UIColor.oriveoDynamic(light: 0xFFFFFF, dark: \.surface)
+    static let altRowBg = UIColor.oriveoDynamic(light: 0xF8FAFC, dark: \.bgInset)
 
 
     private let cellPaddingH: CGFloat = 12
@@ -248,7 +257,7 @@ final class UIKitTableCard: UIView {
         layer.cornerRadius = cornerRadius
         layer.cornerCurve = .continuous
         layer.borderWidth = gridLineWidth
-        layer.borderColor = Self.borderColor.withAlphaComponent(0.5).cgColor
+        layer.borderColor = Self.gridLineColor(lightAlpha: 0.5).resolvedColor(with: traitCollection).cgColor
         clipsToBounds = true
         backgroundColor = Self.cellBg
 
@@ -367,7 +376,7 @@ final class UIKitTableCard: UIView {
             var topLine: UIView?
             if rowIdx > 1 {
                 let line = UIView()
-                line.backgroundColor = Self.borderColor.withAlphaComponent(0.3)
+                line.backgroundColor = Self.gridLineColor(lightAlpha: 0.3)
                 rowView.addSubview(line)
                 topLine = line
             }
@@ -375,7 +384,7 @@ final class UIKitTableCard: UIView {
             var headerSeparator: UIView?
             if isHeader {
                 let sep = UIView()
-                sep.backgroundColor = Self.borderColor
+                sep.backgroundColor = Self.gridLineColor()
                 rowView.addSubview(sep)
                 headerSeparator = sep
             }
@@ -390,7 +399,7 @@ final class UIKitTableCard: UIView {
 
                 if j < colCount - 1 {
                     let colLine = UIView()
-                    colLine.backgroundColor = Self.borderColor.withAlphaComponent(0.25)
+                    colLine.backgroundColor = Self.gridLineColor(lightAlpha: 0.25)
                     rowView.addSubview(colLine)
                     columnLines.append(colLine)
                 }
@@ -682,7 +691,7 @@ final class UIKitTableCard: UIView {
 
 
     private func registerForTraitChanges() {
-        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: UIKitTableCard, _: UITraitCollection) in
+        registerForTraitChanges(OriveoDarkPaletteTrait.colorAppearanceTraits) { (view: UIKitTableCard, _: UITraitCollection) in
             view.revalidateTraitDependentAppearance()
             view.setNeedsLayout()
         }
@@ -696,7 +705,7 @@ final class UIKitTableCard: UIView {
         let style = Self.effectiveStyle(traitCollection)
         if appliedBorderStyle != style {
             appliedBorderStyle = style
-            layer.borderColor = Self.borderColor.withAlphaComponent(0.5).resolvedColor(with: traitCollection).cgColor
+            layer.borderColor = Self.gridLineColor(lightAlpha: 0.5).resolvedColor(with: traitCollection).cgColor
         }
         if containsMath, !cellContents.isEmpty, contentStyle != style {
             needsCellContentRender = true

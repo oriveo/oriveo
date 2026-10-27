@@ -345,7 +345,7 @@ final class ChatListViewController: UIViewController {
         }
         // Switching between light and dark: pooled rich cards built in the old appearance are not worth
         // keeping (they would correct their colors when taken back, but formulas and markdown re-render).
-        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (_: ChatListViewController, _: UITraitCollection) in
+        registerForTraitChanges(OriveoDarkPaletteTrait.colorAppearanceTraits) { (_: ChatListViewController, _: UITraitCollection) in
             ChatRichCardRecycling.purgeAll()
         }
     }

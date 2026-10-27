@@ -285,6 +285,9 @@ struct VoiceConversationBarContent: View {
         .accessibilityIdentifier("voice_conversation_end_button")
     }
 
+    static let mutedForegroundUIColor = UIColor.oriveoDynamic(light: 0xFFFFFF, dark: \.bg)
+    static let mutedForeground = Color(uiColor: mutedForegroundUIColor)
+
     private var muteButton: some View {
         Button {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -293,7 +296,8 @@ struct VoiceConversationBarContent: View {
             // Always a slashed microphone, inverted when muted.
             Image(systemName: "mic.slash")
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(isMuted ? Color.white : OriveoTheme.Palette.textSecondary)
+                // Inverted: the fill is textPrimary (the near-white palette text in dark mode), so the text is inverted: white in light mode, the palette bg in dark mode.
+                .foregroundStyle(isMuted ? Self.mutedForeground : OriveoTheme.Palette.textSecondary)
                 .frame(width: 40, height: 40)
                 .background(Circle().fill(isMuted ? AnyShapeStyle(OriveoTheme.Palette.textPrimary) : AnyShapeStyle(Self.ghostFill)))
                 .frame(width: Self.minimumHitSize, height: Self.minimumHitSize)
@@ -397,7 +401,7 @@ struct VoiceConversationOrb: View {
     /// Logo colors: blue, purple, magenta, cyan.
     static let palette: [Color] = [
         Color(hex: 0x4F7BFF),
-        Color(hex: 0x8B5CF6),
+        Color.dynamic(light: 0x8B5CF6, dark: \.primary),
         Color(hex: 0xE04FC0),
         Color(hex: 0x38D6E8)
     ]

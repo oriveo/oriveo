@@ -288,7 +288,8 @@ fun HomeScreen(
     val activeModelState by viewModel.activeModelState.collectAsStateWithLifecycle()
 
     val rawIsDark = ai.oriveo.community.ui.theme.LocalIsDarkTheme.current
-    val v2Colors = if (rawIsDark) ai.oriveo.community.ui.theme.DarkV2OriveoColors
+    // Dark reuses the palette already chosen by the outer OriveoTheme (V2 dark shares V1's board); do not hard-code the default dark, or the home page would not follow a palette switch
+    val v2Colors = if (rawIsDark) ai.oriveo.community.ui.theme.LocalOriveoColors.current
         else ai.oriveo.community.ui.theme.LightV2OriveoColors
     androidx.compose.runtime.CompositionLocalProvider(
         ai.oriveo.community.ui.theme.LocalOriveoColors provides v2Colors,

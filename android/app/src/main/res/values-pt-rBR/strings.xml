@@ -90,15 +90,24 @@
 
     <!-- Settings -->
     <string name="settings_title">Configurações</string>
-    <string name="appearance">Aparência</string>
     <string name="theme">Tema</string>
     <string name="theme_system">Seguir o sistema</string>
     <string name="theme_light">Claro</string>
     <string name="theme_dark">Escuro</string>
+    <string name="theme_follow_system_hint">No modo escuro do sistema, é usada a paleta escura que você escolheu.</string>
+    <string name="theme_section_palettes">Paletas</string>
+    <string name="theme_palette_purple">Roxo</string>
+    <string name="theme_palette_graphite">Grafite</string>
+    <string name="theme_palette_black">Preto</string>
+    <string name="theme_palette_ocean">Oceano</string>
+    <string name="theme_palette_forest">Floresta</string>
+    <string name="theme_palette_sunset">Pôr do sol</string>
+    <string name="theme_preview_question">Explique o ownership do Rust em um parágrafo.</string>
+    <string name="theme_preview_reply">Cada valor tem exatamente um %1$s. Quando ele sai de escopo, o valor é descartado; para pegá-lo emprestado, use %2$s.</string>
+    <string name="theme_preview_owner">dono</string>
+    <string name="theme_summary_follow_system">Seguir o sistema · %1$s</string>
     <string name="language">Idioma</string>
-    <string name="data_section">Dados</string>
     <string name="backup_and_export">Backup e exportação</string>
-    <string name="about">Sobre</string>
     <string name="privacy_policy">Política de privacidade</string>
     <string name="terms_of_service">Termos de Serviço</string>
 
@@ -297,7 +306,6 @@
     <string name="provider_detail_add_model_manually">+ Adicione o ID do modelo manualmente</string>
     <string name="provider_detail_badge_recent">Recentes</string>
     <string name="undo">Desfazer</string>
-    <string name="help_feedback">Ajuda e comentários</string>
     <string name="settings_source_code">Código-fonte</string>
     <string name="settings_report_issue">Relatar um problema</string>
     <string name="manual_model_entry_title">Modelo substituto</string>
@@ -2337,4 +2345,6 @@
     <string name="context_confirm_send">Enviar mesmo assim</string>
     <string name="chat_last_used_model_retired_hint">O modelo que você usou por último foi descontinuado. Agora você está usando %1$s.</string>
     <string name="model_options_shows_thinking_fixed">Mostra o raciocínio · não dá para ajustar</string>
+    <string name="settings_section_general">Geral</string>
+    <string name="settings_section_help_about">Ajuda e informações</string>
 </resources>

@@ -2,6 +2,9 @@ import SafariServices
 import SwiftUI
 
 struct OriveoPrimaryButtonStyle: ButtonStyle {
+    /// Foreground on top of the brand gradient: white in light mode, the current palette onPrimary in dark mode.
+    static let foregroundUIColor = OriveoTheme.Palette.onPrimaryUIColor
+
     @Environment(\.colorScheme) private var colorScheme
 
     func makeBody(configuration: Configuration) -> some View {
@@ -9,7 +12,7 @@ struct OriveoPrimaryButtonStyle: ButtonStyle {
             .lineLimit(1)
             .minimumScaleFactor(0.75)
             .font(OriveoTheme.Typography.title3)
-            .foregroundStyle(Color.white)
+            .foregroundStyle(Color(uiColor: Self.foregroundUIColor))
             .frame(maxWidth: .infinity)
             .frame(height: 48)
             .background(
@@ -72,7 +75,7 @@ struct OriveoTextButtonStyle: ButtonStyle {
 struct OriveoCircleIconButton: View {
     let systemImage: String
     var fill: AnyShapeStyle = AnyShapeStyle(OriveoTheme.Palette.primary)
-    var foreground: Color = .white
+    var foreground: Color = OriveoTheme.Palette.onPrimary
     var border: Color = OriveoTheme.Palette.hairline
     var shadowColor: Color = OriveoTheme.Palette.primaryGlow
     var size: CGFloat = 36

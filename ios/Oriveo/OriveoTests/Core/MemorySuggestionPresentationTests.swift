@@ -48,15 +48,16 @@ private func sameResolvedColor(_ lhs: UIColor?, _ rhs: UIColor) -> Bool {
 
 @Suite("MemorySuggestionPresentation", .serialized, .sharedProcessState)
 struct MemorySuggestionPresentationTests {
-    /// The primary save button background uses the brand primary color with white text, not system blue (AccentColor is empty).
+    /// The primary save button background uses the brand primary color with the on-primary text color, not system blue (AccentColor is empty).
+    /// It reads primaryUIColor / onPrimaryUIColor (light mode keeps the original violet and white; dark mode follows the current palette).
     @MainActor
     @Test("memory bar save button uses the brand primary color")
     func saveButtonUsesPrimary() throws {
         let bar = MemorySuggestionBarView()
         bar.apply(MemorySuggestionBar(messageID: UUID(), content: "Prefers metric units"))
         let config = try #require(bar.saveButtonConfigurationForTesting)
-        #expect(sameResolvedColor(config.baseBackgroundColor, UIColor(OriveoTheme.Palette.primary)))
-        #expect(sameResolvedColor(config.baseForegroundColor, .white))
+        #expect(sameResolvedColor(config.baseBackgroundColor, OriveoTheme.Palette.primaryUIColor))
+        #expect(sameResolvedColor(config.baseForegroundColor, OriveoTheme.Palette.onPrimaryUIColor))
     }
 
     // Sentences are read as `text` from the cases of shared/context-contracts/memory-intent.v1.json by case id.

@@ -638,12 +638,12 @@ private fun FoldedUserMessageText(
                 imageVector = Icons.Outlined.OpenInFull,
                 contentDescription = null,
                 modifier = Modifier.size(11.dp),
-                tint = Color.White,
+                tint = userBubbleInk(),
             )
             Text(
                 text = stringResource(R.string.chat_show_full_message),
                 style = OriveoTheme.typography.footnote.copy(fontWeight = FontWeight.SemiBold),
-                color = Color.White,
+                color = userBubbleInk(),
                 maxLines = 1,
             )
         }
@@ -677,7 +677,7 @@ private fun SelectableUserMessageText(
                     text = text,
                     modifier = modifier,
                     style = OriveoTheme.typography.chatBody,
-                    color = Color.White,
+                    color = userBubbleInk(),
                 )
             }
         }
@@ -687,7 +687,7 @@ private fun SelectableUserMessageText(
                 text = text,
                 modifier = modifier,
                 style = OriveoTheme.typography.chatBody,
-                color = Color.White,
+                color = userBubbleInk(),
             )
         }
     }
@@ -1700,7 +1700,7 @@ private fun MessageAttachmentList(
                         Text(
                             text = stringResource(mark),
                             style = OriveoTheme.typography.caption,
-                            color = Color.White.copy(alpha = 0.72f),
+                            color = userBubbleInk().copy(alpha = 0.72f),
                             modifier = Modifier.padding(horizontal = 10.dp),
                         )
                     }
@@ -1822,7 +1822,7 @@ private fun UserFileChip(attachment: Attachment, attachmentStore: AttachmentStor
             CircularProgressIndicator(
                 modifier = Modifier.size(12.dp),
                 strokeWidth = 1.5.dp,
-                color = Color.White.copy(alpha = 0.72f),
+                color = userBubbleInk().copy(alpha = 0.72f),
             )
         } else {
             Icon(
@@ -1833,7 +1833,7 @@ private fun UserFileChip(attachment: Attachment, attachmentStore: AttachmentStor
                 ),
                 contentDescription = null,
                 modifier = Modifier.size(12.dp),
-                tint = Color.White.copy(alpha = if (isUnavailable) 0.5f else 0.85f),
+                tint = userBubbleInk().copy(alpha = if (isUnavailable) 0.5f else 0.85f),
             )
         }
         Text(
@@ -1841,7 +1841,7 @@ private fun UserFileChip(attachment: Attachment, attachmentStore: AttachmentStor
             style = OriveoTheme.typography.footnote.copy(
                 fontSize = androidx.compose.ui.unit.TextUnit(11f, androidx.compose.ui.unit.TextUnitType.Sp),
             ),
-            color = Color.White.copy(alpha = if (isUnavailable) 0.5f else 0.85f),
+            color = userBubbleInk().copy(alpha = if (isUnavailable) 0.5f else 0.85f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -1923,9 +1923,9 @@ private fun MessageAttachmentChip(
         colors.surfaceInset
     }
     val contentColor = when {
-        isUnavailable && isUserMessage -> Color.White.copy(alpha = 0.54f)
+        isUnavailable && isUserMessage -> userBubbleInk().copy(alpha = 0.54f)
         isUnavailable -> colors.textTertiary
-        isUserMessage -> Color.White
+        isUserMessage -> userBubbleInk()
         else -> colors.textSecondary
     }
     val borderColor = if (isUserMessage) {
@@ -2037,3 +2037,7 @@ private fun Modifier.userBubbleGlow(glowColor: Color, isDark: Boolean): Modifier
         }
     }
 }
+
+/** Text / icon color on the user bubble (brand gradient): the palette's onPrimary in dark, white in light. */
+@Composable
+private fun userBubbleInk(): Color = OriveoGradients.onPrimary

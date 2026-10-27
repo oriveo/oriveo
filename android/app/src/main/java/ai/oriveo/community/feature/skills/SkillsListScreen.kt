@@ -894,9 +894,11 @@ private fun SkillCardView(
 @Composable
 fun SkillChip(skill: Skill, onClick: () -> Unit) {
     val isDark = OriveoTheme.isDark
-    val skillColor = remember(skill.color) {
+    // Fallback color when parsing fails: the current palette primary in dark, a fixed purple in light
+    val fallbackColor = if (isDark) OriveoTheme.colors.primary else Color(0xFF8B5CF6) // dark-palette-guard: keep (d) light branch
+    val skillColor = remember(skill.color, fallbackColor) {
         runCatching { Color(android.graphics.Color.parseColor(skill.color)) }.getOrNull()
-            ?: Color(0xFF8B5CF6)
+            ?: fallbackColor
     }
     val chipFill = skillColor.copy(alpha = if (isDark) 0.12f else 0.06f)
     val chipBorder = skillColor.copy(alpha = if (isDark) 0.22f else 0.14f)
