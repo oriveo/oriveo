@@ -49,7 +49,7 @@ describe('dynamically composed message keys', () => {
   });
 });
 
-// 主题页的卡名、外观段名、预置色名与摘要模板都按映射表取键（theme-page-rules.ts），源码里没有完整字面量。
+// The theme page looks up card names, appearance section names, preset color names and summary templates through a mapping table (theme-page-rules.ts), so the source has no full literals.
 const THEME_SUMMARY_KEYS = ['themeSummaryLight', 'themeSummaryDark', 'themeSummaryFollowSystem'];
 
 describe('theme page message keys', () => {
@@ -66,7 +66,7 @@ describe('theme page message keys', () => {
     const settings = messages.pages.settings;
     expect(keys.filter((key) => typeof settings[key] !== 'string')).toEqual([]);
     expect(THEME_SUMMARY_KEYS.filter((key) => !String(settings[key]).includes('{palette}'))).toEqual([]);
-    // 跟随系统开关已删，提示文案随之删除
+    // The follow-system switch is gone, and its hint text with it
     expect(settings.themeFollowSystemHint).toBeUndefined();
   });
 });
