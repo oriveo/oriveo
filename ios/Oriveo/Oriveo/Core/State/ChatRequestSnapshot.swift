@@ -123,6 +123,9 @@ nonisolated struct ChatRequestSnapshot: Sendable {
     /// This turn's L3 recall (goes into [D] `<oriveo-recall>`): searched once in the send task from the item snapshot (same source as L2);
     /// every leg of the same turn and the overflow-fallback reassembly reuse this one copy; empty when effective useMemory is off.
     private(set) var recall: [ContextRecallEntry] = []
+    /// The result section reused for this turn's external pre-search / resend (goes into [D], right after `<oriveo-library>`).
+    /// Filled in by `withWeb` after the search completes in the send task; nil = this turn has no such section.
+    private(set) var web: String?
 
     init(
         conversation: ChatRequestConversationSnapshot?,
@@ -153,6 +156,12 @@ nonisolated struct ChatRequestSnapshot: Sendable {
     func withPinnedNotes(_ notes: [ChatRequestPinnedNoteSnapshot]) -> ChatRequestSnapshot {
         var snapshot = self
         snapshot.pinnedNotes = notes
+        return snapshot
+    }
+
+    func withWeb(_ content: String?) -> ChatRequestSnapshot {
+        var snapshot = self
+        snapshot.web = content
         return snapshot
     }
 

@@ -1,0 +1,694 @@
+{
+  "code": 0,
+  "data": {
+    "schema": "search-catalog/v1",
+    "revision": 4,
+    "generatedAt": "2026-10-27T05:05:22Z",
+    "services": [
+      {
+        "id": "deepseek",
+        "displayName": "DeepSeek",
+        "group": "domestic",
+        "urls": {
+          "homepage": "https://www.deepseek.com",
+          "docs": "https://api-docs.deepseek.com/zh-cn/guides/search",
+          "terms": "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html",
+          "keyHelp": "https://platform.deepseek.com/api_keys"
+        },
+        "pricing": {
+          "sourceUrl": "https://api-docs.deepseek.com/zh-cn/guides/search"
+        },
+        "regions": [
+          {
+            "id": "cn",
+            "host": "api.deepseek.com",
+            "source": "recorded",
+            "pricing": {
+              "unit": "per_1k_requests",
+              "amount": "5",
+              "currency": "CNY",
+              "billing": "non_empty_only",
+              "free": null
+            }
+          }
+        ],
+        "reuse": {
+          "providerKind": "deepseek",
+          "regionByConnectionHost": {
+            "api.deepseek.com": "cn"
+          }
+        },
+        "transport": {
+          "kind": "json_http/v1",
+          "method": "POST",
+          "path": "/v1/tools/search",
+          "auth": {
+            "kind": "bearer"
+          },
+          "query": {
+            "field": "query",
+            "in": "body",
+            "maxChars": 128
+          },
+          "count": {
+            "field": "count",
+            "in": "body",
+            "max": 50
+          },
+          "static": null,
+          "response": {
+            "results": "results",
+            "title": [
+              "title"
+            ],
+            "url": [
+              "url"
+            ],
+            "snippet": [
+              "summary",
+              "snippet"
+            ],
+            "site": [
+              "site_name"
+            ],
+            "date": [
+              "date"
+            ],
+            "html": false
+          },
+          "errors": []
+        },
+        "limits": {
+          "timeoutSec": 20
+        },
+        "citationStorage": "full",
+        "trust": {
+          "entity": "DeepSeek（杭州深度求索）",
+          "evidence": [
+            "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html"
+          ],
+          "reviewedAt": "2026-10-26"
+        }
+      },
+      {
+        "id": "zhipu",
+        "displayName": "Z.ai",
+        "group": "domestic",
+        "urls": {
+          "homepage": "https://bigmodel.cn",
+          "docs": "https://docs.bigmodel.cn/cn/guide/tools/web-search",
+          "terms": "https://docs.bigmodel.cn/cn/terms/user-agreement",
+          "keyHelp": "https://bigmodel.cn/usercenter/proj-mgmt/apikeys"
+        },
+        "pricing": {
+          "sourceUrl": "https://docs.bigmodel.cn/cn/guide/start/pricing"
+        },
+        "regions": [
+          {
+            "id": "cn",
+            "host": "open.bigmodel.cn",
+            "source": "recorded",
+            "static": {
+              "search_engine": "search_std"
+            },
+            "pricing": {
+              "unit": "per_request",
+              "amount": "0.01",
+              "currency": "CNY",
+              "billing": "all",
+              "free": null
+            }
+          },
+          {
+            "id": "intl",
+            "host": "api.z.ai",
+            "source": "recorded",
+            "static": {
+              "search_engine": "search-prime"
+            },
+            "urls": {
+              "docs": "https://docs.z.ai/guides/tools/web-search",
+              "pricing": "https://docs.z.ai/guides/overview/pricing",
+              "keyHelp": "https://z.ai/manage-apikey/apikey-list"
+            },
+            "pricing": {
+              "unit": "per_request",
+              "amount": "0.01",
+              "currency": "USD",
+              "billing": "all",
+              "free": null
+            }
+          }
+        ],
+        "reuse": {
+          "providerKind": "zhipu",
+          "regionByConnectionHost": {
+            "open.bigmodel.cn": "cn"
+          }
+        },
+        "transport": {
+          "kind": "json_http/v1",
+          "method": "POST",
+          "path": "/api/paas/v4/web_search",
+          "auth": {
+            "kind": "bearer"
+          },
+          "query": {
+            "field": "search_query",
+            "in": "body"
+          },
+          "count": {
+            "field": "count",
+            "in": "body",
+            "max": 50
+          },
+          "static": {
+            "in": "body",
+            "params": {
+              "search_intent": false
+            }
+          },
+          "response": {
+            "results": "search_result",
+            "title": [
+              "title"
+            ],
+            "url": [
+              "link"
+            ],
+            "snippet": [
+              "content"
+            ],
+            "site": [
+              "media"
+            ],
+            "date": [
+              "publish_date"
+            ],
+            "html": false
+          },
+          "errors": [
+            {
+              "status": 429,
+              "match": {
+                "path": "error.code",
+                "equals": "1113"
+              },
+              "class": "insufficient_balance"
+            },
+            {
+              "status": 429,
+              "match": {
+                "path": "error.code",
+                "equals": "1316"
+              },
+              "class": "insufficient_balance"
+            },
+            {
+              "status": 429,
+              "match": {
+                "path": "error.code",
+                "equals": "1317"
+              },
+              "class": "insufficient_balance"
+            }
+          ]
+        },
+        "limits": {
+          "timeoutSec": 20
+        },
+        "citationStorage": "full",
+        "trust": {
+          "entity": "北京智谱华章科技（港股 2513）",
+          "evidence": [
+            "https://docs.bigmodel.cn/cn/terms/user-agreement"
+          ],
+          "reviewedAt": "2026-10-26"
+        }
+      },
+      {
+        "id": "kimi",
+        "displayName": "Kimi",
+        "group": "domestic",
+        "urls": {
+          "homepage": "https://www.moonshot.cn",
+          "docs": "https://platform.kimi.com/docs/api/tools-search",
+          "terms": "https://platform.kimi.com/docs/agreement/modeluse",
+          "keyHelp": "https://platform.kimi.com/console/api-keys"
+        },
+        "pricing": {
+          "sourceUrl": "https://platform.kimi.com/docs/pricing/websearch"
+        },
+        "regions": [
+          {
+            "id": "cn",
+            "host": "api.moonshot.cn",
+            "source": "recorded",
+            "pricing": {
+              "unit": "per_request",
+              "amount": "0.01",
+              "currency": "CNY",
+              "billing": "non_empty_only",
+              "free": null
+            }
+          },
+          {
+            "id": "intl",
+            "host": "api.moonshot.ai",
+            "source": "recorded",
+            "urls": {
+              "docs": "https://platform.kimi.ai/docs/api/tools-search",
+              "pricing": "https://platform.kimi.ai/docs/pricing/websearch",
+              "keyHelp": "https://platform.kimi.ai/console/api-keys"
+            },
+            "pricing": {
+              "unit": "per_request",
+              "amount": "0.002",
+              "currency": "USD",
+              "billing": "non_empty_only",
+              "free": null
+            }
+          }
+        ],
+        "reuse": {
+          "providerKind": "moonshot",
+          "regionByConnectionHost": {
+            "api.moonshot.cn": "cn",
+            "api.moonshot.ai": "intl"
+          }
+        },
+        "transport": {
+          "kind": "json_http/v1",
+          "method": "POST",
+          "path": "/v1/tools/search",
+          "auth": {
+            "kind": "bearer"
+          },
+          "query": {
+            "field": "text_query",
+            "in": "body"
+          },
+          "count": {
+            "field": "limit",
+            "in": "body"
+          },
+          "static": null,
+          "response": {
+            "results": "search_results",
+            "title": [
+              "title"
+            ],
+            "url": [
+              "url"
+            ],
+            "snippet": [
+              "snippet",
+              "text"
+            ],
+            "site": [
+              "site_name"
+            ],
+            "date": [
+              "date"
+            ],
+            "html": false
+          },
+          "errors": [
+            {
+              "status": 429,
+              "match": {
+                "path": "error.type",
+                "equals": "exceeded_current_quota_error"
+              },
+              "class": "insufficient_balance"
+            }
+          ]
+        },
+        "limits": {
+          "timeoutSec": 20
+        },
+        "citationStorage": "full",
+        "trust": {
+          "entity": "北京月之暗面科技（国际站签约方 Moonshot AI PTE. LTD.，新加坡）",
+          "evidence": [
+            "https://platform.kimi.com/docs/agreement/modeluse",
+            "https://platform.kimi.ai/docs/agreement/modeluse"
+          ],
+          "reviewedAt": "2026-10-26"
+        }
+      },
+      {
+        "id": "tavily",
+        "displayName": "Tavily",
+        "group": "overseas",
+        "urls": {
+          "homepage": "https://www.tavily.com",
+          "docs": "https://docs.tavily.com/documentation/api-reference/endpoint/search",
+          "terms": "https://tavily.com/terms",
+          "keyHelp": "https://app.tavily.com"
+        },
+        "pricing": {
+          "sourceUrl": "https://docs.tavily.com/documentation/api-credits"
+        },
+        "regions": [
+          {
+            "id": "global",
+            "host": "api.tavily.com",
+            "source": "recorded",
+            "pricing": {
+              "unit": "per_request",
+              "amount": "1",
+              "currency": "CREDIT",
+              "billing": "all",
+              "free": {
+                "kind": "monthly_credits",
+                "amount": 1000,
+                "cardRequired": false
+              }
+            }
+          }
+        ],
+        "transport": {
+          "kind": "json_http/v1",
+          "method": "POST",
+          "path": "/search",
+          "auth": {
+            "kind": "bearer"
+          },
+          "query": {
+            "field": "query",
+            "in": "body"
+          },
+          "count": {
+            "field": "max_results",
+            "in": "body"
+          },
+          "static": {
+            "in": "body",
+            "params": {
+              "search_depth": "basic"
+            }
+          },
+          "response": {
+            "results": "results",
+            "title": [
+              "title"
+            ],
+            "url": [
+              "url"
+            ],
+            "snippet": [
+              "content"
+            ],
+            "html": false
+          },
+          "errors": [
+            {
+              "status": 432,
+              "class": "insufficient_balance"
+            },
+            {
+              "status": 433,
+              "class": "insufficient_balance"
+            }
+          ]
+        },
+        "limits": {
+          "timeoutSec": 20
+        },
+        "citationStorage": "full",
+        "trust": {
+          "entity": "Tavily（2026-02 被 Nebius 收购，NASDAQ）",
+          "evidence": [
+            "https://tavily.com/terms"
+          ],
+          "reviewedAt": "2026-10-26"
+        }
+      },
+      {
+        "id": "exa",
+        "displayName": "Exa",
+        "group": "overseas",
+        "urls": {
+          "homepage": "https://exa.ai",
+          "docs": "https://exa.ai/docs/reference/search",
+          "terms": "https://exa.ai/terms",
+          "keyHelp": "https://dashboard.exa.ai/api-keys"
+        },
+        "pricing": {
+          "sourceUrl": "https://exa.ai/docs/admin/pricing"
+        },
+        "regions": [
+          {
+            "id": "global",
+            "host": "api.exa.ai",
+            "source": "recorded",
+            "pricing": {
+              "unit": "per_1k_requests",
+              "amount": "7",
+              "currency": "USD",
+              "billing": "all",
+              "free": {
+                "kind": "monthly_usd",
+                "amount": "10",
+                "cardRequired": false
+              }
+            }
+          }
+        ],
+        "transport": {
+          "kind": "json_http/v1",
+          "method": "POST",
+          "path": "/search",
+          "auth": {
+            "kind": "header",
+            "name": "x-api-key"
+          },
+          "query": {
+            "field": "query",
+            "in": "body"
+          },
+          "count": {
+            "field": "numResults",
+            "in": "body"
+          },
+          "static": {
+            "in": "body",
+            "params": {
+              "type": "auto",
+              "contents.text": false,
+              "contents.highlights.maxCharacters": 600
+            }
+          },
+          "response": {
+            "results": "results",
+            "title": [
+              "title"
+            ],
+            "url": [
+              "url"
+            ],
+            "snippet": [
+              "highlights"
+            ],
+            "date": [
+              "publishedDate"
+            ],
+            "html": false
+          },
+          "errors": []
+        },
+        "limits": {
+          "timeoutSec": 25
+        },
+        "citationStorage": "full",
+        "trust": {
+          "entity": "Exa Labs（SOC 2 Type II）",
+          "evidence": [
+            "https://exa.ai/terms"
+          ],
+          "reviewedAt": "2026-10-26"
+        }
+      },
+      {
+        "id": "brave",
+        "displayName": "Brave Search",
+        "group": "overseas",
+        "urls": {
+          "homepage": "https://brave.com/search/api/",
+          "docs": "https://api-dashboard.search.brave.com/documentation/services/web-search",
+          "terms": "https://api-dashboard.search.brave.com/terms-of-service",
+          "keyHelp": "https://api-dashboard.search.brave.com/app/keys"
+        },
+        "pricing": {
+          "sourceUrl": "https://brave.com/search/api/"
+        },
+        "regions": [
+          {
+            "id": "global",
+            "host": "api.search.brave.com",
+            "source": "recorded",
+            "pricing": {
+              "unit": "per_1k_requests",
+              "amount": "5",
+              "currency": "USD",
+              "billing": "all",
+              "free": {
+                "kind": "monthly_usd",
+                "amount": "5",
+                "cardRequired": true
+              }
+            }
+          }
+        ],
+        "transport": {
+          "kind": "json_http/v1",
+          "method": "GET",
+          "path": "/res/v1/web/search",
+          "auth": {
+            "kind": "header",
+            "name": "X-Subscription-Token"
+          },
+          "query": {
+            "field": "q",
+            "in": "query"
+          },
+          "count": {
+            "field": "count",
+            "in": "query",
+            "max": 20
+          },
+          "static": null,
+          "response": {
+            "results": "web.results",
+            "title": [
+              "title"
+            ],
+            "url": [
+              "url"
+            ],
+            "snippet": [
+              "description"
+            ],
+            "site": [
+              "profile.long_name"
+            ],
+            "date": [
+              "page_age"
+            ],
+            "html": true
+          },
+          "errors": [
+            {
+              "status": 422,
+              "match": {
+                "path": "error.code",
+                "equals": "SUBSCRIPTION_TOKEN_INVALID"
+              },
+              "class": "auth_invalid"
+            }
+          ]
+        },
+        "limits": {
+          "timeoutSec": 20
+        },
+        "citationStorage": "full",
+        "attribution": {
+          "required": false,
+          "text": "Powered by Brave"
+        },
+        "trust": {
+          "entity": "Brave Software（SOC 2 Type II）",
+          "evidence": [
+            "https://api-dashboard.search.brave.com/terms-of-service"
+          ],
+          "reviewedAt": "2026-10-26"
+        }
+      },
+      {
+        "id": "perplexity",
+        "displayName": "Perplexity",
+        "group": "overseas",
+        "urls": {
+          "homepage": "https://www.perplexity.ai",
+          "docs": "https://docs.perplexity.ai/docs/search/overview",
+          "terms": "https://www.perplexity.ai/hub/legal/perplexity-api-terms-of-service",
+          "keyHelp": "https://console.perplexity.ai/project/keys"
+        },
+        "pricing": {
+          "sourceUrl": "https://docs.perplexity.ai/docs/getting-started/pricing"
+        },
+        "regions": [
+          {
+            "id": "global",
+            "host": "api.perplexity.ai",
+            "source": "recorded",
+            "pricing": {
+              "unit": "per_1k_requests",
+              "amount": "5",
+              "currency": "USD",
+              "billing": "all",
+              "free": null
+            }
+          }
+        ],
+        "transport": {
+          "kind": "json_http/v1",
+          "method": "POST",
+          "path": "/search",
+          "auth": {
+            "kind": "bearer"
+          },
+          "query": {
+            "field": "query",
+            "in": "body"
+          },
+          "count": {
+            "field": "max_results",
+            "in": "body"
+          },
+          "static": {
+            "in": "body",
+            "params": {
+              "max_tokens_per_page": 256
+            }
+          },
+          "response": {
+            "results": "results",
+            "title": [
+              "title"
+            ],
+            "url": [
+              "url"
+            ],
+            "snippet": [
+              "snippet"
+            ],
+            "date": [
+              "date"
+            ],
+            "html": false
+          },
+          "errors": []
+        },
+        "limits": {
+          "timeoutSec": 20
+        },
+        "citationStorage": "full",
+        "trust": {
+          "entity": "Perplexity AI",
+          "evidence": [
+            "https://www.perplexity.ai/hub/legal/perplexity-api-terms-of-service"
+          ],
+          "reviewedAt": "2026-10-26"
+        }
+      }
+    ],
+    "signature": {
+      "alg": "ed25519",
+      "keyId": "prod-2026-10",
+      "value": "zPew3J9cJkCmVuhRV5YhdkyDM8UzLV3NQhV42W5oxizteiOHZgj43KuU+j9X+HyowanS24AyyVMOL+ZX44/hDw=="
+    }
+  },
+  "message": "ok"
+}

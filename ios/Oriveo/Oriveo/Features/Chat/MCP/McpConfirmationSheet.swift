@@ -94,14 +94,23 @@ struct McpConfirmationSheet: View {
             }
         } footer: {
             VStack(spacing: 10) {
+                if request.onceOnly {
+                    Text(L10n.tr("webSearch.chat.mcpOnceOnly", table: .webSearch))
+                        .font(.footnote)
+                        .foregroundStyle(OriveoTheme.Palette.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 Button { onChoose(.once) } label: {
                     Text(L10n.tr("Allow once", table: .mcp))
                 }
                 .buttonStyle(McpPrimaryButtonStyle())
-                Button { onChoose(.conversation) } label: {
-                    Text(L10n.tr("Always allow in this chat", table: .mcp))
+                if !request.onceOnly {
+                    Button { onChoose(.conversation) } label: {
+                        Text(L10n.tr("Always allow in this chat", table: .mcp))
+                    }
+                    .buttonStyle(McpSecondaryButtonStyle())
                 }
-                .buttonStyle(McpSecondaryButtonStyle())
                 Button { onChoose(.deny) } label: {
                     Text(L10n.tr("Decline", table: .mcp))
                 }

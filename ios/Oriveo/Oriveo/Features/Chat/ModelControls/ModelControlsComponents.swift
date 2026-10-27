@@ -705,9 +705,13 @@ struct ModelOptionCapabilityTile<Accessory: View, Content: View>: View {
                     ModelOptionCaption(text: status)
                 }
                 if let detail {
-                    ModelOptionCaption(text: detail)
+                    // Show every description line in full: if anything is truncated it is only the title, never the descriptions.
+                    ForEach(Array(detail.split(separator: "\n").enumerated()), id: \.offset) { _, line in
+                        ModelOptionCaption(text: String(line))
+                    }
                 }
             }
+            .layoutPriority(1)
 
             content()
         }

@@ -962,6 +962,50 @@ struct RequestPreferenceContractTests {
         }
     }
 
+    // MARK: - Message facts of external search
+
+    @Test("resultFacts.externalSearch matches the result-facts.v1 constants and this app's message fact constants")
+    func externalSearchResultFactsMatchSearchContract() throws {
+        let contract = try Self.loadRawContract("request_preference_contract.v2.json")
+        let vocabulary = try #require(contract["vocabulary"] as? [String: Any])
+        let resultFacts = try #require(contract["resultFacts"] as? [String: Any])
+        let external = try #require(resultFacts["externalSearch"] as? [String: Any])
+
+        var folder = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        var fixtureURL: URL?
+        while folder.path != "/" {
+            let candidate = folder.appendingPathComponent("shared/search-contracts/result-facts.v1.json")
+            if FileManager.default.fileExists(atPath: candidate.path) { fixtureURL = candidate; break }
+            folder.deleteLastPathComponent()
+        }
+        let url = try #require(fixtureURL)
+        let fixture = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        let constants = try #require(fixture["constants"] as? [String: Any])
+
+        #expect(external["source"] as? String == constants["source"] as? String)
+        #expect(external["evidenceKind"] as? String == constants["evidenceKind"] as? String)
+        #expect(external["states"] as? [String] == constants["states"] as? [String])
+        #expect(external["fixture"] as? String == "shared/search-contracts/result-facts.v1.json")
+
+        let sources = try #require(vocabulary["resultSources"] as? [String])
+        let localKinds = try #require(vocabulary["localExecutionEvidenceKinds"] as? [String])
+        let observationKinds = try #require(vocabulary["observationEvidenceKinds"] as? [String])
+        #expect(sources.contains("external_search"))
+        #expect(localKinds.contains("external_search_result"))
+        #expect(!observationKinds.contains("external_search_result"))
+        #expect(RequestObservationEvidence(rawValue: "external_search_result") == nil)
+
+        // The constants stored by this app equal the contract, and the observed fact produced by summarizeSearchFacts on the production path uses exactly these values.
+        #expect(ExternalSearchMessageRecord.source == constants["source"] as? String)
+        #expect(ExternalSearchMessageRecord.evidenceKind == constants["evidenceKind"] as? String)
+        #expect(ExternalSearchMessageRecord.states == constants["states"] as? [String])
+        let observed = SearchInject.summarizeSearchFacts(SearchFactsInput(
+            path: .externalTool, webOn: true, calls: [SearchFactCall(outcome: "results", delivered: 2)], serviceName: "DeepSeek"
+        ))
+        #expect(observed.state == "observed")
+        #expect(observed.source == ExternalSearchMessageRecord.source)
+        #expect(observed.evidenceKind == ExternalSearchMessageRecord.evidenceKind)
+    }
 
     private static func preferenceContract() throws -> PreferenceContract {
         try loadContract("request_preference_contract.v2.json")

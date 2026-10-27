@@ -15,13 +15,18 @@ nonisolated struct CapabilityExecutionResult: Codable, Hashable, Sendable {
     let states: [String: RequestResultState]
     /// Device-local, redacted recovery identity persisted beside a failed message.
     let recoveryDescriptors: [CapabilityRecoveryDescriptor]?
+        /// Message facts of the device's external search (source external_search, external search services contract) with its error card / notice.
+        /// Not recipe evidence: it does not enter `states` and upgrades no owner. Legacy data lacks this key.
+    var externalSearch: ExternalSearchMessageRecord?
 
     init(
         states: [String: RequestResultState],
-        recoveryDescriptors: [CapabilityRecoveryDescriptor]? = nil
+        recoveryDescriptors: [CapabilityRecoveryDescriptor]? = nil,
+        externalSearch: ExternalSearchMessageRecord? = nil
     ) {
         self.states = states
         self.recoveryDescriptors = recoveryDescriptors
+        self.externalSearch = externalSearch
     }
 
     static let empty = CapabilityExecutionResult(states: [:])

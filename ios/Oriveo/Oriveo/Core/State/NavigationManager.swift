@@ -401,7 +401,7 @@ final class NavigationManager {
         switch route {
         case .providerDetail:
             return .providers
-        case .memory, .contextSettings, .voiceSettings, .themeSettings, .skillsList, .mcpServers, .backup:
+        case .memory, .contextSettings, .voiceSettings, .themeSettings, .webSearchSettings, .skillsList, .mcpServers, .backup:
             return .settings
         default:
             return nil

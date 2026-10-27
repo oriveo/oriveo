@@ -453,6 +453,10 @@ struct ChatView: View {
     @State private var bootstrapWatchdogExpired = false
     @State private var historyRetryGeneration = 0
     @State private var generationParameterDraftSessionID = UUID()
+    /// External search preview for the composer's web chip (resolveWebSearchState, the same entry as sending); not used when the key does not match the current conversation / model.
+    @State private var webSearchPreview: (key: String, state: WebSearchState)?
+    /// Incremented each time the per-conversation source is written, so the preview recomputes (a discrete event, no polling).
+    @State private var webSearchSourceRevision = 0
     /// The token registered with this window's carrier handoff (on disappear only this registration is removed).
     @State private var carrierHandoffToken: ChatCarrierHandoff.Token?
     /// Makes the composer reopen the model options panel after a carrier change.
@@ -1039,6 +1043,24 @@ struct ChatView: View {
         if !supportsReasoning { reasoningMode = .automatic }
     }
 
+    private func webSearchPreviewKey(provider: Provider, model: AIModel) -> String {
+        let scope = projection.activeConversationID ?? generationParameterDraftSessionID
+        return "\(scope.uuidString)|\(provider.id.uuidString)|\(model.id)|\(webEnabled)|\(webSearchSourceRevision)"
+    }
+
+    /// The composer's web chip: whether it is lit reads only chipLit; nil (the pre-change shape, a read-only panel,
+    /// or a preview not computed yet) keeps the previous liveness.
+    static func webSearchAdjusted(
+        _ decision: ChatCapabilityOutboundDecision, preview: WebSearchState?
+    ) -> ChatCapabilityOutboundDecision {
+        guard let lit = preview?.chipLit else { return decision }
+        return .init(
+            webSearchEnabled: lit,
+            reasoningMode: decision.reasoningMode,
+            reasoningIntent: decision.reasoningIntent
+        )
+    }
+
     /// Production lifecycle migration/restoration - intentionally runs when a conversation opens,
     /// model changes, or Relay transport changes, never only when the settings sheet is opened.
     /// The old composer switch was process-local and defaulted ON; a persisted existing conversation
@@ -1525,7 +1547,7 @@ struct ChatView: View {
         let reasoningIntentAllowed = reasoningIntentSelection.map { intent in
             reasoningVerdict?.isAvailable == true && reasoningVerdict?.intents.contains(intent) == true
         } ?? false
-        let capabilityDecision = ChatCapabilityOutboundDecision.resolve(
+        let nativeCapabilityDecision = ChatCapabilityOutboundDecision.resolve(
             webRequested: webEnabled,
             webPermitted: webAllowed,
             reasoningModeRequested: reasoningMode,
@@ -1533,12 +1555,21 @@ struct ChatView: View {
             reasoningIntentRequested: reasoningIntentSelection,
             reasoningIntentPermitted: reasoningIntentAllowed
         )
+        // External search: the composer chip's globe reads only chipLit from resolveWebSearchState, and falls back to
+        // the previous liveness when nil. Only the chip uses it: the web intent of a send does not depend on this async
+        // preview, since ChatManager.withExternalSearchRoute recomputes it on every send.
+        let capabilityDecision = Self.webSearchAdjusted(
+            nativeCapabilityDecision,
+            preview: currentModel.flatMap { model in
+                webSearchPreview.flatMap { $0.key == webSearchPreviewKey(provider: provider, model: model) ? $0.state : nil }
+            }
+        )
         let composerVisibleCapabilityKeys = currentModel.flatMap { model in
             evidenceProjection.map { visibleCapabilityKeys(provider: provider, model: model, from: $0) }
         } ?? []
         let capabilitySelection = ChatCapabilitySelection(
-            reasoningMode: capabilityDecision.reasoningMode,
-            webSearchEnabled: capabilityDecision.webSearchEnabled
+            reasoningMode: nativeCapabilityDecision.reasoningMode,
+            webSearchEnabled: nativeCapabilityDecision.webSearchEnabled
         )
 
         let content = VStack(spacing: 0) {
@@ -1608,6 +1639,18 @@ struct ChatView: View {
         .animation(preferredAnimation, value: expensiveModelHint)
 
         let modelObservedContent = styledContent
+        .task(id: currentModel.map { webSearchPreviewKey(provider: provider, model: $0) }) {
+            guard let model = currentModel else { return }
+            let key = webSearchPreviewKey(provider: provider, model: model)
+            let state = await ModelOptionsWebSearch.previewState(
+                appState: appState, provider: provider, model: model,
+                conversationID: projection.activeConversationID ?? generationParameterDraftSessionID, webOn: webEnabled
+            )
+            webSearchPreview = (key, state)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .oriveoConversationSearchSourceChanged)) { _ in
+            webSearchSourceRevision += 1
+        }
         .onChange(of: currentModel?.id) { oldModelID, newModelID in
             guard let oldID = oldModelID, let newID = newModelID, oldID != newID else { return }
             evaluateExpensiveModelHint(oldModelID: oldID, newModelID: newID)

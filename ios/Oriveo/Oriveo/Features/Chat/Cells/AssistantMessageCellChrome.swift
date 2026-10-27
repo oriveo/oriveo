@@ -25,6 +25,13 @@ extension AssistantMessageCell {
         notifyContentDidChange()
     }
 
+    /// The external search error card: not attached while generating.
+    func configureSearchErrorCard(_ presentation: SearchErrorCardPresentation?) {
+        searchErrorCard.onAction = { [weak self] action in self?.onSearchAction?(action) }
+        guard searchErrorCard.apply(presentation) else { return }
+        notifyContentDidChange()
+    }
+
     /// The compaction separator row at the top of the cell; tapping it opens the compaction details.
     func configureCompactionSeparator(_ separator: ContextCompactionSeparator?, onTap: (() -> Void)?) {
         compactionSeparatorView.onTap = onTap
@@ -36,6 +43,8 @@ extension AssistantMessageCell {
         switch notice {
         case .webNotUsed:
             L10n.tr("Answered without web search. This connection doesn’t support web search for this model.", table: .providers)
+        case .searchToolsRejected:
+            WebSearchCopy.tr("chat.toolsRejectedNotice")
         }
     }
 
@@ -151,7 +160,7 @@ extension AssistantMessageCell {
             block = new
             notifyContentDidChange()
         }
-        block.update(citations: citations, parentViewController: parentViewController)
+        block.update(citations: citations, searchHeader: boundSearchHeader, parentViewController: parentViewController)
     }
 
     /// Attaches the citations block only after the body is fully rendered on screen (not generating and
@@ -159,7 +168,7 @@ extension AssistantMessageCell {
     /// always appear after the last character.
     func refreshCitationsBlock(parentViewController: UIViewController) {
         let bodyRenderSettled = currentMessageState != .generating && pendingFinalStreamingRender == nil
-        if !boundCitations.isEmpty, bodyRenderSettled {
+        if !boundCitations.isEmpty || boundSearchHeader != nil, bodyRenderSettled {
             configureCitations(boundCitations, parentViewController: parentViewController)
         } else {
             tearDownCitationsBlock()
@@ -309,6 +318,20 @@ extension AssistantMessageCell {
         ])
         contentStack.addArrangedSubview(streamActivityLineHost)
 
+        // Resident slot for the external search query chips (below the status line; also holds the copy when the dot indicator carries it).
+        searchQueryChipsHost.isHidden = true
+        searchQueryChipsHost.translatesAutoresizingMaskIntoConstraints = false
+        searchQueryChipsHost.addSubview(searchQueryChips)
+        NSLayoutConstraint.activate([
+            searchQueryChips.leadingAnchor.constraint(
+                equalTo: searchQueryChipsHost.leadingAnchor, constant: Self.assistantBodyLeadingInset
+            ),
+            searchQueryChips.trailingAnchor.constraint(lessThanOrEqualTo: searchQueryChipsHost.trailingAnchor),
+            searchQueryChips.topAnchor.constraint(equalTo: searchQueryChipsHost.topAnchor),
+            searchQueryChips.bottomAnchor.constraint(equalTo: searchQueryChipsHost.bottomAnchor),
+        ])
+        contentStack.addArrangedSubview(searchQueryChipsHost)
+
         unhandledToolCallView.isHidden = true
         unhandledToolCallView.onLayoutChange = { [weak self] in
             self?.streamingHeightFloor = 0
@@ -318,6 +341,9 @@ extension AssistantMessageCell {
 
         citationsHost.isHidden = true
         contentStack.addArrangedSubview(citationsHost)
+
+        // Resident slot for the external search error card (after the citations, before the reply notice).
+        contentStack.addArrangedSubview(searchErrorCard)
 
         // Permanent slot for the reply notice (after the citations).
         replyNoticeLabel.isHidden = true

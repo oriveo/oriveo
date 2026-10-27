@@ -106,6 +106,10 @@ extension AssistantMessageCell {
         tearDownAttachmentViews()
         tearDownCitationsBlock()
         boundCitations = []
+        boundSearchHeader = nil
+        searchErrorCard.apply(nil)
+        searchErrorCard.onAction = nil
+        onSearchAction = nil
         tearDownRecoveryCard()
         reasoningBlock.resetForReuse()
         providerBadge.resetForReuse()

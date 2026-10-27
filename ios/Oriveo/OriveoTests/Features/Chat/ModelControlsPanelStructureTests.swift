@@ -249,12 +249,15 @@ struct ModelControlsPanelStructureTests {
         #expect(sheet.contains(".toolbar(.hidden, for: .navigationBar)"))
     }
 
-    @Test("only advanced settings and the candidate models are pushed, and no second modal is opened")
+    @Test("only advanced settings, the candidate models and external search's \"Search method\" / one-tap connect page are pushed, and no second modal is opened")
     func onlyTwoRoutesAndNoNestedModal() throws {
         let sheet = try Self.source(Self.modelControls + ["ModelControlsSheet.swift"])
         #expect(sheet.contains(
-            "case parameters\n    case additionalRequestBody\n    case supportedModels(capability: String)\n}"
+            "case parameters\n    case additionalRequestBody\n    case supportedModels(capability: String)\n"
         ))
+        // The "Search method" page and the one-tap connect page are pushed onto the panel's own navigation stack as well.
+        #expect(sheet.contains("    case searchSource\n"))
+        #expect(sheet.contains("    case connectSearchService(SearchAddSheetRow)\n}"))
         // "Open additional request body" goes straight to the editor without passing through the advanced settings page.
         #expect(sheet.contains("case .openAdditionalRequestBody:\n            // Goes straight to the editor without passing through the advanced settings page; back returns to the panel.\n            path.append(.additionalRequestBody)"))
         #expect(sheet.contains("AdditionalRequestBodyPage("))

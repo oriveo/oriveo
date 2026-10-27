@@ -75,6 +75,29 @@ struct SettingsHomeGridTests {
         #expect(SettingsHomeIcon.assetName("faq") == "SettingsFaq")
     }
 
+    @Test("Tools and connections group: web search and MCP side by side; with MCP off web search stands alone; the web search cell uses the SettingsSearch icon, and with no service it shows \"Not set\"")
+    @MainActor
+    func toolsSectionOrder() {
+        func section(mcp: Bool, name: String?) -> McpSettingsSection {
+            McpSettingsSection(
+                mcpEnabled: mcp,
+                mcpSummary: nil,
+                webSearchDefaultName: name,
+                webSearchShowsBadge: true,
+                onOpenWebSearch: {},
+                onOpenMcpServers: {}
+            )
+        }
+        #expect(section(mcp: true, name: nil).items.map(\.key) == ["webSearch", "mcp"])
+        #expect(section(mcp: false, name: nil).items.map(\.key) == ["webSearch"])
+        let webSearch = section(mcp: true, name: nil).items[0]
+        #expect(webSearch.iconAsset == "SettingsSearch")
+        #expect(webSearch.tileIdentifier == "settings_webSearch_tile")
+        #expect(webSearch.value == L10n.tr("webSearch.entry.notSet", table: .webSearch))
+        #expect(webSearch.showsFeatureBadge)
+        #expect(section(mcp: true, name: "DeepSeek").items[0].value == "DeepSeek")
+    }
+
     // MARK: - Helpers
 
     private static func namedCase(_ name: String, in group: String) throws -> [String: Any] {

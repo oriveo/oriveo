@@ -360,7 +360,7 @@ extension ModelOptionsPanelModel.Card {
         guard case let .rows(rows) = self else { return false }
         return rows.contains { row in
             switch row.shape {
-            case .toggle, .tiers, .toggleWithTiming: return true
+            case .toggle, .tiers, .toggleWithTiming, .toggleWithSource: return true
             case .notice, .disclosure, .protocolUndecided: return false
             }
         }
@@ -379,7 +379,7 @@ extension ModelOptionCapabilityShape {
     /// The value behind the switch in the card's top-right corner; nil when the shape is not a toggle.
     var toggleValue: Toggle? {
         switch self {
-        case let .toggle(toggle), let .toggleWithTiming(toggle, _): return toggle
+        case let .toggle(toggle), let .toggleWithTiming(toggle, _), let .toggleWithSource(toggle, _): return toggle
         case .tiers, .notice, .disclosure, .protocolUndecided: return nil
         }
     }
@@ -398,8 +398,8 @@ extension ModelOptionCapabilityShape {
         case let .disclosure(disclosure) where disclosure.action == .openSupportedModels:
             return .disclosure(.init(status: disclosure.status, action: nil))
         case let .notice(notice) where notice.link?.action == .openSupportedModels:
-            return .notice(.init(status: notice.status, body: notice.body, link: nil))
-        case .toggle, .tiers, .toggleWithTiming, .notice, .disclosure, .protocolUndecided:
+            return .notice(.init(status: notice.status, body: notice.body, link: nil, cta: notice.cta))
+        case .toggle, .tiers, .toggleWithTiming, .toggleWithSource, .notice, .disclosure, .protocolUndecided:
             return self
         }
     }
@@ -457,7 +457,8 @@ enum ModelOptionsTiles {
 
         var tapAction: ModelOptionCapabilityAction? {
             switch row?.shape {
-            case let .notice(notice)?: return notice.link?.action
+            // An explanation card with a primary button is not tappable as a whole: each of the two ways out is its own button.
+            case let .notice(notice)?: return notice.cta == nil ? notice.link?.action : nil
             case let .disclosure(disclosure)?: return disclosure.action
             case let .protocolUndecided(callout)?: return callout.link.action
             default: return nil
@@ -488,15 +489,20 @@ enum ModelOptionsTiles {
         }
         switch row.shape {
         case let .toggle(toggle):
-            return make(.toggle(isOn: toggle.isOn), toggle.caption)
+            return make(.toggle(isOn: toggle.isOn), toggle.caption, toggle.detail)
         case let .toggleWithTiming(toggle, _):
-            return make(.toggle(isOn: toggle.isOn), toggle.caption)
+            return make(.toggle(isOn: toggle.isOn), toggle.caption, toggle.detail)
+        case let .toggleWithSource(toggle, source):
+            return make(.toggle(isOn: toggle.isOn), toggle.caption, source.detail)
         case let .tiers(tiers):
             // With no level selected, the status line falls back to the top-right sentence the shape provides (mostly "model default").
             let selected = tiers.options.first { $0.id == tiers.selection }?.label
             return make(.levelCount(tiers.options.count), selected ?? tiers.headerNote)
         case let .notice(notice):
-            return make(notice.link == nil ? .none : .chevron, notice.status, notice.body)
+            return make(
+                notice.link == nil || notice.cta != nil ? .none : .chevron, notice.status,
+                notice.body.isEmpty ? nil : notice.body
+            )
         case let .disclosure(disclosure):
             return make(disclosure.action == nil ? .none : .chevron, disclosure.status)
         case let .protocolUndecided(callout):
@@ -557,7 +563,8 @@ enum ModelOptionsTiles {
     static func summaryItems(web: Shape, reasoning: Shape) -> [String] {
         var items: [String] = []
         switch web {
-        case let .toggle(toggle) where toggle.isOn, let .toggleWithTiming(toggle, _) where toggle.isOn:
+        case let .toggle(toggle) where toggle.isOn, let .toggleWithTiming(toggle, _) where toggle.isOn,
+             let .toggleWithSource(toggle, _) where toggle.isOn:
             items.append(L10n.tr("Web search on", table: .chat))
         default:
             break

@@ -265,6 +265,45 @@ struct ChatRowHeightParityTests {
         ], band: Self.strictBand, measure: { Self.measureAssistant($0, replyNotice: .webNotUsed) })
     }
 
+    /// The external search sources card (collapsed to the title row) and the error card: the message facts use a stored record shaped like the production finish path.
+    private static func searched(
+        citations: Int, errorCard: ExternalSearchMessageRecord.ErrorCard? = nil
+    ) -> ChatMessage {
+        var message = assistant(
+            text: "はい\u{3002}",
+            citations: citations == 0 ? nil : (1...citations).map {
+                var item = citation($0)
+                item.source = Citation.externalSearchSource
+                return item
+            }
+        )
+        message.capabilityExecution = CapabilityExecutionResult(
+            states: [:], recoveryDescriptors: nil,
+            externalSearch: ExternalSearchMessageRecord(
+                facts: .init(state: errorCard == nil ? "observed" : "failed", searchCount: 1, sourceCount: citations),
+                sourcesLine: errorCard == nil
+                    ? .init(searchCount: 1, serviceName: "DeepSeek", sourceCount: citations, reused: false, custom: false)
+                    : nil,
+                errorCard: errorCard
+            )
+        )
+        return message
+    }
+
+    @Test("Parity: external search sources card (collapsed) and error card")
+    func externalSearchParity() {
+        let card = ExternalSearchMessageRecord.ErrorCard(
+            errorClass: "insufficient_balance", headline: "insufficient_balance", primaryAction: "top_up",
+            secondaryAction: "switch_to_other_service", serviceId: "s-deepseek", serviceName: "DeepSeek",
+            switchTo: .init(id: "s-tavily", name: "Tavily")
+        )
+        Self.assertParity([
+            ("sources card/3 sources", Self.searched(citations: 3)),
+            ("sources card/0 sources", Self.searched(citations: 0)),
+            ("error card/insufficient balance", Self.searched(citations: 0, errorCard: card)),
+        ], band: Self.strictBand, measure: Self.measureAssistant)
+    }
+
     @Test("Recovery Card Parity")
     func recoveryCardParity() {
         Self.assertParity(
@@ -397,7 +436,9 @@ struct ChatRowHeightParityTests {
     ///
     /// The reply notice row is part of `estimatedRowHeight` (`replyNoticeHeight`); see the reply notice case in the matrix.
     /// The memory suggestion bar moved into the `AssistantMessageCell` contentStack, so slots went from 10 to 11.
-    private static let expectedContentSlots = 11
+    /// The external search query chips (shown only while streaming, following the activity, no static height) and the error card
+    /// (counted in `searchErrorCardHeight`, see "external search" in the matrix) joined the contentStack, so slots went from 11 to 13.
+    private static let expectedContentSlots = 13
     /// bodyStack: reasoning | textView | streaming code container | typing container
     private static let expectedBodySlots = 4
 }

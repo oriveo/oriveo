@@ -119,8 +119,8 @@ private func collect(_ stream: AsyncThrowingStream<StreamEvent, Error>) async th
         case let .citations(list): out.citations = list
         case .toolCallDeltas: out.toolCallEvents += 1
         case .activity(.webSearch): out.webSearchActivityEvents += 1
-                // `mcp_tool` is only set by the local tool loop; upstream parsing never produces it.
-        case .activity(.mcpTool): break
+        // `mcp_tool` / `external_search` are only set by the local tool loop; upstream parsing never produces them.
+        case .activity(.mcpTool), .activity(.externalSearch): break
         case let .done(result): out.done = result
         case .imagePart, .finish: break
         }

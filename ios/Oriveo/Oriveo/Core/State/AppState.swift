@@ -1000,6 +1000,7 @@ final class AppState {
             try conversationRuntimeBridge.deleteConversation(id: id, uid: persistedUID)
             conversations.removeAll { $0.id == id }
             persistRecoverySnapshotAfterDestructiveChange()
+            removeSearchSources([id])
         } catch {
             #if DEBUG
             AppLog.error(error, module: "AppState", context: ["op": "deleteConversationProjection"])
@@ -1017,6 +1018,7 @@ final class AppState {
             try conversationRuntimeBridge.deleteConversations(ids: Array(ids), uid: persistedUID)
             conversations.removeAll { ids.contains($0.id) }
             persistRecoverySnapshotAfterDestructiveChange()
+            removeSearchSources(Array(ids))
         } catch {
             #if DEBUG
             AppLog.error(error, module: "AppState", context: ["op": "deleteConversationProjections"])
@@ -1593,6 +1595,14 @@ final class AppState {
         }
     }
 
+        /// Deleting a conversation deletes `conversationSource:<id>` (external search services contract): hooked into the projection delete layer and the sync remote delete,
+        /// so both a local delete and a delete arriving via sync clear it; file IO stays off the main thread.
+    func removeSearchSources(_ ids: [UUID]) {
+        let store = SearchServiceStore(scope: sessionPartitionUID)
+        let keys = ids.map(\.uuidString)
+        Task.detached(priority: .utility) { try? await store.removeConversationSources(keys) }
+    }
+
     func renameConversation(id: UUID, newTitle: String) {
         conversationManager.renameConversation(id: id, newTitle: newTitle)
     }
@@ -1925,6 +1935,11 @@ final class AppState {
             // one send simply carries no tools.
             try? mcpServerDirectory.store(for: sessionPartitionUID).moveConversationSwitches(
                 from: generationParameterDraftSessionID, to: targetConversationID
+            )
+                        // External search is keyed by conversation source: for a draft it lives in memory only and is written once under the real id after the conversation is created; sending the first message reads this in-memory copy.
+            SearchSourceDrafts.shared.adopt(
+                from: generationParameterDraftSessionID, to: targetConversationID,
+                store: SearchServiceStore(scope: sessionPartitionUID)
             )
         }
 
@@ -2279,13 +2294,15 @@ final class AppState {
     func regenerateMessage(
         messageID: UUID,
         in conversationID: UUID,
-        capabilitySelection: ChatCapabilitySelection = ChatCapabilitySelection()
+        capabilitySelection: ChatCapabilitySelection = ChatCapabilitySelection(),
+        searchRegenerateAction: SearchRegenerateAction = .regenerate
     ) async {
         let historyIds = checkpointHistoryIds(of: conversationID)
         await chatManager.regenerateMessage(
             messageID: messageID,
             in: conversationID,
-            capabilitySelection: capabilitySelection
+            capabilitySelection: capabilitySelection,
+            searchRegenerateAction: searchRegenerateAction
         )
         invalidateCheckpointsAfterTruncation(conversationID: conversationID, historyIdsBefore: historyIds)
     }

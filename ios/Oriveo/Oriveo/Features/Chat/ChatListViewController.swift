@@ -115,6 +115,7 @@ final class ChatListViewController: UIViewController {
     private var onOpenNoteReferences: ([NoteSummary]) -> Void = { _ in }
     private var onCrosscheck: (ChatMessage) -> Void = { _ in }
     private var onMcpStepAction: (ChatMessage, McpToolStepAction) -> Void = { _, _ in }
+    private var onSearchAction: (ChatMessage, ExternalSearchCardAction) -> Void = { _, _ in }
     private var onOpenMemoryUsed: (ChatMessage) -> Void = { _ in }
     private var onSaveSelection: (ChatMessage, String) -> Void = { _, _ in }
     private var onAskSelection: (ChatMessage, QuoteSelectionContent) -> Void = { _, _ in }
@@ -425,6 +426,7 @@ final class ChatListViewController: UIViewController {
         onOpenNoteReferences: @escaping ([NoteSummary]) -> Void = { _ in },
         onCrosscheck: @escaping (ChatMessage) -> Void = { _ in },
         onMcpStepAction: @escaping (ChatMessage, McpToolStepAction) -> Void = { _, _ in },
+        onSearchAction: @escaping (ChatMessage, ExternalSearchCardAction) -> Void = { _, _ in },
         onOpenMemoryUsed: @escaping (ChatMessage) -> Void = { _ in },
         onSaveSelection: @escaping (ChatMessage, String) -> Void = { _, _ in },
         onAskSelection: @escaping (ChatMessage, QuoteSelectionContent) -> Void = { _, _ in },
@@ -466,6 +468,7 @@ final class ChatListViewController: UIViewController {
         self.onOpenNoteReferences = onOpenNoteReferences
         self.onCrosscheck = onCrosscheck
         self.onMcpStepAction = onMcpStepAction
+        self.onSearchAction = onSearchAction
         self.onOpenMemoryUsed = onOpenMemoryUsed
         self.onSaveSelection = onSaveSelection
         self.onAskSelection = onAskSelection
@@ -899,6 +902,7 @@ final class ChatListViewController: UIViewController {
             onOpenNoteReferences: onOpenNoteReferences,
             onCrosscheck: onCrosscheck,
             onMcpStepAction: onMcpStepAction,
+            onSearchAction: onSearchAction,
             onOpenMemoryUsed: onOpenMemoryUsed,
             onSaveSelection: onSaveSelection,
             onAskSelection: onAskSelection,
@@ -1668,8 +1672,18 @@ extension ChatListViewController: ChatLayoutDelegate {
             height += toolStepsCollapsedHeight
         }
 
-        if !isUser, let citations = message.citations, !citations.isEmpty {
+        // The external search sources card is collapsed to its title row by default; without one, estimate the citations block as before.
+        if !isUser, message.capabilityExecution?.externalSearch?.sourcesLine != nil {
+            height += searchSourcesCollapsedHeight
+            // Library / MCP sources still go in the ordinary citations block (below the sources card).
+            let others = CitationsBlock.splitSearchSources(message.citations ?? []).others
+            if !others.isEmpty { height += estimatedCitationsHeight(count: others.count) }
+        } else if !isUser, let citations = message.citations, !citations.isEmpty {
             height += estimatedCitationsHeight(count: citations.count)
+        }
+        // External search error card (`UIKitSearchErrorCard`): title + subtitle + one row of buttons.
+        if !isUser, message.capabilityExecution?.externalSearch?.errorCard != nil {
+            height += searchErrorCardHeight
         }
 
         // After the citations: the reply notice line (relay web search was not used; footnote, wraps to two lines at common widths).
@@ -1796,6 +1810,9 @@ extension ChatListViewController: ChatLayoutDelegate {
     nonisolated static let toolStepsCollapsedHeight: CGFloat = 54
     /// Reply notice line (two footnote lines plus the slot spacing).
     nonisolated static let replyNoticeHeight: CGFloat = 44
+    /// Estimates for the collapsed external search sources card (title row only) and the error card; the real height comes from cell self-sizing.
+    nonisolated static let searchSourcesCollapsedHeight: CGFloat = 34
+    nonisolated static let searchErrorCardHeight: CGFloat = 118
     /// Compaction separator row (`ContextCompactionSeparatorView`: top 8 + two 12pt lines + line spacing 2 + bottom 12).
     nonisolated static let compactionSeparatorHeight: CGFloat = 52
     /// "Set as instruction" suggestion bar (`DirectiveSuggestionBarView`: top gap 8 + padding 10x2 + one footnote line + gap 6 + button 28).

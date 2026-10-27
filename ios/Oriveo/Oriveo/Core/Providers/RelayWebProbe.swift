@@ -757,6 +757,8 @@ nonisolated struct RelayWebFact: Equatable, Sendable {
 /// Relay web reply notice (replyNotice in fixture web-probe.v1.json presentationCases / chatCases).
 nonisolated enum RelayWebReplyNotice: String, Equatable, Sendable {
     case webNotUsed = "web_not_used"
+        /// External search: the model does not accept deciding when to search, so this time it switches to pre-search (persisted externalSearch.notice).
+    case searchToolsRejected = "tools_rejected"
 }
 
 // MARK: - Chat web switch

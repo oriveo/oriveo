@@ -267,7 +267,9 @@ nonisolated enum ChatCollectionProjectionBuilder {
                         ? compactTopPadding
                         : groupedTopPadding,
                     isLastInConversation: isLastInConversation,
-                    replyNotice: message.role == .assistant ? replyNotices[message.id] : nil,
+                    replyNotice: message.role == .assistant
+                        ? replyNotices[message.id] ?? ExternalSearchChatPresentation.replyNotice(message)
+                        : nil,
                     compactionSeparator: separator,
                     showsDirectiveSuggestion: message.role == .user && message.id == directiveSuggestionMessageID,
                     memorySuggestion: message.role == .assistant

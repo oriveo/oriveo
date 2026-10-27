@@ -34,6 +34,37 @@ struct ModelOptionsPanelModelTests {
         return rows
     }
 
+    // MARK: - External search
+
+    @Test("One selectable external service on a model that cannot search natively: the web card is toggleWithSource, status line \"Search with DeepSeek\"")
+    func externalServiceOnModelThatCannotSearch() throws {
+        var web = Input(capability: .web, presentation: .unsupported, selectedIntent: "automatic")
+        // This conversation x this model has already picked external (pick_service), with one selectable service.
+        let armed = SearchRoute.updateSearchSource(
+            stored: nil, modelKey: "c:m", event: .pickService(serviceId: "s-ds", serviceName: "DeepSeek")
+        )
+        web.webSearchState = SearchRoute.resolveWebSearchState(.init(
+            facts: .init(form: .byok, recipeWeb: .unavailable, toolCall: .supported),
+            webOn: true, modelKey: "c:m",
+            services: [.init(id: "s-ds", name: "DeepSeek", status: .ready)],
+            stored: try SearchJSON.parse(JSONEncoder().encode(armed))
+        ))
+        let model = ModelOptionsPanelModel.make(Self.facts(web: web))
+        let row = try #require(Self.rows(model).first { $0.capability == .web })
+        guard case let .toggleWithSource(toggle, source) = row.shape else {
+            Issue.record("the web row is not toggleWithSource: \(row.shape)")
+            return
+        }
+        #expect(toggle.isOn)
+        #expect(toggle.caption == WebSearchCopy.format("card.useService", "DeepSeek"))
+        if AppLocalization.currentLocale.identifier.hasPrefix("en") {
+            #expect(toggle.caption == "Search with DeepSeek")
+        }
+        #expect(source.link.action == .pickSearchSource)
+        #expect(source.link.title == WebSearchCopy.tr("card.changeService"))
+        #expect(model.tiles.first { $0.kind == .web }?.status == toggle.caption)
+    }
+
     // MARK: - Status seal
 
     @Test("status seal: an official configuration → official, a custom connection without one → unverified, an official connection not in the catalog yet → none")

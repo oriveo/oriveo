@@ -36,6 +36,8 @@ final class AssistantMetadataView: UIStackView {
     private var currentCapabilityExecution: CapabilityExecutionResult?
     private var copyResetWorkItem: DispatchWorkItem?
     private var onRetry: (() -> Void)?
+    /// When the message has external search sources, the menu gains a "Regenerate and search again" item (re_search).
+    private var onRegenerateWithSearch: (() -> Void)?
     private var onContinue: (() -> Void)?
     private var onSaveNote: (() -> Void)?
     private var onOpenNoteReferences: (() -> Void)?
@@ -66,6 +68,7 @@ final class AssistantMetadataView: UIStackView {
         leadingInset: CGFloat,
         onRetry: (() -> Void)?,
         onContinue: (() -> Void)?,
+        onRegenerateWithSearch: (() -> Void)? = nil,
         onSaveNote: (() -> Void)? = nil,
         onOpenNoteReferences: (() -> Void)? = nil,
         onCrosscheck: (() -> Void)? = nil,
@@ -73,6 +76,7 @@ final class AssistantMetadataView: UIStackView {
         isVisualRenderPending: Bool = false
     ) {
         self.onRetry = onRetry
+        self.onRegenerateWithSearch = onRegenerateWithSearch
         self.onContinue = onContinue
         self.onSaveNote = onSaveNote
         self.onOpenNoteReferences = onOpenNoteReferences
@@ -168,6 +172,7 @@ final class AssistantMetadataView: UIStackView {
         capabilityExecutionLabel.isHidden = true
         applyReplyNotice(nil)
         onRetry = nil
+        onRegenerateWithSearch = nil
         onContinue = nil
         onSaveNote = nil
         onOpenNoteReferences = nil
@@ -500,6 +505,14 @@ final class AssistantMetadataView: UIStackView {
             ) { [weak self] _ in
                 self?.onRetry?()
             })
+            if onRegenerateWithSearch != nil {
+                actions.append(UIAction(
+                    title: WebSearchCopy.tr("chat.regenerateWithSearch"),
+                    image: UIImage(systemName: "arrow.clockwise.circle")
+                ) { [weak self] _ in
+                    self?.onRegenerateWithSearch?()
+                })
+            }
         }
         if showCrosscheck {
             actions.append(UIAction(

@@ -21,6 +21,19 @@ struct FeatureBadgesTests {
         #expect(!reloaded.isUnseen(FeatureBadges.settingsMemory))
     }
 
+    @Test("The Web search tile's red dot: after entering the page and markSeen it is no longer shown, and the Memory row is unaffected")
+    func webSearchBadgeIsIndependent() {
+        let defaults = Self.isolatedDefaults()
+        let badges = FeatureBadges(defaults: defaults)
+        #expect(FeatureBadges.settingsWebSearch == "settings.webSearch.2026-10")
+        #expect(badges.isUnseen(FeatureBadges.settingsWebSearch))
+
+        badges.markSeen(FeatureBadges.settingsWebSearch)
+        #expect(!badges.isUnseen(FeatureBadges.settingsWebSearch))
+        #expect(badges.isUnseen(FeatureBadges.settingsMemory))
+        #expect(!FeatureBadges(defaults: defaults).isUnseen(FeatureBadges.settingsWebSearch))
+    }
+
     @Test("Ids outside the registry are dropped from the seen set and not shown")
     func unregisteredIDsArePruned() {
         let defaults = Self.isolatedDefaults()

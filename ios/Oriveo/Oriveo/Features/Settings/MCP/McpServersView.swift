@@ -254,23 +254,46 @@ enum McpHealthCopy {
     }
 }
 
-/// The "Tools & connections" group in Settings, holding the MCP servers row.
+/// The "Tools & connections" group in Settings: Web search and MCP servers side by side. The MCP tile is hidden
+/// while the catalog switches remote MCP off (existing configuration is kept), leaving Web search alone on its row.
 struct McpSettingsSection: View {
+    let mcpEnabled: Bool
     let mcpSummary: McpSettingsEntrySummary?
+    /// Value of the Web search tile: display name of the default service; nil means "Not set".
+    let webSearchDefaultName: String?
+    let webSearchShowsBadge: Bool
+    let onOpenWebSearch: @MainActor () -> Void
     let onOpenMcpServers: @MainActor () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             SettingsHomeSectionHeader(title: L10n.tr("Tools & connections", table: .mcp))
 
-            SettingsHomeGrid(items: [
+            SettingsHomeGrid(items: items)
+        }
+    }
+
+    var items: [SettingsHomeGridItem] {
+        var items = [
+            SettingsHomeGridItem(
+                key: "webSearch",
+                title: L10n.tr("webSearch.entry.title", table: .webSearch),
+                value: webSearchDefaultName ?? L10n.tr("webSearch.entry.notSet", table: .webSearch),
+                showsFeatureBadge: webSearchShowsBadge,
+                iconAssetName: "SettingsSearch",
+                action: onOpenWebSearch
+            ),
+        ]
+        if mcpEnabled {
+            items.append(
                 SettingsHomeGridItem(
                     key: "mcp",
                     title: L10n.tr("MCP servers", table: .mcp),
                     value: McpHealthCopy.settingsSubtitle(mcpSummary),
                     action: onOpenMcpServers
-                ),
-            ])
+                )
+            )
         }
+        return items
     }
 }

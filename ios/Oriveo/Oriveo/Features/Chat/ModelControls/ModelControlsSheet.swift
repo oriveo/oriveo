@@ -35,6 +35,10 @@ struct ModelControlsEntrySheet: View {
     let onOpenConnectionWebSearch: () -> Void
     /// Re-test after the relay web template was rejected: the composer dismisses the sheet, then opens that model's Advanced page.
     var onOpenTestCapabilities: () -> Void = {}
+    /// The web card's "Add a search service": after the composer dismisses the modal, Settings > Web search is pushed.
+    var onOpenSearchSettings: () -> Void = {}
+    /// A sub-page pushed as soon as the panel opens (the error card's "Switch service" -> "Search method").
+    var initialRoute: ModelControlsRoute? = nil
 
     @ViewBuilder
     var body: some View {
@@ -53,7 +57,9 @@ struct ModelControlsEntrySheet: View {
                 onChooseConnection: onChooseConnection,
                 onOpenConnectionSettings: onOpenConnectionSettings,
                 onOpenConnectionWebSearch: onOpenConnectionWebSearch,
-                onOpenTestCapabilities: onOpenTestCapabilities
+                onOpenTestCapabilities: onOpenTestCapabilities,
+                onOpenSearchSettings: onOpenSearchSettings,
+                initialRoute: initialRoute
             )
         } else {
             ModelControlsMissingModelSheet(provider: provider, onChooseConnection: onChooseConnection)
@@ -182,6 +188,10 @@ struct ModelControlsSheet: View {
     let onOpenConnectionWebSearch: () -> Void
     /// See `ModelControlsEntrySheet.onOpenTestCapabilities`.
     var onOpenTestCapabilities: () -> Void = {}
+    /// See `ModelControlsEntrySheet.onOpenSearchSettings`.
+    var onOpenSearchSettings: () -> Void = {}
+    /// See `ModelControlsEntrySheet.initialRoute`.
+    var initialRoute: ModelControlsRoute? = nil
 
     @Environment(\.dismiss) private var dismiss
     @Environment(AppState.self) private var appState
@@ -201,6 +211,11 @@ struct ModelControlsSheet: View {
     @State private var refreshedIdentity: String?
     @State private var isRefreshingRuntime = false
     @State private var runtimeRefreshFailed = false
+    /// External search services on this device: until they are read, the web row is drawn by the previous rules.
+    @State private var searchModel = WebSearchSettingsModel()
+    /// The stored raw value of this conversation's source (the `stored` input of resolveSearchSource).
+    @State private var searchSourceStored: SearchJSON?
+    @State private var searchSourceLoaded = false
 
     /// The identity passed in was computed when the parent opened the panel, and the `MetadataClient` snapshot is not
     /// `@Observable`: after a successful refetch inside the panel the parent does not recompute, and the parameter stays nil. The refetched
@@ -255,6 +270,22 @@ struct ModelControlsSheet: View {
         } destination: { route in
             destination(for: route)
         }
+        .task {
+            if let initialRoute, path.isEmpty { path = [initialRoute] }
+            // An "open external after adding" left unused last time is voided when the panel is opened again.
+            SearchArmAfterAdd.shared.clear()
+            await loadSearchSource()
+        }
+        // The source or the service list changed (services added or removed in Settings, one-tap enable, add): re-read once, no polling.
+        .onReceive(NotificationCenter.default.publisher(for: .oriveoConversationSearchSourceChanged)) { _ in
+            Task { await loadSearchSource() }
+        }
+        // When the model options close, the fallback notice counts as seen (acknowledge_notice); a one-tap enable that was not finished is voided
+        // (the "Add a search service" trip to Settings is voided when the settings page is left).
+        .onDisappear {
+            acknowledgeSearchNotice()
+            SearchArmAfterAdd.shared.clear(origin: .oneTap)
+        }
     }
 
     // MARK: - Destinations
@@ -278,6 +309,14 @@ struct ModelControlsSheet: View {
                 transportIdentity: effectiveTransportIdentity ?? ""
             )
             .onDisappear { storedSettingsRevision += 1 }
+        case .searchSource:
+            searchSourcePicker
+        case let .connectSearchService(row):
+            // One-tap enable: the connect page is prefilled with the reused connection and site; only tapping "Done" after the test passes returns to the panel and turns it on.
+            WebSearchConnectView(model: searchModel, mode: .add(row)) {
+                path.removeAll { $0 == .connectSearchService(row) }
+                Task { await finishOneTap() }
+            }
         case let .supportedModels(capability):
             CapabilitySupportedModelsPage(
                 provider: provider,
@@ -402,8 +441,8 @@ struct ModelControlsSheet: View {
             hasReasoningCandidates: hasSupportedModelCandidates(for: "reasoning", status: reasoningStatus),
             takenOverByCustomFields: Set(takenOver),
             customFieldRiskTiers: takenOver.flatMap { customFieldRiskTiers(owner: $0.rawValue) },
-            webRejectedUpstream: !rejectedKeys.isDisjoint(
-                with: CapabilityRecipeRequestCompiler.capabilityEvidenceKeys(capability: .web, selectedIntent: nil)
+            webRejectedUpstream: ModelOptionsWebSearch.webRejectedUpstream(
+                provider: provider, model: model, partitionID: appState.sessionPartitionUID
             ),
             banner: banner,
             advancedRows: advancedRows,
@@ -417,7 +456,143 @@ struct ModelControlsSheet: View {
         facts.nativeFileMimes = fileModel.nativeFileMimes
         facts.pdfNativeDefault = fileModel.pdfNativeDefault
         facts.relayFileRejected = relayFileRejected
+        facts.web.webSearchState = webSearchState(web: facts.web, nativeRejected: facts.webRejectedUpstream)
         return facts
+    }
+
+    // MARK: - External search
+
+    private var searchModelKey: String { ModelOptionsWebSearch.modelKey(provider: provider, model: model) }
+
+    private var searchSourceResolution: SearchSourceResolution {
+        ModelOptionsWebSearch.resolution(searchModel, stored: searchSourceStored, modelKey: searchModelKey)
+    }
+
+    /// The combined result for the web card: panel facts are normalized by ModelOptionsWebSearch.facts and handed to resolveWebSearchState (the same entry as sending and the preview).
+    private func webSearchState(web: ModelOptionCapabilityShape.Input, nativeRejected: Bool) -> WebSearchState? {
+        guard searchSourceLoaded else { return nil }
+        let partitionID = appState.sessionPartitionUID
+        var webOn = self.web != .off
+        if case let .relay(fact)? = web.relayWeb { webOn = fact.isOn }
+        let facts = ModelOptionsWebSearch.facts(
+            form: ModelOptionsWebSearch.form(provider),
+            presentation: web.presentation,
+            relayWeb: web.relayWeb,
+            nativeRejected: nativeRejected,
+            managedWebAvailable: false,
+            toolCall: ModelOptionsWebSearch.toolCall(provider: provider, model: model, partitionID: partitionID)
+        )
+        return SearchRoute.resolveWebSearchState(ModelOptionsWebSearch.stateInput(
+            searchModel, facts: facts,
+            // panelWritable has one definition on every platform: whether a conversation-level preference can be written for this conversation (a runtime identity exists); the panel, sending and the chip preview compute it the same way.
+            panelWritable: ModelOptionsWebSearch.panelWritable(provider: provider, model: model), webOn: webOn,
+            provider: provider, model: model, stored: searchSourceStored
+        ))
+    }
+
+    /// The external switch (toggleControls = external): on = pick_service (the current service), off = disarm; neither writes the conversation's web setting.
+    /// Returns true when handled, and the caller no longer writes the conversation's web setting.
+    private func toggleExternalSearch(isOn: Bool) -> Bool {
+        guard let state = panelFacts.web.webSearchState, state.toggleControls == .external else { return false }
+        if isOn, let serviceID = state.source.serviceId {
+            let name = searchModel.items.first { $0.id == serviceID }?.displayName
+            applySearchSourceEvent(.pickService(serviceId: serviceID, serviceName: name))
+        } else if !isOn {
+            applySearchSourceEvent(.disarm)
+        }
+        return true
+    }
+
+    /// "One-tap enable" / "Add a search service" tapped on the web card: when the add succeeds, external is turned on with the new service id (not recorded when oneTapArms is false).
+    private func expectArmAfterAdd(_ origin: SearchArmAfterAdd.Origin) {
+        guard let conversationID, panelFacts.web.webSearchState?.oneTapArms == true else { return }
+        SearchArmAfterAdd.shared.expect(.init(
+            conversationID: conversationID, modelKey: searchModelKey,
+            persisted: persistedConversationID != nil, origin: origin
+        ))
+    }
+
+    /// Only an existing conversation is persisted; a new conversation's source stays in memory.
+    private var persistedConversationID: UUID? { isExistingConversation ? conversationID : nil }
+
+    private func loadSearchSource() async {
+        await searchModel.load(appState: appState)
+        if let conversationID {
+            searchSourceStored = await ModelOptionsWebSearch.storedSource(searchModel, conversationID: conversationID)
+        }
+        searchSourceLoaded = true
+        await writeSearchSource(onlyIfChanged: true)
+    }
+
+    /// Written only when resolveSearchSource says changed (to avoid a self-triggering write loop).
+    private func writeSearchSource(onlyIfChanged: Bool) async {
+        let resolution = searchSourceResolution
+        guard !onlyIfChanged || resolution.changed else { return }
+        await storeSearchSource(resolution.nextStored)
+    }
+
+    private func storeSearchSource(_ value: SearchSourceStored?) async {
+        guard let conversationID else { return }
+        if let id = persistedConversationID {
+            await searchModel.setConversationSource(value, conversationID: id.uuidString)
+        } else {
+            SearchSourceDrafts.shared.set(value, for: conversationID)
+        }
+        searchSourceStored = await ModelOptionsWebSearch.storedSource(searchModel, conversationID: conversationID)
+    }
+
+    private func applySearchSourceEvent(_ event: SearchSourceEvent) {
+        let next = SearchRoute.updateSearchSource(stored: searchSourceStored, modelKey: searchModelKey, event: event)
+        // Land in local state first: the switch and card draw by the new source in this very pass, and the write to disk follows.
+        searchSourceStored = try? next.map { try SearchJSON.parse(JSONEncoder().encode($0)) }
+        Task {
+            await storeSearchSource(next)
+            await writeSearchSource(onlyIfChanged: true)
+        }
+    }
+
+    /// The fallback notice is acknowledged only when the model options panel really closes.
+    private func acknowledgeSearchNotice() {
+        guard searchSourceLoaded, searchSourceResolution.notice != nil else { return }
+        applySearchSourceEvent(.acknowledgeNotice)
+    }
+
+    @ViewBuilder
+    private var searchSourcePicker: some View {
+        SearchSourcePickerSheet(
+            items: panelFacts.web.webSearchState?.pickerItems ?? [],
+            services: searchModel.selectableItems,
+            modelName: model.name,
+            onPickNative: {
+                applySearchSourceEvent(.pickNative)
+                path.removeAll { $0 == .searchSource }
+            },
+            onPickService: { service in
+                // Picking a service on a model that can search natively (toggleControls = conversation_web) also turns the conversation's web setting on.
+                let writesConversationWeb = panelFacts.web.webSearchState?.toggleControls == .conversationWeb
+                applySearchSourceEvent(.pickService(serviceId: service.id, serviceName: service.displayName))
+                if writesConversationWeb {
+                    setToggle(
+                        capability: .web,
+                        target: .capabilityPreference(
+                            on: CapabilityWebPreference.automatic.rawValue, off: CapabilityWebPreference.off.rawValue
+                        ),
+                        isOn: true
+                    )
+                }
+                path.removeAll { $0 == .searchSource }
+            },
+            onAdd: {
+                expectArmAfterAdd(.settings)
+                onOpenSearchSettings()
+            }
+        )
+    }
+
+    /// One-tap enable finished (by tapping "Done"): when the service is stored, external is turned on with the new service id (SearchArmAfterAdd); here we only return to the panel and re-read.
+    private func finishOneTap() async {
+        SearchArmAfterAdd.shared.clear()
+        await loadSearchSource()
     }
 
     /// The read-only note at the top of the page. An undecided protocol is not mentioned here: the capability card says it, and saying it twice is repetition.
@@ -519,6 +694,7 @@ struct ModelControlsSheet: View {
         case let .capabilityPreference(on, off):
             switch capability {
             case .web:
+                if toggleExternalSearch(isOn: isOn) { return }
                 if provider.kind == .relay {
                     // Relay web search has no timing row; it can still be written under the fallback key when no full runtime identity is available.
                     guard !runtimeIsReadOnly else { return }
@@ -564,6 +740,19 @@ struct ModelControlsSheet: View {
             onOpenConnectionWebSearch()
         case .openTestCapabilities:
             onOpenTestCapabilities()
+        case .pickSearchSource:
+            path.append(.searchSource)
+        case .oneTapEnableSearch:
+            guard let target = ModelOptionsWebSearch.oneTapTarget(searchModel, providerKind: provider.kind.rawValue) else { return }
+            expectArmAfterAdd(.oneTap)
+            path.append(.connectSearchService(SearchAddSheetRow(
+                serviceId: target.serviceId, regionId: target.regionId,
+                connectionRef: target.connectionRef, connectionName: target.connectionName, addedServiceRef: nil
+            )))
+        case .addSearchService:
+            // Not pushed inside the panel, for the same reason as the web settings page way out: after the modal is dismissed the composer pushes Settings > Web search, and on return the conversation and draft are intact.
+            expectArmAfterAdd(.settings)
+            onOpenSearchSettings()
         }
     }
 
@@ -1240,6 +1429,9 @@ struct ModelOptionsPanel: View {
     private func tileControl(_ row: ModelOptionsPanelModel.Row, title: String) -> some View {
         switch row.shape {
         case let .toggle(toggle):
+            if let cta = toggle.cta {
+                ctaButton(cta, capability: row.capability)
+            }
             if let link = toggle.link {
                 linkButton(link, capability: row.capability)
             }
@@ -1258,7 +1450,31 @@ struct ModelOptionsPanel: View {
             ) { selected in
                 if let selected { onAction(.selectWebTiming(selected)) }
             }
-        case .notice(_), .disclosure(_), .protocolUndecided(_):
+            if let cta = row.shape.toggleValue?.cta {
+                ctaButton(cta, capability: row.capability)
+            }
+        case let .toggleWithSource(_, source):
+            // The source sub-row: "Search method: ..." / "Switch service"; when the source is the model's own and "search on every message" is set, the timing row is kept.
+            if let timing = source.timing {
+                ModelOptionSegmentedControl(
+                    options: timing.options, selection: timing.selection, showsGlyphs: false,
+                    accessibilityTitle: title
+                ) { selected in
+                    if let selected { onAction(.selectWebTiming(selected)) }
+                }
+            }
+            linkButton(source.link, capability: row.capability)
+        case let .notice(notice):
+            // The primary button when there is no external service (add a search service / one-tap enable) and the secondary way out.
+            if let cta = notice.cta {
+                VStack(alignment: .leading, spacing: 6) {
+                    ctaButton(cta, capability: row.capability)
+                    if let link = notice.link {
+                        linkButton(link, capability: row.capability)
+                    }
+                }
+            }
+        case .disclosure(_), .protocolUndecided(_):
             EmptyView()
         }
     }
@@ -1306,6 +1522,16 @@ struct ModelOptionsPanel: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// The primary button of external search (add a search service / one-tap enable).
+    private func ctaButton(_ cta: Shape.Link, capability: Shape.Capability) -> some View {
+        Button {
+            onAction(.open(cta.action, capability: capability))
+        } label: {
+            ModelOptionCalloutButtonLabel(title: cta.title)
+        }
+        .buttonStyle(.plain)
     }
 
     private func linkButton(_ link: Shape.Link, capability: Shape.Capability) -> some View {
@@ -1390,6 +1616,10 @@ enum ModelControlsRoute: Hashable {
     case parameters
     case additionalRequestBody
     case supportedModels(capability: String)
+    /// "Search method".
+    case searchSource
+    /// The connect page of one-tap enable (prefilled from oneTapReuseTarget).
+    case connectSearchService(SearchAddSheetRow)
 }
 
 // MARK: - Editability
