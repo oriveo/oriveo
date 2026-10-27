@@ -52,7 +52,9 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.oriveo.community.ui.theme.LocalOriveoColors
+import ai.oriveo.community.ui.theme.DefaultLightBrandTuned
 import ai.oriveo.community.ui.theme.OriveoColors
+import ai.oriveo.community.ui.theme.OriveoLightBrand
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.gradientBrandStops
 import java.util.Calendar
@@ -77,10 +79,8 @@ internal object AuroraTheme {
 
     // color palette -- fully aligned with iOS AuroraTheme.Colors
     object Colors {
-        // In dark, accent / accentGlow / card faces / background / send button / name gradient / aurora are all derived from the current palette, see [AuroraDarkColors]
-        val accentLight = Color(0xFF8B5CF6) // dark-palette-guard: keep (d) light branch
-
-        val accentGlowLight = Color(0xFF8B5CF6) // dark-palette-guard: keep (d) light branch
+        // accent / accentGlow / background / send button / name gradient / soft glows / aurora ring: dark is in [AuroraDarkColors],
+        // light follows the current palette's light brand colors, see [AuroraLightColors]
 
         val auroraBlueLight = Color(0xFF60A5FA)
         val auroraBlueDark = Color(0xFF93C5FD)
@@ -115,24 +115,13 @@ internal object AuroraTheme {
         val groupCardBorderLight = Color(0xFF000000).copy(alpha = 0.05f)
         val groupCardBorderDark = Color(0xFFFFFFFF).copy(alpha = 0.055f)
 
-        // Model pill fill: tonal, no stroke (light #F3F0FA). Dark uses the palette's opaque surfaceElevated, because a translucent white over the card fades into a grey patch
-        val pillFillLight = Color(0xFFF3F0FA)
-
-        // Send button: solid, no gradient, no shadow; in dark it is the palette primary
-        val sendFillLight = Color(0xFF8B5CF6) // dark-palette-guard: keep (d) light branch
-
-        // Screen background gradient endpoints (same as iOS AuroraScreenBackground); in dark: palette background -> backgroundBase
-        val bgLightTop = Color(0xFFF7F5FB)
-        val bgLightBottom = Color(0xFFF2EEF7)
-
         // hero / Notes card face: light is pure white with two soft glows; dark is an "aurora rising" treatment where
         // the face itself is a deep base from the same family as the list cards (see [AuroraDarkColors]) and the aurora
         // only shows from behind the card's top edge (see [drawAuroraCrown]). The face stays uniform and gets
         // monotonically darker from top to bottom; high saturation appears only on the very bright edge light,
         // which is what makes it read as light rather than paint.
 
-        // Light-mode in-card glows: A = top-left purple (also the Notes glow), B = top-right pink
-        val heroGlowALight = Color(0xFF8B5CF6).copy(alpha = 0.10f) // dark-palette-guard: keep (d) light branch
+        // Light-mode in-card glow B = top-right pink (default palette; other palettes use the light brand accent, see [AuroraLightColors])
         val heroGlowBLight = Color(0xFFEC8FEA).copy(alpha = 0.08f)
 
         // Near-white hot core of the aurora crown (hero only); the three colored edge lights follow the palette primary / accent, see [AuroraDarkColors]
@@ -147,14 +136,8 @@ internal object AuroraTheme {
         // mismatch is one of the things that makes the card look muddy
         val heroTextTertiaryDark = Color(0xFF9493A8)
 
-        // 92° gradient on the greeting name, applied to the name substring only; the rest of the sentence uses textPrimary
-        // In dark it is [palette primary, palette accent]
-        val nameGradientLight = listOf(Color(0xFF8C5FF8), Color(0xFFD946EF))
-
-        // Fixed color order of the light focus aurora ring (the dark ring follows the palette, see [AuroraDarkColors.ringColors])
-        val ringLavenderLight = Color(0xFFA78BFA) // dark-palette-guard: keep (d) light branch
+        // Fixed colors in the light default palette's focus aurora ring (see [AuroraLightColors.ringColors] for the others)
         val auroraPink = Color(0xFFEC8FEA)
-        val auroraLavender = Color(0xFFC4B5FD) // dark-palette-guard: keep (d) light branch
         val auroraSoftBlue = Color(0xFF8DB4FF)
         val auroraSoftCyan = Color(0xFF86D2E6)
     }
@@ -167,20 +150,31 @@ internal object AuroraTheme {
         return remember(isDark, palette) { if (isDark) AuroraDarkColors.from(palette) else null }
     }
 
+    /** Light home colors: follow the current palette's light brand colors. Also readable in dark, but only used on the light branch. */
+    @Composable
+    fun lightColors(): AuroraLightColors {
+        val brand = OriveoTheme.lightBrand
+        return remember(brand) { AuroraLightColors.from(brand) }
+    }
+
     /** The primary accent purple for the current mode. */
     @Composable
-    fun accent(): Color = darkColors()?.accent ?: Colors.accentLight
+    fun accent(): Color = darkColors()?.accent ?: lightColors().accent
 
     @Composable
-    fun accentGlow(): Color = darkColors()?.accentGlow ?: Colors.accentGlowLight
+    fun accentGlow(): Color = darkColors()?.accentGlow ?: lightColors().accentGlow
 
-    /** Send button fill: the palette primary in dark, a flat purple in light */
+    /** Send button fill: the palette primary in dark, the light brand fill in light (a flat purple for the default palette) */
     @Composable
-    fun sendFill(): Color = darkColors()?.sendFill ?: Colors.sendFillLight
+    fun sendFill(): Color = darkColors()?.sendFill ?: lightColors().sendFill
+
+    /** Arrow on the send button: white in dark, the light brand onPrimary in light (dark text in the bright-fill mode) */
+    @Composable
+    fun sendIcon(): Color = if (darkColors() != null) Color.White else lightColors().sendIcon
 
     /** Endpoints of the greeting-name gradient */
     @Composable
-    fun nameGradient(): List<Color> = darkColors()?.nameGradient ?: Colors.nameGradientLight
+    fun nameGradient(): List<Color> = darkColors()?.nameGradient ?: lightColors().nameGradient
 
     @Composable
     fun textPrimary(): Color = if (OriveoTheme.isDark) Colors.textPrimaryDark else Colors.textPrimaryLight
@@ -217,7 +211,7 @@ internal object AuroraTheme {
     fun groupCardBorder(): Color = if (OriveoTheme.isDark) Colors.groupCardBorderDark else Colors.groupCardBorderLight
 
     @Composable
-    fun pillFill(): Color = darkColors()?.pillFill ?: Colors.pillFillLight
+    fun pillFill(): Color = darkColors()?.pillFill ?: lightColors().pillFill
 
     // Typography (matches iOS AuroraTheme.Typography). Line heights are always explicit: the 24sp floor of the
     // M3 default bodyLarge would stretch any small text that only sets a size. Values use the natural SF line
@@ -299,6 +293,70 @@ internal data class AuroraDarkColors(
 }
 
 /**
+ * Light home colors derived from the current palette's light brand colors. The default palette keeps the original hand-tuned values;
+ * for the other palettes: in-card glow / hero shadow / stroke / cursor / accent -> ink, pink glow -> accent, name gradient ink -> accent,
+ * send button fill + onPrimary, page background bgTop -> bgBottom, model capsule fill pill.
+ */
+@Immutable
+internal data class AuroraLightColors(
+    val accent: Color,
+    val accentGlow: Color,
+    val sendFill: Color,
+    val sendIcon: Color,
+    val nameGradient: List<Color>,
+    val bgTop: Color,
+    val bgBottom: Color,
+    val pillFill: Color,
+    /** In-card glows: A = top-left (also the Notes glow), B = top-right */
+    val heroGlowA: Color,
+    val heroGlowB: Color,
+    /** Sweep color order of the focus aurora ring (first and last are the same color) */
+    val ringColors: List<Color>,
+    /** Hue of the hero card's light shadow (the alpha comes from [AuroraHeroCardAppearance]) */
+    val shadowTint: Color,
+    /** Section rule: the outer glow and the two ends of the vertical gradient */
+    val sectionRuleGlow: Color,
+    val sectionRuleStops: List<Color>,
+) {
+    companion object {
+        fun from(brand: OriveoLightBrand): AuroraLightColors {
+            val violet = brand.tuned(DefaultLightBrandTuned.homeViolet, brand.ink)
+            return AuroraLightColors(
+                accent = violet,
+                accentGlow = violet,
+                sendFill = brand.tuned(DefaultLightBrandTuned.homeViolet, brand.fill),
+                sendIcon = brand.onPrimary,
+                nameGradient = listOf(brand.ink, brand.accent),
+                bgTop = brand.bgTop,
+                bgBottom = brand.bgBottom,
+                pillFill = brand.pill,
+                heroGlowA = violet.copy(alpha = 0.10f),
+                heroGlowB = brand.tuned(AuroraTheme.Colors.heroGlowBLight, brand.accent.copy(alpha = 0.08f)),
+                ringColors = if (brand === OriveoLightBrand.Default) {
+                    // The fixed color order of iOS `auroraGlowColors`: purple -> lavender -> pink -> blue -> soft teal -> pale purple -> purple
+                    listOf(
+                        violet,
+                        DefaultLightBrandTuned.ringLavender,
+                        AuroraTheme.Colors.auroraPink,
+                        AuroraTheme.Colors.auroraSoftBlue,
+                        AuroraTheme.Colors.auroraSoftCyan,
+                        DefaultLightBrandTuned.lavender,
+                        violet,
+                    )
+                } else {
+                    listOf(brand.ink, brand.accent, brand.ink, brand.accent, brand.ink)
+                },
+                shadowTint = violet,
+                sectionRuleGlow = violet.copy(alpha = 0.35f),
+                sectionRuleStops = listOf(brand.tuned(DefaultLightBrandTuned.lavender, brand.ink.copy(alpha = 0.45f)), violet),
+            )
+        }
+
+        val Default: AuroraLightColors by lazy { from(OriveoLightBrand.Default) }
+    }
+}
+
+/**
  * The gradients in the design are all annotated as CSS `linear-gradient(<angle>deg, ...)`: 0 degrees points up and
  * angles grow clockwise, and the gradient line length is `|w*sin(theta)| + |h*cos(theta)|`, so the two diagonal corners
  * land exactly on 0% / 100%. Compose's linearGradient only takes start and end points, so they are converted here by
@@ -325,12 +383,13 @@ internal fun auroraCssShadowRadius(blur: Dp): Dp = blur * 0.866f
 @Composable
 internal fun AuroraScreenBackground(modifier: Modifier = Modifier) {
     val dark = AuroraTheme.darkColors()
-    val brush = remember(dark) {
+    val light = AuroraTheme.lightColors()
+    val brush = remember(dark, light) {
         Brush.verticalGradient(
             colors = if (dark != null) {
                 listOf(dark.bgTop, dark.bgBottom)
             } else {
-                listOf(AuroraTheme.Colors.bgLightTop, AuroraTheme.Colors.bgLightBottom)
+                listOf(light.bgTop, light.bgBottom)
             },
         )
     }
@@ -368,6 +427,7 @@ internal fun DrawScope.drawAuroraHeroSurface(
     glow: AuroraHeroGlow,
     cornerRadius: Float,
     clip: Path,
+    light: AuroraLightColors = AuroraLightColors.Default,
 ) {
     clipPath(clip) {
         if (dark != null) {
@@ -384,12 +444,12 @@ internal fun DrawScope.drawAuroraHeroSurface(
             when (glow) {
                 AuroraHeroGlow.HeroPair -> {
                     // left -60 / top -80 / 260×220; right -70 / top -90 / 240×210
-                    drawEllipticalGlow(AuroraTheme.Colors.heroGlowALight, 260.dp.toPx(), 220.dp.toPx(), Offset(70.dp.toPx(), 30.dp.toPx()))
-                    drawEllipticalGlow(AuroraTheme.Colors.heroGlowBLight, 240.dp.toPx(), 210.dp.toPx(), Offset(size.width - 50.dp.toPx(), 15.dp.toPx()))
+                    drawEllipticalGlow(light.heroGlowA, 260.dp.toPx(), 220.dp.toPx(), Offset(70.dp.toPx(), 30.dp.toPx()))
+                    drawEllipticalGlow(light.heroGlowB, 240.dp.toPx(), 210.dp.toPx(), Offset(size.width - 50.dp.toPx(), 15.dp.toPx()))
                 }
                 AuroraHeroGlow.NotesCorner -> {
                     // right -50 / top -70 / 220×200
-                    drawEllipticalGlow(AuroraTheme.Colors.heroGlowALight, 220.dp.toPx(), 200.dp.toPx(), Offset(size.width - 60.dp.toPx(), 30.dp.toPx()))
+                    drawEllipticalGlow(light.heroGlowA, 220.dp.toPx(), 200.dp.toPx(), Offset(size.width - 60.dp.toPx(), 30.dp.toPx()))
                 }
             }
         }
@@ -556,7 +616,12 @@ internal data class AuroraHeroCardAppearance(
     data class CardShadow(val color: Color, val cssBlur: Dp, val y: Dp, val spread: Dp = 0.dp)
 
     companion object {
-        fun resolve(isDark: Boolean, focused: Boolean): AuroraHeroCardAppearance {
+        /** [lightTint] = hue of the light shadow ([AuroraLightColors.shadowTint]; the home purple for the default palette). */
+        fun resolve(
+            isDark: Boolean,
+            focused: Boolean,
+            lightTint: Color = AuroraLightColors.Default.shadowTint,
+        ): AuroraHeroCardAppearance {
             val contact: CardShadow?
             val ambient: CardShadow
             if (isDark) {
@@ -564,15 +629,13 @@ internal data class AuroraHeroCardAppearance(
                 contact = null
                 ambient = CardShadow(Color.Black.copy(alpha = 0.36f), 28.dp, 12.dp, spread = (-6).dp)
             } else if (focused) {
-                // dark-palette-guard: keep (d) light branch: 0 14 40 rgba(139,92,246,.16)
+                // 0 14 40 rgba(ink,.16)
                 contact = null
-                // dark-palette-guard: keep (d) light branch
-                ambient = CardShadow(Color(0xFF8B5CF6).copy(alpha = 0.16f), 40.dp, 14.dp)
+                ambient = CardShadow(lightTint.copy(alpha = 0.16f), 40.dp, 14.dp)
             } else {
-                // dark-palette-guard: keep (d) light branch: 0 1 2 rgba(15,23,42,.04) + 0 10 28 rgba(139,92,246,.08)
+                // 0 1 2 rgba(15,23,42,.04) + 0 10 28 rgba(ink,.08)
                 contact = CardShadow(Color(0xFF0F172A).copy(alpha = 0.04f), 2.dp, 1.dp)
-                // dark-palette-guard: keep (d) light branch
-                ambient = CardShadow(Color(0xFF8B5CF6).copy(alpha = 0.08f), 28.dp, 10.dp)
+                ambient = CardShadow(lightTint.copy(alpha = 0.08f), 28.dp, 10.dp)
             }
             return AuroraHeroCardAppearance(
                 showsGlowBorder = focused,
@@ -584,16 +647,6 @@ internal data class AuroraHeroCardAppearance(
     }
 }
 
-/** The fixed color order of iOS `auroraGlowColors` (light): purple -> lavender -> pink -> blue -> soft teal -> pale purple -> purple. Dark uses [AuroraDarkColors.ringColors]. */
-private val auroraGlowColorsLight = listOf(
-    AuroraTheme.Colors.accentLight,
-    AuroraTheme.Colors.ringLavenderLight,
-    AuroraTheme.Colors.auroraPink,
-    AuroraTheme.Colors.auroraSoftBlue,
-    AuroraTheme.Colors.auroraSoftCyan,
-    AuroraTheme.Colors.auroraLavender,
-    AuroraTheme.Colors.accentLight,
-)
 
 /**
  * The design uses `conic-gradient(from 200deg, …)`: CSS puts 0° at 12 o'clock, Android's SweepGradient at
@@ -637,8 +690,9 @@ internal fun Modifier.auroraGlassCard(
     // Dark follows the current palette; isDark is still supplied by the caller (consistent with the outer theme)
     val palette = LocalOriveoColors.current
     val dark = remember(isDark, palette) { if (isDark) AuroraDarkColors.from(palette) else null }
-    val idle = remember(isDark) { AuroraHeroCardAppearance.resolve(isDark, focused = false) }
-    val active = remember(isDark) { AuroraHeroCardAppearance.resolve(isDark, focused = true) }
+    val light = AuroraTheme.lightColors()
+    val idle = remember(isDark, light) { AuroraHeroCardAppearance.resolve(isDark, focused = false, lightTint = light.shadowTint) }
+    val active = remember(isDark, light) { AuroraHeroCardAppearance.resolve(isDark, focused = true, lightTint = light.shadowTint) }
     val shadowContext = LocalGraphicsContext.current.shadowContext
     val idleContact = remember(shadowContext, shape, idle) {
         idle.contactShadow?.let { shadowContext.createDropShadowPainter(shape, it.toComposeShadow()) }
@@ -674,7 +728,7 @@ internal fun Modifier.auroraGlassCard(
             cornerRadius = CornerRadius(cr + ringOutset),
         )
         val ringPath = Path().apply { addRoundRect(ringRect) }
-        val ringBrush = auroraRingBrush(Offset(size.width / 2f, size.height / 2f), dark?.ringColors ?: auroraGlowColorsLight)
+        val ringBrush = auroraRingBrush(Offset(size.width / 2f, size.height / 2f), dark?.ringColors ?: light.ringColors)
         val glowPaint = if (drawsBlurredGlow) {
             AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply {
                 style = AndroidPaint.Style.STROKE
@@ -699,7 +753,7 @@ internal fun Modifier.auroraGlassCard(
             // The halo sits under the face: the face is opaque, so only the band outside the card shows
             if (p < 1f) halo.forEach { with(it) { draw(size, alpha = 1f - p) } }
 
-            drawAuroraHeroSurface(dark, AuroraHeroGlow.HeroPair, cr, cardPath)
+            drawAuroraHeroSurface(dark, AuroraHeroGlow.HeroPair, cr, cardPath, light)
 
             if (p < 1f) {
                 if (dark != null) {
@@ -766,10 +820,10 @@ private fun auroraHaloShadows(dark: AuroraDarkColors): List<Shadow> = listOf(
 internal fun Modifier.auroraNotesSurface(isDark: Boolean, cornerRadius: Dp): Modifier {
     val palette = LocalOriveoColors.current
     val dark = remember(isDark, palette) { if (isDark) AuroraDarkColors.from(palette) else null }
-    return auroraNotesSurface(dark, cornerRadius)
+    return auroraNotesSurface(dark, AuroraTheme.lightColors(), cornerRadius)
 }
 
-private fun Modifier.auroraNotesSurface(dark: AuroraDarkColors?, cornerRadius: Dp): Modifier = drawWithCache {
+private fun Modifier.auroraNotesSurface(dark: AuroraDarkColors?, light: AuroraLightColors, cornerRadius: Dp): Modifier = drawWithCache {
     val isDark = dark != null
     val cr = cornerRadius.toPx()
     val cardPath = auroraRoundRectPath(size, cr)
@@ -777,7 +831,7 @@ private fun Modifier.auroraNotesSurface(dark: AuroraDarkColors?, cornerRadius: D
     val borderPath = auroraRoundRectPath(size, cr, inset = hairlineWidth / 2f)
     val border = auroraHeroRimBrush(isDark, size.height)
     onDrawBehind {
-        drawAuroraHeroSurface(dark, AuroraHeroGlow.NotesCorner, cr, cardPath)
+        drawAuroraHeroSurface(dark, AuroraHeroGlow.NotesCorner, cr, cardPath, light)
         if (dark != null) {
             // The same crown one step weaker, without the hot core and without the outer halo: Notes does not compete with the hero
             drawAuroraCrown(dark, borderPath, hairlineWidth, scale = AURORA_CROWN_NOTES_SCALE, hotCore = false, alpha = 1f)
@@ -829,11 +883,12 @@ internal fun AuroraTitleCount(
 
 /**
  * The glowing bar on the left of a section title, 3×18. Dark: palette accent -> primary, outer glow 8px 55% primary;
- * light: fixed lavender -> purple, outer glow 6px 35% purple.
+ * light: [AuroraLightColors.sectionRuleStops], outer glow 6px 35% light brand purple (the default palette keeps the original fixed lavender -> purple).
  */
 @Composable
 internal fun AuroraSectionRule(modifier: Modifier = Modifier) {
     val dark = AuroraTheme.darkColors()
+    val light = AuroraTheme.lightColors()
     val isDark = dark != null
     val shape = RoundedCornerShape(50)
     Box(
@@ -843,14 +898,12 @@ internal fun AuroraSectionRule(modifier: Modifier = Modifier) {
                 shape = shape,
                 shadow = Shadow(
                     radius = if (isDark) 4.dp else 3.dp,
-                    color = dark?.accent?.copy(alpha = 0.55f)
-                        ?: Color(0xFF8B5CF6).copy(alpha = 0.35f), // dark-palette-guard: keep (d) light branch
+                    color = dark?.accent?.copy(alpha = 0.55f) ?: light.sectionRuleGlow,
                 ),
             )
             .background(
                 brush = Brush.verticalGradient(
-                    dark?.let { listOf(it.accentGlow, it.accent) }
-                        ?: listOf(Color(0xFFC4B5FD), Color(0xFF8B5CF6)), // dark-palette-guard: keep (d) light branch
+                    dark?.let { listOf(it.accentGlow, it.accent) } ?: light.sectionRuleStops,
                 ),
                 shape = shape,
             ),

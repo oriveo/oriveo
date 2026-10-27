@@ -95,6 +95,7 @@ import ai.oriveo.community.ui.component.liquidGlassTabBarBottomGap
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import ai.oriveo.community.ui.theme.OriveoColors
+import ai.oriveo.community.ui.theme.OriveoLightBrand
 import ai.oriveo.community.ui.theme.OriveoScreenBackground
 import ai.oriveo.community.core.performance.PageTrace
 import ai.oriveo.community.ui.theme.OriveoTheme
@@ -114,12 +115,20 @@ private val tabs = listOf(
 
 /**
  * Selected label color. In dark, all three tabs take the current palette's primary (following the dark palette immediately);
- * light keeps the colors measured on an iOS 26 device after the iOS system tab bar renders its tint
- * (purple for Home, teal for Providers, orange for Settings) vibrantly.
+ * the light default palette keeps the colors measured on an iOS 26 device after the iOS system tab bar renders its tint
+ * (purple for Home, teal for Providers, orange for Settings) vibrantly;
+ * every other palette uses the light brand ink for all three.
  */
-internal fun tabSelectedLabelColor(route: AppRoute, isDark: Boolean, darkPrimary: Color): Color =
+internal fun tabSelectedLabelColor(
+    route: AppRoute,
+    isDark: Boolean,
+    darkPrimary: Color,
+    lightBrand: OriveoLightBrand = OriveoLightBrand.Default,
+): Color =
     if (isDark) {
         darkPrimary
+    } else if (lightBrand !== OriveoLightBrand.Default) {
+        lightBrand.ink
     } else {
         when (route) {
             AppRoute.Providers -> Color(0xFF007E75)
@@ -826,12 +835,13 @@ fun OriveoNavHost(
                 val tabBarLabels = tabs.map { stringResource(it.labelRes) }
                 val isDarkTheme = OriveoTheme.isDark
                 val darkPrimary = OriveoTheme.colors.primary
-                val tabBarItems = remember(tabBarLabels, isDarkTheme, darkPrimary) {
+                val lightBrand = OriveoTheme.lightBrand
+                val tabBarItems = remember(tabBarLabels, isDarkTheme, darkPrimary, lightBrand) {
                     tabs.mapIndexed { index, tab ->
                         LiquidGlassTabBarItem(
                             label = tabBarLabels[index],
                             glyph = tab.glyph,
-                            selectedLabelColor = tabSelectedLabelColor(tab.route, isDarkTheme, darkPrimary),
+                            selectedLabelColor = tabSelectedLabelColor(tab.route, isDarkTheme, darkPrimary, lightBrand),
                         )
                     }
                 }

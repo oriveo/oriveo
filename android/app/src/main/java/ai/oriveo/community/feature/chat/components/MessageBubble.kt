@@ -78,20 +78,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.asAndroidPath
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -148,10 +142,12 @@ import ai.oriveo.community.ui.component.rememberAttachmentDisplayBitmap
 import ai.oriveo.community.ui.component.markdown.MarkdownMessageView
 import ai.oriveo.community.ui.component.markdown.rememberNoteSelectionTextToolbar
 import ai.oriveo.community.ui.theme.OriveoGradients
+import ai.oriveo.community.ui.theme.LocalDarkPaletteChoice
+import ai.oriveo.community.ui.theme.LocalUserBubbleViewport
+import ai.oriveo.community.ui.theme.OriveoUserBubble
+import ai.oriveo.community.ui.theme.userBubbleFill
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.opacity
-import android.graphics.BlurMaskFilter
-import android.graphics.Paint as AndroidPaint
 import org.koin.compose.koinInject
 import ai.oriveo.community.core.app.GlobalSnackbarManager
 import ai.oriveo.community.core.app.GlobalSnackbarMessage
@@ -381,6 +377,8 @@ private fun UserBubble(
 
     val colors = OriveoTheme.colors
     val isDark = OriveoTheme.isDark
+    val paletteChoice = LocalDarkPaletteChoice.current
+    val bubbleStyle = remember(paletteChoice, isDark) { OriveoUserBubble.style(paletteChoice, isDark) }
     val screenWidthDp = LocalConfiguration.current.screenWidthDp
     val maxBubbleWidth = remember(screenWidthDp) {
         max(min((screenWidthDp * 0.72).toInt(), 380), 240).dp
@@ -435,8 +433,8 @@ private fun UserBubble(
             Box(
                 modifier = Modifier
                     .let { if (heroImageWidth != null) it.width(heroImageWidth) else it.widthIn(max = maxBubbleWidth) }
-                    .userBubbleGlow(glowColor = colors.primaryGlow, isDark = isDark)
-                    .background(OriveoGradients.primary, bubbleShape)
+                    // User bubble: viewport-anchored vertical gradient + tightened outer shadow + top inner highlight
+                    .userBubbleFill(bubbleStyle, bubbleShape, LocalUserBubbleViewport.current)
                     .border(OriveoBorderWidth.standard, colors.hairline, bubbleShape)
                     .clip(bubbleShape),
             ) {
@@ -2004,40 +2002,6 @@ private object AttachmentIconResolver {
     }
 }
 
-private fun Modifier.userBubbleGlow(glowColor: Color, isDark: Boolean): Modifier = drawWithCache {
-    val sigma = if (isDark) 22.dp.toPx() else 10.dp.toPx()
-    val blurRadius = ((sigma - 0.5f) / 0.57735f).coerceAtLeast(1f)
-    val offsetY = if (isDark) 4.dp.toPx() else 6.dp.toPx()
-    val paint = AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply {
-        style = AndroidPaint.Style.FILL
-        color = glowColor.opacity(if (isDark) 0.7f else 0.9f).toArgb()
-        maskFilter = BlurMaskFilter(blurRadius, BlurMaskFilter.Blur.NORMAL)
-    }
-    val cr = CornerRadius(20.dp.toPx())
-    val glowPath = Path().apply {
-        addRoundRect(
-            RoundRect(
-                left = 0f,
-                top = 0f,
-                right = size.width,
-                bottom = size.height,
-                topLeftCornerRadius = cr,
-                topRightCornerRadius = cr,
-                bottomLeftCornerRadius = cr,
-                bottomRightCornerRadius = cr,
-            ),
-        )
-    }.asAndroidPath()
-    onDrawBehind {
-        drawIntoCanvas { canvas ->
-            canvas.nativeCanvas.save()
-            canvas.nativeCanvas.translate(0f, offsetY)
-            canvas.nativeCanvas.drawPath(glowPath, paint)
-            canvas.nativeCanvas.restore()
-        }
-    }
-}
-
-/** Text / icon color on the user bubble (brand gradient): the palette's onPrimary in dark, white in light. */
+/** Text / icon color on the user bubble (brand gradient): the palette onPrimary in dark, the light brand onPrimary in light. */
 @Composable
 private fun userBubbleInk(): Color = OriveoGradients.onPrimary

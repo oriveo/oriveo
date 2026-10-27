@@ -14,12 +14,14 @@ import ai.oriveo.community.core.model.LastUsedModelRef
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ThemeOption
 import ai.oriveo.community.core.provider.ModelSelectionUtils
-import ai.oriveo.community.ui.theme.DarkPaletteId
+import ai.oriveo.community.ui.theme.DarkPaletteChoice
+import ai.oriveo.community.ui.theme.OriveoCustomPalette
 import ai.oriveo.community.core.util.takeGraphemes
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
@@ -144,8 +146,12 @@ class AppPreferencesRepository(
     /** Raw dark palette value (may be an unknown id); null means the user never picked one. */
     val darkPalette: Flow<String?> = observeDeviceScoped(AppPreferenceKeys.DARK_PALETTE)
 
-    /** For rendering: a known id is used as-is; unset or unknown falls back to [DarkPaletteId.Default]. */
-    val resolvedDarkPalette: Flow<DarkPaletteId> = darkPalette.map(DarkPaletteId::fromId)
+    /** Raw custom-palette seed color (may be an invalid value); null means the user never picked a color in the palette. */
+    val darkPaletteCustom: Flow<String?> = observeDeviceScoped(AppPreferenceKeys.DARK_PALETTE_CUSTOM)
+
+    /** For rendering: merges darkPalette and darkPaletteCustom (see [DarkPaletteChoice.resolve]). */
+    val resolvedDarkPalette: Flow<DarkPaletteChoice> =
+        combine(darkPalette, darkPaletteCustom, DarkPaletteChoice::resolve).distinctUntilChanged()
 
     val language: Flow<LanguageOption> = observeDeviceScoped(AppPreferenceKeys.LANGUAGE)
         .map { value ->
@@ -245,8 +251,19 @@ class AppPreferencesRepository(
 
     }
 
-    suspend fun setDarkPalette(id: DarkPaletteId) {
-        preferenceDao.set(PreferenceEntity(AppPreferenceKeys.DARK_PALETTE, id.id))
+    /** Choosing custom also writes the seed color; switching back to a preset keeps darkPaletteCustom (contract: never cleared). */
+    suspend fun setDarkPalette(choice: DarkPaletteChoice) {
+        when (choice) {
+            is DarkPaletteChoice.Custom -> {
+                val seed = OriveoCustomPalette.format(choice.seed)
+                // Write the seed before the id so observers never see "custom + stale seed"
+                preferenceDao.set(PreferenceEntity(AppPreferenceKeys.DARK_PALETTE_CUSTOM, seed))
+                preferenceDao.set(PreferenceEntity(AppPreferenceKeys.DARK_PALETTE, choice.storageId))
+            }
+            is DarkPaletteChoice.Preset -> {
+                preferenceDao.set(PreferenceEntity(AppPreferenceKeys.DARK_PALETTE, choice.storageId))
+            }
+        }
     }
 
     suspend fun setLanguage(option: LanguageOption) {

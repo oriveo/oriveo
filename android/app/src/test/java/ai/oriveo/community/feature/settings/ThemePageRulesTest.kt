@@ -4,109 +4,100 @@ import ai.oriveo.community.core.app.AppPreferencesRepository
 import ai.oriveo.community.core.model.ThemeOption
 import ai.oriveo.community.ui.theme.DarkPaletteContract
 import ai.oriveo.community.ui.theme.DarkPaletteId
+import ai.oriveo.community.ui.theme.OriveoCustomPalette
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** The pure interaction functions of the theme page, aligned case by case with the contract's `themePageCases` (taken by name), plus the selection display rule and the row summary. */
+/** The theme page's pure interaction functions, aligned case by case with the contract's `appearancePageCases` (taken by name, one test per case), plus the selection rules. */
 class ThemePageRulesTest {
 
-    private fun case(name: String): JsonObject = DarkPaletteContract.root.getValue("themePageCases").jsonArray
-        .map { it.jsonObject }
-        .first { it.getValue("name").jsonPrimitive.content == name }
+    private val cases: List<JsonObject> = DarkPaletteContract.root.getValue("appearancePageCases").jsonArray.map { it.jsonObject }
+
+    private fun case(name: String): JsonObject = cases.first { it.getValue("name").jsonPrimitive.content == name }
 
     private fun theme(value: String): ThemeOption = requireNotNull(AppPreferencesRepository.parseThemePreference(value))
+
+    private fun JsonElement.stringOrNull(): String? = if (this is JsonNull) null else jsonPrimitive.content
+
+    private fun state(json: JsonObject) = ThemePageState(
+        theme = theme(json.getValue("theme").jsonPrimitive.content),
+        darkPalette = json.getValue("darkPalette").stringOrNull(),
+        seed = json.getValue("seed").stringOrNull(),
+    )
 
     /** Runs [ThemePageRules.apply] on the case's before + action and compares with after. */
     private fun assertCase(name: String) {
         val c = case(name)
-        val before = c.getValue("before").jsonObject
-        val after = c.getValue("after").jsonObject
-        val state = ThemePageState(
-            theme = theme(before.getValue("theme").jsonPrimitive.content),
-            darkPalette = before.getValue("darkPalette").jsonPrimitive.content,
-        )
-        assertEquals(before.getValue("follow").jsonPrimitive.boolean, state.theme == ThemeOption.System)
-        val systemDark = before["systemAppearance"]?.jsonPrimitive?.content == "dark"
         val action = when {
-            c.containsKey("tap") -> {
-                val tap = c.getValue("tap").jsonPrimitive.content
-                if (tap == "light") ThemePageAction.TapLight else ThemePageAction.TapPalette(requireNotNull(DarkPaletteId.fromIdOrNull(tap)))
+            c.containsKey("segment") -> ThemePageAction.SetAppearance(theme(c.getValue("segment").jsonPrimitive.content))
+            c.containsKey("tap") -> when (val tap = c.getValue("tap").jsonPrimitive.content) {
+                OriveoCustomPalette.ID -> ThemePageAction.TapCustom
+                else -> ThemePageAction.TapPalette(requireNotNull(DarkPaletteId.fromIdOrNull(tap)) { "unknown palette $tap" })
             }
-            else -> ThemePageAction.ToggleFollow(c.getValue("toggleFollow").jsonPrimitive.boolean)
+            c.containsKey("pickSeed") -> ThemePageAction.PickSeed(
+                requireNotNull(OriveoCustomPalette.parseSeed(c.getValue("pickSeed").jsonPrimitive.content)),
+            )
+            else -> error("$name has no recognizable action")
         }
-        val result = ThemePageRules.apply(state, systemDark, action)
-        assertEquals(
-            ThemePageState(
-                theme = theme(after.getValue("theme").jsonPrimitive.content),
-                darkPalette = after.getValue("darkPalette").jsonPrimitive.content,
-            ),
-            result,
-        )
+        assertEquals(name, state(c.getValue("after").jsonObject), ThemePageRules.apply(state(c.getValue("before").jsonObject), action))
     }
 
-    @Test fun `tap_light`() = assertCase("tap_light")
+    @Test fun `segment_light`() = assertCase("segment_light")
 
-    @Test fun `tap_palette_follow_off`() = assertCase("tap_palette_follow_off")
+    @Test fun `segment_dark`() = assertCase("segment_dark")
 
-    @Test fun `tap_palette_follow_on`() = assertCase("tap_palette_follow_on")
+    @Test fun `segment_system`() = assertCase("segment_system")
 
-    @Test fun `turn_follow_on`() = assertCase("turn_follow_on")
+    @Test fun `tap_palette_keeps_appearance_light`() = assertCase("tap_palette_keeps_appearance_light")
 
-    @Test fun `turn_follow_off_uses_current_system_appearance`() = assertCase("turn_follow_off_uses_current_system_appearance")
+    @Test fun `tap_palette_keeps_appearance_system`() = assertCase("tap_palette_keeps_appearance_system")
 
-    @Test
-    fun `turning follow off in light system appearance selects light`() {
-        val result = ThemePageRules.apply(
-            ThemePageState(ThemeOption.System, "dark-black"),
-            systemDark = false,
-            action = ThemePageAction.ToggleFollow(false),
-        )
-        assertEquals(ThemePageState(ThemeOption.Light, "dark-black"), result)
-    }
+    @Test fun `tap_default_card`() = assertCase("tap_default_card")
 
-    @Test
-    fun `selection follows theme and resolves the stored palette`() {
-        assertEquals(ThemeSwatchSelection.Light, ThemePageRules.selection(ThemeOption.Light, "dark-ocean"))
-        assertEquals(
-            ThemeSwatchSelection.Palette(DarkPaletteId.Ocean),
-            ThemePageRules.selection(ThemeOption.Dark, "dark-ocean"),
-        )
-        assertEquals(
-            ThemeSwatchSelection.Palette(DarkPaletteId.Sunset),
-            ThemePageRules.selection(ThemeOption.System, "dark-sunset"),
-        )
-        // Unset or unknown ids always show as dark
-        assertEquals(ThemeSwatchSelection.Palette(DarkPaletteId.Dark), ThemePageRules.selection(ThemeOption.Dark, null))
-        assertEquals(
-            ThemeSwatchSelection.Palette(DarkPaletteId.Dark),
-            ThemePageRules.selection(ThemeOption.System, "dark-unknown"),
-        )
-    }
+    @Test fun `tap_custom_without_seed_writes_default_seed`() = assertCase("tap_custom_without_seed_writes_default_seed")
 
-    private fun summary(theme: ThemeOption, darkPalette: String?): String = themeSummaryLabel(
-        theme = theme,
-        darkPalette = darkPalette,
-        lightLabel = "Light",
-        paletteLabel = { if (it == DarkPaletteId.Dark) "Dark" else it.name },
-        followSystemLabel = { "Follow System · $it" },
-    )
+    @Test fun `tap_custom_keeps_existing_seed`() = assertCase("tap_custom_keeps_existing_seed")
+
+    @Test fun `pick_seed_selects_custom`() = assertCase("pick_seed_selects_custom")
+
+    @Test fun `tap_preset_keeps_seed`() = assertCase("tap_preset_keeps_seed")
 
     @Test
-    fun `theme row summary covers light dark and follow system`() {
-        assertEquals("Light", summary(ThemeOption.Light, "dark-ocean"))
-        assertEquals("Ocean", summary(ThemeOption.Dark, "dark-ocean"))
-        assertEquals("Dark", summary(ThemeOption.Dark, null))
-        assertEquals("Follow System · Forest", summary(ThemeOption.System, "dark-forest"))
-        assertEquals("Follow System · Dark", summary(ThemeOption.System, "dark-unknown"))
+    fun `every appearance page case has its own test`() {
+        val tested = ThemePageRulesTest::class.java.declaredMethods
+            .filter { it.isAnnotationPresent(Test::class.java) }
+            .map { it.name }
+            .toSet()
+        val names = cases.map { it.getValue("name").jsonPrimitive.content }
+        assertTrue(names.isNotEmpty())
+        assertEquals("cases without a test", emptyList<String>(), names.filterNot { it in tested })
     }
 
     @Test
-    fun `every palette has a localized name resource`() {
-        assertEquals(DarkPaletteId.entries.size, DarkPaletteId.entries.map(::darkPaletteNameRes).toSet().size)
+    fun `tap custom with an invalid stored seed writes the default seed`() {
+        val result = ThemePageRules.apply(ThemePageState(ThemeOption.Dark, "dark", "nope"), ThemePageAction.TapCustom)
+        assertEquals(ThemePageState(ThemeOption.Dark, OriveoCustomPalette.ID, OriveoCustomPalette.format(OriveoCustomPalette.DEFAULT_SEED)), result)
+    }
+
+    @Test
+    fun `selection resolves the stored palette regardless of appearance`() {
+        assertEquals(ThemeSwatchSelection.Palette(DarkPaletteId.Ocean), ThemePageRules.selection("dark-ocean"))
+        assertEquals(ThemeSwatchSelection.Custom, ThemePageRules.selection(OriveoCustomPalette.ID))
+        // Unset or unknown ids always render as the default
+        assertEquals(ThemeSwatchSelection.Palette(DarkPaletteId.Dark), ThemePageRules.selection(null))
+        assertEquals(ThemeSwatchSelection.Palette(DarkPaletteId.Dark), ThemePageRules.selection("dark-unknown"))
+    }
+
+    @Test
+    fun `every card and preset dot has a distinct localized name`() {
+        assertEquals(ThemePaletteCardOrder.size, ThemePaletteCardOrder.map(::themeSwatchNameRes).toSet().size)
+        assertEquals(OriveoCustomPalette.presets.size, CustomPresetNameRes.toSet().size)
     }
 }

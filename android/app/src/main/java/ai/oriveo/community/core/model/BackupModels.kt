@@ -451,6 +451,8 @@ data class BackupPreferences(
     val memoryUpdatedAt: String? = null,
     /** Raw dark palette id; null means unset (older backups lack the field and render as dark after restore). */
     val darkPalette: String? = null,
+    /** Raw custom palette seed color; null means unset (older backups have no such field). */
+    val darkPaletteCustom: String? = null,
 )
 
 @Serializable

@@ -2,7 +2,9 @@ package ai.oriveo.community.feature.settings
 
 import java.io.File
 import ai.oriveo.community.core.model.LanguageOption
+import ai.oriveo.community.R
 import ai.oriveo.community.core.model.ThemeOption
+import ai.oriveo.community.ui.theme.DarkPaletteId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertFalse
@@ -143,6 +145,45 @@ class SettingsPresentationTest {
 
         assertNull(content.subtitle)
         assertEquals("Remember that I like...", content.value)
+    }
+
+    private fun themeSummary(theme: ThemeOption, darkPalette: String?): String = themeSummaryLabel(
+        theme = theme,
+        darkPalette = darkPalette,
+        appearanceLabel = { it.name },
+        paletteLabel = { selection ->
+            when (selection) {
+                is ThemeSwatchSelection.Palette -> selection.palette.name
+                ThemeSwatchSelection.Custom -> "Custom"
+            }
+        },
+        appearanceWithPalette = { appearance, name -> "${appearance.name} · $name" },
+    )
+
+    @Test
+    fun `theme summary shows only the appearance for the default palette`() {
+        assertEquals("Light", themeSummary(ThemeOption.Light, "dark"))
+        assertEquals("Dark", themeSummary(ThemeOption.Dark, null))
+        assertEquals("System", themeSummary(ThemeOption.System, "dark-unknown"))
+    }
+
+    @Test
+    fun `theme summary appends the palette name for other palettes`() {
+        assertEquals("Light · Ocean", themeSummary(ThemeOption.Light, "dark-ocean"))
+        assertEquals("Dark · Custom", themeSummary(ThemeOption.Dark, "custom"))
+        assertEquals("System · Forest", themeSummary(ThemeOption.System, "dark-forest"))
+    }
+
+    @Test
+    fun `theme summary resources map each appearance`() {
+        assertEquals(R.string.theme_light, themeAppearanceNameRes(ThemeOption.Light))
+        assertEquals(R.string.theme_dark, themeAppearanceNameRes(ThemeOption.Dark))
+        assertEquals(R.string.theme_system, themeAppearanceNameRes(ThemeOption.System))
+        assertEquals(R.string.theme_summary_light, themeSummaryWithPaletteRes(ThemeOption.Light))
+        assertEquals(R.string.theme_summary_dark, themeSummaryWithPaletteRes(ThemeOption.Dark))
+        assertEquals(R.string.theme_summary_follow_system, themeSummaryWithPaletteRes(ThemeOption.System))
+        assertEquals(R.string.theme_palette_custom, themeSwatchNameRes(ThemeSwatchSelection.Custom))
+        assertEquals(R.string.default_model_short, themeSwatchNameRes(ThemeSwatchSelection.Palette(DarkPaletteId.Dark)))
     }
 
     @Test

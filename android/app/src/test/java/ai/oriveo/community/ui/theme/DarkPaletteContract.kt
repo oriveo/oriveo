@@ -31,6 +31,10 @@ object DarkPaletteContract {
 
     fun palette(id: String): JsonObject = root.getValue("palettes").jsonObject.getValue(id).jsonObject
 
+    val custom: JsonObject get() = root.getValue("custom").jsonObject
+
+    val customResolveCases: List<JsonObject> get() = custom.getValue("resolveCases").jsonArray.map { it.jsonObject }
+
     val status: JsonObject get() = root.getValue("shared").jsonObject.getValue("status").jsonObject
 
     val derived: JsonObject get() = root.getValue("derived").jsonObject

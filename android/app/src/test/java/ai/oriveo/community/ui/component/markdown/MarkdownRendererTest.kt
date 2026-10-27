@@ -18,12 +18,21 @@ class MarkdownRendererTest {
         codeBlockBorder = Color.Gray,
         codeBlockFg = Color.White,
         codeBlockSecondary = Color.Gray,
+        codeBlockHeaderText = Color.White,
         syntaxKeyword = Color.Magenta,
         syntaxString = Color.Green,
         syntaxComment = Color.Gray,
         syntaxNumber = Color.Yellow,
         syntaxType = Color.Cyan,
-        syntaxVariable = Color(0xFF5EEAD4),
+        syntaxText = Color(0xFFE4E4E7),
+        syntaxFunction = Color(0xFF89B4FA),
+        syntaxProperty = Color(0xFF5EEAD4),
+        syntaxPunctuation = Color(0xFFA6ADC8),
+        syntaxDiffAdd = Color(0xFF00AA00),
+        syntaxDiffDelete = Color(0xFFAA0000),
+        syntaxDiffHunk = Color(0xFF0000AA),
+        syntaxDiffAddLine = Color(0x1F00AA00),
+        syntaxDiffDeleteLine = Color(0x1FAA0000),
         quoteBorder = Color.Blue,
         quoteText = Color.Gray,
         tableBorder = Color.Gray,
@@ -182,12 +191,21 @@ class SyntaxHighlighterTest {
         codeBlockBorder = Color.Gray,
         codeBlockFg = Color.White,
         codeBlockSecondary = Color.Gray,
+        codeBlockHeaderText = Color.White,
         syntaxKeyword = Color.Magenta,
         syntaxString = Color.Green,
         syntaxComment = Color.Gray,
         syntaxNumber = Color.Yellow,
         syntaxType = Color.Cyan,
-        syntaxVariable = Color(0xFF5EEAD4),
+        syntaxText = Color(0xFFE4E4E7),
+        syntaxFunction = Color(0xFF89B4FA),
+        syntaxProperty = Color(0xFF5EEAD4),
+        syntaxPunctuation = Color(0xFFA6ADC8),
+        syntaxDiffAdd = Color(0xFF00AA00),
+        syntaxDiffDelete = Color(0xFFAA0000),
+        syntaxDiffHunk = Color(0xFF0000AA),
+        syntaxDiffAddLine = Color(0x1F00AA00),
+        syntaxDiffDeleteLine = Color(0x1FAA0000),
         quoteBorder = Color.Blue,
         quoteText = Color.Gray,
         tableBorder = Color.Gray,
@@ -226,7 +244,7 @@ class SyntaxHighlighterTest {
         )
         assertTrue(
             result.spanStyles.none { span ->
-                span.start >= commentStart && span.item.color == testColors.syntaxVariable
+                span.start >= commentStart && span.item.color != testColors.syntaxComment
             },
         )
     }
@@ -256,7 +274,7 @@ class SyntaxHighlighterTest {
             val end = start + variable.length
             assertTrue(
                 result.spanStyles.any { span ->
-                    span.start == start && span.end == end && span.item.color == testColors.syntaxVariable
+                    span.start == start && span.end == end && span.item.color == testColors.syntaxProperty
                 },
             )
         }
@@ -268,12 +286,20 @@ class SyntaxHighlighterTest {
         val result = SyntaxHighlighter.highlight(code, "kotlin", testColors)
 
         assertEquals(code, result.text)
-        for (identifier in listOf("updateUser", "userName", "score", "count")) {
+        // Oriveo Code: an identifier right before ( is a function, one after . is a property, and any other plain identifier takes the body color
+        val expected = linkedMapOf(
+            "updateUser" to testColors.syntaxFunction,
+            "userName" to testColors.syntaxText,
+            "score" to testColors.syntaxText,
+            "count" to testColors.syntaxProperty,
+        )
+        for ((identifier, color) in expected) {
             val start = code.indexOf(identifier)
             val end = start + identifier.length
             assertTrue(
+                identifier,
                 result.spanStyles.any { span ->
-                    span.start <= start && span.end >= end && span.item.color == testColors.syntaxVariable
+                    span.start <= start && span.end >= end && span.item.color == color
                 },
             )
         }

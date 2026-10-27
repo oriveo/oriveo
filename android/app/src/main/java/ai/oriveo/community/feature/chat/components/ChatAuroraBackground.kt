@@ -27,6 +27,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import ai.oriveo.community.ui.component.isReduceMotionEnabled
 import ai.oriveo.community.ui.theme.OriveoColors
+import ai.oriveo.community.ui.theme.OriveoLightBrand
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.aurora
 import kotlin.math.max
@@ -68,6 +69,7 @@ internal fun ChatAuroraBackground(
 ) {
     val isDark = OriveoTheme.isDark
     val colors = OriveoTheme.colors
+    val lightBrand = OriveoTheme.lightBrand
     val context = LocalContext.current
     val reduceMotion = remember(context) { isReduceMotionEnabled(context) }
 
@@ -110,8 +112,9 @@ internal fun ChatAuroraBackground(
                 .drawWithCache {
                     // Recomputed only when size/theme change (and cached); the settle
                     // animation never re-enters this block.
-                    val dots = computeAuroraDots(size, isDark, colors.accent)
-                    val glowLayers = chatAuroraGlowLayers(colors, isDark)
+                    // Dark dots = the palette accent, light = the light brand ink
+                    val dots = computeAuroraDots(size, isDark, if (isDark) colors.accent else colors.primary)
+                    val glowLayers = chatAuroraGlowLayers(colors, isDark, lightBrand)
                     onDrawBehind {
                         drawAuroraGlow(glowLayers)
                         dots.forEach { dot ->
@@ -139,7 +142,12 @@ internal data class AuroraGlowLayer(
     val blendMode: BlendMode,
 )
 
-internal fun chatAuroraGlowLayers(colors: OriveoColors, isDark: Boolean): List<AuroraGlowLayer> {
+/** The light glow follows the light brand colors: main glow = ink (colors.primary), second blob = the light brand accent (the default palette keeps the original indigo). */
+internal fun chatAuroraGlowLayers(
+    colors: OriveoColors,
+    isDark: Boolean,
+    lightBrand: OriveoLightBrand = OriveoLightBrand.Default,
+): List<AuroraGlowLayer> {
     if (isDark) {
         val aurora = colors.aurora
         return listOf(
@@ -149,11 +157,11 @@ internal fun chatAuroraGlowLayers(colors: OriveoColors, isDark: Boolean): List<A
             AuroraGlowLayer(aurora.top, 0.5f, 0.06f, 0.55f, BlendMode.Screen),
         )
     }
-    // dark-palette-guard: keep (d) light branch
-    val purple = Color(0xFF8C5FF8)
+    val purple = colors.primary
+    val second = lightBrand.tuned(Color(0xFF6366F1), lightBrand.accent)
     return listOf(
         AuroraGlowLayer(purple.copy(alpha = 0.11f), 0.5f, 0.86f, 0.82f, BlendMode.SrcOver),
-        AuroraGlowLayer(Color(0xFF6366F1).copy(alpha = 0.075f), 0.32f, 0.80f, 0.58f, BlendMode.SrcOver),
+        AuroraGlowLayer(second.copy(alpha = 0.075f), 0.32f, 0.80f, 0.58f, BlendMode.SrcOver),
         AuroraGlowLayer(purple.copy(alpha = 0.05f), 0.5f, 0.06f, 0.55f, BlendMode.SrcOver),
     )
 }
@@ -178,7 +186,7 @@ private fun DrawScope.drawAuroraGlow(layers: List<AuroraGlowLayer>) {
 
 private class AuroraDot(val center: Offset, val radius: Float, val color: Color)
 
-private fun CacheDrawScope.computeAuroraDots(size: Size, isDark: Boolean, darkDotColor: Color): List<AuroraDot> {
+private fun CacheDrawScope.computeAuroraDots(size: Size, isDark: Boolean, dotColor: Color): List<AuroraDot> {
     if (size.width <= 0f || size.height <= 0f) return emptyList()
 
     val spacing = 15.dp.toPx()
@@ -186,8 +194,7 @@ private fun CacheDrawScope.computeAuroraDots(size: Size, isDark: Boolean, darkDo
     val dotMaxAlpha = if (isDark) 0.55f else 0.26f
     val verticalScale = 1.4f // vertical compression flattens the dot field into arcs hugging the top/bottom edges
     val maxDim = max(size.width, size.height)
-    // dark-palette-guard: keep (d) light branch
-    val base = if (isDark) darkDotColor else Color(0xFF8C5FF8)
+    val base = dotColor
 
     // Two focal points: bottom is dominant (near the input area), top is a faint echo;
     // the middle (text area) sits far from both, so it stays naturally clear.

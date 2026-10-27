@@ -489,7 +489,7 @@ private fun AuroraSendButton(
             imageVector = ArrowUpGlyph,
             contentDescription = stringResource(R.string.send),
             modifier = Modifier.size(19.dp),
-            tint = Color.White,
+            tint = AuroraTheme.sendIcon(),
         )
     }
 }

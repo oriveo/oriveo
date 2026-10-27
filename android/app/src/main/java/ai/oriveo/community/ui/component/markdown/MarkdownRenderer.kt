@@ -27,10 +27,15 @@ object MarkdownRenderer {
         inlineCodeText = Color.Unspecified, inlineCodeBg = Color.Unspecified,
         codeBlockBg = Color.Unspecified, codeBlockSurface = Color.Unspecified,
         codeBlockBorder = Color.Unspecified, codeBlockFg = Color.Unspecified,
-        codeBlockSecondary = Color.Unspecified, syntaxKeyword = Color.Unspecified,
-        syntaxString = Color.Unspecified, syntaxComment = Color.Unspecified,
-        syntaxNumber = Color.Unspecified, syntaxType = Color.Unspecified,
-        syntaxVariable = Color.Unspecified, quoteBorder = Color.Unspecified,
+        codeBlockSecondary = Color.Unspecified, codeBlockHeaderText = Color.Unspecified,
+        syntaxText = Color.Unspecified, syntaxKeyword = Color.Unspecified,
+        syntaxString = Color.Unspecified, syntaxNumber = Color.Unspecified,
+        syntaxFunction = Color.Unspecified, syntaxType = Color.Unspecified,
+        syntaxProperty = Color.Unspecified, syntaxComment = Color.Unspecified,
+        syntaxPunctuation = Color.Unspecified, syntaxDiffAdd = Color.Unspecified,
+        syntaxDiffDelete = Color.Unspecified, syntaxDiffHunk = Color.Unspecified,
+        syntaxDiffAddLine = Color.Unspecified, syntaxDiffDeleteLine = Color.Unspecified,
+        quoteBorder = Color.Unspecified,
         quoteText = Color.Unspecified, tableBorder = Color.Unspecified,
         tableHeaderBg = Color.Unspecified, tableCellBg = Color.Unspecified,
         tableAltRowBg = Color.Unspecified,
@@ -222,123 +227,180 @@ object MarkdownRenderer {
 }
 
 /**
- * Lightweight syntax highlighting.
+ * Code syntax highlighting "Oriveo Code".
  *
- * Recognises comments, keywords, strings, numbers and type names and colours them. It is
- * deliberately heuristic rather than a real parser: it has to run on every frame of a
+ * Highlights line by line with no cross-line state, so completed lines while streaming match the
+ * full highlight of the final text line for line. Roles: text / keyword / string / number /
+ * function / type / property / comment / punctuation. diff / patch color the whole line by its
+ * leading prefix as diffAdd / diffDelete / diffHunk, and added / deleted lines also carry a
+ * [DIFF_LINE_TAG] annotation that [diffLineBackgrounds] turns into a full-width line background
+ * across the code area.
+ *
+ * It is deliberately heuristic rather than a real parser: it has to run on every frame of a
  * streaming code block, across languages it has no grammar for.
  */
 object SyntaxHighlighter {
+
+    /** Annotation tag of the whole-line background of added / deleted diff lines; the value is [DIFF_LINE_ADD] / [DIFF_LINE_DELETE]. */
+    const val DIFF_LINE_TAG = "oriveo.code.diffLine"
+    const val DIFF_LINE_ADD = "add"
+    const val DIFF_LINE_DELETE = "delete"
 
     private val keywords = setOf(
         // JavaScript/TypeScript
         "const", "let", "var", "function", "return", "if", "else", "for", "while",
         "class", "import", "export", "from", "default", "new", "this", "async", "await",
         "try", "catch", "throw", "switch", "case", "break", "continue",
-        // Python
-        "def", "self", "print", "True", "False", "None", "with", "as", "yield", "lambda",
+        // Python (print is a builtin function, colored as a function and not in the keyword set)
+        "def", "self", "True", "False", "None", "with", "as", "yield", "lambda",
         // Kotlin/Java
         "fun", "val", "override", "private", "public", "internal", "protected",
         "data", "object", "companion", "sealed", "enum", "interface", "abstract",
         "suspend", "when", "is", "in", "null", "true", "false",
         // Swift
-        "struct", "protocol", "extension", "guard", "some",
+        "struct", "protocol", "extension", "guard", "some", "nil",
         // Common
         "static", "final", "void", "int", "string", "bool", "boolean",
     )
 
-    private val types = setOf(
-        "String", "Int", "Float", "Double", "Boolean", "List", "Map", "Set",
-        "Array", "Any", "Unit", "Nothing", "Void", "Promise", "Observable",
-        "Color", "View", "Modifier", "Composable", "State", "Flow",
-    )
+    private enum class Role { Text, Keyword, StringLit, Number, Function, Type, Property, Comment, Punctuation }
 
     fun highlight(code: String, language: String, colors: MarkdownColors): AnnotatedString =
         buildAnnotatedString {
+            val lang = language.lowercase()
             val lines = code.lines()
-            val commentPrefix = commentPrefix(language)
+            if (lang == "diff" || lang == "patch") {
+                lines.forEachIndexed { lineIdx, line ->
+                    if (lineIdx > 0) append('\n')
+                    highlightDiffLine(line, colors)
+                }
+                return@buildAnnotatedString
+            }
+            val commentPrefix = commentPrefix(lang)
+            val jsonKeys = lang == "json" || lang == "jsonc" || lang == "json5"
 
             lines.forEachIndexed { lineIdx, line ->
                 if (lineIdx > 0) append('\n')
-                highlightLine(line, commentPrefix, colors)
+                highlightLine(line, commentPrefix, jsonKeys, colors)
             }
         }
+
+    /** One diff / patch line: comment syntax is ignored and the whole line is colored by its leading prefix. */
+    private fun AnnotatedString.Builder.highlightDiffLine(line: String, colors: MarkdownColors) {
+        if (line.isEmpty()) return
+        val (color, lineKind) = when {
+            line.startsWith("+++") || line.startsWith("---") || line.startsWith("@@") -> colors.syntaxDiffHunk to null
+            line.startsWith("+") -> colors.syntaxDiffAdd to DIFF_LINE_ADD
+            line.startsWith("-") -> colors.syntaxDiffDelete to DIFF_LINE_DELETE
+            else -> colors.syntaxText to null
+        }
+        if (lineKind != null) pushStringAnnotation(DIFF_LINE_TAG, lineKind)
+        pushStyle(SpanStyle(color = color))
+        append(line)
+        pop()
+        if (lineKind != null) pop()
+    }
 
     private fun AnnotatedString.Builder.highlightLine(
         line: String,
         commentPrefix: String,
+        jsonKeys: Boolean,
         colors: MarkdownColors,
     ) {
         val trimmed = line.trimStart()
 
-        // Full-line comment
-        if (commentPrefix.isNotEmpty() && trimmed.startsWith(commentPrefix)) {
-            pushStyle(SpanStyle(color = colors.syntaxComment))
-            append(line)
-            pop()
-            return
-        }
-
-        // C-style line comment
-        if (trimmed.startsWith("//")) {
-            pushStyle(SpanStyle(color = colors.syntaxComment))
-            append(line)
-            pop()
+        // Full-line comment (including C-style //)
+        if ((commentPrefix.isNotEmpty() && trimmed.startsWith(commentPrefix)) || trimmed.startsWith("//")) {
+            val indent = line.length - trimmed.length
+            append(line.substring(0, indent))
+            appendStyled(trimmed, colors.syntaxComment)
             return
         }
 
         val inlineCommentStart = findLineCommentStart(line, commentPrefix)
         if (inlineCommentStart >= 0) {
-            highlightCodeTokens(line.substring(0, inlineCommentStart), colors)
-            pushStyle(SpanStyle(color = colors.syntaxComment))
-            append(line.substring(inlineCommentStart))
-            pop()
+            highlightCodeTokens(line.substring(0, inlineCommentStart), jsonKeys, colors)
+            appendStyled(line.substring(inlineCommentStart), colors.syntaxComment)
             return
         }
 
-        highlightCodeTokens(line, colors)
+        highlightCodeTokens(line, jsonKeys, colors)
+    }
+
+    private fun AnnotatedString.Builder.appendStyled(text: String, color: Color) {
+        pushStyle(SpanStyle(color = color))
+        append(text)
+        pop()
     }
 
     private fun AnnotatedString.Builder.highlightCodeTokens(
         line: String,
+        jsonKeys: Boolean,
         colors: MarkdownColors,
     ) {
         val tokens = tokenize(line)
-        for (token in tokens) {
-            when {
-                token.startsWith("\"") || token.startsWith("'") || token.startsWith("`") -> {
-                    pushStyle(SpanStyle(color = colors.syntaxString))
-                    append(token)
-                    pop()
-                }
-                token.toDoubleOrNull() != null -> {
-                    pushStyle(SpanStyle(color = colors.syntaxNumber))
-                    append(token)
-                    pop()
-                }
-                token.isVariableToken() -> {
-                    pushStyle(SpanStyle(color = colors.syntaxVariable))
-                    append(token)
-                    pop()
-                }
-                token in keywords -> {
-                    pushStyle(SpanStyle(color = colors.syntaxKeyword))
-                    append(token)
-                    pop()
-                }
-                token in types -> {
-                    pushStyle(SpanStyle(color = colors.syntaxType))
-                    append(token)
-                    pop()
-                }
-                token.isIdentifierToken() && !token.isTypeLikeIdentifier() -> {
-                    pushStyle(SpanStyle(color = colors.syntaxVariable))
-                    append(token)
-                    pop()
-                }
-                else -> append(token)
-            }
+        // Adjacent tokens of the same color merge into one span (e.g. "))", "::"); whitespace is not colored
+        var runColor: Color? = null
+        val run = StringBuilder()
+        fun flush() {
+            if (run.isEmpty()) return
+            val color = runColor
+            if (color == null) append(run.toString()) else appendStyled(run.toString(), color)
+            run.setLength(0)
         }
+        tokens.forEachIndexed { index, token ->
+            val color = if (token.isBlank()) null else colorOf(classify(tokens, index, jsonKeys), colors)
+            if (color != runColor) {
+                flush()
+                runColor = color
+            }
+            run.append(token)
+        }
+        flush()
+    }
+
+    private fun colorOf(role: Role, colors: MarkdownColors): Color = when (role) {
+        Role.Text -> colors.syntaxText
+        Role.Keyword -> colors.syntaxKeyword
+        Role.StringLit -> colors.syntaxString
+        Role.Number -> colors.syntaxNumber
+        Role.Function -> colors.syntaxFunction
+        Role.Type -> colors.syntaxType
+        Role.Property -> colors.syntaxProperty
+        Role.Comment -> colors.syntaxComment
+        Role.Punctuation -> colors.syntaxPunctuation
+    }
+
+    private fun classify(tokens: List<String>, index: Int, jsonKeys: Boolean): Role {
+        val token = tokens[index]
+        val first = token[0]
+        return when {
+            first == '"' || first == '\'' || first == '`' ->
+                if (jsonKeys && nextNonBlank(tokens, index) == ":") Role.Property else Role.StringLit
+            first.isDigit() -> Role.Number
+            (first == '$' || first == '@') && token.length > 1 -> Role.Property
+            first.isLetter() || first == '_' -> classifyIdentifier(tokens, index)
+            else -> Role.Punctuation
+        }
+    }
+
+    private fun classifyIdentifier(tokens: List<String>, index: Int): Role {
+        val token = tokens[index]
+        val afterDot = index > 0 && tokens[index - 1] == "."
+        val callsNext = tokens.getOrNull(index + 1) == "("
+        return when {
+            !afterDot && token in keywords -> Role.Keyword
+            token[0].isUpperCase() -> Role.Type
+            callsNext -> Role.Function
+            afterDot -> Role.Property
+            else -> Role.Text
+        }
+    }
+
+    private fun nextNonBlank(tokens: List<String>, index: Int): String? {
+        var i = index + 1
+        while (i < tokens.size && tokens[i].isBlank()) i++
+        return tokens.getOrNull(i)
     }
 
     private fun tokenize(line: String): List<String> {
@@ -353,20 +415,32 @@ object SyntaxHighlighter {
                     tokens.add(line.substring(i, end))
                     i = end
                 }
-                // Word
-                ch.isLetterOrDigit() || ch == '_' -> {
+                // Number literal (including decimal point / radix / suffix)
+                ch.isDigit() -> {
                     val start = i
                     while (i < line.length && (line[i].isLetterOrDigit() || line[i] == '_' || line[i] == '.')) i++
                     tokens.add(line.substring(start, i))
                 }
-                // PHP / shell-style variable
-                ch == '$' && i + 1 < line.length && (line[i + 1].isLetter() || line[i + 1] == '_') -> {
+                // Identifier
+                ch.isLetter() || ch == '_' -> {
+                    val start = i
+                    while (i < line.length && (line[i].isLetterOrDigit() || line[i] == '_')) i++
+                    tokens.add(line.substring(start, i))
+                }
+                // `$var` (PHP / shell) and `@decorator`
+                (ch == '$' || ch == '@') && i + 1 < line.length && (line[i + 1].isLetter() || line[i + 1] == '_') -> {
                     val start = i
                     i += 2
                     while (i < line.length && (line[i].isLetterOrDigit() || line[i] == '_')) i++
                     tokens.add(line.substring(start, i))
                 }
-                // Whitespace or operator
+                // Whitespace run
+                ch.isWhitespace() -> {
+                    val start = i
+                    while (i < line.length && line[i].isWhitespace()) i++
+                    tokens.add(line.substring(start, i))
+                }
+                // Operator / bracket / separator
                 else -> {
                     tokens.add(ch.toString())
                     i++
@@ -423,32 +497,7 @@ object SyntaxHighlighter {
         return -1
     }
 
-    private fun String.isVariableToken(): Boolean {
-        if (length < 2 || this[0] != '$') return false
-        val first = this[1]
-        if (!first.isLetter() && first != '_') return false
-        for (i in 2 until length) {
-            val ch = this[i]
-            if (!ch.isLetterOrDigit() && ch != '_') return false
-        }
-        return true
-    }
-
-    private fun String.isIdentifierToken(): Boolean {
-        if (isEmpty()) return false
-        val first = this[0]
-        if (!first.isLetter() && first != '_') return false
-        for (i in 1 until length) {
-            val ch = this[i]
-            if (!ch.isLetterOrDigit() && ch != '_' && ch != '.') return false
-        }
-        return true
-    }
-
-    private fun String.isTypeLikeIdentifier(): Boolean =
-        firstOrNull()?.isUpperCase() == true
-
-    private fun commentPrefix(language: String): String = when (language.lowercase()) {
+    private fun commentPrefix(language: String): String = when (language) {
         "python", "py", "ruby", "rb", "bash", "sh", "yaml", "yml", "toml" -> "#"
         "html", "xml" -> ""  // handled separately
         else -> "//"

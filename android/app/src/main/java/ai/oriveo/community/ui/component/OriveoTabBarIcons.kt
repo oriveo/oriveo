@@ -9,6 +9,8 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.unit.dp
+import ai.oriveo.community.ui.theme.DefaultLightBrandTuned
+import ai.oriveo.community.ui.theme.OriveoLightBrand
 
 /** The three line glyphs of the bottom tab bar, shared with the iOS tab bar assets. */
 enum class OriveoTabGlyph { Home, Providers, Settings }
@@ -35,10 +37,20 @@ internal object OriveoTabBarIcons {
         OriveoTabGlyph.Settings -> settingsTemplate
     }
 
-    /** [darkBrand] = the current palette's gradient-brand endpoints (primary -> accent); the selected icons of all three tabs use it in dark. */
-    fun selected(glyph: OriveoTabGlyph, isDark: Boolean, darkBrand: Pair<Color, Color>): ImageVector =
+    /**
+     * [darkBrand] = the current palette's gradient-brand endpoints (primary -> accent); the selected icons of all three tabs use it in dark.
+     * [lightBrand] = the current palette's light brand colors: the default palette keeps the three tab colors, every other palette uses ink for all three.
+     */
+    fun selected(
+        glyph: OriveoTabGlyph,
+        isDark: Boolean,
+        darkBrand: Pair<Color, Color>,
+        lightBrand: OriveoLightBrand = OriveoLightBrand.Default,
+    ): ImageVector =
         if (isDark) {
             selectedDark(glyph, darkBrand)
+        } else if (lightBrand !== OriveoLightBrand.Default) {
+            selectedDark(glyph, lightBrand.ink to lightBrand.ink)
         } else {
             when (glyph) {
                 OriveoTabGlyph.Home -> homeSelectedLight
@@ -49,14 +61,21 @@ internal object OriveoTabBarIcons {
 
     /**
      * Gradient endpoints per tab. In dark all three tabs use the current palette's gradient-brand ([darkBrand]);
-     * light keeps iOS tabAccent*: purple for Home, teal for Providers, orange for Settings.
+     * the light default palette keeps iOS tabAccent*: purple for Home, teal for Providers, orange for Settings; every other palette uses the light brand ink for all three.
      */
-    fun gradient(glyph: OriveoTabGlyph, isDark: Boolean, darkBrand: Pair<Color, Color>? = null): Pair<Color, Color> =
+    fun gradient(
+        glyph: OriveoTabGlyph,
+        isDark: Boolean,
+        darkBrand: Pair<Color, Color>? = null,
+        lightBrand: OriveoLightBrand = OriveoLightBrand.Default,
+    ): Pair<Color, Color> =
         if (isDark) {
             requireNotNull(darkBrand) { "dark tab gradient follows the current palette" }
+        } else if (lightBrand !== OriveoLightBrand.Default) {
+            lightBrand.ink to lightBrand.ink
         } else {
             when (glyph) {
-                OriveoTabGlyph.Home -> Color(0xFF8B5CF6) to Color(0xFF60A5FA) // dark-palette-guard: keep (d) light branch
+                OriveoTabGlyph.Home -> DefaultLightBrandTuned.homeViolet to Color(0xFF60A5FA)
                 OriveoTabGlyph.Providers -> Color(0xFF0D9488) to Color(0xFF0EA5E9)
                 OriveoTabGlyph.Settings -> Color(0xFFEA580C) to Color(0xFFEC4899)
             }

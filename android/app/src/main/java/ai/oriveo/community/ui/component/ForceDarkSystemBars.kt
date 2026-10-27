@@ -9,7 +9,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
-import ai.oriveo.community.ui.theme.DarkPaletteId
+import ai.oriveo.community.ui.theme.DarkPaletteChoice
 import ai.oriveo.community.ui.theme.LocalIsDarkTheme
 import ai.oriveo.community.ui.theme.LocalOriveoColors
 import ai.oriveo.community.ui.util.findActivity
@@ -22,7 +22,7 @@ fun ForceDarkSystemBars(windowBackground: Color = DarkSurfaceBackground) {
     val themeWindowBackgroundDark = if (LocalIsDarkTheme.current) {
         LocalOriveoColors.current.backgroundBase
     } else {
-        DarkPaletteId.Default.colors.backgroundBase
+        DarkPaletteChoice.Default.colors.backgroundBase
     }
     val hostWindow = remember(view) {
         (view.parent as? DialogWindowProvider)?.window ?: view.context.findActivity()?.window

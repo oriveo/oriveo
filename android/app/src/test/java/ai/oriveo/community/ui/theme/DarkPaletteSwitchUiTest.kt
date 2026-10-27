@@ -46,7 +46,7 @@ class DarkPaletteSwitchUiTest {
 
     @Test
     fun `switching_palette_keeps_view_state`() {
-        var palette by mutableStateOf(DarkPaletteId.Default)
+        var palette by mutableStateOf(DarkPaletteChoice.Default)
         val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
         val rememberedObjects = mutableListOf<Any>()
         var listState: LazyListState? = null
@@ -85,7 +85,7 @@ class DarkPaletteSwitchUiTest {
         val stateBefore = listState
         assertEquals(120, indexBefore)
 
-        palette = DarkPaletteId.Ocean
+        palette = DarkPaletteChoice.Preset(DarkPaletteId.Ocean)
         composeRule.waitForIdle()
 
         assertEquals("colors switch to the new palette", DarkOceanOriveoColors.backgroundBase, seenBackground)
@@ -97,5 +97,14 @@ class DarkPaletteSwitchUiTest {
         assertEquals("scroll position is kept", indexBefore, listState!!.firstVisibleItemIndex)
         assertEquals(offsetBefore, listState!!.firstVisibleItemScrollOffset)
         assertEquals("the Activity is not recreated", false, activity.isFinishing)
+
+        // Switching the seed of a custom palette: colors are likewise re-read immediately without rebuilding state
+        val seed = OriveoCustomPalette.presets.first()
+        palette = DarkPaletteChoice.Custom(seed)
+        composeRule.waitForIdle()
+        assertEquals("custom palette colors", OriveoCustomPalette.colors(seed).primary, seenPrimary)
+        assertEquals(OriveoCustomPalette.colors(seed).backgroundBase, seenBackground)
+        assertEquals("the same remember object", 1, rememberedObjects.size)
+        assertEquals("input text is kept", "draft kept", text)
     }
 }

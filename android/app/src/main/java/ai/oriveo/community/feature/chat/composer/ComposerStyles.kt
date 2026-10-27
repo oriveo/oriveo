@@ -3,6 +3,7 @@ package ai.oriveo.community.feature.chat.composer
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import ai.oriveo.community.core.model.ModelCapability
+import ai.oriveo.community.ui.theme.DefaultLightBrandTuned
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.primarySubtle
 
@@ -42,7 +43,7 @@ internal fun composerLibraryAccent(): ComposerCapabilityAccent = ComposerCapabil
     shadow = composerDynamicColor(light = 0x166534, dark = 0x000000, lightAlpha = 0.14f, darkAlpha = 0.22f),
 )
 
-/** The model-behavior chip is a brand-purple accent: dark uses the current palette tokens (accent -> primary), light keeps its original value. */
+/** The model-behavior chip is a brand-purple accent: dark uses the current palette tokens (accent -> primary), light follows the light brand colors (the default palette keeps its original values). */
 @Composable
 internal fun composerModelBehaviorAccent(): ComposerCapabilityAccent {
     val colors = OriveoTheme.colors
@@ -56,15 +57,15 @@ internal fun composerModelBehaviorAccent(): ComposerCapabilityAccent {
             shadow = Color.Black.copy(alpha = 0.22f),
         )
     }
+    // Light follows the light brand colors: text / dark end / shadow -> textSafe, light end -> ink, fill -> soft, border -> ink; the default palette keeps its original values
+    val brand = OriveoTheme.lightBrand
     return ComposerCapabilityAccent(
-        tint = composerLightColor(0x5B4AB8),
-        // dark-palette-guard: keep (d) light branch
-        iconStart = composerLightColor(0xA78BFA),
-        iconEnd = composerLightColor(0x6D5BD0),
-        softFill = composerLightColor(0xF5F3FF),
-        // dark-palette-guard: keep (d) light branch
-        softBorder = composerLightColor(0xC4B5FD, alpha = 0.70f),
-        shadow = composerLightColor(0x6D5BD0, alpha = 0.15f),
+        tint = brand.tuned(composerLightColor(0x5B4AB8), brand.textSafe),
+        iconStart = brand.tuned(DefaultLightBrandTuned.ringLavender, brand.ink),
+        iconEnd = brand.tuned(composerLightColor(0x6D5BD0), brand.textSafe),
+        softFill = brand.tuned(composerLightColor(0xF5F3FF), brand.soft),
+        softBorder = brand.tuned(DefaultLightBrandTuned.lavender.copy(alpha = 0.70f), brand.ink.copy(alpha = 0.30f)),
+        shadow = brand.tuned(composerLightColor(0x6D5BD0, alpha = 0.15f), brand.textSafe.copy(alpha = 0.15f)),
     )
 }
 

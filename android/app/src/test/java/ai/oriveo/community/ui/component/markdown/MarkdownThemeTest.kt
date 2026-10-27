@@ -5,19 +5,22 @@ import ai.oriveo.community.ui.theme.DarkPaletteContract
 import ai.oriveo.community.ui.theme.DarkPaletteId
 import ai.oriveo.community.ui.theme.LightOriveoColors
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MarkdownThemeTest {
 
     @Test
-    fun `light code block colors use editor surface`() {
+    fun `light code block uses light Oriveo Code surface`() {
         val colors = MarkdownTheme.resolveColors(LightOriveoColors, isDark = false)
+        val light = CodeHighlightContract.light
 
-        assertEquals(Color(0xFF0B1220), colors.codeBlockBg)
-        assertEquals(Color(0xFF111A2E), colors.codeBlockSurface)
-        assertEquals(Color(0xFFE7EEF8), colors.codeBlockFg)
-
-        assertEquals(Color(0xFFC7D2E0), colors.codeBlockSecondary)
+        // Light mode code blocks also have a light background; expected values are read live from the code-highlight contract
+        assertEquals(CodeHighlightContract.color(light, "codeBg"), colors.codeBlockBg)
+        assertEquals(CodeHighlightContract.color(light, "codeHeaderBg"), colors.codeBlockSurface)
+        assertEquals(CodeHighlightContract.color(light, "text"), colors.codeBlockFg)
+        assertEquals(CodeHighlightContract.color(light, "headerText"), colors.codeBlockSecondary)
+        assertEquals(CodeHighlightContract.color(light, "headerText"), colors.codeBlockHeaderText)
     }
 
     @Test
@@ -28,7 +31,7 @@ class MarkdownThemeTest {
 
             assertEquals("${palette.id} codeBg", DarkPaletteContract.color(json.getValue("codeBg")), colors.codeBlockBg)
             assertEquals("${palette.id} codeHeaderBg", DarkPaletteContract.color(json.getValue("codeHeaderBg")), colors.codeBlockSurface)
-            assertEquals(Color(0xFFEAF1FB), colors.codeBlockFg)
+            assertEquals(CodeHighlightContract.color(CodeHighlightContract.dark, "text"), colors.codeBlockFg)
             assertEquals(Color(0xFFC7D2E0), colors.codeBlockSecondary)
             assertEquals(palette.colors.primary, colors.link)
             assertEquals(palette.colors.textPrimary, colors.text)
@@ -36,17 +39,15 @@ class MarkdownThemeTest {
     }
 
     @Test
-    fun `syntax colors stay balanced across themes`() {
-        val colors = MarkdownTheme.resolveColors(LightOriveoColors, isDark = false)
+    fun `light and dark syntax colors differ per appearance`() {
+        val light = MarkdownTheme.resolveColors(LightOriveoColors, isDark = false)
+        val dark = MarkdownTheme.resolveColors(DarkPaletteId.entries.first().colors, isDark = true)
 
-        assertEquals(Color(0xFFD8B4FE), colors.syntaxKeyword)
-        assertEquals(Color(0xFFA7F3D0), colors.syntaxString)
-
-        assertEquals(Color(0xFF94A3B8), colors.syntaxComment)
-        assertEquals(Color(0xFFFDE68A), colors.syntaxNumber)
-        assertEquals(Color(0xFF7DD3FC), colors.syntaxType)
-        assertEquals(Color(0xFF5EEAD4), colors.syntaxVariable)
+        assertEquals(CodeHighlightContract.color(CodeHighlightContract.light, "keyword"), light.syntaxKeyword)
+        assertEquals(CodeHighlightContract.color(CodeHighlightContract.dark, "keyword"), dark.syntaxKeyword)
+        assertTrue(light.syntaxComment != dark.syntaxComment)
     }
+
     @Test
     fun `dark inline code and table follow palette`() {
         for (id in listOf("dark-forest", "dark-sunset")) {

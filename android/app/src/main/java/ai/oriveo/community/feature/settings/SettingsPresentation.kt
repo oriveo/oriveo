@@ -12,22 +12,18 @@ internal data class SettingsRowContent(
 )
 
 /**
- * Summary on the right of the Theme row in Settings: light -> "Light"; dark -> the palette name (the default palette shows "Dark");
- * follow system -> "Follow System · <palette name>". The palette name always comes from resolve(darkPalette).
+ * Summary of the theme cell on the Settings home: the default palette shows only the appearance name (Light / Dark / Follow System);
+ * any other palette shows "<appearance> · <palette name>". The palette always comes from resolve(darkPalette) (custom -> [ThemeSwatchSelection.Custom]).
  */
 internal fun themeSummaryLabel(
     theme: ThemeOption,
     darkPalette: String?,
-    lightLabel: String,
-    paletteLabel: (DarkPaletteId) -> String,
-    followSystemLabel: (String) -> String,
-): String {
-    val palette = paletteLabel(DarkPaletteId.fromId(darkPalette))
-    return when (theme) {
-        ThemeOption.System -> followSystemLabel(palette)
-        ThemeOption.Light -> lightLabel
-        ThemeOption.Dark -> palette
-    }
+    appearanceLabel: (ThemeOption) -> String,
+    paletteLabel: (ThemeSwatchSelection) -> String,
+    appearanceWithPalette: (ThemeOption, String) -> String,
+): String = when (val selection = ThemePageRules.selection(darkPalette)) {
+    ThemeSwatchSelection.Palette(DarkPaletteId.Default) -> appearanceLabel(theme)
+    else -> appearanceWithPalette(theme, paletteLabel(selection))
 }
 
 internal fun languageSummaryLabel(
