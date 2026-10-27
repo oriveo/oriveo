@@ -3636,107 +3636,6 @@
         }
       }
     },
-    "settings_context_cap_footer" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "«تلقائي»: يُحدَّد وفق نافذة سياق النموذج بحدٍّ أقصى %1$@، مع البقاء دون سعر السياق الطويل. «مخصص»: يُدخَل رقم لا يقل عن %2$@، وإذا كانت سعة النموذج أقل يُطبَّق حدّه الأقصى. ويمكن تعيين حدّ مختلف لمحادثة واحدة من لوحة السياق."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bei „Automatisch“ richtet sich das Limit nach dem Kontextfenster des Modells (höchstens %1$@) und bleibt unter dem Langkontext-Aufpreis. Bei „Benutzerdefiniert“ gibst du eine Zahl ein (mindestens %2$@); hat ein Modell weniger Platz, gilt sein eigenes Maximum. Für einzelne Chats kannst du im Kontext-Panel ein eigenes Limit festlegen."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Automatic sizes to the model’s window, up to %1$@, and stays below the model’s long-context pricing. For Custom, enter a number (at least %2$@); a model with less room uses its own maximum. You can set a different limit for one chat in the context panel."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "En Automático, el límite se ajusta a la ventana del modelo, hasta %1$@, y se mantiene por debajo del precio de contexto largo. En Personalizado, ingresa un número (mínimo %2$@); si un modelo admite menos, se usa su propio máximo. Puedes fijar otro límite para un chat en el panel de contexto."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "En mode Automatique, la limite s’adapte à la fenêtre du modèle, jusqu’à %1$@, en restant sous le tarif de contexte long. En mode Personnalisé, saisissez une valeur (au moins %2$@) ; si un modèle a moins de place, son propre maximum s’applique. Vous pouvez définir une autre limite pour une conversation dans le panneau Contexte."
-          }
-        },
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "स्वचालित: मॉडल की विंडो के हिसाब से अधिकतम %1$@ तक सेट होता है और लॉन्ग कॉन्टेक्स्ट की ऊँची दर शुरू होने से पहले रुक जाता है। कस्टम में कोई संख्या डालें (कम से कम %2$@); अगर किसी मॉडल में इतनी जगह नहीं है, तो उसी मॉडल की अधिकतम सीमा लागू होगी। किसी एक चैट के लिए अलग सीमा कॉन्टेक्स्ट पैनल में सेट की जा सकती है।"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Otomatis menyesuaikan dengan jendela konteks model, maksimal %1$@, dan tetap di bawah harga konteks panjang. Untuk Kustom, masukkan angka (minimal %2$@); jika kapasitas model lebih kecil, batas maksimum model itu yang dipakai. Anda bisa mengatur batas berbeda untuk satu percakapan di panel konteks."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自動：モデルのウィンドウに合わせて最大 %1$@ まで設定し、ロングコンテキストの割増料金がかからない範囲に抑えます。カスタムでは数値を入力します（最小 %2$@）。モデルの使用可能量を超える場合は、そのモデルの上限が適用されます。会話ごとの上限はコンテキストパネルで個別に設定できます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "자동: 모델 윈도우에 맞춰 최대 %1$@까지 정하고, 긴 컨텍스트 할증 요금은 피해요. 사용자 지정은 숫자를 직접 입력하고(최소 %2$@), 모델이 쓸 수 있는 양보다 크면 그 모델의 최대치가 적용돼요. 대화별 한도는 컨텍스트 패널에서 따로 설정할 수 있어요."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No modo Automático, o limite se ajusta à janela do modelo, até %1$@, e fica abaixo do preço de contexto longo. No Personalizado, digite um número (mínimo %2$@); se um modelo comportar menos, vale o máximo dele. Você pode definir outro limite para uma conversa no painel de contexto."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "«Автоматически» подбирает лимит по окну модели — не больше %1$@ и ниже ценового порога длинного контекста. В режиме «Пользовательский» введите число (не меньше %2$@); если модели доступно меньше, действует её собственный максимум. Для отдельного чата лимит можно задать в панели контекста."
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "อัตโนมัติ: ตั้งตามหน้าต่างบริบทของโมเดล สูงสุด %1$@ และไม่ให้เกินเกณฑ์ขึ้นราคาบริบทยาว กำหนดเอง: ใส่ตัวเลข (อย่างน้อย %2$@) หากโมเดลรับได้น้อยกว่านั้น จะใช้ค่าสูงสุดของโมเดลนั้น ตั้งค่าแยกสำหรับแต่ละแชทได้ในแผงบริบท"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Otomatik, modelin penceresine göre en fazla %1$@ seçer ve uzun bağlam fiyatına girmez. Özel seçeneğinde bir sayı girin (en az %2$@); bir modelin kapasitesi daha düşükse o modelin üst sınırı geçerli olur. Tek bir sohbet için bağlam panelinden ayrı bir sınır belirleyebilirsiniz."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tự động: lấy theo cửa sổ ngữ cảnh của mô hình, tối đa %1$@, và tránh mức giá ngữ cảnh dài. Tùy chỉnh: nhập một số (tối thiểu %2$@); nếu mô hình chứa được ít hơn, sẽ dùng mức tối đa của mô hình đó. Bạn có thể đặt giới hạn riêng cho từng cuộc trò chuyện trong bảng ngữ cảnh."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自动：按模型窗口取值，最多 %1$@，并避开模型的长上下文加价。自定义填一个数值（最少 %2$@），超过某个模型的可用量时按该模型封顶。单个对话可以在上下文面板里单独设置。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自動：依模型視窗取值，最多 %1$@，並避開模型的長上下文加價。自訂可填一個數值（最少 %2$@），超過某個模型的可用量時，以該模型的上限為準。個別對話可在上下文面板中單獨設定。"
-          }
-        }
-      }
-    },
     "settings_context_cap_header" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3834,6 +3733,814 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "預設上限"
+          }
+        }
+      }
+    },
+    "settings_context_cost_extra" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بتكلفة إضافية"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zusatzkosten"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Costs extra"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Con costo extra"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avec surcoût"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "अतिरिक्त खर्च"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ada biaya tambahan"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追加料金あり"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "추가 비용 있음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Com custo extra"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "С доплатой"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "มีค่าใช้จ่ายเพิ่ม"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ek ücretli"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tốn thêm phí"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有额外费用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "會產生額外費用"
+          }
+        }
+      }
+    },
+    "settings_context_cost_none" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بلا تكلفة إضافية"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Zusatzkosten"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No extra cost"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin costo extra"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sans surcoût"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "कोई अतिरिक्त खर्च नहीं"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tanpa biaya tambahan"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追加料金なし"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "추가 비용 없음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sem custo extra"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Без доплат"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ไม่มีค่าใช้จ่ายเพิ่ม"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ek ücret yok"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không tốn thêm"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不额外花费"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不額外花費"
+          }
+        }
+      }
+    },
+    "settings_context_custom_min" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لا يقل عن %@"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mindestens %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "At least %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mínimo %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Au moins %@"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "कम से कम %@"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minimal %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最小 %@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "최소 %@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mínimo de %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не меньше %@"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "อย่างน้อย %@"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En az %@"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tối thiểu %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最少 %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最少 %@"
+          }
+        }
+      }
+    },
+    "settings_context_hero_caption_auto" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يُحدَّد وفق نافذة النموذج ويتوقف قبل سعر السياق الطويل."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Richtet sich nach dem Modellfenster und bleibt unter dem Langkontext-Aufpreis."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sized to the model’s window, stopping short of long-context pricing."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se ajusta a la ventana del modelo y se queda por debajo del precio de contexto largo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "S’adapte à la fenêtre du modèle en restant sous le tarif de contexte long."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "मॉडल की विंडो के हिसाब से तय होती है और लॉन्ग कॉन्टेक्स्ट की ऊँची दर से पहले रुक जाती है।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Menyesuaikan jendela model dan berhenti sebelum harga konteks panjang."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "モデルのウィンドウに合わせ、ロングコンテキストの割増料金がかからない範囲に抑えます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모델 윈도우에 맞추고, 긴 컨텍스트 할증 전에서 멈춰요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se ajusta à janela do modelo e para antes do preço de contexto longo."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подбирается по окну модели и не доходит до цены длинного контекста."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ตั้งตามหน้าต่างบริบทของโมเดล และหยุดก่อนถึงเกณฑ์ขึ้นราคาบริบทยาว"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modelin penceresine göre ayarlanır ve uzun bağlam fiyatına girmeden durur."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lấy theo cửa sổ của mô hình và dừng trước mức giá ngữ cảnh dài."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按模型窗口取值，停在长上下文加价线之前。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "依模型視窗取值，停在長上下文加價門檻之前。"
+          }
+        }
+      }
+    },
+    "settings_context_hero_caption_custom" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "إذا كانت سعة النموذج أقل، يُطبَّق حدّه الأقصى."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hat ein Modell weniger Platz, gilt sein eigenes Maximum."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A model with less room uses its own maximum."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si un modelo admite menos, se usa su propio máximo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si un modèle a moins de place, son propre maximum s’applique."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "अगर किसी मॉडल में इतनी जगह नहीं है, तो उसी की अधिकतम सीमा लागू होगी।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jika kapasitas model lebih kecil, batas maksimum model itu yang dipakai."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "モデルの使用可能量を超える場合は、そのモデルの上限が適用されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모델이 쓸 수 있는 양보다 크면 그 모델의 최대치가 적용돼요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se um modelo comportar menos, vale o máximo dele."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Если модели доступно меньше, действует её собственный максимум."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "หากโมเดลรับได้น้อยกว่านั้น จะใช้ค่าสูงสุดของโมเดลนั้น"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bir modelin kapasitesi daha düşükse o modelin üst sınırı geçerli olur."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nếu mô hình chứa được ít hơn, sẽ dùng mức tối đa của mô hình đó."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "超过某个模型的可用量时，按该模型封顶。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "超過某個模型的可用量時，以該模型的上限為準。"
+          }
+        }
+      }
+    },
+    "settings_context_hero_caption_unlimited" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تُستخدم نافذة كل نموذج كاملةً، وقد يتجاوز ذلك سعر السياق الطويل."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutzt das volle Fenster jedes Modells und kann den Langkontext-Aufpreis auslösen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uses each model’s full window, which can cross into long-context pricing."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa la ventana completa de cada modelo; puede entrar en el precio de contexto largo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilise toute la fenêtre de chaque modèle, au risque de passer au tarif de contexte long."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "हर मॉडल की पूरी विंडो इस्तेमाल होती है, इससे लॉन्ग कॉन्टेक्स्ट की ऊँची दर लग सकती है।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Memakai seluruh jendela tiap model, bisa masuk ke harga konteks panjang."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "各モデルのウィンドウをすべて使います。ロングコンテキストの割増料金がかかることがあります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모델마다 윈도우를 전부 써요. 긴 컨텍스트 할증이 붙을 수 있어요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa a janela inteira de cada modelo, o que pode cair no preço de contexto longo."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Используется всё окно каждой модели — можно выйти на цену длинного контекста."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ใช้หน้าต่างบริบทเต็มของแต่ละโมเดล อาจเกินเกณฑ์ขึ้นราคาบริบทยาวได้"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Her modelin penceresinin tamamını kullanır; uzun bağlam fiyatına girebilir."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dùng toàn bộ cửa sổ của từng mô hình, có thể vượt sang mức giá ngữ cảnh dài."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按每个模型的完整窗口发送，可能越过加价线。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "依每個模型的完整視窗傳送，可能越過加價門檻。"
+          }
+        }
+      }
+    },
+    "settings_context_hero_full_window" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "النافذة كاملة"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Volles Fenster"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Full window"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ventana completa"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fenêtre complète"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "पूरी विंडो"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jendela penuh"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ウィンドウ全体"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "전체 윈도우"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Janela inteira"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Всё окно"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "เต็มหน้าต่าง"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tam pencere"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toàn bộ cửa sổ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完整窗口"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完整視窗"
+          }
+        }
+      }
+    },
+    "settings_context_hero_label" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "الحد في كل طلب"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limit pro Anfrage"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limit per request"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Límite por solicitud"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limite par requête"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "हर अनुरोध की सीमा"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Batas per permintaan"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 回のリクエストの上限"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "요청당 한도"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limite por solicitação"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Лимит на запрос"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ขีดจำกัดต่อคำขอ"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "İstek başına sınır"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Giới hạn mỗi lần gửi"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每次发给模型的上限"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每次傳給模型的上限"
           }
         }
       }
@@ -4147,97 +4854,97 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "دون تكلفة إضافية. لم تعد ردود الذكاء الاصطناعي السابقة تُرسَل، وتبقى رسائلك محفوظة، وإذا لزم الاقتطاع فإنه يتوقف عند نهاية جملة."
+            "value" : "لم تعد ردود الذكاء الاصطناعي السابقة تُرسَل، وتبقى رسائلك محفوظة، وإذا لزم الاقتطاع فإنه يتوقف عند نهاية جملة."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Keine Zusatzkosten. Frühere KI-Antworten werden nicht mehr gesendet; deine eigenen Nachrichten bleiben erhalten, und gekürzt wird nur am Satzende."
+            "value" : "Frühere KI-Antworten werden nicht mehr gesendet; deine eigenen Nachrichten bleiben erhalten, und gekürzt wird nur am Satzende."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No extra cost. Earlier AI replies are no longer sent; your own messages are kept, and any cut ends at a sentence boundary."
+            "value" : "Earlier AI replies are no longer sent; your own messages are kept, and any cut ends at a sentence boundary."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sin costo adicional. Las respuestas anteriores de la IA ya no se envían; tus propios mensajes se conservan y, si hay que recortar, el corte se hace al final de una oración."
+            "value" : "Las respuestas anteriores de la IA ya no se envían; tus propios mensajes se conservan y, si hay que recortar, el corte se hace al final de una oración."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sans coût supplémentaire. Les réponses antérieures de l’IA ne sont plus envoyées ; vos propres messages sont conservés, et toute coupure se fait en fin de phrase."
+            "value" : "Les réponses antérieures de l’IA ne sont plus envoyées ; vos propres messages sont conservés, et toute coupure se fait en fin de phrase."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "कोई अतिरिक्त खर्च नहीं। AI के पहले के जवाब अब नहीं भेजे जाते; आपके अपने मैसेज रखे जाते हैं, और काटना पड़े तो वाक्य के अंत पर ही काटा जाता है।"
+            "value" : "AI के पहले के जवाब अब नहीं भेजे जाते; आपके अपने मैसेज रखे जाते हैं, और काटना पड़े तो वाक्य के अंत पर ही काटा जाता है।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tanpa biaya tambahan. Balasan AI sebelumnya tidak lagi dikirim; pesan Anda sendiri tetap disimpan, dan jika perlu dipotong, potongannya berhenti di akhir kalimat."
+            "value" : "Balasan AI sebelumnya tidak lagi dikirim; pesan Anda sendiri tetap disimpan, dan jika perlu dipotong, potongannya berhenti di akhir kalimat."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "追加料金はかかりません。以前の AI の回答は送信せず、あなたのメッセージはそのまま残します。切り詰める場合も文の終わりで区切ります。"
+            "value" : "以前の AI の回答は送信せず、あなたのメッセージはそのまま残します。切り詰める場合も文の終わりで区切ります。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "추가 비용이 없어요. 이전 AI 답변은 보내지 않고, 직접 보낸 메시지는 그대로 유지해요. 잘라낼 때는 문장이 끝나는 곳에서 잘라요."
+            "value" : "이전 AI 답변은 보내지 않고, 직접 보낸 메시지는 그대로 유지해요. 잘라낼 때는 문장이 끝나는 곳에서 잘라요."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sem custo extra. As respostas anteriores da IA não são mais enviadas; suas próprias mensagens são mantidas, e qualquer corte termina no fim de uma frase."
+            "value" : "As respostas anteriores da IA não são mais enviadas; suas próprias mensagens são mantidas, e qualquer corte termina no fim de uma frase."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Без дополнительных затрат. Предыдущие ответы ИИ больше не отправляются; ваши собственные сообщения сохраняются, а если текст приходится сокращать, он обрезается по концу предложения."
+            "value" : "Предыдущие ответы ИИ больше не отправляются; ваши собственные сообщения сохраняются, а если текст приходится сокращать, он обрезается по концу предложения."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ไม่มีค่าใช้จ่ายเพิ่ม คำตอบของ AI ก่อนหน้าจะไม่ถูกส่งอีก ส่วนข้อความของคุณยังเก็บไว้ตามปกติ และถ้าต้องตัดทอนจะตัดที่ท้ายประโยค"
+            "value" : "คำตอบของ AI ก่อนหน้าจะไม่ถูกส่งอีก ส่วนข้อความของคุณยังเก็บไว้ตามปกติ และถ้าต้องตัดทอนจะตัดที่ท้ายประโยค"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ek ücret yok. Önceki yapay zekâ yanıtları artık gönderilmez; kendi mesajlarınız korunur ve kesme gerekirse cümle sonunda yapılır."
+            "value" : "Önceki yapay zekâ yanıtları artık gönderilmez; kendi mesajlarınız korunur ve kesme gerekirse cümle sonunda yapılır."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Không tốn thêm phí. Các câu trả lời AI trước đó không còn được gửi; tin nhắn của bạn vẫn được giữ, và nếu phải cắt bớt thì sẽ dừng ở cuối câu."
+            "value" : "Các câu trả lời AI trước đó không còn được gửi; tin nhắn của bạn vẫn được giữ, và nếu phải cắt bớt thì sẽ dừng ở cuối câu."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "不额外花钱。较早的 AI 回答不再发送，你说过的话照常保留，截断处停在句子结尾。"
+            "value" : "较早的 AI 回答不再发送，你说过的话照常保留，截断处停在句子结尾。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "不額外花費。較早的 AI 回覆不再傳送，你說過的話照常保留，截斷處停在句子結尾。"
+            "value" : "較早的 AI 回覆不再傳送，你說過的話照常保留，截斷處停在句子結尾。"
           }
         }
       }
@@ -4440,6 +5147,107 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "超出上限時"
+          }
+        }
+      }
+    },
+    "settings_context_per_chat" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يمكن تعيين حدّ مختلف لمحادثة واحدة من لوحة السياق."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Für einzelne Chats kannst du im Kontext-Panel ein eigenes Limit festlegen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can set a different limit for one chat in the context panel."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Puedes fijar otro límite para un chat en el panel de contexto."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vous pouvez définir une autre limite pour une conversation dans le panneau Contexte."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "किसी एक चैट के लिए अलग सीमा कॉन्टेक्स्ट पैनल में सेट की जा सकती है।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anda bisa mengatur batas berbeda untuk satu percakapan di panel konteks."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会話ごとの上限はコンテキストパネルで個別に設定できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "대화별 한도는 컨텍스트 패널에서 따로 설정할 수 있어요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Você pode definir outro limite para uma conversa no painel de contexto."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Для отдельного чата лимит можно задать в панели контекста."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ตั้งค่าแยกสำหรับแต่ละแชทได้ในแผงบริบท"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tek bir sohbet için bağlam panelinden ayrı bir sınır belirleyebilirsiniz."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bạn có thể đặt giới hạn riêng cho từng cuộc trò chuyện trong bảng ngữ cảnh."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "单个对话可以在上下文面板里单独设置。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "個別對話可在上下文面板中單獨設定。"
           }
         }
       }
@@ -4844,6 +5652,208 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "只保留原話"
+          }
+        }
+      }
+    },
+    "settings_context_scale_price_line" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "عتبة السعر"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preisschwelle"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Price threshold"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Umbral de precio"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seuil tarifaire"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ऊँची दर की रेखा"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ambang harga"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "割増ライン"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "할증 기준선"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Patamar de preço"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ценовой порог"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "เกณฑ์ขึ้นราคา"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fiyat eşiği"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ngưỡng tăng giá"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加价线"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加價門檻"
+          }
+        }
+      }
+    },
+    "settings_context_scale_window" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "نافذة النموذج"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modellfenster"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Model window"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ventana del modelo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fenêtre du modèle"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "मॉडल विंडो"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jendela model"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "モデルのウィンドウ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모델 윈도우"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Janela do modelo"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Окно модели"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "หน้าต่างโมเดล"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Model penceresi"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cửa sổ mô hình"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型窗口"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型視窗"
           }
         }
       }

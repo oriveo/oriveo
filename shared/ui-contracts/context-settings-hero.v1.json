@@ -1,0 +1,20 @@
+{
+  "schema": "oriveo.ui-contract/context-settings-hero.v1",
+  "purpose": "Overview card at the top of Settings > Context: derives the big number, the caption key and the indicator bar fill from the default cap option. The iOS / Android unit tests read the same file.",
+  "constants": {
+    "autoCapDefault": 256000,
+    "autoFill": 0.66,
+    "priceLineMarker": 0.70,
+    "minFill": 0.12,
+    "maxFill": 1.0
+  },
+  "rule": "auto → value=compactCount(autoCapDefault); unit=context_cap_input_unit, fill=autoFill; unlimited → value=settings_context_hero_full_window; no unit, fill=1.0; custom(n) → value=compactCount(n); unit=context_cap_input_unit, fill=clamp(n / autoCapDefault * autoFill, minFill, maxFill). The bar is only illustrative and does not represent any model's real price-line position; priceLineMarker is a fixed tick position.",
+  "cases": [
+    { "name": "auto", "cap": { "kind": "auto" }, "valueKind": "count", "valueTokens": 256000, "hasUnit": true, "captionKey": "settings_context_hero_caption_auto", "fill": 0.66 },
+    { "name": "unlimited", "cap": { "kind": "unlimited" }, "valueKind": "fullWindow", "hasUnit": false, "captionKey": "settings_context_hero_caption_unlimited", "fill": 1.0 },
+    { "name": "custom_min_clamps_up", "cap": { "kind": "custom", "tokens": 32000 }, "valueKind": "count", "valueTokens": 32000, "hasUnit": true, "captionKey": "settings_context_hero_caption_custom", "fill": 0.12 },
+    { "name": "custom_half_default", "cap": { "kind": "custom", "tokens": 128000 }, "valueKind": "count", "valueTokens": 128000, "hasUnit": true, "captionKey": "settings_context_hero_caption_custom", "fill": 0.33 },
+    { "name": "custom_equals_auto_default", "cap": { "kind": "custom", "tokens": 256000 }, "valueKind": "count", "valueTokens": 256000, "hasUnit": true, "captionKey": "settings_context_hero_caption_custom", "fill": 0.66 },
+    { "name": "custom_huge_clamps_down", "cap": { "kind": "custom", "tokens": 1000000 }, "valueKind": "count", "valueTokens": 1000000, "hasUnit": true, "captionKey": "settings_context_hero_caption_custom", "fill": 1.0 }
+  ]
+}

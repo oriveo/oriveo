@@ -44,7 +44,7 @@ const COMPACTION_KEYS = [
 
 const SETTINGS_KEYS = [
   'title', 'overflowHeader', 'modeFallback', 'modeFallbackHint', 'modeAi',
-  'modeAiHint', 'overflowFooter', 'rowValueFallback', 'capHeader', 'capFooter', 'rowValue',
+  'modeAiHint', 'overflowFooter', 'rowValueFallback', 'capHeader', 'perChat', 'rowValue',
   'priceLineReminder', 'priceLineReminderFooter',
 ].map((key) => `pages.settings.context.${key}`);
 

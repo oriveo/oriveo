@@ -247,7 +247,7 @@ describe('ContextCapSettings', () => {
     rerender(<ContextSettingsPage />);
     expect(screen.getByTestId('settings-context-cap-unlimited').getAttribute('aria-checked')).toBe('true');
     expect(screen.queryByTestId('settings-context-cap-input')).toBeNull();
-    expect(screen.getByText(/pages\.settings\.context\.capFooter/)).toBeTruthy();
+    expect(screen.getByText('pages.settings.context.perChat')).toBeTruthy();
   });
 
   it('price_line_reminder_is_switch', () => {
@@ -477,7 +477,7 @@ describe('ContextCapSettings', () => {
 
   it('cap_strings_present_in_16_locales', () => {
     const paths = [
-      ...['capHeader', 'capFooter', 'rowValue', 'modeFallbackHint', 'rowValueFallback', 'modeAi'].map(
+      ...['capHeader', 'perChat', 'customMin', 'rowValue', 'modeFallbackHint', 'rowValueFallback', 'modeAi'].map(
         (key) => `pages.settings.context.${key}`,
       ),
       ...[
@@ -494,7 +494,7 @@ describe('ContextCapSettings', () => {
       ].map((key) => `pages.chat.contextUsage.${key}`),
     ];
     const placeholders: Record<string, string[]> = {
-      'pages.settings.context.capFooter': ['{max}', '{min}'],
+      'pages.settings.context.customMin': ['{min}'],
       'pages.settings.context.rowValue': ['{cap}', '{mode}'],
       'pages.chat.contextCap.inputEcho': ['{value}'],
       'pages.chat.contextCap.adjusted': ['{value}'],

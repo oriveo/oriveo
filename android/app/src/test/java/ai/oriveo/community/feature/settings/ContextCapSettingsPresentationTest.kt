@@ -360,7 +360,7 @@ class ContextCapSettingsPresentationTest {
         assertEquals(emptyList<String>(), missing)
         // Existing key reworded: restore the sentence-boundary sentence
         assertTrue(strings("values").getValue("settings_context_mode_fallback_hint").endsWith("any cut ends at a sentence boundary."))
-        assertTrue(strings("values-zh-rCN").getValue("settings_context_mode_fallback_hint").endsWith("\u622a\u65ad\u5904\u505c\u5728\u53e5\u5b50\u7ed3\u5c3e。"))
+        assertTrue(strings("values-zh-rCN").getValue("settings_context_mode_fallback_hint").endsWith("\u622a\u65ad\u5904\u505c\u5728\u53e5\u5b50\u7ed3\u5c3e\u3002"))
     }
 
     private fun windowInput(input: JsonObject): ContextWindowInput = ContextWindowInput(
@@ -474,7 +474,17 @@ class ContextCapSettingsPresentationTest {
         /** Key -> number of placeholders (%1$s...). The settings group plus the option and input keys used by the settings page. */
         val CAP_STRING_KEYS = listOf(
             "settings_context_cap_header" to 0,
-            "settings_context_cap_footer" to 2,
+            "settings_context_hero_label" to 0,
+            "settings_context_hero_caption_auto" to 0,
+            "settings_context_hero_caption_unlimited" to 0,
+            "settings_context_hero_caption_custom" to 0,
+            "settings_context_hero_full_window" to 0,
+            "settings_context_scale_price_line" to 0,
+            "settings_context_scale_window" to 0,
+            "settings_context_cost_none" to 0,
+            "settings_context_cost_extra" to 0,
+            "settings_context_custom_min" to 1,
+            "settings_context_per_chat" to 0,
             "settings_context_row_value" to 2,
             "settings_context_mode_fallback_hint" to 0,
             "context_cap_auto" to 0,
