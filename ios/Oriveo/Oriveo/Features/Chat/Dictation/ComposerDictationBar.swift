@@ -154,7 +154,7 @@ struct ComposerDictationBar: View {
                     Circle()
                         .fill(canSend
                               ? AnyShapeStyle(OriveoTheme.Palette.primaryGradient)
-                              : AnyShapeStyle(Color.dynamic(light: 0x8C5FF8, dark: 0xFFFFFF, lightAlpha: 0.12, darkAlpha: 0.10)))
+                              : AnyShapeStyle(Color.brand(defaultLight: OriveoLightBrand.defaultBrand.ink, light: \.ink, lightAlpha: 0.12, darkFixed: 0xFFFFFF, darkAlpha: 0.10)))
                         .overlay(Circle().stroke(canSend ? OriveoTheme.Palette.hairline : .clear, lineWidth: 1))
                         .shadow(color: canSend ? OriveoTheme.Palette.primaryGlow : .clear, radius: 9, y: 5)
                 )

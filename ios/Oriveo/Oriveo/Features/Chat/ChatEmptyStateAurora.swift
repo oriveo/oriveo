@@ -137,7 +137,7 @@ struct ChatEmptyStateAurora: View {
         let top: OriveoDarkPalette.Tint
     }
 
-    static func darkGlowTints(for id: OriveoDarkPaletteID) -> DarkGlowTints {
+    static func darkGlowTints(for id: OriveoDarkPaletteChoice) -> DarkGlowTints {
         let palette = id.palette
         return DarkGlowTints(
             bottom: palette.auroraBottom,
@@ -152,24 +152,24 @@ struct ChatEmptyStateAurora: View {
     private var primaryGlowColor: Color {
         colorScheme == .dark
             ? Color(oriveoTint: darkTints.bottom)
-            : Color(hex: 0x8C5FF8, alpha: 0.11)
+            : Color.lightBrand(\.ink, alpha: 0.11)
     }
 
     private var accentGlowColor: Color {
         colorScheme == .dark
             ? Color(oriveoTint: darkTints.bottomLeft)
-            : Color(hex: 0x6366F1, alpha: 0.075)
+            : Color.lightBrand(\.accent, alpha: 0.075, defaultLight: 0x6366F1)
     }
 
     private var topGlowColor: Color {
         colorScheme == .dark
             ? Color(oriveoTint: darkTints.top)
-            : Color(hex: 0x8C5FF8, alpha: 0.05)
+            : Color.lightBrand(\.ink, alpha: 0.05)
     }
 
     private var dotColor: Color {
         colorScheme == .dark
             ? Color(hex: darkPaletteID.palette.accent)
-            : Color(hex: 0x8C5FF8)
+            : Color.lightBrand(\.ink)
     }
 }

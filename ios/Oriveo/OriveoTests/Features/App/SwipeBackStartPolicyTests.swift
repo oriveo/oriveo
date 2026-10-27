@@ -121,4 +121,28 @@ struct SwipeBackStartPolicyTests {
 
         #expect(allows(page(), exclusionZones: [detached]))
     }
+
+    @Test("Every file containing a SwiftUI DragGesture registers blocksSwipeBack(), or states a swipe-back-exempt reason above the gesture")
+    func swiftUIDragGesturesRegisterExclusionZone() throws {
+        // OriveoTests/Features/App → the Oriveo source directory under the project root
+        let sourceRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Oriveo")
+        let files = try #require(FileManager.default.enumerator(at: sourceRoot, includingPropertiesForKeys: nil))
+        var missing: [String] = []
+        for case let url as URL in files where url.pathExtension == "swift" {
+            let source = try String(contentsOf: url, encoding: .utf8)
+            guard source.contains("DragGesture(") else { continue }
+            let lines = source.components(separatedBy: "\n")
+            for (index, line) in lines.enumerated() where line.contains("DragGesture(") {
+                let above = lines[max(0, index - 3) ..< index].joined(separator: "\n")
+                if above.contains("swipe-back-exempt:") || source.contains(".blocksSwipeBack()") { continue }
+                missing.append("\(url.lastPathComponent):\(index + 1)")
+            }
+        }
+        #expect(missing.isEmpty, "SwiftUI horizontal drag areas that do not yield to swipe-back: \(missing)")
+    }
 }

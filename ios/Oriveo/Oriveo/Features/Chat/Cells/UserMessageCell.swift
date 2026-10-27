@@ -8,14 +8,23 @@ private final class GradientBubbleView: UIView {
 
     private let borderLayer = CAShapeLayer()
     private let maskLayer = CAShapeLayer()
+    /// A 1pt white inner highlight along the top (the bubble shape minus itself shifted down 1pt, even-odd fill)
+    private let highlightLayer = CAShapeLayer()
+
+    /// Viewport anchoring (visible-area height H, the bubble top's y in the visible area); nil = not anchored yet, the gradient spans the bubble itself top to bottom.
+    /// The anchor is stored rather than only the unit coordinates: when the bubble height changes (self-sizing, expanding the full text) layoutSubviews recomputes with the new height.
+    private(set) var gradientAnchor: (viewportHeight: CGFloat, bubbleTopInViewport: CGFloat)?
 
     var onPathChanged: ((CGPath) -> Void)?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        // Gradient colors come from OriveoTheme.Palette.primaryGradientColors (dark mode = the current palette gradient-brand)
-        gradientLayer.startPoint = CGPoint(x: 0, y: 0)
-        gradientLayer.endPoint = CGPoint(x: 1, y: 1)
+        // Gradient colors are the 7 vertical stops of OriveoUserBubble (viewport-anchored, see updateGradientAnchor)
+        gradientLayer.startPoint = CGPoint(x: 0.5, y: 0)
+        gradientLayer.endPoint = CGPoint(x: 0.5, y: 1)
+
+        highlightLayer.fillRule = .evenOdd
+        layer.addSublayer(highlightLayer)
 
         borderLayer.fillColor = nil
         borderLayer.lineWidth = 1
@@ -42,13 +51,50 @@ private final class GradientBubbleView: UIView {
         maskLayer.path = path
         borderLayer.path = path
         borderLayer.frame = b
+        let highlight = CGMutablePath()
+        highlight.addPath(path)
+        highlight.addPath(path, transform: CGAffineTransform(translationX: 0, y: OriveoUserBubble.highlightWidth))
+        highlightLayer.path = highlight
+        highlightLayer.frame = b
+        applyGradientPoints()
         onPathChanged?(path)
     }
 
+    /// Called by the list on scroll / keyboard / rotation: only changes the gradient layer's start and end points (no layout), with implicit animations off.
+    func updateGradientAnchor(viewportHeight: CGFloat, bubbleTopInViewport: CGFloat) {
+        if let old = gradientAnchor,
+           abs(old.viewportHeight - viewportHeight) < 0.1,
+           abs(old.bubbleTopInViewport - bubbleTopInViewport) < 0.1 {
+            return
+        }
+        gradientAnchor = (viewportHeight, bubbleTopInViewport)
+        applyGradientPoints()
+    }
+
+    func resetGradientAnchor() {
+        gradientAnchor = nil
+        applyGradientPoints()
+    }
+
+    private func applyGradientPoints() {
+        let points = OriveoUserBubble.unitPoints(
+            viewportHeight: gradientAnchor?.viewportHeight ?? 0,
+            bubbleTopInViewport: gradientAnchor?.bubbleTopInViewport ?? 0,
+            bubbleHeight: bounds.height
+        )
+        guard gradientLayer.startPoint != points.start || gradientLayer.endPoint != points.end else { return }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        gradientLayer.startPoint = points.start
+        gradientLayer.endPoint = points.end
+        CATransaction.commit()
+    }
+
     private func applyColors() {
-        gradientLayer.colors = OriveoTheme.Palette.primaryGradientUIColors.map {
+        gradientLayer.colors = OriveoUserBubble.uiColors.map {
             $0.resolvedColor(with: traitCollection).cgColor
         }
+        highlightLayer.fillColor = OriveoUserBubble.highlightUIColor.resolvedColor(with: traitCollection).cgColor
         borderLayer.strokeColor = UIColor(OriveoTheme.Palette.hairline).resolvedColor(with: traitCollection).cgColor
     }
 
@@ -306,7 +352,7 @@ final class UserMessageCell: UICollectionViewCell {
         setupViews()
         bubbleView.addInteraction(UIContextMenuInteraction(delegate: self))
         bubbleView.addInteraction(UIDragInteraction(delegate: textDragSource))
-        // The shadow color (primaryGlow) is re-resolved with light/dark and the dark palette.
+        // The shadow color (the bubble's bottom color stop) is re-resolved with light/dark and the dark palette.
         registerForTraitChanges(OriveoDarkPaletteTrait.colorAppearanceTraits) { (cell: UserMessageCell, _: UITraitCollection) in
             cell.updateShadow()
         }
@@ -531,9 +577,29 @@ final class UserMessageCell: UICollectionViewCell {
         return UIColor { trait in base.resolvedColor(with: trait).withAlphaComponent(0.82) }
     }()
 
-    /// For unit tests: the two gradient end colors of the bubble (CGColor resolved for the current trait).
+    /// For unit tests: the gradient color stops of the bubble (top → bottom, CGColor resolved for the current trait).
     var bubbleGradientColorsForTesting: [CGColor] {
         ((bubbleView.layer as? CAGradientLayer)?.colors as? [CGColor]) ?? []
+    }
+
+    /// For unit tests: the start and end points of the bubble's gradient layer (unit coordinates relative to the bubble bounds).
+    var bubbleGradientPointsForTesting: (start: CGPoint, end: CGPoint) {
+        let layer = bubbleView.layer as? CAGradientLayer
+        return (layer?.startPoint ?? .zero, layer?.endPoint ?? .zero)
+    }
+
+    /// For unit tests: the outer shadow layer (shadowHost.layer).
+    var bubbleShadowLayerForTesting: CALayer { shadowHost.layer }
+
+    /// The bubble top's y in the coordinate space of `view` (the list uses it to compute the bubble's position in the visible area).
+    func bubbleTopY(in view: UIView) -> CGFloat {
+        shadowHost.convert(CGPoint.zero, to: view).y
+    }
+
+    /// Viewport anchoring: with visible-area height `viewportHeight` and the bubble top at y = `bubbleTopInViewport` in the visible area, the bubble shows the
+    /// [t, t + h] segment of the whole gradient. Called every frame while scrolling and only changes the gradient layer's geometry (no layout, no rebuild).
+    func updateBubbleGradientAnchor(viewportHeight: CGFloat, bubbleTopInViewport: CGFloat) {
+        bubbleView.updateGradientAnchor(viewportHeight: viewportHeight, bubbleTopInViewport: bubbleTopInViewport)
     }
 
     /// For unit tests: the text color of the bubble body textView.
@@ -768,14 +834,12 @@ final class UserMessageCell: UICollectionViewCell {
     }
 
     /// Only handles style such as color / radius / offset; shadowPath is synced by bubbleView.onPathChanged (see GradientBubbleView).
-    /// Look: changed from a "downward cast shadow" (offset 10, like light from overhead) to a "surrounding ambient glow": larger radius, smaller offset,
-    /// one step lower intensity, so the bubble floats in light instead of dripping it downward.
+    /// A restrained shadow: the bottom color stop at 0.16, blur 14, shifted down 4, replacing the old 35% primary glow.
     private func updateShadow() {
-        let isDark = traitCollection.userInterfaceStyle == .dark
-        shadowHost.layer.shadowColor = OriveoTheme.Palette.primaryGlowUIColor.resolvedColor(with: traitCollection).cgColor
-        shadowHost.layer.shadowOpacity = isDark ? 0.7 : 0.9
-        shadowHost.layer.shadowRadius = isDark ? 22 : 10
-        shadowHost.layer.shadowOffset = CGSize(width: 0, height: isDark ? 4 : 6)
+        shadowHost.layer.shadowColor = OriveoUserBubble.shadowBaseUIColor.resolvedColor(with: traitCollection).cgColor
+        shadowHost.layer.shadowOpacity = OriveoUserBubble.shadowAlpha
+        shadowHost.layer.shadowRadius = OriveoUserBubble.shadowRadius
+        shadowHost.layer.shadowOffset = CGSize(width: 0, height: OriveoUserBubble.shadowOffsetY)
     }
 
     private func configureAttachments(

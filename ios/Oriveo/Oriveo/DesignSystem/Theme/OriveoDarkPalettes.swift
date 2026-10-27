@@ -36,6 +36,63 @@ nonisolated enum OriveoDarkPaletteID: String, CaseIterable, Sendable {
     }
 }
 
+/// The dark palette the user picked: one of the 7 presets, or a custom one (seed color -> a derived full palette, see `OriveoCustomPalette`).
+/// The storage layer keeps `storageID` in `darkPalette`; the custom seed color lives separately in `darkPaletteCustom` (`#RRGGBB`).
+nonisolated enum OriveoDarkPaletteChoice: Hashable, Sendable {
+    case preset(OriveoDarkPaletteID)
+    case custom(seed: UInt)
+
+    /// JSON `custom.id`
+    static let customStorageID = "custom"
+    static let defaultID: OriveoDarkPaletteChoice = .preset(.defaultID)
+
+    // Static members named after the preset ids, so `choice == .darkOcean` keeps working.
+    static let dark: OriveoDarkPaletteChoice = .preset(.dark)
+    static let darkPurple: OriveoDarkPaletteChoice = .preset(.darkPurple)
+    static let darkGraphite: OriveoDarkPaletteChoice = .preset(.darkGraphite)
+    static let darkBlack: OriveoDarkPaletteChoice = .preset(.darkBlack)
+    static let darkOcean: OriveoDarkPaletteChoice = .preset(.darkOcean)
+    static let darkForest: OriveoDarkPaletteChoice = .preset(.darkForest)
+    static let darkSunset: OriveoDarkPaletteChoice = .preset(.darkSunset)
+
+    var palette: OriveoDarkPalette {
+        switch self {
+        case let .preset(id): id.palette
+        case let .custom(seed): OriveoCustomPalette.derive(seed: seed).palette
+        }
+    }
+
+    /// The value written into `darkPalette`
+    var storageID: String {
+        switch self {
+        case let .preset(id): id.rawValue
+        case .custom: Self.customStorageID
+        }
+    }
+
+    /// Key for caching per-palette derived assets (icons, etc.): a custom palette includes its seed color.
+    var cacheKey: String {
+        switch self {
+        case let .preset(id): id.rawValue
+        case let .custom(seed): Self.customStorageID + "|" + OriveoCustomPalette.format(seed)
+        }
+    }
+
+    /// Parsing the stored value (the JSON top-level `resolveCases` and `custom.resolveCases`):
+    /// `custom` + a valid seed -> custom; `custom` with a missing / invalid seed -> custom with the default seed; everything else as `OriveoDarkPaletteID.resolve`.
+    static func resolve(stored: Any?, seed: Any?) -> OriveoDarkPaletteChoice {
+        if let raw = stored as? String, raw == customStorageID {
+            return .custom(seed: OriveoCustomPalette.parseSeed(seed) ?? OriveoCustomPalette.defaultSeed)
+        }
+        return .preset(OriveoDarkPaletteID.resolve(stored))
+    }
+
+    /// `darkPalette` stored values this client knows (the 7 preset ids + `custom`).
+    static func isKnownStoredID(_ raw: String) -> Bool {
+        raw == customStorageID || OriveoDarkPaletteID(rawValue: raw) != nil
+    }
+}
+
 /// One dark palette: 15 color fields, a glow factor and 4 status colors (the status colors are shared by all palettes and written once in `dark`).
 nonisolated struct OriveoDarkPalette: Equatable, Sendable {
     let bg: UInt
@@ -170,7 +227,7 @@ nonisolated extension OriveoDarkPalette {
 /// The UIKit trait of the current dark palette. Switching = writing `window.traitOverrides`; dynamic colors re-resolve with the trait
 /// and the view hierarchy is not rebuilt (forcing a refresh with a root-view `.id()` is not allowed).
 nonisolated struct OriveoDarkPaletteTrait: UITraitDefinition {
-    static let defaultValue: OriveoDarkPaletteID = .defaultID
+    static let defaultValue: OriveoDarkPaletteChoice = .defaultID
     static let affectsColorAppearance = true
     static let name = "OriveoDarkPalette"
     static let identifier = "ai.oriveo.community.darkPalette"
@@ -180,11 +237,11 @@ nonisolated struct OriveoDarkPaletteTrait: UITraitDefinition {
 }
 
 nonisolated extension UITraitCollection {
-    var oriveoDarkPalette: OriveoDarkPaletteID { self[OriveoDarkPaletteTrait.self] }
+    var oriveoDarkPalette: OriveoDarkPaletteChoice { self[OriveoDarkPaletteTrait.self] }
 }
 
 extension UIMutableTraits {
-    var oriveoDarkPalette: OriveoDarkPaletteID {
+    var oriveoDarkPalette: OriveoDarkPaletteChoice {
         get { self[OriveoDarkPaletteTrait.self] }
         set { self[OriveoDarkPaletteTrait.self] = newValue }
     }
@@ -192,19 +249,19 @@ extension UIMutableTraits {
 
 /// Bridges the trait to SwiftUI `@Environment(\.oriveoDarkPalette)` so both sides read the same value.
 nonisolated struct OriveoDarkPaletteEnvironmentKey: EnvironmentKey, UITraitBridgedEnvironmentKey {
-    static let defaultValue: OriveoDarkPaletteID = .defaultID
+    static let defaultValue: OriveoDarkPaletteChoice = .defaultID
 
-    static func read(from traitCollection: UITraitCollection) -> OriveoDarkPaletteID {
+    static func read(from traitCollection: UITraitCollection) -> OriveoDarkPaletteChoice {
         traitCollection.oriveoDarkPalette
     }
 
-    static func write(to mutableTraits: inout UIMutableTraits, value: OriveoDarkPaletteID) {
+    static func write(to mutableTraits: inout UIMutableTraits, value: OriveoDarkPaletteChoice) {
         mutableTraits.oriveoDarkPalette = value
     }
 }
 
 extension EnvironmentValues {
-    var oriveoDarkPalette: OriveoDarkPaletteID {
+    var oriveoDarkPalette: OriveoDarkPaletteChoice {
         get { self[OriveoDarkPaletteEnvironmentKey.self] }
         set { self[OriveoDarkPaletteEnvironmentKey.self] = newValue }
     }
@@ -213,32 +270,32 @@ extension EnvironmentValues {
 enum OriveoDarkPaletteSwitcher {
     /// Writes the palette into the traitOverrides of every connected window. Only the trait changes; the preference is driven by AppPreference.darkPalette, see applyStoredPreference.
     @MainActor
-    static func apply(_ id: OriveoDarkPaletteID, to windows: [UIWindow]) {
+    static func apply(_ choice: OriveoDarkPaletteChoice, to windows: [UIWindow]) {
         for window in windows {
             // Reading traitOverrides when not overridden throws NSInternalInconsistencyException, so check contains first.
             let overrides = window.traitOverrides
-            if overrides.contains(OriveoDarkPaletteTrait.self), overrides.oriveoDarkPalette == id { continue }
-            window.traitOverrides.oriveoDarkPalette = id
+            if overrides.contains(OriveoDarkPaletteTrait.self), overrides.oriveoDarkPalette == choice { continue }
+            window.traitOverrides.oriveoDarkPalette = choice
         }
     }
 
-    /// Stored preference value → window trait: unset / unknown ids use the default dark.
+    /// Stored preference value → window trait: unset / unknown ids use the default dark; `custom` takes the seed color (a missing / invalid one uses the default seed).
     @MainActor
-    static func applyStoredPreference(_ stored: String?, to windows: [UIWindow]? = nil) {
-        let id = OriveoDarkPaletteID.resolve(stored)
+    static func applyStoredPreference(_ stored: String?, seed: String?, to windows: [UIWindow]? = nil) {
+        let choice = OriveoDarkPaletteChoice.resolve(stored: stored, seed: seed)
         if let windows {
-            apply(id, to: windows)
+            apply(choice, to: windows)
         } else {
-            applyToAllWindows(id)
+            applyToAllWindows(choice)
         }
     }
 
     @MainActor
-    static func applyToAllWindows(_ id: OriveoDarkPaletteID) {
+    static func applyToAllWindows(_ choice: OriveoDarkPaletteChoice) {
         let windows = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .flatMap(\.windows)
-        apply(id, to: windows)
+        apply(choice, to: windows)
     }
 }
 

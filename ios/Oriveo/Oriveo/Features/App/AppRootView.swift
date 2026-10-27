@@ -769,10 +769,13 @@ private struct MainTabView: View {
         tab == selected ? tab.tabBarSelectedIconAsset : tab.tabBarIconAsset
     }
 
-    /// Light mode keeps the gradient image baked into the asset; in dark mode the selected item draws gradient-brand live from the current palette (the dark asset has fixed colors).
+    /// In light mode with the default palette the gradient image baked into the asset is used; in dark mode, and for the selected item of a non-default palette in light mode,
+    /// the gradient is drawn live from the current palette (the asset images have fixed colors).
     @ViewBuilder
     private func tabLabel(_ tab: AppTab, selected: AppTab) -> some View {
-        if tab == selected, colorScheme == .dark, let image = AppTabBrandIcon.image(for: tab, palette: darkPalette) {
+        if tab == selected,
+           colorScheme == .dark || !darkPalette.isDefaultPalette,
+           let image = AppTabBrandIcon.image(for: tab, palette: darkPalette, light: colorScheme != .dark) {
             Label {
                 Text(tab.title)
             } icon: {
@@ -784,7 +787,7 @@ private struct MainTabView: View {
     }
 }
 
-/// Tab tint: in light mode Home brand violet, Providers teal, Settings orange; in dark mode all three tabs take the current palette primary.
+/// Tab tint: in light mode with the default palette Home brand violet, Providers teal, Settings orange, and with any other palette all three tabs take the light ink; in dark mode all three tabs take the current palette primary.
 enum AppTabTint {
     static func color(for tab: AppTab) -> Color {
         switch tab {
@@ -795,17 +798,23 @@ enum AppTabTint {
     }
 }
 
-/// Selected tab icon in dark mode: the monochrome template image is used as a mask and filled with the current palette's gradient-brand (135°, primary → accent).
-/// Drawn once per tab per palette.
+/// Selected tab icon: the monochrome template image is used as a mask; dark mode fills it with the current palette's gradient-brand (135°, primary → accent),
+/// light mode with the palette's light gradStart → gradEnd. Drawn once per tab per palette per appearance.
 @MainActor
 enum AppTabBrandIcon {
     private static var cache: [String: UIImage] = [:]
 
-    static func image(for tab: AppTab, palette id: OriveoDarkPaletteID) -> UIImage? {
-        let key = tab.rawValue + "|" + id.rawValue
+    #if DEBUG
+    static var _testCacheKeys: [String] { Array(cache.keys) }
+    #endif
+
+    static func image(for tab: AppTab, palette id: OriveoDarkPaletteChoice, light: Bool = false) -> UIImage? {
+        let key = tab.rawValue + "|" + id.cacheKey + (light ? "|light" : "")
         if let cached = cache[key] { return cached }
         guard let mask = UIImage(named: tab.tabBarIconAsset) else { return nil }
-        let stops = id.palette.gradientBrandStops.map { UIColor(oriveoHex: $0).cgColor }
+        let brand = id.lightBrand
+        let hexStops = light ? [brand.gradStart, brand.gradEnd] : id.palette.gradientBrandStops
+        let stops = hexStops.map { UIColor(oriveoHex: $0).cgColor }
         guard let gradient = CGGradient(
             colorsSpace: CGColorSpaceCreateDeviceRGB(),
             colors: stops as CFArray,
@@ -823,6 +832,12 @@ enum AppTabBrandIcon {
             mask.draw(in: CGRect(origin: .zero, size: size), blendMode: .destinationIn, alpha: 1)
         }
         .withRenderingMode(.alwaysOriginal)
+        if case .custom = id {
+            // Each custom color change makes a new key: keep only the current one (both appearances) so the cache does not grow with every color change
+            let customPrefix = "|" + OriveoDarkPaletteChoice.customStorageID + "|"
+            let current = "|" + id.cacheKey
+            cache = cache.filter { !$0.key.contains(customPrefix) || $0.key.contains(current) }
+        }
         cache[key] = rendered
         return rendered
     }

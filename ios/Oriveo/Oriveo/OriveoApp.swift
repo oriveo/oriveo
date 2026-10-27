@@ -86,8 +86,11 @@ struct OriveoApp: App {
                 currentColorScheme = newTheme.preferredColorScheme
             }
             // Dark palette: applied to the trait of every window at launch, when a new window appears, and when the preference changes (local / backup restore)
-            .onChange(of: appState.preferences.darkPalette, initial: true) { _, stored in
-                OriveoDarkPaletteSwitcher.applyStoredPreference(stored)
+            .onChange(of: [appState.preferences.darkPalette, appState.preferences.darkPaletteCustom], initial: true) { _, _ in
+                OriveoDarkPaletteSwitcher.applyStoredPreference(
+                    appState.preferences.darkPalette,
+                    seed: appState.preferences.darkPaletteCustom
+                )
             }
             .onOpenURL { url in
                 // An MCP sign-in callback goes only to the authorization that started it (claimed by

@@ -288,6 +288,8 @@ struct HeroIconTextItem: Identifiable {
     let systemImage: String
     let gradientColors: [Color]
     let shadowColor: Color
+    /// Icon color inside the circle; nil = the common white (a brand fill must switch to onPrimary under a light-based palette)
+    var symbolColor: Color? = nil
 }
 
 private enum HeroIconTextStripSize {
@@ -415,7 +417,7 @@ struct HeroIconTextLabel: View {
                 .overlay {
                     Image(systemName: item.systemImage)
                         .font(.system(size: size.iconFontSize, weight: .semibold))
-                        .foregroundStyle(iconSymbolColor)
+                        .foregroundStyle(item.symbolColor ?? iconSymbolColor)
                 }
                 .shadow(color: item.shadowColor, radius: 3.5, y: 1.5)
 
@@ -461,6 +463,7 @@ private extension ModelCapability {
     var heroIconTextItem: HeroIconTextItem {
         let colors: [Color]
         let shadowColor: Color
+        var symbolColor: Color?
 
         switch self {
         case .reasoning:
@@ -482,8 +485,12 @@ private extension ModelCapability {
             colors = [Color.dynamic(light: 0x2DC7B4, dark: 0x2DD4BF), Color.dynamic(light: 0x0891B2, dark: 0x0F766E)]
             shadowColor = Color.dynamic(light: 0x0F766E, dark: 0x000000, lightAlpha: 0.14, darkAlpha: 0.12)
         case .imageGen:
-            colors = [Color.dynamic(light: 0x9B6BFF, dark: \.primary), Color.dynamic(light: 0x6D28D9, dark: \.primaryActive)]
-            shadowColor = Color.dynamic(light: 0x6D28D9, dark: 0x000000, lightAlpha: 0.14, darkAlpha: 0.12)
+            colors = [
+                Color.brand(defaultLight: 0x9B6BFF, light: \.fill, dark: \.primary),
+                Color.brand(defaultLight: 0x6D28D9, light: \.fillText, dark: \.primaryActive),
+            ]
+            shadowColor = Color.brand(defaultLight: 0x6D28D9, light: \.textSafe, lightAlpha: 0.14, darkFixed: 0x000000, darkAlpha: 0.12)
+            symbolColor = Color.brand(defaultLight: 0xFFFFFF, light: \.onPrimary, darkFixed: 0xF8FAFF)
         case .nativePdf:
             colors = [Color.dynamic(light: 0x94A3B8, dark: 0x94A3B8), Color.dynamic(light: 0x64748B, dark: 0x64748B)]
             shadowColor = Color.dynamic(light: 0x475569, dark: 0x000000, lightAlpha: 0.10, darkAlpha: 0.10)
@@ -497,7 +504,8 @@ private extension ModelCapability {
             title: title,
             systemImage: systemImage,
             gradientColors: colors,
-            shadowColor: shadowColor
+            shadowColor: shadowColor,
+            symbolColor: symbolColor
         )
     }
 }

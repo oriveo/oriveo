@@ -660,8 +660,8 @@ enum NotesChrome {
     static var background: LinearGradient {
         LinearGradient(
             colors: [
-                Color.dynamic(light: 0xF7F5FB, dark: \.bgSubtle),
-                Color.dynamic(light: 0xF1ECF8, dark: \.bg)
+                Color.brand(light: \.bgTop, dark: \.bgSubtle),
+                Color.brand(defaultLight: 0xF1ECF8, light: \.bgBottom, dark: \.bg)
             ],
             startPoint: .top,
             endPoint: .bottom

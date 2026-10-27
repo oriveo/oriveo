@@ -1,29 +1,30 @@
 import SwiftUI
 import UIKit
 
-// Settings > Theme page.
-// Source of truth for the interaction cases: `themePageCases` in `shared/theme-contracts/dark-palettes.v1.json`.
+// Settings > Theme page: an appearance segmented control plus 8 palette cards.
+// Source of truth for the interaction cases: `appearancePageCases` in `shared/theme-contracts/dark-palettes.v1.json`.
 
-/// One palette card on the theme page: "Light", or a dark palette ("Dark" = `.dark`).
+/// One palette card on the theme page: a preset palette ("Default" = `.dark`), or "Custom" (derived from a seed color).
+/// Palettes apply to both appearances: a card is drawn in the appearance currently in effect on the page.
 enum ThemeSwatch: Hashable {
-    case light
     case palette(OriveoDarkPaletteID)
+    case custom
 
-    /// Order of the horizontally scrolling palette cards: Light first, then the dark palettes in the JSON `order`.
-    static let all: [ThemeSwatch] = [.light] + OriveoDarkPaletteID.allCases.map { .palette($0) }
+    /// Order of the horizontally scrolling palette cards: the presets (in the JSON `order`), with "Custom" last.
+    static let all: [ThemeSwatch] = OriveoDarkPaletteID.allCases.map { .palette($0) } + [.custom]
 
-    /// Strength factor of the primary glow at the bottom of the mini card: dark mode takes the palette glowK, light mode uses 0.55.
+    /// Strength factor of the primary glow at the bottom of the mini card: this palette's glowK.
     var glowStrength: Double {
         switch self {
-        case .light: 0.55
         case let .palette(id): id.palette.glowK
+        case .custom: OriveoCustomPalette.derive(seed: OriveoCustomPalette.defaultSeed).palette.glowK
         }
     }
 
     var displayName: String {
         switch self {
-        case .light: L10n.tr("Light")
         case let .palette(id): id.displayName
+        case .custom: L10n.tr("Palette Custom", table: .settings)
         }
     }
 
@@ -34,10 +35,10 @@ enum ThemeSwatch: Hashable {
 }
 
 extension OriveoDarkPaletteID {
-    /// Palette name: the default dark shows "Dark", the others show the palette name.
+    /// Palette name: the default palette shows "Default", the others show the palette name.
     var displayName: String {
         switch self {
-        case .dark: L10n.tr("Dark")
+        case .dark: L10n.tr("Default")
         case .darkPurple: L10n.tr("Palette Purple", table: .settings)
         case .darkGraphite: L10n.tr("Palette Graphite", table: .settings)
         case .darkBlack: L10n.tr("Palette Black", table: .settings)
@@ -48,61 +49,72 @@ extension OriveoDarkPaletteID {
     }
 }
 
-/// Preference snapshot of the theme page: theme plus the raw stored darkPalette value (nil = unset).
+/// Preference snapshot of the theme page: theme, the raw stored darkPalette value (nil = unset) and the raw custom seed color (`darkPaletteCustom`).
 struct ThemePageState: Equatable {
     var theme: ThemeOption
     var darkPalette: String?
+    var seed: String? = nil
 
-    var followsSystem: Bool { theme == .system }
+    var isCustom: Bool { darkPalette == OriveoDarkPaletteChoice.customStorageID }
+
+    /// The current seed color: a missing / invalid value falls back to the default seed
+    var resolvedSeed: UInt { OriveoCustomPalette.parseSeed(seed) ?? OriveoCustomPalette.defaultSeed }
 }
 
 enum ThemePageAction: Equatable {
+    /// Appearance segmented control: writes only theme
+    case setAppearance(ThemeOption)
+    /// Tap a palette card: writes only darkPalette (for Custom without a seed, writes the default seed)
     case tap(ThemeSwatch)
-    case setFollowSystem(Bool)
+    /// Pick a color: writes the seed plus darkPalette=custom
+    case pickSeed(UInt)
 }
 
-/// Pure function of the theme page interaction: takes the current preference, the action and the real system appearance, and returns the new preference.
+/// Pure function of the theme page interaction: takes the current preference and an action and returns the new preference. Appearance and palette are independent axes.
 enum ThemePageReducer {
-    static func apply(state: ThemePageState, action: ThemePageAction, systemIsDark: Bool) -> ThemePageState {
+    static func apply(state: ThemePageState, action: ThemePageAction) -> ThemePageState {
         var next = state
         switch action {
-        case .tap(.light):
-            // Tap Light: theme = light, darkPalette is left alone
-            next.theme = .light
+        case let .setAppearance(theme):
+            next.theme = theme
         case let .tap(.palette(id)):
-            // Tap Dark / a palette: write darkPalette; with Follow System on, theme stays system
+            // The seed color is kept: it is still there the next time Custom is chosen
             next.darkPalette = id.rawValue
-            if !state.followsSystem { next.theme = .dark }
-        case .setFollowSystem(true):
-            next.theme = .system
-        case .setFollowSystem(false):
-            // Turn Follow System off: pin to the current system appearance
-            next.theme = systemIsDark ? .dark : .light
+        case .tap(.custom):
+            next.darkPalette = OriveoDarkPaletteChoice.customStorageID
+            if OriveoCustomPalette.parseSeed(state.seed) == nil {
+                next.seed = OriveoCustomPalette.format(OriveoCustomPalette.defaultSeed)
+            }
+        case let .pickSeed(seed):
+            next.seed = OriveoCustomPalette.format(seed)
+            next.darkPalette = OriveoDarkPaletteChoice.customStorageID
         }
         return next
     }
 
-    /// Selection display: with Follow System on, the ring sits on resolve(darkPalette); off, light selects Light and dark selects resolve(darkPalette).
+    /// Selected card = resolve(darkPalette), with a selection ring in every appearance; darkPalette=custom → Custom.
     static func selectedSwatch(_ state: ThemePageState) -> ThemeSwatch {
-        state.theme == .light ? .light : .palette(OriveoDarkPaletteID.resolve(state.darkPalette))
+        if state.isCustom { return .custom }
+        return .palette(OriveoDarkPaletteID.resolve(state.darkPalette))
     }
 }
 
-/// Summary on the right of the Theme row in Settings.
+/// Summary on the Theme row in Settings: the default palette shows only the appearance name; the others show "appearance · palette name".
 func themeRowSummary(theme: ThemeOption, darkPalette: String?) -> String {
-    let paletteName = OriveoDarkPaletteID.resolve(darkPalette).displayName
-    switch theme {
-    case .light:
-        return L10n.tr("Light")
-    case .dark:
-        return paletteName
-    case .system:
-        return L10n.format(L10n.tr("Follow System · %@", table: .settings), paletteName)
+    let swatch = ThemePageReducer.selectedSwatch(ThemePageState(theme: theme, darkPalette: darkPalette))
+    if swatch == .palette(.dark) { return theme.displayName }
+    let template = switch theme {
+    case .light: L10n.tr("Light · %@", table: .settings)
+    case .dark: L10n.tr("Dark · %@", table: .settings)
+    case .system: L10n.tr("Follow System · %@", table: .settings)
     }
+    return L10n.format(template, swatch.displayName)
 }
 
 struct ThemeSettingsView: View {
     @Environment(AppState.self) private var appState
+    /// The appearance currently in effect on the page: the "Primary / Accent" chips in the custom section take the light brand colors or the dark palette values by it
+    @Environment(\.colorScheme) private var colorScheme
 
     /// The code snippet, model name and cost in the preview are illustrative data and are not localized.
     private static let previewCode = "&T"
@@ -111,17 +123,35 @@ struct ThemeSettingsView: View {
     private static let previewCodeLanguage = "rust"
 
     private var state: ThemePageState {
-        ThemePageState(theme: appState.preferences.theme, darkPalette: appState.preferences.darkPalette)
+        ThemePageState(
+            theme: appState.preferences.theme,
+            darkPalette: appState.preferences.darkPalette,
+            seed: appState.preferences.darkPaletteCustom
+        )
     }
 
     private var selected: ThemeSwatch { ThemePageReducer.selectedSwatch(state) }
+
+    /// The integer degrees while the hue slider is being dragged (reported by the slider, cleared on release / cancel). While dragging only this page changes color and
+    /// the window traits stay untouched: recoloring the whole app would make every page in the navigation stack recompute colors each frame, and the thumb would lag behind the finger.
+    @State private var previewHue: Int?
+    /// Preview card height: the vertical gradient of the preview mini bubble is anchored to the whole preview card
+    @State private var previewCardHeight: CGFloat = 352
+
+    /// The seed color the custom palette currently shows: the hue slider while dragging, the preference otherwise
+    private var displayedSeed: UInt {
+        previewHue.map(OriveoCustomPalette.hueSliderSeed) ?? state.resolvedSeed
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 previewCard
+                appearanceSection
                 paletteSection
-                followSystemCard
+                if selected == .custom {
+                    customColorCard
+                }
             }
             .padding(.horizontal, 16)
             .padding(.top, 6)
@@ -132,28 +162,26 @@ struct ThemeSettingsView: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("theme_settings_screen")
         .oriveoScreenBackground()
+        // While the hue slider is dragged only this page's palette environment is overridden for a live preview; after release the preference applies it to all windows
+        .transformEnvironment(\.oriveoDarkPalette) { palette in
+            if let previewHue { palette = .custom(seed: OriveoCustomPalette.hueSliderSeed(previewHue)) }
+        }
     }
 
     // MARK: - Interaction
 
     private func send(_ action: ThemePageAction) {
         let current = state
-        let next = ThemePageReducer.apply(state: current, action: action, systemIsDark: Self.systemIsDark())
+        let next = ThemePageReducer.apply(state: current, action: action)
         if next.theme != current.theme {
             appState.updateTheme(next.theme)
         }
-        if next.darkPalette != current.darkPalette, let id = OriveoDarkPaletteID(rawValue: next.darkPalette ?? "") {
-            appState.updateDarkPalette(id)
+        guard next.darkPalette != current.darkPalette || next.seed != current.seed else { return }
+        if next.isCustom {
+            appState.updateDarkPalette(.custom(seed: next.resolvedSeed))
+        } else if let id = OriveoDarkPaletteID(rawValue: next.darkPalette ?? "") {
+            appState.updateDarkPalette(.preset(id))
         }
-    }
-
-    /// The real system appearance: the window is overridden by preferredColorScheme, so take the trait of the screen the scene is on (unaffected by the window override).
-    @MainActor
-    static func systemIsDark() -> Bool {
-        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-        let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
-        let style = scene?.screen.traitCollection.userInterfaceStyle ?? UITraitCollection.current.userInterfaceStyle
-        return style == .dark
     }
 
     // MARK: - Top bar
@@ -179,49 +207,45 @@ struct ThemeSettingsView: View {
         .padding(.horizontal, 20)
     }
 
-    // MARK: - Follow System
+    // MARK: - Appearance
 
-    private var followSystemCard: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(L10n.tr("Follow System"))
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(OriveoTheme.Palette.textPrimary)
-                Text(L10n.tr("Uses your selected dark palette when the system is in dark mode.", table: .settings))
-                    .font(.system(size: 12))
-                    .foregroundStyle(OriveoTheme.Palette.textTertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityHidden(true)
-            Toggle(
-                L10n.tr("Follow System"),
-                isOn: Binding(
-                    get: { state.followsSystem },
-                    set: { send(.setFollowSystem($0)) }
+    /// Order of the appearance segments: Light / Dark / Follow System
+    static let appearanceOptions: [ThemeOption] = [.light, .dark, .system]
+
+    private var appearanceSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionHeader(L10n.tr("Appearance", table: .settings))
+            Picker(
+                L10n.tr("Appearance", table: .settings),
+                selection: Binding(
+                    get: { state.theme },
+                    set: { send(.setAppearance($0)) }
                 )
-            )
+            ) {
+                ForEach(Self.appearanceOptions) { option in
+                    Text(option.displayName).tag(option)
+                }
+            }
+            .pickerStyle(.segmented)
             .labelsHidden()
-            .tint(OriveoTheme.Palette.primary)
-            .accessibilityHint(L10n.tr("Uses your selected dark palette when the system is in dark mode.", table: .settings))
         }
-        .padding(.leading, 16)
-        .padding(.trailing, 12)
-        .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(OriveoTheme.Palette.surface)
-        )
+    }
+
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(OriveoTheme.Palette.textTertiary)
+            .padding(.horizontal, 4)
+            .accessibilityAddTraits(.isHeader)
     }
 
     // MARK: - Preview card
 
-    /// Brand secondary color (gradient end = accent): the Web tag.
-    private static var previewAccent: Color {
-        OriveoTheme.Palette.primaryGradientColors.last ?? OriveoTheme.Palette.primary
-    }
+    /// Brand secondary color: the text and fill of the Web tag. Dark mode takes accent; light mode is small text, so it takes textSafe (the gradient end of a light-based palette is too bright to read as text),
+    /// and the default palette keeps its original gradient-end violet in light mode.
+    static let previewAccent = Color.brand(defaultLight: 0x6B3BC7, light: \.textSafe, dark: \.accent)
 
-    /// The preview follows the selected swatch: light/dark and palette are overridden inside the card subtree, so dynamic tokens resolve against that palette.
+    /// The preview follows the selected palette: it is drawn in the page's current appearance, and only the card subtree overrides the palette, so dynamic tokens resolve against that one.
     private var previewCard: some View {
         let swatch = selected
         let shape = RoundedRectangle(cornerRadius: 24, style: .continuous)
@@ -245,6 +269,8 @@ struct ThemeSettingsView: View {
             previewComposer
         }
         .frame(maxWidth: .infinity, minHeight: 352)
+        .coordinateSpace(.named(Self.previewCardSpace))
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { previewCardHeight = $0 }
         .background {
             ZStack {
                 OriveoTheme.Palette.backgroundBase
@@ -254,8 +280,7 @@ struct ThemeSettingsView: View {
         .clipShape(shape)
         .overlay(shape.strokeBorder(OriveoTheme.Palette.border, lineWidth: 1))
         .shadow(color: OriveoTheme.Palette.shadow, radius: 20, y: 16)
-        .environment(\.colorScheme, swatch == .light ? .light : .dark)
-        .environment(\.oriveoDarkPalette, Self.paletteID(of: swatch))
+        .environment(\.oriveoDarkPalette, choice(of: swatch))
         .animation(.easeInOut(duration: 0.25), value: swatch)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
@@ -290,13 +315,24 @@ struct ThemeSettingsView: View {
         }
     }
 
+    private static let previewCardSpace = "themePreviewCard"
+
     private var previewUserBubble: some View {
-        HStack {
+        let bubbleShape = UnevenRoundedRectangle(
+            topLeadingRadius: 18,
+            bottomLeadingRadius: 18,
+            bottomTrailingRadius: 6,
+            topTrailingRadius: 18,
+            style: .continuous
+        )
+        return HStack {
             Spacer(minLength: 48)
             VStack(alignment: .trailing, spacing: 2) {
                 Text(L10n.tr("Explain Rust ownership in one paragraph.", table: .settings))
                     .font(.system(size: 13.5, weight: .medium))
                     .fixedSize(horizontal: false, vertical: true)
+                    // Body text flush left (matching the chat bubble and the Android / Web previews) with the time at the bottom right; otherwise wrapped text would align to the trailing edge and leave a gap on the left
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 Text(Self.previewTimestamp())
                     .font(.system(size: 10))
                     .opacity(0.7)
@@ -308,15 +344,14 @@ struct ThemeSettingsView: View {
             .padding(.top, 9)
             .padding(.bottom, 7)
             .background(
-                UnevenRoundedRectangle(
-                    topLeadingRadius: 18,
-                    bottomLeadingRadius: 18,
-                    bottomTrailingRadius: 6,
-                    topTrailingRadius: 18,
-                    style: .continuous
+                OriveoUserBubbleBackground(
+                    shape: bubbleShape, space: Self.previewCardSpace, containerHeight: previewCardHeight
                 )
-                .fill(OriveoTheme.Palette.primaryGradient)
-                .shadow(color: OriveoTheme.Palette.primaryGlow, radius: 10, y: 8)
+                .shadow(
+                    color: OriveoUserBubble.shadowColor,
+                    radius: OriveoUserBubble.shadowRadius,
+                    y: OriveoUserBubble.shadowOffsetY
+                )
             )
         }
     }
@@ -344,34 +379,38 @@ struct ThemeSettingsView: View {
             .padding(.horizontal, 10)
             .frame(height: 24)
             .background(MarkdownCodeBlockPalette.headerBackground)
-            // The code in the preview is literal text, not copy: use verbatim, otherwise the literal is treated as a localization key and an empty entry is added to the catalog at build time
-            VStack(alignment: .leading, spacing: 2) {
-                Text(verbatim: "let").foregroundColor(Self.previewSyntax.keyword)
-                    + Text(verbatim: " s = ").foregroundColor(MarkdownCodeBlockPalette.foreground)
-                    + Text(verbatim: "String").foregroundColor(Self.previewSyntax.type)
-                    + Text(verbatim: "::from(").foregroundColor(MarkdownCodeBlockPalette.foreground)
-                    + Text(verbatim: "\"hi\"").foregroundColor(Self.previewSyntax.string)
-                    + Text(verbatim: ");").foregroundColor(MarkdownCodeBlockPalette.foreground)
-                Text(verbatim: "let").foregroundColor(Self.previewSyntax.keyword)
-                    + Text(verbatim: " r = &s;").foregroundColor(MarkdownCodeBlockPalette.foreground)
-            }
+            Text(Self.previewHighlightedCode())
+                .lineSpacing(2)
             .font(.system(size: 11, design: .monospaced))
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .background(MarkdownCodeBlockPalette.surface)
+        .background(MarkdownCodeBlockPalette.background)
         .clipShape(shape)
         .overlay(shape.strokeBorder(OriveoTheme.Palette.border, lineWidth: 1))
     }
 
-    /// Preview code highlighting: takes the syntax colors of the chat code block (CodeBlockView) directly, with no separate constants.
-    static let previewSyntax = (
-        keyword: MarkdownCodeBlockPalette.keyword,
-        type: MarkdownCodeBlockPalette.type,
-        string: MarkdownCodeBlockPalette.string
-    )
+    /// Preview code snippet: illustrative code, not localized.
+    static let previewSnippet = "let s = String::from(\"hi\");\nlet r = &s;"
+
+    /// Preview code highlighting: handed to the same `SyntaxHighlighter` as the chat code block, so roles and color values match chat exactly;
+    /// the colors are converted to SwiftUI dynamic colors and resolve against the light/dark and palette environment of the preview card.
+    static func previewHighlightedCode() -> AttributedString {
+        let highlighted = SyntaxHighlighter.highlight(
+            previewSnippet, language: previewCodeLanguage, baseColor: MarkdownCodeBlockPalette.foregroundUIColor
+        )
+        var result = AttributedString()
+        highlighted.enumerateAttribute(
+            .foregroundColor, in: NSRange(location: 0, length: highlighted.length)
+        ) { value, range, _ in
+            var run = AttributedString(highlighted.attributedSubstring(from: range).string)
+            run.foregroundColor = Color(uiColor: (value as? UIColor) ?? MarkdownCodeBlockPalette.foregroundUIColor)
+            result += run
+        }
+        return result
+    }
 
     private var previewTags: some View {
         HStack(spacing: 6) {
@@ -415,7 +454,7 @@ struct ThemeSettingsView: View {
         .padding(.bottom, 10)
     }
 
-    /// Mini composer background: white in light mode, the palette surface at 82% in dark mode.
+    /// Mini composer background: white in light mode, this palette's surface at 82% in dark mode.
     private static let previewComposerFill = Color.dynamic(light: 0xFFFFFF, dark: \.surface, darkAlpha: 0.82)
 
     /// User bubble time: a fixed moment, 21:41, formatted in local time format.
@@ -429,9 +468,11 @@ struct ThemeSettingsView: View {
         String(format: L10n.tr("Thought for %@", table: .chat), UIKitReasoningBlock.formatDuration(ms: 4000))
     }
 
-    private static func paletteID(of swatch: ThemeSwatch) -> OriveoDarkPaletteID {
-        if case let .palette(id) = swatch { return id }
-        return .defaultID
+    private func choice(of swatch: ThemeSwatch) -> OriveoDarkPaletteChoice {
+        switch swatch {
+        case let .palette(id): .preset(id)
+        case .custom: .custom(seed: displayedSeed)
+        }
     }
 
     /// Preview reply: in the template `%1$@` = the emphasized word (primary, bold) and `%2$@` = inline code (same source as chat: MarkdownAttributedStringRenderer.codeFg / codeBg).
@@ -466,11 +507,7 @@ struct ThemeSettingsView: View {
 
     private var paletteSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(L10n.tr("Palettes", table: .settings))
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(OriveoTheme.Palette.textTertiary)
-                .padding(.horizontal, 4)
-                .accessibilityAddTraits(.isHeader)
+            sectionHeader(L10n.tr("Palettes", table: .settings))
             ScrollViewReader { proxy in
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(alignment: .top, spacing: 12) {
@@ -500,8 +537,7 @@ struct ThemeSettingsView: View {
             VStack(spacing: 8) {
                 ZStack {
                     PaletteMiniChat(glowStrength: swatch.glowStrength)
-                        .environment(\.colorScheme, swatch == .light ? .light : .dark)
-                        .environment(\.oriveoDarkPalette, Self.paletteID(of: swatch))
+                        .environment(\.oriveoDarkPalette, choice(of: swatch))
                     if isOn {
                         // A 2pt gap in the page background color plus a 2pt stroke in the current primary color
                         RoundedRectangle(cornerRadius: 20, style: .continuous)
@@ -531,20 +567,177 @@ struct ThemeSettingsView: View {
         .accessibilityAddTraits(a11y.traits)
         .accessibilityAddTraits(.isButton)
     }
+
+    // MARK: - Custom palette (color picker)
+
+    /// Accessibility names of the preset colors, in the same order as `OriveoCustomPalette.presets`
+    static func presetAccessibilityLabels() -> [String] {
+        [
+            L10n.tr("Color Coral", table: .settings),
+            L10n.tr("Color Orange", table: .settings),
+            L10n.tr("Color Amber", table: .settings),
+            L10n.tr("Color Lime", table: .settings),
+            L10n.tr("Color Green", table: .settings),
+            L10n.tr("Color Teal", table: .settings),
+            L10n.tr("Color Cyan", table: .settings),
+            L10n.tr("Color Blue", table: .settings),
+            L10n.tr("Color Indigo", table: .settings),
+            L10n.tr("Color Violet", table: .settings),
+            L10n.tr("Color Pink", table: .settings),
+            L10n.tr("Color Rose", table: .settings),
+        ]
+    }
+
+    /// The seed color's position on the hue slider (integer degrees, 0-359)
+    static func sliderHue(of seed: UInt) -> Int {
+        let hue = Int(OriveoCustomPalette.oklch(seed).h.rounded()) % 360
+        return min(OriveoCustomPalette.HueSlider.max, max(OriveoCustomPalette.HueSlider.min, hue))
+    }
+
+    /// Derivation notice: a one-line explanation when the primary color was lightened / darkened
+    static func adjustmentNotice(_ adjustment: OriveoCustomPalette.Adjustment?) -> String? {
+        switch adjustment {
+        case .lightened: L10n.tr("Lightened so text stays readable", table: .settings)
+        case .darkened: L10n.tr("Darkened so it doesn't look washed out", table: .settings)
+        case nil: nil
+        }
+    }
+
+    /// The "Primary / Accent" chips: the light appearance takes the ink / accent of this seed's light brand color, the dark appearance the primary / accent of the derived palette
+    static func derivedChipColors(seed: UInt, colorScheme: ColorScheme) -> (primary: UInt, accent: UInt) {
+        let choice = OriveoDarkPaletteChoice.custom(seed: seed)
+        if colorScheme == .dark {
+            return (choice.palette.primary, choice.palette.accent)
+        }
+        let brand = choice.lightBrand
+        return (brand.ink, brand.accent)
+    }
+
+    private static let presetDotSize: CGFloat = 32
+    private static let presetHitSize: CGFloat = 44
+
+    private var customColorCard: some View {
+        let seed = displayedSeed
+        let derived = OriveoCustomPalette.derive(seed: seed)
+        let chips = Self.derivedChipColors(seed: seed, colorScheme: colorScheme)
+        return VStack(alignment: .leading, spacing: 12) {
+            Text(L10n.tr("Custom Color", table: .settings))
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(OriveoTheme.Palette.textPrimary)
+                .accessibilityAddTraits(.isHeader)
+            presetGrid(selectedSeed: previewHue == nil ? seed : nil)
+            hueSlider(seed: seed)
+            HStack(spacing: 16) {
+                derivedChip(L10n.tr("Primary Color", table: .settings), hex: chips.primary)
+                derivedChip(L10n.tr("Accent Color", table: .settings), hex: chips.accent)
+                Spacer(minLength: 0)
+            }
+            if let notice = Self.adjustmentNotice(derived.adjusted) {
+                Text(notice)
+                    .font(.system(size: 12))
+                    .foregroundStyle(OriveoTheme.Palette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(OriveoTheme.Palette.surface)
+        )
+    }
+
+    private func presetGrid(selectedSeed: UInt?) -> some View {
+        let labels = Self.presetAccessibilityLabels()
+        let presets = OriveoCustomPalette.presets
+        return VStack(spacing: 4) {
+            ForEach(0 ..< 2, id: \.self) { row in
+                HStack(spacing: 0) {
+                    ForEach(row * 6 ..< row * 6 + 6, id: \.self) { index in
+                        presetDot(presets[index], label: labels[index], isOn: presets[index] == selectedSeed)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+            }
+        }
+    }
+
+    private func presetDot(_ preset: UInt, label: String, isOn: Bool) -> some View {
+        Button {
+            send(.pickSeed(preset))
+        } label: {
+            ZStack {
+                if isOn {
+                    // A 2pt gap in the page background color plus a 2pt stroke in textPrimary
+                    Circle()
+                        .strokeBorder(OriveoTheme.Palette.textPrimary, lineWidth: 2)
+                        .frame(width: Self.presetDotSize + 8, height: Self.presetDotSize + 8)
+                    Circle()
+                        .fill(OriveoTheme.Palette.backgroundBase)
+                        .frame(width: Self.presetDotSize + 4, height: Self.presetDotSize + 4)
+                }
+                Circle()
+                    .fill(Color(hex: preset))
+                    .frame(width: Self.presetDotSize, height: Self.presetDotSize)
+            }
+            .frame(width: Self.presetHitSize, height: Self.presetHitSize)
+            .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
+
+    private func hueSlider(seed: UInt) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(L10n.tr("Hue", table: .settings))
+                .font(.system(size: 12))
+                .foregroundStyle(OriveoTheme.Palette.textTertiary)
+                .accessibilityHidden(true)
+            ThemeHueSlider(
+                hue: Self.sliderHue(of: seed),
+                onPreview: { previewHue = $0 },
+                onCommit: { hue in
+                    let next = OriveoCustomPalette.hueSliderSeed(hue)
+                    // Apply the new palette to all windows first, then write the preference: the frame where this page's preview override is removed does not flash back to the old color
+                    OriveoDarkPaletteSwitcher.applyToAllWindows(.custom(seed: next))
+                    send(.pickSeed(next))
+                }
+            )
+        }
+    }
+
+    private func derivedChip(_ title: String, hex: UInt) -> some View {
+        HStack(spacing: 6) {
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(Color(hex: hex))
+                .frame(width: 16, height: 16)
+            Text(title)
+                .font(.system(size: 12))
+                .foregroundStyle(OriveoTheme.Palette.textSecondary)
+            Text(verbatim: OriveoCustomPalette.format(hex))
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(OriveoTheme.Palette.textTertiary)
+        }
+        .accessibilityElement(children: .combine)
+    }
 }
 
-/// Mini chat card of a palette: the background is that palette bg plus a primary glow at the bottom, with two incoming bubbles and one gradient bubble of your own.
-/// The outer layer overrides light/dark and palette, so dynamic tokens resolve against that palette.
+/// Mini chat card of a palette: the background is that palette's base (light bgTop / dark bg) plus a primary glow at the bottom, with two incoming bubbles and one gradient bubble of your own.
+/// The outer layer overrides only the palette (light/dark follows the page), so dynamic tokens resolve against that palette.
 private struct PaletteMiniChat: View {
     let glowStrength: Double
 
-    /// Incoming bubble: light grey on the light card, that palette surface in dark mode.
+    /// Incoming bubble: light grey on the light card, that palette's surface in dark mode.
     private static let incomingFill = Color.dynamic(light: 0xE5E7EB, dark: \.surface)
+    /// Card background: that palette's light brand bgTop in light mode, its bg in dark mode
+    private static let cardBackground = Color.brand(light: \.bgTop, dark: \.bg)
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
         ZStack {
-            OriveoTheme.Palette.backgroundBase
+            Self.cardBackground
             EllipticalGradient(
                 colors: [OriveoTheme.Palette.primary.opacity(0.30 * glowStrength), .clear],
                 center: UnitPoint(x: 0.5, y: 1.1),
@@ -556,16 +749,20 @@ private struct PaletteMiniChat: View {
                 Spacer(minLength: 0)
                 bubble(width: 40, height: 14, fill: AnyShapeStyle(Self.incomingFill), incoming: true)
                 bubble(width: 28, height: 14, fill: AnyShapeStyle(Self.incomingFill), incoming: true)
-                bubble(width: 44, height: 16, fill: AnyShapeStyle(OriveoTheme.Palette.primaryGradient), incoming: false)
+                outgoingBubble(width: 44, height: 16)
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 10)
         }
-        .frame(width: 76, height: 104)
+        .frame(width: Self.size.width, height: Self.size.height)
+        .coordinateSpace(.named(Self.space))
         .clipShape(shape)
     }
 
-    private func bubble(width: CGFloat, height: CGFloat, fill: AnyShapeStyle, incoming: Bool) -> some View {
+    private static let size = CGSize(width: 76, height: 104)
+    private static let space = "paletteMiniChat"
+
+    private static func shape(height: CGFloat, incoming: Bool) -> UnevenRoundedRectangle {
         let big = height / 2
         return UnevenRoundedRectangle(
             topLeadingRadius: big,
@@ -574,8 +771,99 @@ private struct PaletteMiniChat: View {
             topTrailingRadius: big,
             style: .continuous
         )
-        .fill(fill)
+    }
+
+    private func bubble(width: CGFloat, height: CGFloat, fill: AnyShapeStyle, incoming: Bool) -> some View {
+        Self.shape(height: height, incoming: incoming)
+            .fill(fill)
+            .frame(width: width, height: height)
+            .frame(maxWidth: .infinity, alignment: incoming ? .leading : .trailing)
+    }
+
+    /// Your own mini bubble: the vertical color stops are anchored to the whole card; the card is too small to draw the inner highlight.
+    private func outgoingBubble(width: CGFloat, height: CGFloat) -> some View {
+        OriveoUserBubbleBackground(
+            shape: Self.shape(height: height, incoming: false),
+            space: Self.space,
+            containerHeight: Self.size.height,
+            showsHighlight: false
+        )
         .frame(width: width, height: height)
-        .frame(maxWidth: .infinity, alignment: incoming ? .leading : .trailing)
+        .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+}
+
+/// The theme page's hue slider: the thumb follows the finger continuously, the drag state lives only inside this view, and only the slider redraws while dragging;
+/// the page preview (`onPreview`) is notified only when the integer hue changes, and one commit (`onCommit`) is reported on release.
+struct ThemeHueSlider: View {
+    /// The integer hue the thumb sits at when not dragging
+    let hue: Int
+    let onPreview: (Int?) -> Void
+    let onCommit: (Int) -> Void
+
+    /// The thumb position while dragging (0...1, continuous); cleared automatically on release / cancel
+    @GestureState private var dragFraction: CGFloat?
+
+    private static let trackHeight: CGFloat = 12
+    private static let thumbSize: CGFloat = 24
+    private static let hitHeight: CGFloat = 44
+    private static let range = OriveoCustomPalette.HueSlider.min ... OriveoCustomPalette.HueSlider.max
+    /// Track gradient: one stop every 30 degrees, computed once
+    private static let stops: [Color] = stride(from: 0, through: 360, by: 30).map {
+        Color(hex: OriveoCustomPalette.hueSliderSeed(min($0, range.upperBound)))
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let travel = max(proxy.size.width - Self.thumbSize, 1)
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(LinearGradient(colors: Self.stops, startPoint: .leading, endPoint: .trailing))
+                    .frame(height: Self.trackHeight)
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: Self.thumbSize, height: Self.thumbSize)
+                    .shadow(color: OriveoTheme.Palette.shadow, radius: 3, y: 1)
+                    .offset(x: travel * (dragFraction ?? Self.fraction(of: hue)))
+            }
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            // The hue slider is a horizontal drag area SwiftUI handles itself: register it so swipe-back yields, otherwise dragging right would drag the theme page away
+            .blocksSwipeBack()
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .updating($dragFraction) { value, fraction, _ in
+                        fraction = Self.fraction(at: value.location.x, travel: travel)
+                    }
+                    .onEnded { value in
+                        onCommit(Self.hue(of: Self.fraction(at: value.location.x, travel: travel)))
+                    }
+            )
+        }
+        .frame(height: Self.hitHeight)
+        .onChange(of: dragFraction.map(Self.hue(of:))) { _, hue in
+            onPreview(hue)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L10n.tr("Hue", table: .settings))
+        .accessibilityValue(Text(verbatim: "\(hue)°"))
+        .accessibilityAdjustableAction { direction in
+            let step = direction == .increment ? 10 : direction == .decrement ? -10 : 0
+            guard step != 0 else { return }
+            onCommit(min(Self.range.upperBound, max(Self.range.lowerBound, hue + step)))
+        }
+    }
+
+    /// Finger x → thumb position (0...1): the thumb center lines up with the finger
+    static func fraction(at x: CGFloat, travel: CGFloat) -> CGFloat {
+        min(1, max(0, (x - thumbSize / 2) / travel))
+    }
+
+    static func fraction(of hue: Int) -> CGFloat {
+        CGFloat(hue - range.lowerBound) / CGFloat(range.upperBound - range.lowerBound)
+    }
+
+    static func hue(of fraction: CGFloat) -> Int {
+        range.lowerBound + Int((fraction * CGFloat(range.upperBound - range.lowerBound)).rounded())
     }
 }

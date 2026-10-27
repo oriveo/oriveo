@@ -98,7 +98,14 @@ final class ChatListViewController: UIViewController {
         },
         hasMoreAbove: { [weak self] in self?.hasMoreAbove ?? false },
         onRequestExtendUpward: { [weak self] in self?.onRequestExtendUpward() },
-        onDidScroll: { [weak self] in self?.reportVisibleTopUserMessageIfNeeded() })
+        onDidScroll: { [weak self] in
+            self?.reportVisibleTopUserMessageIfNeeded()
+            self?.updateUserBubbleGradientAnchors()
+        },
+        onWillDisplay: { [weak self] cell in
+            guard let self, let user = cell as? UserMessageCell else { return }
+            self.updateUserBubbleGradientAnchor(user)
+        })
 
     private var pendingViewModel: ChatCollectionViewModel?
     private var pendingProviderMetadataVersion: UInt = 0
@@ -334,6 +341,7 @@ final class ChatListViewController: UIViewController {
         collectionView.dataSource = dataSource
         keyboardCoordinator.onViewportSettled = { [weak self] in
             self?.reconcileViewportChangeEnsuringFullLayout(animated: false)
+            self?.updateUserBubbleGradientAnchors()
         }
         collectionView.delegate = gestureObserver
         chatLayout.isFollowingProvider = { [weak self] in self?.stickController.isFollowing ?? true }
@@ -341,6 +349,8 @@ final class ChatListViewController: UIViewController {
         contentSizeObservation = collectionView.observe(\.contentSize) { [weak self] _, _ in
             MainActor.assumeIsolated {
                 self?.scheduleQuiescentInsetReconcile()
+                // A row height change moves the bubbles below it within the visible area, and does not necessarily come with a scroll callback
+                self?.updateUserBubbleGradientAnchors()
             }
         }
         // Switching between light and dark: pooled rich cards built in the old appearance are not worth
@@ -365,6 +375,24 @@ final class ChatListViewController: UIViewController {
         }
         skeletonOverlay.frame = view.bounds
         rebuildIfReady()
+        // Rotation / keyboard / SwiftUI frame change: the visible-area height changed, so the visible bubbles re-anchor
+        updateUserBubbleGradientAnchors()
+    }
+
+    // MARK: - Viewport-anchored gradient of user bubbles
+
+    /// Each visible user bubble takes the segment of the gradient matching its position in the visible area. Only the gradient layer geometry changes: no layout, no cell rebuild.
+    private func updateUserBubbleGradientAnchors() {
+        for case let cell as UserMessageCell in collectionView.visibleCells {
+            updateUserBubbleGradientAnchor(cell)
+        }
+    }
+
+    private func updateUserBubbleGradientAnchor(_ cell: UserMessageCell) {
+        cell.updateBubbleGradientAnchor(
+            viewportHeight: viewportHeight,
+            bubbleTopInViewport: cell.bubbleTopY(in: collectionView) - collectionView.bounds.minY
+        )
     }
 
     /// The estimated width follows the collection view's actual width; it is only written when it

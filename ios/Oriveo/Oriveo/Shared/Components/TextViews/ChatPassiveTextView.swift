@@ -13,6 +13,21 @@ final class ChatPassiveTextView: UITextView {
         fatalError("init(coder:) has not been implemented")
     }
 
+    /// Full-line backgrounds of the code block text view (diff added / removed lines), set only by code cards; with nil, layoutSubviews has no extra cost.
+    var codeLineBackgrounds: CodeLineBackgroundDecorator? {
+        didSet { codeLineBackgrounds?.invalidate(in: self) }
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        codeLineBackgrounds?.layout(in: self)
+    }
+
+    /// Replacing the whole content (including attribute-only changes with unchanged length, such as plain → highlighted) must recompute the full-line backgrounds; incremental textStorage edits are invalidated explicitly by the host.
+    override var attributedText: NSAttributedString! {
+        didSet { codeLineBackgrounds?.invalidate(in: self) }
+    }
+
     /// `makeTextKit1` builds the layout stack itself, so something has to hold the text storage strongly.
     private var ownedStorage: NSTextStorage?
 

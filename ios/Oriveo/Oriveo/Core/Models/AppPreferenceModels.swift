@@ -201,6 +201,8 @@ struct AppPreference: Hashable {
     var themeSetByUser: Bool = false
     /// Raw dark palette string (may be an id this client does not know; it is kept as is and not written back); nil = unset, rendered as the default dark.
     var darkPalette: String? = nil
+    /// Raw seed color string of the custom dark palette (valid = `#RRGGBB`); nil = the user never picked a color. Kept when switching back to a preset.
+    var darkPaletteCustom: String? = nil
     var language: LanguageOption
     var memoryText: String = ""
     var memoryAntiForgetEnabled: Bool = false
@@ -218,8 +220,8 @@ struct AppPreference: Hashable {
     /// Remind when the price line is crossed. Stored locally only.
     var contextPriceLineReminderEnabled: Bool = true
 
-    /// The palette actually rendered: a known id is used, otherwise the default dark.
-    var resolvedDarkPalette: OriveoDarkPaletteID {
-        OriveoDarkPaletteID.resolve(darkPalette)
+    /// The palette actually rendered: a known id is used (`custom` takes the seed color), otherwise the default dark.
+    var resolvedDarkPalette: OriveoDarkPaletteChoice {
+        OriveoDarkPaletteChoice.resolve(stored: darkPalette, seed: darkPaletteCustom)
     }
 }

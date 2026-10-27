@@ -516,6 +516,7 @@ struct RelayWebSearchPage: View {
     }
 
     private var backSwipeProbe: some Gesture {
+        // swipe-back-exempt: this is itself the probe that detects the swipe-back, so it must not yield
         DragGesture(minimumDistance: 24, coordinateSpace: .global)
             .onEnded { value in
                 guard Board.isBackSwipe(

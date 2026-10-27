@@ -352,7 +352,7 @@ struct SettingsDeveloperMenuView: View {
                     SettingsRow(
                         icon: "sparkles",
                         title: L10n.tr("Replay Onboarding", table: .settings),
-                        iconColor: Color.dynamic(light: 0x8C5FF8, dark: 0xA78BFA)
+                        iconColor: Color.brand(light: \.ink, dark: \.primary)
                     )
                 }
             }

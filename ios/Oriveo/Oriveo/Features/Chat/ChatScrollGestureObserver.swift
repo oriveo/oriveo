@@ -7,6 +7,8 @@ final class ChatScrollGestureObserver: NSObject, UICollectionViewDelegate {
     private let hasMoreAbove: () -> Bool
     private let onRequestExtendUpward: () -> Void
     private let onDidScroll: () -> Void
+    /// A cell is about to appear on screen (a reused user bubble anchors its gradient to the current position first, without waiting for the next scroll).
+    private let onWillDisplay: (UICollectionViewCell) -> Void
 
     static let atBottomThreshold: CGFloat = 80
     static let nearTopThreshold: CGFloat = 200
@@ -16,12 +18,18 @@ final class ChatScrollGestureObserver: NSObject, UICollectionViewDelegate {
          onSettle: @escaping () -> Void,
          hasMoreAbove: @escaping () -> Bool = { false },
          onRequestExtendUpward: @escaping () -> Void = {},
-         onDidScroll: @escaping () -> Void = {}) {
+         onDidScroll: @escaping () -> Void = {},
+         onWillDisplay: @escaping (UICollectionViewCell) -> Void = { _ in }) {
         self.onUserGrabbed = onUserGrabbed
         self.onSettle = onSettle
         self.hasMoreAbove = hasMoreAbove
         self.onRequestExtendUpward = onRequestExtendUpward
         self.onDidScroll = onDidScroll
+        self.onWillDisplay = onWillDisplay
+    }
+
+    func collectionView(_ collectionView: UICollectionView, willDisplay cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
+        onWillDisplay(cell)
     }
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {

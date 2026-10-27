@@ -124,6 +124,7 @@ enum AppPreferencesStore {
     private enum Key {
         static let theme = "oriveo.preferences.theme"
         static let darkPalette = "oriveo.preferences.darkPalette"
+        static let darkPaletteCustom = "oriveo.preferences.darkPaletteCustom"
         static let language = "oriveo.preferences.language"
         static let memoryText = "oriveo.preferences.memoryText"
         static let memoryAntiForgetEnabled = "oriveo.preferences.memoryAntiForgetEnabled"
@@ -228,6 +229,11 @@ enum AppPreferencesStore {
     /// Raw dark palette string; a non-string value is treated as unset.
     static var savedDarkPalette: String? {
         UserDefaults.standard.object(forKey: Key.darkPalette) as? String
+    }
+
+    /// Raw string of the custom palette seed color; a non-string value counts as unset.
+    static var savedDarkPaletteCustom: String? {
+        UserDefaults.standard.object(forKey: Key.darkPaletteCustom) as? String
     }
 
     static var savedLanguage: LanguageOption? {
@@ -365,6 +371,7 @@ enum AppPreferencesStore {
             theme: storedTheme ?? .dark,
             themeSetByUser: storedTheme != nil,
             darkPalette: savedDarkPalette,
+            darkPaletteCustom: savedDarkPaletteCustom,
             language: savedLanguage ?? .system,
             memoryText: savedMemoryText,
             memoryAntiForgetEnabled: savedMemoryAntiForgetEnabled,
@@ -396,6 +403,11 @@ enum AppPreferencesStore {
             defaults.set(darkPalette, forKey: Key.darkPalette)
         } else {
             defaults.removeObject(forKey: Key.darkPalette)
+        }
+        if let darkPaletteCustom = preference.darkPaletteCustom {
+            defaults.set(darkPaletteCustom, forKey: Key.darkPaletteCustom)
+        } else {
+            defaults.removeObject(forKey: Key.darkPaletteCustom)
         }
         defaults.set(preference.language.rawValue, forKey: Key.language)
         defaults.set(preference.memoryText, forKey: scopedKey(Key.memoryText))

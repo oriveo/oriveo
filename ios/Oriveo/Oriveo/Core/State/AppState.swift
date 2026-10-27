@@ -2688,8 +2688,12 @@ final class AppState {
         AppPreferencesStore.save(preferences)
     }
 
-    func updateDarkPalette(_ id: OriveoDarkPaletteID) {
-        preferences.darkPalette = id.rawValue
+    func updateDarkPalette(_ choice: OriveoDarkPaletteChoice) {
+        preferences.darkPalette = choice.storageID
+        // Writing a custom palette also writes its seed color; choosing a preset again keeps the seed
+        if case let .custom(seed) = choice {
+            preferences.darkPaletteCustom = OriveoCustomPalette.format(seed)
+        }
         AppPreferencesStore.save(preferences)
     }
 

@@ -933,7 +933,7 @@ struct HomeView: View {
                 isFocused: $heroFocused,
                 font: Self.heroInputFont,
                 textColor: Self.heroInputTextColor,
-                // The system caret uses the same colour as the decorative cursor (AuroraTheme.Colors.accentGlow: fixed violet in light mode, the current palette accent in dark mode)
+                // The system caret uses the same colour as the decorative cursor (AuroraTheme.Colors.accentGlow: the current palette's light ink in light mode, the current palette accent in dark mode)
                 tintColor: Self.heroInputTint,
                 // The placeholder is drawn by the decorative layer below, so VoiceOver needs an explicit name
                 accessibilityLabel: composerPlaceholder,

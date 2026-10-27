@@ -340,6 +340,7 @@ final class UIKitCodeBlockCard: UIView {
     private func updateTraitDependentColors() {
         contentContainer.layer.borderColor = Self.borderColor.resolvedColor(with: traitCollection).cgColor
         layer.shadowColor = UIColor(OriveoTheme.Palette.shadow).resolvedColor(with: traitCollection).cgColor
+        gradientOverlay.setNeedsLayout()
         let style = Self.effectiveStyle(traitCollection)
         appliedColorStyle = style
         if isMarkdownLanguage, let markdownRenderStyle, markdownRenderStyle != style {
@@ -378,7 +379,7 @@ final class UIKitCodeBlockCard: UIView {
         langCapsule.addSubview(langIcon)
 
         langLabel.font = .systemFont(ofSize: 12)
-        langLabel.textColor = Self.textFg
+        langLabel.textColor = Self.secondaryFg
         langLabel.text = (language?.isEmpty == false ? language! : L10n.tr("Code")).uppercased()
         langLabel.translatesAutoresizingMaskIntoConstraints = false
         langCapsule.addSubview(langLabel)
@@ -412,7 +413,7 @@ final class UIKitCodeBlockCard: UIView {
         config.image = UIImage(systemName: icon)?
             .withConfiguration(UIImage.SymbolConfiguration(pointSize: 11, weight: .semibold))
         config.title = title
-        config.baseForegroundColor = Self.textFg
+        config.baseForegroundColor = Self.secondaryFg
         config.imagePadding = 4
         let descriptor = UIFontDescriptor.preferredFontDescriptor(withTextStyle: .footnote)
         config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
@@ -431,6 +432,7 @@ final class UIKitCodeBlockCard: UIView {
         codeTextView.backgroundColor = .clear
         codeTextView.font = .monospacedSystemFont(ofSize: 14, weight: .regular)
         codeTextView.textColor = Self.textFg
+        codeTextView.codeLineBackgrounds = CodeLineBackgroundDecorator()
         codeTextView.textContainerInset = UIEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
         codeTextView.textContainer.lineFragmentPadding = 0
         codeTextView.setContentHuggingPriority(.required, for: .vertical)
@@ -597,6 +599,8 @@ final class UIKitCodeBlockCard: UIView {
 
     #if DEBUG
     var _testCodeAttributedText: NSAttributedString? { codeTextView.attributedText }
+    /// Test seam: the code area text view (for asserting the full-line backgrounds span the full width).
+    var _testCodeTextView: ChatPassiveTextView { codeTextView }
     #endif
 
     private func renderCodeSync(previewText: String) {
@@ -667,7 +671,7 @@ private final class GradientOverlayView: UIView {
         guard let gradient = layer as? CAGradientLayer else { return }
         gradient.colors = [
             UIColor.clear.cgColor,
-            UIKitCodeBlockCard.codeBg.withAlphaComponent(0.92).cgColor,
+            UIKitCodeBlockCard.codeBg.resolvedColor(with: traitCollection).withAlphaComponent(0.92).cgColor,
         ]
         gradient.startPoint = CGPoint(x: 0.5, y: 0)
         gradient.endPoint = CGPoint(x: 0.5, y: 1)
