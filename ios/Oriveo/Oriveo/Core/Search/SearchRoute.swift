@@ -622,7 +622,7 @@ nonisolated enum SearchRoute {
         return next.isEmpty ? nil : next
     }
 
-    /// Rows of the "Search method" sheet: when native is possible the first row is "Built-in to the model", then the selectable services (storage order), and the last row is "Add search service".
+    /// Rows of the "Search method" sheet: when native is possible the first row is "Built into model", then the selectable services (storage order), and the last row is the add-search-service row.
     static func searchSourcePickerItems(
         nativeCapable: Bool,
         selectable: [SearchSelectableService],
