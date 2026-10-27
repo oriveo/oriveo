@@ -19,6 +19,8 @@
  *  2. Every assertion target comes from the StreamEvent that `createProxyChunkParser` produces when
  *     fed a real wire frame, not from calling a parser directly and synthesizing the event.
  */
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PROVIDER_KINDS, isAggregatedProvider, type ProviderKind } from '@oriveo/shared';
 import { createProxyChunkParser, pickProxyUsageParser } from '../proxy-chunk-parser';
@@ -32,6 +34,7 @@ import {
   parseUsageOpenAICompatible,
   parseUsageOpenRouter,
   parseUsageQwen,
+  parseUsageTogether,
 } from '../transport/usage-parsers';
 
 /** One wire frame: an `eventType` of null means the OpenAI-compatible top-level chunk branch. */
@@ -111,6 +114,13 @@ function deepseek(hit: number | undefined): WireFrame[] {
 }
 
 function moonshot(cached: number | undefined): WireFrame[] {
+  const usage: Record<string, unknown> = { prompt_tokens: 1000, completion_tokens: 120 };
+  if (cached !== undefined) usage.cached_tokens = cached;
+  return [{ eventType: null, chunk: { choices: [], usage } }];
+}
+
+/** Together non-reasoning models: `cached_tokens` is flat at the top level of usage, no *_details. */
+function togetherFlat(cached: number | undefined): WireFrame[] {
   const usage: Record<string, unknown> = { prompt_tokens: 1000, completion_tokens: 120 };
   if (cached !== undefined) usage.cached_tokens = cached;
   return [{ eventType: null, chunk: { choices: [], usage } }];
@@ -205,7 +215,17 @@ const CONTRACTS: Record<string, ProviderUsageContract> = {
   },
   mistral: OPENAI_COMPATIBLE,
   groq: OPENAI_COMPATIBLE,
-  togetherAI: OPENAI_COMPATIBLE,
+  togetherAI: {
+    routedVia: 'pickProxyUsageParser',
+    expectedParser: parseUsageTogether,
+    cacheReadPath: 'usage.prompt_tokens_details.cached_tokens ?? usage.cached_tokens (flat top level on non-reasoning models)',
+    observedZero: togetherFlat(0),
+    cacheFieldAbsent: togetherFlat(undefined),
+    positive: {
+      frames: togetherFlat(900),
+      expect: { promptTokens: 100, cachedInputTokens: 900, completionTokens: 120, cacheReadObserved: true },
+    },
+  },
   fireworksAI: OPENAI_COMPATIBLE,
   miniMax: OPENAI_COMPATIBLE,
   zhipu: OPENAI_COMPATIBLE,
@@ -299,5 +319,25 @@ describe('usage routing drift gate for the 15 official providers', () => {
 
     const absent = decodeBreakdown(kind, contract.cacheFieldAbsent);
     expect(absent.cacheReadObserved, `${kind} @ ${contract.cacheReadPath}`).toBe(false);
+  });
+});
+
+/** Walk up from cwd to find a repo-root-relative path. */
+function root(relative: string) { let current = process.cwd(); while (true) { const candidate = path.join(current, relative); if (existsSync(candidate)) return candidate; const next = path.dirname(current); if (next === current) throw new Error(relative); current = next; } }
+
+describe('Together tool-loop legs', () => {
+  // Every tool-loop leg is decoded through createProxyChunkParser(providerKind), the same
+  // entry and the same pickProxyUsageParser as plain chat.
+  it('tool-loop leg usage goes through the Together parser (non-reasoning-flat-cached yields cached 512)', () => {
+    const fixture = JSON.parse(
+      readFileSync(root('shared/test-fixtures/provider-usage/together-usage-shapes.v1.json'), 'utf8'),
+    ) as { cases: Array<{ id: string; usage: Record<string, unknown>; expect: Record<string, number | boolean> }> };
+    const flat = fixture.cases.find((c) => c.id === 'non-reasoning-flat-cached');
+    if (!flat) throw new Error('fixture is missing non-reasoning-flat-cached');
+    const breakdown = decodeBreakdown('togetherAI', [
+      { eventType: null, chunk: { choices: [{ index: 0, delta: { tool_calls: [] } }], usage: flat.usage } },
+    ]);
+    expect(breakdown).toMatchObject(flat.expect);
+    expect(breakdown.cachedInputTokens).toBe(512);
   });
 });

@@ -6,6 +6,7 @@ import ai.oriveo.community.core.model.ProviderServiceError
 import ai.oriveo.community.core.model.ProviderSyncResult
 import io.ktor.client.HttpClient
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 
 /**
  * Together AI Service - OpenAI-compatible.
@@ -36,4 +37,7 @@ class TogetherService(client: HttpClient, json: Json) : OpenAICompatibleService(
 
         return ProviderSyncResult(models = emptyList())
     }
+
+    /** Together cached_tokens has nested and top-level shapes; see [ChatUsageParsers.together]. */
+    override fun parseUsage(usage: JsonObject?): UsageBreakdown = ChatUsageParsers.together(usage)
 }

@@ -39,6 +39,7 @@ import {
   parseUsageOpenAICompatible,
   parseUsageOpenRouter,
   parseUsageQwen,
+  parseUsageTogether,
 } from './transport/usage-parsers';
 
 /** Code of the early-disconnect error frame from response-adapters/gemini-interactions.ts. */
@@ -78,7 +79,12 @@ export function pickProxyUsageParser(
     // treated as unobserved and the cache card would disappear.
     case 'qwen':
       return parseUsageQwen;
-    // Groq / Fireworks / MiniMax / Zhipu / SiliconFlow / Together / Mistral / Relay
+    // Together non-reasoning models put `cached_tokens` flat at the top level of usage, while
+    // reasoning models nest it under prompt_tokens_details; the OpenAI template only reads the
+    // latter, so the flat shape would be treated as unobserved.
+    case 'togetherAI':
+      return parseUsageTogether;
+    // Groq / Fireworks / MiniMax / Zhipu / SiliconFlow / Mistral / Relay
     // all parse with the OpenAI-compatible template, including the cached_tokens fallback;
     // Mistral's prompt_tokens_details.cached_tokens matches the OpenAI shape (verified
     // 2026-07-21). Anthropic and Gemini never reach here: they have their own chunk branches

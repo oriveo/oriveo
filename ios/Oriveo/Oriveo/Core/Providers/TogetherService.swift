@@ -411,17 +411,35 @@ private struct TogetherUsage: Decodable {
     var prompt_tokens: Int?
     var completion_tokens: Int?
     var total_tokens: Int?
+    /// Two usage shapes (docs.together.ai openai-compatibility "Response shape differences", 2026-10-27):
+    /// reasoning models nest fields OpenAI-style under `prompt_tokens_details` / `completion_tokens_details`;
+    /// some non-reasoning models put `cached_tokens` flat at the top level of usage with no *_details objects.
+    var cached_tokens: Int?
     var prompt_tokens_details: PromptTokensDetails?
+    var completion_tokens_details: CompletionTokensDetails?
 
     struct PromptTokensDetails: Decodable {
         var cached_tokens: Int?
     }
+
+    struct CompletionTokensDetails: Decodable {
+        var reasoning_tokens: Int?
+    }
 }
 
 extension TogetherService {
-    fileprivate static func parseUsage(_ usage: TogetherUsage?) -> UsageBreakdown {
+    /// Tool-loop openai_chat legs reuse the same usage parser as plain chat: a leg receives the usage object from an SSE frame.
+    nonisolated static func legUsageBreakdown(usageJSON: [String: Any]) -> UsageBreakdown? {
+        guard let data = try? JSONSerialization.data(withJSONObject: usageJSON),
+              let usage = try? JSONDecoder().decode(TogetherUsage.self, from: data) else { return nil }
+        return parseUsage(usage)
+    }
+
+    nonisolated fileprivate static func parseUsage(_ usage: TogetherUsage?) -> UsageBreakdown {
         guard let usage else { return UsageBreakdown() }
-        let cached = usage.prompt_tokens_details?.cached_tokens ?? 0
+        // Nested wins, top level is the fallback; either one present (including 0) counts as an observed cache read
+        let reportedCached = usage.prompt_tokens_details?.cached_tokens ?? usage.cached_tokens
+        let cached = reportedCached ?? 0
         let total = usage.prompt_tokens ?? 0
         return UsageBreakdown(
             promptTokens: max(0, total - cached),
@@ -429,9 +447,9 @@ extension TogetherService {
             cacheCreation5mTokens: 0,
             cacheCreation1hTokens: 0,
             completionTokens: usage.completion_tokens ?? 0,
-            reasoningTokens: 0,
+            reasoningTokens: usage.completion_tokens_details?.reasoning_tokens ?? 0,
             upstreamCost: nil,
-            cacheReadObserved: usage.prompt_tokens_details?.cached_tokens != nil
+            cacheReadObserved: reportedCached != nil
         )
     }
 }

@@ -1,0 +1,51 @@
+{
+  "$comment": "Parsing fixture for the two Together openai_chat usage shapes. The Together usage parsers on iOS / Android / Web feed each case's usage and assert expect. cached reads prompt_tokens_details.cached_tokens first, then falls back to the top-level usage cached_tokens; promptTokens = prompt_tokens - cached.",
+  "schema": "oriveo.together-usage-shapes/v1",
+  "source": {
+    "doc": "https://docs.together.ai/docs/inference/openai-compatibility.md#response-shape-differences",
+    "checkedAt": "2026-10-27",
+    "quote": "Reasoning models nest them OpenAI-style ... Some non-reasoning models return cached_tokens flat at the top level of usage, with no *_details objects."
+  },
+  "cases": [
+    {
+      "id": "reasoning-model-nested",
+      "usage": {
+        "prompt_tokens": 1000,
+        "completion_tokens": 400,
+        "total_tokens": 1400,
+        "prompt_tokens_details": { "cached_tokens": 768 },
+        "completion_tokens_details": { "reasoning_tokens": 250 }
+      },
+      "expect": { "promptTokens": 232, "cachedInputTokens": 768, "completionTokens": 400, "reasoningTokens": 250, "cacheReadObserved": true }
+    },
+    {
+      "id": "non-reasoning-flat-cached",
+      "usage": {
+        "prompt_tokens": 900,
+        "completion_tokens": 50,
+        "total_tokens": 950,
+        "cached_tokens": 512
+      },
+      "expect": { "promptTokens": 388, "cachedInputTokens": 512, "completionTokens": 50, "reasoningTokens": 0, "cacheReadObserved": true }
+    },
+    {
+      "id": "flat-cached-zero-is-observed",
+      "usage": {
+        "prompt_tokens": 300,
+        "completion_tokens": 20,
+        "total_tokens": 320,
+        "cached_tokens": 0
+      },
+      "expect": { "promptTokens": 300, "cachedInputTokens": 0, "completionTokens": 20, "reasoningTokens": 0, "cacheReadObserved": true }
+    },
+    {
+      "id": "no-cache-field",
+      "usage": {
+        "prompt_tokens": 300,
+        "completion_tokens": 20,
+        "total_tokens": 320
+      },
+      "expect": { "promptTokens": 300, "cachedInputTokens": 0, "completionTokens": 20, "reasoningTokens": 0, "cacheReadObserved": false }
+    }
+  ]
+}

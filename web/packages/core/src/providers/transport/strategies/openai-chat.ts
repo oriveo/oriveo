@@ -30,6 +30,7 @@ import {
   parseUsageOpenRouter,
   parseUsageGrok,
   parseUsageDeepSeek,
+  parseUsageTogether,
 } from '../usage-parsers';
 import type { UsageBreakdown } from '../../../chat/usage-breakdown';
 import {
@@ -61,7 +62,10 @@ function pickUsageParser(providerKind: string | undefined): (
       return parseUsageDeepSeek;
     case 'moonshot':
       return parseUsageMoonshot;
-    // Groq / Fireworks / MiniMax / Zhipu / SiliconFlow / Together / Mistral / Relay all parse
+    // Together's cached_tokens has two shapes (nested / flat top level); same parser as proxy-chunk-parser.
+    case 'togetherAI':
+      return parseUsageTogether;
+    // Groq / Fireworks / MiniMax / Zhipu / SiliconFlow / Mistral / Relay all parse
     // with the OpenAI-compatible template, cached_tokens fallback included. Mistral's
     // prompt_tokens_details.cached_tokens has the same shape as OpenAI's (verified 2026-07).
     default:

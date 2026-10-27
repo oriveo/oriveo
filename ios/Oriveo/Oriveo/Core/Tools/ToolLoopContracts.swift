@@ -275,7 +275,7 @@ nonisolated extension ToolLoopUsage {
 nonisolated extension ToolLoopUsage {
     /// The usage object in an openai_chat leg SSE frame -> usage of this leg: goes through the same usage parser as the provider's normal
     /// chat: OpenRouter carries `usage.cost`, Grok carries `cost_in_usd_ticks`, DeepSeek cache hit / miss, Moonshot top-level
-    /// `cached_tokens`, and the rest (including Relay) use the OpenAI standard `prompt_tokens_details.cached_tokens`.
+    /// `cached_tokens`, Together nested or top-level `cached_tokens` (two shapes), and the rest (including Relay) use the OpenAI standard `prompt_tokens_details.cached_tokens`.
     static func openAIChatLeg(usageJSON: [String: Any], providerKind: ProviderKind) -> ToolLoopUsage? {
         let breakdown: UsageBreakdown?
         switch providerKind {
@@ -289,6 +289,8 @@ nonisolated extension ToolLoopUsage {
             breakdown = OpenAICompatibleStreamState.legUsageBreakdown(usageJSON: usageJSON, profile: .moonshot)
         case .qwen:
             breakdown = QwenService.legUsageBreakdown(usageJSON: usageJSON)
+        case .together:
+            breakdown = TogetherService.legUsageBreakdown(usageJSON: usageJSON)
         default:
             breakdown = OpenAIService.legUsageBreakdown(usageJSON: usageJSON)
         }

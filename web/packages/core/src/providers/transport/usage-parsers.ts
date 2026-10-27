@@ -215,11 +215,10 @@ export function parseUsageGrok(usage: Record<string, unknown>): UsageBreakdown {
 /* ── Tier B ───────────────────────────────────────────────────────────── */
 
 /**
- * Standard OpenAI-compatible endpoints (Groq / Fireworks / MiniMax / Zhipu / SiliconFlow /
- * Together).
+ * Standard OpenAI-compatible endpoints (Groq / Fireworks / MiniMax / Zhipu / SiliconFlow).
  *
  * Subtle differences from OpenAI:
- *   - SiliconFlow / Together: cached_tokens is not in the published schema, but upstream
+ *   - SiliconFlow: cached_tokens is not in the published schema, but upstream
  *     GLM/DeepSeek models may pass it through, so the fallback is kept
  *   - MiniMax / Zhipu: observed to return `completion_tokens_details.reasoning_tokens`
  *   - Groq: only the three GPT-OSS models return cached_tokens; elsewhere the field is absent
@@ -245,6 +244,30 @@ export function parseUsageMoonshot(usage: Record<string, unknown>): UsageBreakdo
     completionTokens: num(usage.completion_tokens),
     reasoningTokens: 0, // Even kimi-k2-thinking has no separate reasoning_tokens field
     cacheReadObserved: optNum(usage.cached_tokens) !== undefined,
+  };
+}
+
+/**
+ * Together: usage comes in two shapes. Reasoning models nest `prompt_tokens_details` /
+ * `completion_tokens_details` as OpenAI does; some non-reasoning models put `cached_tokens`
+ * flat at the top level of usage with no *_details. Nested wins, top level is the fallback;
+ * either one present (including 0) counts as observed.
+ * Source: docs.together.ai openai-compatibility "Response shape differences", 2026-10-27.
+ */
+export function parseUsageTogether(usage: Record<string, unknown>): UsageBreakdown {
+  const promptDetails = usage.prompt_tokens_details as Record<string, unknown> | undefined;
+  const completionDetails = usage.completion_tokens_details as Record<string, unknown> | undefined;
+  const observedCached = optNum(promptDetails?.cached_tokens) ?? optNum(usage.cached_tokens);
+  const cached = observedCached ?? 0;
+
+  return {
+    promptTokens: Math.max(0, num(usage.prompt_tokens) - cached),
+    cachedInputTokens: cached,
+    cacheCreation5mTokens: 0,
+    cacheCreation1hTokens: 0,
+    completionTokens: num(usage.completion_tokens),
+    reasoningTokens: num(completionDetails?.reasoning_tokens),
+    cacheReadObserved: observedCached !== undefined,
   };
 }
 

@@ -24,6 +24,7 @@ object ChatUsageParsers {
         ProviderKind.DeepSeek -> deepSeek(usage)
         ProviderKind.Qwen -> qwen(usage)
         ProviderKind.OpenRouter -> openRouter(usage)
+        ProviderKind.Together -> together(usage)
         else -> openAIChatDefault(usage)
     }
 
@@ -94,6 +95,26 @@ object ChatUsageParsers {
 
     /** Qwen (DashScope compatible): cached reads prompt_tokens_details.cached_tokens first, then top-level cached_tokens. */
     fun qwen(usage: JsonObject?): UsageBreakdown {
+        if (usage == null) return UsageBreakdown()
+        val nested = usage.obj("prompt_tokens_details")?.int("cached_tokens")
+        val top = usage.int("cached_tokens")
+        val cached = nested ?: top ?: 0
+        return UsageBreakdown(
+            promptTokens = ((usage.int("prompt_tokens") ?: 0) - cached).coerceAtLeast(0),
+            cachedInputTokens = cached,
+            completionTokens = usage.int("completion_tokens") ?: 0,
+            reasoningTokens = usage.obj("completion_tokens_details")?.int("reasoning_tokens") ?: 0,
+            cacheReadObserved = nested != null || top != null,
+        )
+    }
+
+    /**
+     * Together: reasoning models nest cached_tokens under prompt_tokens_details (OpenAI shape), while some
+     * non-reasoning models put it flat at the top level of `usage`. Nested wins; either one present
+     * (including 0) counts as an observed cache read. Source: docs.together.ai openai-compatibility
+     * "Response shape differences", 2026-10-27.
+     */
+    fun together(usage: JsonObject?): UsageBreakdown {
         if (usage == null) return UsageBreakdown()
         val nested = usage.obj("prompt_tokens_details")?.int("cached_tokens")
         val top = usage.int("cached_tokens")

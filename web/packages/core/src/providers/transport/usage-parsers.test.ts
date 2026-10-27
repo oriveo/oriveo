@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   parseUsageAnthropic,
@@ -9,6 +11,7 @@ import {
   parseUsageOpenAICompatible,
   parseUsageOpenRouter,
   parseUsageQwen,
+  parseUsageTogether,
 } from './usage-parsers';
 
 /**
@@ -65,5 +68,30 @@ describe('UsageBreakdown parser field paths', () => {
     expect(parseUsageDeepSeek({ prompt_tokens: 10, prompt_cache_hit_tokens: 0 }).cacheWriteObserved)
       .not.toBe(true);
     expect(parseUsageAnthropic({ input_tokens: 10 }).cacheWriteObserved).toBe(false);
+  });
+});
+
+/** Walk up from cwd to find a repo-root-relative path. */
+function root(relative: string) { let current = process.cwd(); while (true) { const candidate = path.join(current, relative); if (existsSync(candidate)) return candidate; const next = path.dirname(current); if (next === current) throw new Error(relative); current = next; } }
+
+interface TogetherUsageFixture {
+  cases: Array<{ id: string; usage: Record<string, unknown>; expect: Record<string, number | boolean> }>;
+}
+
+describe('Together usage shapes (shared fixture)', () => {
+  const fixture = JSON.parse(
+    readFileSync(root('shared/test-fixtures/provider-usage/together-usage-shapes.v1.json'), 'utf8'),
+  ) as TogetherUsageFixture;
+
+  it('all 4 Together usage fixture cases pass', () => {
+    expect(fixture.cases.map((c) => c.id)).toEqual([
+      'reasoning-model-nested',
+      'non-reasoning-flat-cached',
+      'flat-cached-zero-is-observed',
+      'no-cache-field',
+    ]);
+    fixture.cases.forEach((c) => {
+      expect(parseUsageTogether(c.usage), c.id).toMatchObject(c.expect);
+    });
   });
 });
