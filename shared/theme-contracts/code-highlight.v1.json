@@ -1,0 +1,353 @@
+{
+  "$comment": "Code syntax highlighting shared by iOS / Android / Web. One fixed set per appearance: dark colors do not follow the dark palette (only the code block background does, via the palette's codeBg / codeHeaderBg). Each client asserts its colors equal `light` / `dark`, and its tokenizer passes `classifyCases`. Every role must stay readable against every code background. Keys starting with '$' are documentation.",
+  "schema": "oriveo.theme.code-highlight/v1",
+  "name": "Oriveo Code",
+  "roles": [
+    "text",
+    "keyword",
+    "string",
+    "number",
+    "function",
+    "type",
+    "property",
+    "comment",
+    "punctuation",
+    "diffAdd",
+    "diffDelete",
+    "diffHunk"
+  ],
+  "$roles": {
+    "text": "plain identifiers and anything unmatched",
+    "keyword": "keywords and literals true / false / nil / null / None",
+    "function": "an identifier directly followed by '(' (calls and definitions); builtins called as functions",
+    "type": "identifiers starting with an uppercase letter; wins over 'function' when followed by '(' (constructors read as types)",
+    "property": "identifier after '.', '@' attributes / decorators, '$' variables, JSON object keys",
+    "punctuation": "brackets, separators and operators",
+    "diffAdd / diffDelete / diffHunk": "languages diff / patch, decided by the line prefix '+', '-', '@@' ('+++' / '---' are diffHunk); the whole line takes the role and the line background below; diff / patch has no comment syntax, so '/*' inside a diff line does not open a block comment"
+  },
+  "italicComments": false,
+  "dark": {
+    "codeBg": "palette.codeBg",
+    "codeHeaderBg": "palette.codeHeaderBg",
+    "text": "#E4E4E7",
+    "keyword": "#CBA6F7",
+    "string": "#A6E3A1",
+    "number": "#FAB387",
+    "function": "#89B4FA",
+    "type": "#F9E2AF",
+    "property": "#89DCEB",
+    "comment": "#9399B2",
+    "punctuation": "#A6ADC8",
+    "diffAdd": "#A6E3A1",
+    "diffDelete": "#F38BA8",
+    "diffHunk": "#89DCEB",
+    "diffAddLine": {
+      "from": "#6EE7A1",
+      "alpha": 0.12
+    },
+    "diffDeleteLine": {
+      "from": "#F8978F",
+      "alpha": 0.12
+    }
+  },
+  "light": {
+    "codeBg": "#F4F4F5",
+    "codeHeaderBg": "#E4E4E7",
+    "headerText": "#52525B",
+    "text": "#18181B",
+    "keyword": "#7C3AED",
+    "string": "#13773A",
+    "number": "#B5400C",
+    "function": "#1D4ED8",
+    "type": "#8F5B00",
+    "property": "#0E7490",
+    "comment": "#6B6B76",
+    "punctuation": "#52525B",
+    "diffAdd": "#13773A",
+    "diffDelete": "#B91C1C",
+    "diffHunk": "#0E7490",
+    "diffAddLine": {
+      "from": "#10B981",
+      "alpha": 0.1
+    },
+    "diffDeleteLine": {
+      "from": "#EF4444",
+      "alpha": 0.1
+    }
+  },
+  "contrast": {
+    "minOnCodeBg": 4.5,
+    "$minOnCodeBg": "every role, light on light.codeBg, dark on each dark palette codeBg and on derived custom palettes; diff roles are measured on the line background (role 'from' color at 'alpha' over codeBg)"
+  },
+  "classifyCases": [
+    {
+      "name": "swift_call_and_assignment",
+      "language": "swift",
+      "code": "let ratio = wcag(primary, bg)",
+      "expect": [
+        [
+          "let",
+          "keyword"
+        ],
+        [
+          "ratio",
+          "text"
+        ],
+        [
+          "=",
+          "punctuation"
+        ],
+        [
+          "wcag",
+          "function"
+        ],
+        [
+          "(",
+          "punctuation"
+        ],
+        [
+          "primary",
+          "text"
+        ],
+        [
+          ",",
+          "punctuation"
+        ],
+        [
+          "bg",
+          "text"
+        ],
+        [
+          ")",
+          "punctuation"
+        ]
+      ]
+    },
+    {
+      "name": "swift_type_and_member",
+      "language": "swift",
+      "code": "var primary: Color = .accentColor",
+      "expect": [
+        [
+          "var",
+          "keyword"
+        ],
+        [
+          "primary",
+          "text"
+        ],
+        [
+          ":",
+          "punctuation"
+        ],
+        [
+          "Color",
+          "type"
+        ],
+        [
+          "accentColor",
+          "property"
+        ]
+      ]
+    },
+    {
+      "name": "swift_comment_non_ascii",
+      "language": "swift",
+      "code": "// choisir la couleur principale — café",
+      "expect": [
+        [
+          "// choisir la couleur principale — café",
+          "comment"
+        ]
+      ]
+    },
+    {
+      "name": "swift_literal_keywords",
+      "language": "swift",
+      "code": "return ok ? nil : 4.5",
+      "expect": [
+        [
+          "return",
+          "keyword"
+        ],
+        [
+          "ok",
+          "text"
+        ],
+        [
+          "nil",
+          "keyword"
+        ],
+        [
+          "4.5",
+          "number"
+        ]
+      ]
+    },
+    {
+      "name": "python_decorator_def_member",
+      "language": "python",
+      "code": "@dataclass\ndef passed(rules):\n    return r.min_ratio  # commentaire — naïve",
+      "expect": [
+        [
+          "@dataclass",
+          "property"
+        ],
+        [
+          "def",
+          "keyword"
+        ],
+        [
+          "passed",
+          "function"
+        ],
+        [
+          "rules",
+          "text"
+        ],
+        [
+          "min_ratio",
+          "property"
+        ],
+        [
+          "# commentaire — naïve",
+          "comment"
+        ]
+      ]
+    },
+    {
+      "name": "python_string_number_builtin_call",
+      "language": "python",
+      "code": "print(\"passed\", 7.2)",
+      "expect": [
+        [
+          "print",
+          "function"
+        ],
+        [
+          "\"passed\"",
+          "string"
+        ],
+        [
+          "7.2",
+          "number"
+        ]
+      ]
+    },
+    {
+      "name": "json_keys_values",
+      "language": "json",
+      "code": "{\"id\": \"dark-ocean\", \"glowK\": 1.0, \"custom\": null, \"on\": true}",
+      "expect": [
+        [
+          "\"id\"",
+          "property"
+        ],
+        [
+          "\"dark-ocean\"",
+          "string"
+        ],
+        [
+          "\"glowK\"",
+          "property"
+        ],
+        [
+          "1.0",
+          "number"
+        ],
+        [
+          "null",
+          "keyword"
+        ],
+        [
+          "true",
+          "keyword"
+        ],
+        [
+          "{",
+          "punctuation"
+        ]
+      ]
+    },
+    {
+      "name": "shell_variable",
+      "language": "bash",
+      "code": "echo $HOME",
+      "expect": [
+        [
+          "echo",
+          "text"
+        ],
+        [
+          "$HOME",
+          "property"
+        ]
+      ]
+    },
+    {
+      "name": "diff_lines",
+      "language": "diff",
+      "code": "--- a/x.swift\n+++ b/x.swift\n@@ -1,2 +1,2 @@\n-let a = 1\n+let a = 2\n let b = 3",
+      "expect": [
+        [
+          "--- a/x.swift",
+          "diffHunk"
+        ],
+        [
+          "+++ b/x.swift",
+          "diffHunk"
+        ],
+        [
+          "@@ -1,2 +1,2 @@",
+          "diffHunk"
+        ],
+        [
+          "-let a = 1",
+          "diffDelete"
+        ],
+        [
+          "+let a = 2",
+          "diffAdd"
+        ],
+        [
+          " let b = 3",
+          "text"
+        ]
+      ]
+    },
+    {
+      "name": "swift_constructor_is_type",
+      "language": "swift",
+      "code": "let c = Color(red: 1)",
+      "expect": [
+        [
+          "Color",
+          "type"
+        ],
+        [
+          "red",
+          "text"
+        ],
+        [
+          "1",
+          "number"
+        ]
+      ]
+    },
+    {
+      "name": "diff_line_ignores_block_comment",
+      "language": "diff",
+      "code": "+let a = 1 /* x\n-let b = 2",
+      "expect": [
+        [
+          "+let a = 1 /* x",
+          "diffAdd"
+        ],
+        [
+          "-let b = 2",
+          "diffDelete"
+        ]
+      ]
+    }
+  ]
+}
