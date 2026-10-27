@@ -15,7 +15,6 @@ struct ContextCapSettingsPresentationTests {
 
     static let capSettingsKeys = [
         "settings_context_cap_header",
-        "settings_context_cap_footer",
         "settings_context_row_value",
         "settings_context_mode_fallback_hint",
     ]
@@ -322,11 +321,10 @@ struct ContextCapSettingsPresentationTests {
         #expect(ContextDefaultCapSetting.rowValue(in: state)
             == ContextDefaultCapSetting.rowValue(cap: .custom(190_000), mode: .aiSummary))
 
-        // The footnote carries the compact numbers for 256000 and 32000
-        let footer = ContextDefaultCapSetting.footer
-        #expect(footer.contains(ContextCompactionSeparator.compactCount(256_000)))
-        #expect(footer.contains(ContextCompactionSeparator.compactCount(32_000)))
-        #expect(!footer.contains("%"))
+        // The minimum hint under the custom input carries the compact number for 32000
+        let customMin = ContextDefaultCapSetting.customMinText
+        #expect(customMin.contains(ContextCompactionSeparator.compactCount(32_000)))
+        #expect(!customMin.contains("%"))
     }
 
     // MARK: Localization (settings group, option words, four custom-input keys)
@@ -342,9 +340,10 @@ struct ContextCapSettingsPresentationTests {
                     #expect(!resolved.contains("{"), "\(locale) · \(key) placeholders were not converted to this platform's format")
                 }
             }
-            let footer = bundle.localizedString(forKey: "settings_context_cap_footer", value: nil, table: "Settings")
-            let formatted = String(format: footer, "MAX", "MIN")
-            #expect(formatted.contains("MAX") && formatted.contains("MIN"), "\(locale) · footnote placeholders")
+            let customMin = bundle.localizedString(forKey: "settings_context_custom_min", value: nil, table: "Settings")
+            #expect(String(format: customMin, "MIN").contains("MIN"), "\(locale) · minimum hint placeholder")
+            // The old default-cap footnote was removed with the context page redesign
+            #expect(bundle.localizedString(forKey: "settings_context_cap_footer", value: "gone", table: "Settings") == "gone")
         }
 
         let en = try bundle("en")
@@ -352,9 +351,9 @@ struct ContextCapSettingsPresentationTests {
         #expect(en.localizedString(forKey: "settings_context_cap_header", value: nil, table: "Settings") == "Default limit")
         #expect(zh.localizedString(forKey: "context_cap_unlimited", value: nil, table: "Chat") == "\u{4E0D}\u{9650}")
         #expect(zh.localizedString(forKey: "settings_context_mode_fallback_hint", value: nil, table: "Settings")
-            == "\u{4E0D}\u{989D}\u{5916}\u{82B1}\u{94B1}\u{3002}\u{8F83}\u{65E9}\u{7684} AI \u{56DE}\u{7B54}\u{4E0D}\u{518D}\u{53D1}\u{9001}\u{FF0C}\u{4F60}\u{8BF4}\u{8FC7}\u{7684}\u{8BDD}\u{7167}\u{5E38}\u{4FDD}\u{7559}\u{FF0C}\u{622A}\u{65AD}\u{5904}\u{505C}\u{5728}\u{53E5}\u{5B50}\u{7ED3}\u{5C3E}\u{3002}")
-        let enFooter = en.localizedString(forKey: "settings_context_cap_footer", value: nil, table: "Settings")
-        #expect(String(format: enFooter, "256K", "32K").hasPrefix("Automatic sizes to the model’s window, up to 256K,"))
+            == "\u{8F83}\u{65E9}\u{7684} AI \u{56DE}\u{7B54}\u{4E0D}\u{518D}\u{53D1}\u{9001}\u{FF0C}\u{4F60}\u{8BF4}\u{8FC7}\u{7684}\u{8BDD}\u{7167}\u{5E38}\u{4FDD}\u{7559}\u{FF0C}\u{622A}\u{65AD}\u{5904}\u{505C}\u{5728}\u{53E5}\u{5B50}\u{7ED3}\u{5C3E}\u{3002}")
+        let enCustomMin = en.localizedString(forKey: "settings_context_custom_min", value: nil, table: "Settings")
+        #expect(String(format: enCustomMin, "32K") == "At least 32K")
         let enEcho = en.localizedString(forKey: "context_cap_input_echo", value: nil, table: "Chat")
         #expect(String(format: enEcho, "190K") == "= 190K tokens")
         let zhAdjusted = zh.localizedString(forKey: "context_cap_adjusted", value: nil, table: "Chat")

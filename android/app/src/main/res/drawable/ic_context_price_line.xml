@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Converted from shared/icons/context-settings/price-line.svg; monochrome, tinted via Icon(tint). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeAlpha="0.6"
+        android:pathData="M3 11h2.2M8 11h2.2M13 11h2.2" />
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M3 19.5l5-5 3 2.2 6.5-7.2" />
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M14.6 9.5h2.9v2.9" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M18.3 4.8A1.7 1.7 0 1 0 21.7 4.8A1.7 1.7 0 1 0 18.3 4.8Z" />
+</vector>

@@ -89,6 +89,25 @@ enum class ContextCapSettingsSelection(val wire: String) {
 /** Settings › Context default cap group. */
 data class ContextCapSettings(val selected: ContextCapSettingsSelection, val customPrefill: Int)
 
+/** Hero caption of Settings › Context; [key] is the string resource name. */
+enum class ContextCapHeroCaption(val key: String) {
+    AUTO("settings_context_hero_caption_auto"),
+    UNLIMITED("settings_context_hero_caption_unlimited"),
+    CUSTOM("settings_context_hero_caption_custom"),
+}
+
+/**
+ * Settings › Context hero card: [valueTokens] null = the "full window" label instead of a number; [fill] is the
+ * illustrative bar fill (not any model's real price line).
+ */
+data class ContextCapHero(
+    val selected: ContextCapSettingsSelection,
+    val valueTokens: Int?,
+    val hasUnit: Boolean,
+    val caption: ContextCapHeroCaption,
+    val fill: Double,
+)
+
 /** Localized templates of the panel window row and multiplier sentences (%n$s placeholders). */
 class ContextCapPanelStrings(
     /** %1$s window. */
@@ -274,6 +293,49 @@ object ContextCapPresentation {
         ContextBudgetCap.Unlimited -> ContextCapSettings(ContextCapSettingsSelection.UNLIMITED, ContextBudget.AUTO_CAP_DEFAULT)
         is ContextBudgetCap.Custom -> ContextCapSettings(ContextCapSettingsSelection.CUSTOM, stored.tokens)
         ContextBudgetCap.Auto, null -> ContextCapSettings(ContextCapSettingsSelection.AUTO, ContextBudget.AUTO_CAP_DEFAULT)
+    }
+
+    /** Hero bar fill for auto: where AUTO_CAP_DEFAULT sits on the illustrative bar. */
+    const val HERO_AUTO_FILL: Double = 0.66
+
+    /** Fixed position of the price-line tick on the hero bar. */
+    const val HERO_PRICE_LINE_MARKER: Double = 0.70
+
+    const val HERO_MIN_FILL: Double = 0.12
+    const val HERO_MAX_FILL: Double = 1.0
+
+    /**
+     * Hero card for the stored default cap: auto = AUTO_CAP_DEFAULT at [HERO_AUTO_FILL]; unlimited = full window, full bar;
+     * custom(n) = n with fill clamp(n / AUTO_CAP_DEFAULT * HERO_AUTO_FILL, HERO_MIN_FILL, HERO_MAX_FILL).
+     */
+    fun hero(stored: ContextBudgetCap?): ContextCapHero = when (stored) {
+        ContextBudgetCap.Unlimited -> ContextCapHero(
+            ContextCapSettingsSelection.UNLIMITED, null, hasUnit = false, ContextCapHeroCaption.UNLIMITED, HERO_MAX_FILL,
+        )
+        is ContextBudgetCap.Custom -> ContextCapHero(
+            ContextCapSettingsSelection.CUSTOM,
+            stored.tokens,
+            hasUnit = true,
+            ContextCapHeroCaption.CUSTOM,
+            (stored.tokens.toDouble() / ContextBudget.AUTO_CAP_DEFAULT * HERO_AUTO_FILL).coerceIn(HERO_MIN_FILL, HERO_MAX_FILL),
+        )
+        ContextBudgetCap.Auto, null -> ContextCapHero(
+            ContextCapSettingsSelection.AUTO,
+            ContextBudget.AUTO_CAP_DEFAULT,
+            hasUnit = true,
+            ContextCapHeroCaption.AUTO,
+            HERO_AUTO_FILL,
+        )
+    }
+
+    /**
+     * Cap the hero shows: while custom is stored, the same preview as the input echo (the clamped typed value) when
+     * [customText] is readable, otherwise the stored value; auto / unlimited unchanged.
+     */
+    fun heroPreviewCap(stored: ContextBudgetCap, customText: String?): ContextBudgetCap {
+        if (stored !is ContextBudgetCap.Custom || customText == null) return stored
+        val preview = commit(customText, u = null, previous = stored.tokens)
+        return if (preview.restored) stored else ContextBudgetCap.Custom(preview.value)
     }
 
     /** Compact token count wrapped in FSI…PDI so it reads correctly inside any-direction text. */

@@ -120,16 +120,17 @@ extension ContextCompactionUITests {
         #expect(AppPreferencesStore.savedContextAISummaryEnabled == false)
         #expect(ContextSettingsMode.current(in: state) == .fallback)
     }
-    /// Layout rule for multi-line rows ("the right column / leading icon is vertically centered on the whole row"): the selection circle of a radio row on the context page must not be pinned to the title line.
-    @Test("context_option_row_centers_lead_vertically")
-    func contextOptionRowCentersLeadVertically() throws {
+
+    /// Layout rule for multi-line rows ("the right column / leading icon is vertically centered on the whole row"): the icon and switch of the price reminder card on the context page are centered on the whole text block.
+    @Test("context_price_line_row_centers_lead_vertically")
+    func contextPriceLineRowCentersLeadVertically() throws {
         let sourceURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("Oriveo/Features/Settings/ContextSettingsView.swift")
         let source = try String(contentsOf: sourceURL, encoding: .utf8)
-        let start = try #require(source.range(of: "private func option(title: String, hint: String?, selected: Bool)"))
+        let start = try #require(source.range(of: "private var priceLineReminder: some View"))
         let body = String(source[start.upperBound...].prefix(400))
         #expect(body.contains("HStack(alignment: .center"))
         #expect(!body.contains("HStack(alignment: .top"))

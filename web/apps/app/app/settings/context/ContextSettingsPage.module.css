@@ -1,4 +1,4 @@
-/* Context settings page: layout follows MemoryPage, options follow ProviderSubscription mode picker. */
+/* Context settings page: layout follows MemoryPage; card layout follows the shared context-settings design (Main.dc.html). */
 
 .page {
   max-width: 760px;
@@ -12,7 +12,7 @@
 }
 
 .title {
-  margin: 0 0 var(--o-space-xl);
+  margin: 0 0 var(--o-space-lg);
   font-family: var(--o-font-display);
   font-size: var(--o-text-2xl);
   font-weight: 700;
@@ -20,107 +20,243 @@
   color: var(--o-text);
 }
 
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
 .group {
   display: flex;
   flex-direction: column;
-  gap: var(--o-space-md);
-}
-
-.group + .group {
-  margin-top: var(--o-space-xl);
+  gap: 12px;
 }
 
 .groupTitle {
-  margin: 0;
-  font-size: var(--o-text-sm);
-  font-weight: 600;
-  color: var(--o-text);
-}
-
-.options {
-  display: flex;
-  flex-direction: column;
-  gap: var(--o-space-sm);
-}
-
-.option {
   display: flex;
   align-items: center;
-  gap: var(--o-space-md);
-  width: 100%;
-  min-height: 74px;
-  padding: var(--o-space-md);
-  border: 1px solid var(--o-border);
-  border-radius: var(--o-radius-lg);
-  background: var(--o-surface);
-  text-align: start;
-  cursor: pointer;
-  transition:
-    border-color var(--o-transition-fast),
-    background var(--o-transition-fast);
-}
-
-.optionSelected {
-  border-color: color-mix(in srgb, var(--o-primary) 42%, transparent);
-  background: color-mix(in srgb, var(--o-primary) 8%, var(--o-surface));
-}
-
-.optionCopy {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-  flex: 1 1 auto;
-}
-
-.optionTitle {
-  font-size: var(--o-text-sm);
+  gap: 7px;
+  margin: 0 4px;
+  font-size: 13px;
   font-weight: 600;
-  color: var(--o-text);
-}
-
-.optionHint {
-  font-size: var(--o-text-xs);
-  color: var(--o-text-secondary);
-  line-height: 1.45;
-}
-
-.optionRadio {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 22px;
-  width: 22px;
-  height: 22px;
+  letter-spacing: 0.4px;
   color: var(--o-text-tertiary);
 }
 
-.optionSelected .optionRadio {
-  color: var(--o-primary);
+.footer {
+  margin: 0 4px;
+  font-size: var(--o-text-xs);
+  line-height: 1.6;
+  color: var(--o-text-tertiary);
 }
 
-.footer {
-  margin: 0;
-  font-size: var(--o-text-xs);
-  line-height: 1.5;
+/* Overview card */
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 22px 22px 20px;
+  border: 1px solid var(--o-hairline);
+  border-radius: 24px;
+  background: var(--o-surface);
+  overflow: hidden;
+}
+
+.heroHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--o-space-sm);
+}
+
+.heroLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 1.2px;
   color: var(--o-text-secondary);
 }
 
-/* Custom default cap: number field revealed under the cap options. */
+.heroLabelIcon {
+  flex-shrink: 0;
+  color: var(--o-primary);
+}
+
+.heroChip {
+  flex-shrink: 0;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--o-primary-subtle);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  color: var(--o-primary);
+}
+
+.heroValueRow {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.heroValue {
+  font-size: 44px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -1.2px;
+  font-variant-numeric: tabular-nums;
+  color: var(--o-text);
+}
+
+.heroUnit {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--o-text-secondary);
+}
+
+.scale {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.scaleTrack {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--o-text) 8%, transparent);
+}
+
+.scaleFill {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  border-radius: 999px;
+  background: var(--o-primary);
+  transition: width 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scaleFill {
+    transition: none;
+  }
+}
+
+.scaleMarker {
+  position: absolute;
+  top: -5px;
+  width: 2px;
+  height: 18px;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--o-text) 55%, transparent);
+}
+
+.scaleLabels {
+  position: relative;
+  height: 16px;
+  font-size: 11px;
+  color: var(--o-text-tertiary);
+}
+
+.scaleStart,
+.scaleMarkerLabel,
+.scaleEnd {
+  position: absolute;
+  top: 0;
+  white-space: nowrap;
+}
+
+.scaleStart {
+  inset-inline-start: 0;
+}
+
+.scaleEnd {
+  inset-inline-end: 0;
+}
+
+
+.heroCaption {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--o-text-secondary);
+}
+
+/* Default cap: three-segment single choice */
+.segments {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--o-hairline);
+  border-radius: 16px;
+  background: var(--o-surface);
+}
+
+.segment {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  height: 68px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--o-text-secondary);
+  cursor: pointer;
+  transition:
+    background var(--o-transition-fast),
+    color var(--o-transition-fast);
+}
+
+.segment:focus-visible {
+  outline: 2px solid var(--o-primary);
+  outline-offset: 1px;
+}
+
+.segmentSelected {
+  background: var(--o-surface-raised);
+  color: var(--o-primary);
+  font-weight: 600;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--o-text) 12%, transparent);
+}
+
+.segmentLabel {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Custom default cap: number field revealed under the segments. */
 .customCap {
   display: flex;
   flex-direction: column;
-  gap: var(--o-space-xs);
+  gap: var(--o-space-sm);
+  padding: 18px;
+  border: 1px solid var(--o-hairline);
+  border-radius: 20px;
+  background: var(--o-surface);
 }
 
 .customCapField {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: var(--o-space-sm);
   padding: var(--o-space-sm) var(--o-space-md);
   border: 1px solid var(--o-border);
-  border-radius: var(--o-radius-lg);
-  background: var(--o-surface);
+  border-radius: 14px;
+  background: var(--o-surface-raised);
 }
 
 .customCapField:focus-within {
@@ -130,7 +266,7 @@
 .customCapLabel,
 .customCapUnit {
   flex: 0 0 auto;
-  font-size: var(--o-text-sm);
+  font-size: 14px;
   color: var(--o-text-secondary);
 }
 
@@ -141,16 +277,19 @@
   outline: none;
   background: transparent;
   font: inherit;
-  font-size: var(--o-text-sm);
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.6px;
   font-variant-numeric: tabular-nums;
   color: var(--o-text);
 }
 
 .customCapEcho,
-.customCapAdjusted {
+.customCapAdjusted,
+.customCapMin {
   margin: 0;
   font-size: var(--o-text-xs);
-  line-height: 1.45;
+  line-height: 1.6;
   color: var(--o-text-secondary);
 }
 
@@ -158,18 +297,224 @@
   color: var(--o-warning-text);
 }
 
-/* Price-line reminder switch: follows MemoryInboxPage inboxToggle. */
-.toggle {
+.customCapMin {
+  color: var(--o-text-tertiary);
+}
+
+/* Price-line reminder card: icon, copy and switch are vertically centred. */
+.reminder {
   display: flex;
   align-items: center;
-  gap: var(--o-space-md);
+  gap: 14px;
+  padding: 16px 16px 16px 18px;
+  border: 1px solid var(--o-hairline);
+  border-radius: 20px;
+  background: var(--o-surface);
   cursor: pointer;
 }
 
-.toggleTitle {
+.reminderIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: var(--o-primary-subtle);
+  color: var(--o-primary);
+}
+
+.reminderCopy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   flex: 1;
   min-width: 0;
-  font-size: var(--o-text-sm);
+}
+
+.reminderTitle {
+  font-size: 15px;
   font-weight: 600;
   color: var(--o-text);
+}
+
+.reminderFooter {
+  font-size: var(--o-text-xs);
+  line-height: 1.6;
+  color: var(--o-text-secondary);
+}
+
+/* Overflow strategy cards */
+.strategies {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 359px) {
+  .strategies {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.strategy {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 10px 14px;
+  border: 1px solid var(--o-hairline);
+  border-radius: 20px;
+  background: var(--o-surface);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  --strategy-ink: color-mix(in srgb, var(--o-text) 28%, transparent);
+  transition:
+    border-color var(--o-transition-fast),
+    box-shadow var(--o-transition-fast);
+}
+
+.strategy:focus-visible {
+  outline: 2px solid var(--o-primary);
+  outline-offset: 2px;
+}
+
+.strategySelected {
+  border-color: var(--o-primary);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--o-primary) 8%, transparent);
+  --strategy-ink: var(--o-primary);
+}
+
+.strategyArt {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  height: 76px;
+  padding: 10px;
+  box-sizing: border-box;
+  border-radius: 12px;
+  background: var(--o-bg-inset);
+}
+
+.bubble {
+  display: block;
+  height: 12px;
+  border-radius: 6px;
+}
+
+.bubbleEnd {
+  align-self: flex-end;
+}
+
+.bubbleGhost {
+  border: 1px dashed color-mix(in srgb, var(--o-text) 22%, transparent);
+}
+
+.ink {
+  background: var(--strategy-ink);
+}
+
+.ghostFill {
+  background: color-mix(in srgb, var(--o-text) 22%, transparent);
+}
+
+.trackFill {
+  background: color-mix(in srgb, var(--o-text) 8%, transparent);
+}
+
+.summaryBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 7px;
+  border-radius: 7px;
+  background: var(--o-hairline);
+}
+
+.summaryLine {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.strategyTitleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.strategyTitle {
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--o-text);
+}
+
+.strategyDot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  box-sizing: border-box;
+  border: 1.5px solid color-mix(in srgb, var(--o-text) 22%, transparent);
+  border-radius: 999px;
+}
+
+.strategySelected .strategyDot {
+  border: 0;
+  background: var(--o-primary);
+  color: var(--o-on-primary, var(--o-text-inverse));
+}
+
+.strategyHint {
+  font-size: var(--o-text-xs);
+  line-height: 1.6;
+  color: var(--o-text-secondary);
+}
+
+.costTag {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.costNone {
+  background: var(--o-success-subtle);
+  color: var(--o-success-text);
+}
+
+.costExtra {
+  background: var(--o-warning-subtle);
+  color: var(--o-warning-text);
+}
+
+/* Local-kept note: icon and text vertically centred. */
+.localNote {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 4px;
+  color: var(--o-text-tertiary);
+}
+
+.localNoteIcon {
+  flex-shrink: 0;
+}
+
+.localNoteText {
+  margin: 0;
+  font-size: var(--o-text-xs);
+  line-height: 1.6;
 }
