@@ -1,0 +1,306 @@
+{
+  "schema": "oriveo.search.tool-host/v1",
+  "$comment": "Tool host table for regular chat (external search service contract, section 7): host, step count, copy and circuit breaker for five combinations: search only / + library / + MCP / + memory tools / Kimi native. The continuation step count is read only from request_preference_contract.v2.json continuation.kinds. thinkingRules come from provider documentation. Expectations come from the reference implementation of the tool host.",
+  "constants": {
+    "loopLimits": {
+      "hardCap": 8,
+      "defaultMaxSteps": 6
+    },
+    "continuationMaxSteps": {
+      "none": 0,
+      "previous_id": 1,
+      "replay_blocks": 8,
+      "replay_reasoning": 8,
+      "tool_loop": 8
+    },
+    "thinkingRules": {
+      "openai_chat": {
+        "thinkingWithTools": "presearch",
+        "replay": "since GPT-5.4, Chat does not support tool calls when reasoning_effort is not none"
+      },
+      "openai_responses": {
+        "thinkingWithTools": "tool_loop",
+        "replay": "send back the reasoning item together with function_call / output; with store=false also send back encrypted_content"
+      },
+      "anthropic_messages": {
+        "thinkingWithTools": "tool_loop",
+        "replay": "send thinking / redacted_thinking blocks back unchanged, with their signature"
+      },
+      "gemini_generate_content": {
+        "thinkingWithTools": "tool_loop",
+        "replay": "put thoughtSignature back on the original part; needed at every step of this turn"
+      },
+      "deepseek_chat": {
+        "thinkingWithTools": "tool_loop",
+        "replay": "with tools, reasoning_content of all past turns must be sent back"
+      },
+      "moonshot_chat": {
+        "thinkingWithTools": "tool_loop",
+        "replay": "reasoning_content must be sent back; across turns it depends on the model"
+      },
+      "zhipu_chat": {
+        "thinkingWithTools": "tool_loop",
+        "replay": "send back reasoning_content within the loop; across turns it depends on clear_thinking"
+      },
+      "qwen_chat": {
+        "thinkingWithTools": "tool_loop",
+        "replay": "with preserve_thinking, history carries reasoning_content; tool_choice must not be required"
+      }
+    },
+    "prompts": {
+      "neutral": {
+        "stoppedErrorCode": "tool_loop_stopped"
+      },
+      "library": {
+        "stoppedErrorCode": "research_stopped"
+      },
+      "mcp": {
+        "stoppedErrorCode": "tool_loop_stopped"
+      }
+    },
+    "maxSearchRequestsPerReply": 3
+  },
+  "cases": [
+    {
+      "caseId": "host.search_only",
+      "input": {
+        "path": "external_tool",
+        "library": false,
+        "mcp": false,
+        "memoryTools": false,
+        "nativeMoonshotLoop": false,
+        "serverMaxSteps": null,
+        "continuationKind": "tool_loop"
+      },
+      "expect": {
+        "host": "generic_tool_loop",
+        "tools": [
+          "web_search"
+        ],
+        "webSearchRegistered": true,
+        "maxSteps": 6,
+        "prompts": "neutral",
+        "consecutiveFailureBreaker": 3,
+        "webSearchDisposition": "neutral",
+        "writeToolConfirm": "n/a",
+        "memoryTailLeg": "n/a"
+      }
+    },
+    {
+      "caseId": "host.search_with_library",
+      "input": {
+        "path": "external_tool",
+        "library": true,
+        "mcp": false,
+        "memoryTools": false,
+        "nativeMoonshotLoop": false,
+        "serverMaxSteps": 6,
+        "continuationKind": "tool_loop"
+      },
+      "expect": {
+        "host": "shared_tool_loop",
+        "tools": [
+          "library",
+          "web_search"
+        ],
+        "webSearchRegistered": true,
+        "maxSteps": 6,
+        "prompts": "library",
+        "consecutiveFailureBreaker": 3,
+        "webSearchDisposition": "neutral",
+        "writeToolConfirm": "n/a",
+        "memoryTailLeg": "n/a"
+      }
+    },
+    {
+      "caseId": "host.search_with_mcp",
+      "input": {
+        "path": "external_tool",
+        "library": false,
+        "mcp": true,
+        "memoryTools": false,
+        "nativeMoonshotLoop": false,
+        "serverMaxSteps": 5,
+        "continuationKind": "tool_loop"
+      },
+      "expect": {
+        "host": "shared_tool_loop",
+        "tools": [
+          "mcp",
+          "web_search"
+        ],
+        "webSearchRegistered": true,
+        "maxSteps": 5,
+        "prompts": "mcp",
+        "consecutiveFailureBreaker": "off",
+        "webSearchDisposition": "neutral",
+        "writeToolConfirm": "once_when_web_results_present",
+        "memoryTailLeg": "n/a"
+      }
+    },
+    {
+      "caseId": "host.search_with_library_and_mcp",
+      "input": {
+        "path": "external_tool",
+        "library": true,
+        "mcp": true,
+        "memoryTools": false,
+        "nativeMoonshotLoop": false,
+        "serverMaxSteps": 12,
+        "continuationKind": "tool_loop"
+      },
+      "expect": {
+        "host": "shared_tool_loop",
+        "tools": [
+          "library",
+          "mcp",
+          "web_search"
+        ],
+        "webSearchRegistered": true,
+        "maxSteps": 8,
+        "prompts": "library",
+        "consecutiveFailureBreaker": "off",
+        "webSearchDisposition": "neutral",
+        "writeToolConfirm": "once_when_web_results_present",
+        "memoryTailLeg": "n/a"
+      }
+    },
+    {
+      "caseId": "host.search_with_memory_tools",
+      "input": {
+        "path": "external_tool",
+        "library": false,
+        "mcp": false,
+        "memoryTools": true,
+        "nativeMoonshotLoop": false,
+        "serverMaxSteps": null,
+        "continuationKind": "tool_loop"
+      },
+      "expect": {
+        "host": "generic_tool_loop",
+        "tools": [
+          "memory",
+          "web_search"
+        ],
+        "webSearchRegistered": true,
+        "maxSteps": 6,
+        "prompts": "neutral",
+        "consecutiveFailureBreaker": 3,
+        "webSearchDisposition": "neutral",
+        "writeToolConfirm": "n/a",
+        "memoryTailLeg": "in_loop"
+      }
+    },
+    {
+      "caseId": "host.kimi_native_unchanged",
+      "input": {
+        "path": "native",
+        "library": false,
+        "mcp": false,
+        "memoryTools": false,
+        "nativeMoonshotLoop": true,
+        "serverMaxSteps": null,
+        "continuationKind": "tool_loop"
+      },
+      "expect": {
+        "host": "moonshot_loop",
+        "tools": [],
+        "webSearchRegistered": false,
+        "unchanged": true
+      }
+    },
+    {
+      "caseId": "host.responses_previous_id_one_step",
+      "input": {
+        "path": "external_tool",
+        "library": false,
+        "mcp": false,
+        "memoryTools": false,
+        "nativeMoonshotLoop": false,
+        "serverMaxSteps": null,
+        "continuationKind": "previous_id"
+      },
+      "expect": {
+        "host": "generic_tool_loop",
+        "tools": [
+          "web_search"
+        ],
+        "webSearchRegistered": true,
+        "maxSteps": 1,
+        "prompts": "neutral",
+        "consecutiveFailureBreaker": 3,
+        "webSearchDisposition": "neutral",
+        "writeToolConfirm": "n/a",
+        "memoryTailLeg": "n/a"
+      }
+    },
+    {
+      "caseId": "host.no_continuation_zero_steps",
+      "input": {
+        "path": "external_tool",
+        "library": false,
+        "mcp": false,
+        "memoryTools": false,
+        "nativeMoonshotLoop": false,
+        "serverMaxSteps": null,
+        "continuationKind": "none"
+      },
+      "expect": {
+        "host": "generic_tool_loop",
+        "tools": [
+          "web_search"
+        ],
+        "webSearchRegistered": true,
+        "maxSteps": 0,
+        "prompts": "neutral",
+        "consecutiveFailureBreaker": 3,
+        "webSearchDisposition": "neutral",
+        "writeToolConfirm": "n/a",
+        "memoryTailLeg": "n/a"
+      }
+    },
+    {
+      "caseId": "host.anthropic_replay_blocks",
+      "input": {
+        "path": "external_tool",
+        "library": false,
+        "mcp": false,
+        "memoryTools": false,
+        "nativeMoonshotLoop": false,
+        "serverMaxSteps": 3,
+        "continuationKind": "replay_blocks"
+      },
+      "expect": {
+        "host": "generic_tool_loop",
+        "tools": [
+          "web_search"
+        ],
+        "webSearchRegistered": true,
+        "maxSteps": 3,
+        "prompts": "neutral",
+        "consecutiveFailureBreaker": 3,
+        "webSearchDisposition": "neutral",
+        "writeToolConfirm": "n/a",
+        "memoryTailLeg": "n/a"
+      }
+    },
+    {
+      "caseId": "host.presearch_has_no_host",
+      "input": {
+        "path": "external_presearch",
+        "library": false,
+        "mcp": false,
+        "memoryTools": false,
+        "nativeMoonshotLoop": false,
+        "serverMaxSteps": null,
+        "continuationKind": "tool_loop"
+      },
+      "expect": {
+        "host": "none",
+        "tools": [],
+        "webSearchRegistered": false,
+        "unchanged": true
+      }
+    }
+  ]
+}

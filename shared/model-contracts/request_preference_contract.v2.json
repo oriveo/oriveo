@@ -76,7 +76,9 @@
       "grounding",
       "thinking_block",
       "reasoning_usage"
-    ]
+    ],
+    "resultSources": ["provider_recipe", "external_search"],
+    "localExecutionEvidenceKinds": ["external_search_result"]
   },
   "resolution": {
     "$comment": "This is the only scope precedence list in the v2 contract. Missing and inherit continue downward; omit is terminal; value is terminal, including numeric zero. An owner-level feature selection chooses preset or custom; leaf typed controls may carry scalars, including zero.",
@@ -201,7 +203,15 @@
       "model",
       "recipe_revision"
     ],
-    "singleRejectionMayChangeServerGlobalSupport": false
+    "singleRejectionMayChangeServerGlobalSupport": false,
+    "externalSearch": {
+      "$comment": "User-keyed external web search executed on the device. It is not recipe evidence: observationEvidenceKinds never confirm it and it never upgrades a recipe owner. observed means the device received at least one result and delivered it to the model; failed means every sent search request errored. States and fields must equal shared/search-contracts/result-facts.v1.json constants.",
+      "source": "external_search",
+      "evidenceKind": "external_search_result",
+      "states": ["not_requested", "observed", "unconfirmed", "failed"],
+      "observedRequires": "local_execution_delivered_results",
+      "fixture": "shared/search-contracts/result-facts.v1.json"
+    }
   },
   "continuation": {
     "$comment": "Opaque provider continuation state is never authored by a custom overlay. Each recipe selects one known kind, declares exact replay fields, and sets a finite per-send step bound. tool_loop stores only complete assistant tool_call + tool result message blocks, never orphan results. plugin-style fields are expressed as request_overlay target roots, and fiber is a tool_loop variant, so neither is an independent kind.",

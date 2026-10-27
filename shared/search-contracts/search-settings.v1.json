@@ -1,0 +1,1747 @@
+{
+  "schema": "oriveo.search.settings/v1",
+  "$comment": "Settings page presentation rules: add-sheet grouping, list row states, price summary, default service, consent sentence, test results and form field hints. Entries are always referenced by serviceId into search_catalog_contract.v1.json#catalog.services (tests on all platforms read that file too). Expectations come from the reference implementation of the settings rules (external search service contract, section 11a).",
+  "constants": {
+    "resultCountChoices": [
+      3,
+      5,
+      8,
+      10
+    ],
+    "resultCountDefault": 5,
+    "searxngSetupGuideUrl": "https://docs.searxng.org/admin/settings/settings_search.html"
+  },
+  "addSheetCases": [
+    {
+      "caseId": "add.reuse_deepseek_kimi_moves_out_of_domestic",
+      "input": {
+        "catalogAvailable": true,
+        "serviceIds": [
+          "deepseek",
+          "zhipu",
+          "kimi",
+          "tavily",
+          "exa",
+          "brave",
+          "perplexity"
+        ],
+        "connections": [
+          {
+            "id": "c1",
+            "name": "DeepSeek",
+            "providerKind": "deepseek",
+            "baseUrl": "https://api.deepseek.com/v1"
+          },
+          {
+            "id": "c2",
+            "name": "我的 Kimi",
+            "providerKind": "moonshot",
+            "baseUrl": "https://api.moonshot.ai/v1"
+          }
+        ],
+        "services": []
+      },
+      "expect": {
+        "presets": "available",
+        "sections": [
+          {
+            "id": "reuse",
+            "rows": [
+              {
+                "serviceId": "deepseek",
+                "regionId": "cn",
+                "connectionRef": "c1",
+                "connectionName": "DeepSeek",
+                "addedServiceRef": null
+              },
+              {
+                "serviceId": "kimi",
+                "regionId": "intl",
+                "connectionRef": "c2",
+                "connectionName": "我的 Kimi",
+                "addedServiceRef": null
+              }
+            ]
+          },
+          {
+            "id": "domestic",
+            "rows": [
+              {
+                "serviceId": "zhipu",
+                "regionId": "cn",
+                "connectionRef": null,
+                "connectionName": null,
+                "addedServiceRef": null
+              }
+            ]
+          },
+          {
+            "id": "overseas",
+            "rows": [
+              {
+                "serviceId": "tavily",
+                "regionId": "global",
+                "connectionRef": null,
+                "connectionName": null,
+                "addedServiceRef": null
+              },
+              {
+                "serviceId": "exa",
+                "regionId": "global",
+                "connectionRef": null,
+                "connectionName": null,
+                "addedServiceRef": null
+              },
+              {
+                "serviceId": "brave",
+                "regionId": "global",
+                "connectionRef": null,
+                "connectionName": null,
+                "addedServiceRef": null
+              },
+              {
+                "serviceId": "perplexity",
+                "regionId": "global",
+                "connectionRef": null,
+                "connectionName": null,
+                "addedServiceRef": null
+              }
+            ]
+          }
+        ],
+        "custom": true
+      }
+    },
+    {
+      "caseId": "add.no_connections_groups_only",
+      "input": {
+        "catalogAvailable": true,
+        "serviceIds": [
+          "deepseek",
+          "zhipu",
+          "kimi",
+          "tavily",
+          "exa",
+          "brave",
+          "perplexity"
+        ],
+        "connections": [],
+        "services": []
+      },
+      "expect": {
+        "presets": "available",
+        "sections": [
+          {
+            "id": "domestic",
+            "rows": [
+              {
+                "serviceId": "deepseek",
+                "regionId": "cn",
+                "connectionRef": null,
+                "connectionName": null,
+                "addedServiceRef": null
+              },
+              {
+                "serviceId": "zhipu",
+                "regionId": "cn",
+                "connectionRef": null,
+                "connectionName": null,
+                "addedServiceRef": null
+              },
+              {
+                "serviceId": "kimi",
+                "regionId": "cn",
+                "connectionRef": null,
+                "connectionName": null,
+                "addedServiceRef": null
+              }
+            ]
+          },
+          {
+            "id": "overseas",
+            "rows": [
+              {
+                "serviceId": "tavily",
+                "regionId": "global",
+                "connectionRef": null,
+                "connectionName": null,
+                "addedServiceRef": null
+              },
+              {
+                "serviceId": "exa",
+                "regionId": "global",
+                "connectionRef": null,
+                "connectionName": null,
+                "addedServiceRef": null
+              },
+              {
+                "serviceId": "brave",
+                "regionId": "global",
+                "connectionRef": null,
+                "connectionName": null,
+                "addedServiceRef": null
+              },
+              {
+                "serviceId": "perplexity",
+                "regionId": "global",
+                "connectionRef": null,
+                "connectionName": null,
+                "addedServiceRef": null
+              }
+            ]
+          }
+        ],
+        "custom": true
+      }
+    },
+    {
+      "caseId": "add.connection_host_unknown_not_reusable",
+      "input": {
+        "catalogAvailable": true,
+        "serviceIds": [
+          "deepseek",
+          "kimi"
+        ],
+        "connections": [
+          {
+            "id": "c9",
+            "name": "Relay",
+            "providerKind": "deepseek",
+            "baseUrl": "https://relay.example.com/v1"
+          }
+        ],
+        "services": []
+      },
+      "expect": {
+        "presets": "available",
+        "sections": [
+          {
+            "id": "domestic",
+            "rows": [
+              {
+                "serviceId": "deepseek",
+                "regionId": "cn",
+                "connectionRef": null,
+                "connectionName": null,
+                "addedServiceRef": null
+              },
+              {
+                "serviceId": "kimi",
+                "regionId": "cn",
+                "connectionRef": null,
+                "connectionName": null,
+                "addedServiceRef": null
+              }
+            ]
+          }
+        ],
+        "custom": true
+      }
+    },
+    {
+      "caseId": "add.first_matching_connection_wins",
+      "input": {
+        "catalogAvailable": true,
+        "serviceIds": [
+          "kimi"
+        ],
+        "connections": [
+          {
+            "id": "a",
+            "name": "Kimi 国内",
+            "providerKind": "moonshot",
+            "baseUrl": "https://api.moonshot.cn/v1"
+          },
+          {
+            "id": "b",
+            "name": "Kimi 国际",
+            "providerKind": "moonshot",
+            "baseUrl": "https://api.moonshot.ai/v1"
+          }
+        ],
+        "services": []
+      },
+      "expect": {
+        "presets": "available",
+        "sections": [
+          {
+            "id": "reuse",
+            "rows": [
+              {
+                "serviceId": "kimi",
+                "regionId": "cn",
+                "connectionRef": "a",
+                "connectionName": "Kimi 国内",
+                "addedServiceRef": null
+              }
+            ]
+          }
+        ],
+        "custom": true
+      }
+    },
+    {
+      "caseId": "add.already_added_points_to_service",
+      "input": {
+        "catalogAvailable": true,
+        "serviceIds": [
+          "deepseek",
+          "tavily"
+        ],
+        "connections": [],
+        "services": [
+          {
+            "id": "s1",
+            "kind": "preset",
+            "serviceId": "tavily"
+          },
+          {
+            "id": "s2",
+            "kind": "custom"
+          }
+        ]
+      },
+      "expect": {
+        "presets": "available",
+        "sections": [
+          {
+            "id": "domestic",
+            "rows": [
+              {
+                "serviceId": "deepseek",
+                "regionId": "cn",
+                "connectionRef": null,
+                "connectionName": null,
+                "addedServiceRef": null
+              }
+            ]
+          },
+          {
+            "id": "overseas",
+            "rows": [
+              {
+                "serviceId": "tavily",
+                "regionId": "global",
+                "connectionRef": null,
+                "connectionName": null,
+                "addedServiceRef": "s1"
+              }
+            ]
+          }
+        ],
+        "custom": true
+      }
+    },
+    {
+      "caseId": "add.catalog_unavailable_custom_only",
+      "input": {
+        "catalogAvailable": false,
+        "serviceIds": [
+          "deepseek"
+        ],
+        "connections": [],
+        "services": []
+      },
+      "expect": {
+        "presets": "unavailable",
+        "sections": [],
+        "custom": true
+      }
+    },
+    {
+      "caseId": "add.empty_section_omitted",
+      "input": {
+        "catalogAvailable": true,
+        "serviceIds": [
+          "tavily",
+          "exa"
+        ],
+        "connections": [],
+        "services": []
+      },
+      "expect": {
+        "presets": "available",
+        "sections": [
+          {
+            "id": "overseas",
+            "rows": [
+              {
+                "serviceId": "tavily",
+                "regionId": "global",
+                "connectionRef": null,
+                "connectionName": null,
+                "addedServiceRef": null
+              },
+              {
+                "serviceId": "exa",
+                "regionId": "global",
+                "connectionRef": null,
+                "connectionName": null,
+                "addedServiceRef": null
+              }
+            ]
+          }
+        ],
+        "custom": true
+      }
+    }
+  ],
+  "priceCases": [
+    {
+      "caseId": "price.deepseek_per_1k_non_empty",
+      "input": {
+        "serviceId": "deepseek",
+        "regionId": "cn"
+      },
+      "expect": {
+        "regionId": "cn",
+        "price": {
+          "unit": "per_1k_requests",
+          "label": "¥5"
+        },
+        "billing": "non_empty_only",
+        "free": null,
+        "otherRegionCount": 0
+      }
+    },
+    {
+      "caseId": "price.kimi_intl_usd",
+      "input": {
+        "serviceId": "kimi",
+        "regionId": "intl"
+      },
+      "expect": {
+        "regionId": "intl",
+        "price": {
+          "unit": "per_request",
+          "label": "$0.002"
+        },
+        "billing": "non_empty_only",
+        "free": null,
+        "otherRegionCount": 1
+      }
+    },
+    {
+      "caseId": "price.kimi_cn_other_region",
+      "input": {
+        "serviceId": "kimi",
+        "regionId": "cn"
+      },
+      "expect": {
+        "regionId": "cn",
+        "price": {
+          "unit": "per_request",
+          "label": "¥0.01"
+        },
+        "billing": "non_empty_only",
+        "free": null,
+        "otherRegionCount": 1
+      }
+    },
+    {
+      "caseId": "price.zhipu_unknown_region_falls_back_first",
+      "input": {
+        "serviceId": "zhipu",
+        "regionId": "nope"
+      },
+      "expect": {
+        "regionId": "cn",
+        "price": {
+          "unit": "per_request",
+          "label": "¥0.01"
+        },
+        "billing": "all",
+        "free": null,
+        "otherRegionCount": 1
+      }
+    },
+    {
+      "caseId": "price.tavily_credits_hidden_free_count",
+      "input": {
+        "serviceId": "tavily",
+        "regionId": "global"
+      },
+      "expect": {
+        "regionId": "global",
+        "price": null,
+        "billing": "all",
+        "free": {
+          "kind": "monthly_credits",
+          "count": 1000,
+          "amountLabel": null,
+          "cardRequired": false
+        },
+        "otherRegionCount": 0
+      }
+    },
+    {
+      "caseId": "price.exa_free_usd",
+      "input": {
+        "serviceId": "exa",
+        "regionId": "global"
+      },
+      "expect": {
+        "regionId": "global",
+        "price": {
+          "unit": "per_1k_requests",
+          "label": "$7"
+        },
+        "billing": "all",
+        "free": {
+          "kind": "monthly_usd",
+          "count": null,
+          "amountLabel": "$10",
+          "cardRequired": false
+        },
+        "otherRegionCount": 0
+      }
+    },
+    {
+      "caseId": "price.brave_free_card_required",
+      "input": {
+        "serviceId": "brave",
+        "regionId": "global"
+      },
+      "expect": {
+        "regionId": "global",
+        "price": {
+          "unit": "per_1k_requests",
+          "label": "$5"
+        },
+        "billing": "all",
+        "free": {
+          "kind": "monthly_usd",
+          "count": null,
+          "amountLabel": "$5",
+          "cardRequired": true
+        },
+        "otherRegionCount": 0
+      }
+    },
+    {
+      "caseId": "price.perplexity_no_free",
+      "input": {
+        "serviceId": "perplexity",
+        "regionId": "global"
+      },
+      "expect": {
+        "regionId": "global",
+        "price": {
+          "unit": "per_1k_requests",
+          "label": "$5"
+        },
+        "billing": "all",
+        "free": null,
+        "otherRegionCount": 0
+      }
+    }
+  ],
+  "rowCases": [
+    {
+      "caseId": "row.preset_own_ready",
+      "input": {
+        "service": {
+          "kind": "preset",
+          "serviceId": "tavily",
+          "regionId": "global",
+          "boundHost": "api.tavily.com",
+          "keySource": "own",
+          "hasKey": true
+        },
+        "catalogAvailable": true,
+        "withdrawn": false,
+        "connections": []
+      },
+      "expect": {
+        "status": "ready",
+        "label": "preset",
+        "keySource": "own",
+        "connectionName": null
+      }
+    },
+    {
+      "caseId": "row.reuse_ready_shows_connection_name",
+      "input": {
+        "service": {
+          "kind": "preset",
+          "serviceId": "deepseek",
+          "regionId": "cn",
+          "boundHost": "api.deepseek.com",
+          "keySource": "connection",
+          "connectionRef": "c1",
+          "hasKey": false
+        },
+        "catalogAvailable": true,
+        "withdrawn": false,
+        "connections": [
+          {
+            "id": "c1",
+            "name": "DeepSeek"
+          }
+        ]
+      },
+      "expect": {
+        "status": "ready",
+        "label": "preset",
+        "keySource": "connection",
+        "connectionName": "DeepSeek"
+      }
+    },
+    {
+      "caseId": "row.reuse_connection_deleted",
+      "input": {
+        "service": {
+          "kind": "preset",
+          "serviceId": "deepseek",
+          "regionId": "cn",
+          "boundHost": "api.deepseek.com",
+          "keySource": "connection",
+          "connectionRef": "c1",
+          "hasKey": false
+        },
+        "catalogAvailable": true,
+        "withdrawn": false,
+        "connections": []
+      },
+      "expect": {
+        "status": "connection_missing",
+        "label": "preset",
+        "keySource": "connection",
+        "connectionName": null
+      }
+    },
+    {
+      "caseId": "row.own_key_missing",
+      "input": {
+        "service": {
+          "kind": "preset",
+          "serviceId": "exa",
+          "regionId": "global",
+          "boundHost": "api.exa.ai",
+          "keySource": "own",
+          "hasKey": false
+        },
+        "catalogAvailable": true,
+        "withdrawn": false,
+        "connections": []
+      },
+      "expect": {
+        "status": "needs_key",
+        "label": "preset",
+        "keySource": "own",
+        "connectionName": null
+      }
+    },
+    {
+      "caseId": "row.host_changed",
+      "input": {
+        "service": {
+          "kind": "preset",
+          "serviceId": "exa",
+          "regionId": "global",
+          "boundHost": "old.exa.ai",
+          "keySource": "own",
+          "hasKey": true
+        },
+        "catalogAvailable": true,
+        "withdrawn": false,
+        "connections": []
+      },
+      "expect": {
+        "status": "host_changed",
+        "label": "preset",
+        "keySource": "own",
+        "connectionName": null
+      }
+    },
+    {
+      "caseId": "row.withdrawn_beats_host",
+      "input": {
+        "service": {
+          "kind": "preset",
+          "serviceId": "exa",
+          "regionId": "global",
+          "boundHost": "old.exa.ai",
+          "keySource": "own",
+          "hasKey": true
+        },
+        "catalogAvailable": true,
+        "withdrawn": true,
+        "connections": []
+      },
+      "expect": {
+        "status": "withdrawn",
+        "label": "preset",
+        "keySource": "own",
+        "connectionName": null
+      }
+    },
+    {
+      "caseId": "row.not_in_catalog_is_withdrawn",
+      "input": {
+        "service": {
+          "kind": "preset",
+          "serviceId": "gone",
+          "regionId": "global",
+          "boundHost": "x.example",
+          "keySource": "own",
+          "hasKey": true
+        },
+        "catalogAvailable": true,
+        "withdrawn": false,
+        "connections": []
+      },
+      "expect": {
+        "status": "withdrawn",
+        "label": "preset",
+        "keySource": "own",
+        "connectionName": null
+      }
+    },
+    {
+      "caseId": "row.catalog_unavailable_first",
+      "input": {
+        "service": {
+          "kind": "preset",
+          "serviceId": "exa",
+          "regionId": "global",
+          "boundHost": "api.exa.ai",
+          "keySource": "own",
+          "hasKey": false
+        },
+        "catalogAvailable": false,
+        "withdrawn": true,
+        "connections": []
+      },
+      "expect": {
+        "status": "catalog_unavailable",
+        "label": "preset",
+        "keySource": "own",
+        "connectionName": null
+      }
+    },
+    {
+      "caseId": "row.custom_with_key",
+      "input": {
+        "service": {
+          "kind": "custom",
+          "keySource": "own",
+          "hasKey": true
+        },
+        "catalogAvailable": false,
+        "withdrawn": false,
+        "connections": []
+      },
+      "expect": {
+        "status": "ready",
+        "label": "custom",
+        "keySource": "own",
+        "connectionName": null
+      }
+    },
+    {
+      "caseId": "row.custom_without_key",
+      "input": {
+        "service": {
+          "kind": "custom",
+          "keySource": "none",
+          "hasKey": false
+        },
+        "catalogAvailable": true,
+        "withdrawn": false,
+        "connections": []
+      },
+      "expect": {
+        "status": "ready",
+        "label": "custom",
+        "keySource": "none",
+        "connectionName": null
+      }
+    }
+  ],
+  "defaultCases": [
+    {
+      "caseId": "default.empty",
+      "input": {
+        "serviceIds": [],
+        "storedDefault": null
+      },
+      "expect": {
+        "defaultId": null
+      }
+    },
+    {
+      "caseId": "default.first_added_becomes_default",
+      "input": {
+        "serviceIds": [
+          "a"
+        ],
+        "storedDefault": null
+      },
+      "expect": {
+        "defaultId": "a"
+      }
+    },
+    {
+      "caseId": "default.second_added_keeps_default",
+      "input": {
+        "serviceIds": [
+          "a",
+          "b"
+        ],
+        "storedDefault": "a"
+      },
+      "expect": {
+        "defaultId": "a"
+      }
+    },
+    {
+      "caseId": "default.user_picked_later_one",
+      "input": {
+        "serviceIds": [
+          "a",
+          "b",
+          "c"
+        ],
+        "storedDefault": "c"
+      },
+      "expect": {
+        "defaultId": "c"
+      }
+    },
+    {
+      "caseId": "default.deleted_falls_to_earliest",
+      "input": {
+        "serviceIds": [
+          "b",
+          "c"
+        ],
+        "storedDefault": "a"
+      },
+      "expect": {
+        "defaultId": "b"
+      }
+    }
+  ],
+  "consentCases": [
+    {
+      "caseId": "consent.preset_mobile",
+      "input": {
+        "kind": "preset",
+        "platform": "ios",
+        "serviceName": "DeepSeek",
+        "host": "api.deepseek.com"
+      },
+      "expect": [
+        {
+          "key": "sendsQuery",
+          "args": {
+            "name": "DeepSeek"
+          }
+        },
+        {
+          "key": "billing",
+          "args": {
+            "name": "DeepSeek"
+          }
+        },
+        {
+          "key": "testOnce",
+          "args": {}
+        }
+      ]
+    },
+    {
+      "caseId": "consent.preset_web",
+      "input": {
+        "kind": "preset",
+        "platform": "web",
+        "serviceName": "Tavily",
+        "host": "api.tavily.com"
+      },
+      "expect": [
+        {
+          "key": "sendsQuery",
+          "args": {
+            "name": "Tavily"
+          }
+        },
+        {
+          "key": "billing",
+          "args": {
+            "name": "Tavily"
+          }
+        },
+        {
+          "key": "webForwarded",
+          "args": {}
+        },
+        {
+          "key": "testOnce",
+          "args": {}
+        }
+      ]
+    },
+    {
+      "caseId": "consent.custom_android",
+      "input": {
+        "kind": "custom",
+        "platform": "android",
+        "serviceName": "我的搜索",
+        "host": "search.example.com"
+      },
+      "expect": [
+        {
+          "key": "customUnverified",
+          "args": {
+            "host": "search.example.com"
+          }
+        },
+        {
+          "key": "sendsQueryCustom",
+          "args": {}
+        },
+        {
+          "key": "billingCustom",
+          "args": {}
+        },
+        {
+          "key": "testOnceSave",
+          "args": {}
+        }
+      ]
+    },
+    {
+      "caseId": "consent.custom_web",
+      "input": {
+        "kind": "custom",
+        "platform": "web",
+        "serviceName": "我的搜索",
+        "host": "search.example.com:8443"
+      },
+      "expect": [
+        {
+          "key": "customUnverified",
+          "args": {
+            "host": "search.example.com:8443"
+          }
+        },
+        {
+          "key": "sendsQueryCustom",
+          "args": {}
+        },
+        {
+          "key": "billingCustom",
+          "args": {}
+        },
+        {
+          "key": "webForwarded",
+          "args": {}
+        },
+        {
+          "key": "testOnceSave",
+          "args": {}
+        }
+      ]
+    }
+  ],
+  "testCases": [
+    {
+      "caseId": "test.passed",
+      "input": {
+        "outcome": {
+          "ok": true,
+          "count": 5,
+          "latencyMs": 834
+        }
+      },
+      "expect": {
+        "state": "passed",
+        "count": 5,
+        "latencyTenths": 8
+      }
+    },
+    {
+      "caseId": "test.passed_zero_results",
+      "input": {
+        "outcome": {
+          "ok": true,
+          "count": 0,
+          "latencyMs": 1250
+        }
+      },
+      "expect": {
+        "state": "passed",
+        "count": 0,
+        "latencyTenths": 13
+      }
+    },
+    {
+      "caseId": "test.passed_rounds_half_up",
+      "input": {
+        "outcome": {
+          "ok": true,
+          "count": 3,
+          "latencyMs": 50
+        }
+      },
+      "expect": {
+        "state": "passed",
+        "count": 3,
+        "latencyTenths": 1
+      }
+    },
+    {
+      "caseId": "test.auth_invalid",
+      "input": {
+        "outcome": {
+          "ok": false,
+          "error": {
+            "errorClass": "auth_invalid",
+            "card": {
+              "headline": "key_rejected",
+              "primaryAction": "update_key"
+            }
+          }
+        }
+      },
+      "expect": {
+        "state": "failed",
+        "errorClass": "auth_invalid",
+        "headline": "key_rejected",
+        "action": "update_key"
+      }
+    },
+    {
+      "caseId": "test.balance_preset",
+      "input": {
+        "outcome": {
+          "ok": false,
+          "error": {
+            "errorClass": "insufficient_balance",
+            "card": {
+              "headline": "insufficient_balance",
+              "primaryAction": "top_up"
+            }
+          }
+        }
+      },
+      "expect": {
+        "state": "failed",
+        "errorClass": "insufficient_balance",
+        "headline": "insufficient_balance",
+        "action": "top_up"
+      }
+    },
+    {
+      "caseId": "test.balance_custom",
+      "input": {
+        "outcome": {
+          "ok": false,
+          "error": {
+            "errorClass": "insufficient_balance",
+            "card": {
+              "headline": "insufficient_balance",
+              "primaryAction": "check_settings"
+            }
+          }
+        }
+      },
+      "expect": {
+        "state": "failed",
+        "errorClass": "insufficient_balance",
+        "headline": "insufficient_balance",
+        "action": "check_settings"
+      }
+    },
+    {
+      "caseId": "test.rate_limited_retry",
+      "input": {
+        "outcome": {
+          "ok": false,
+          "error": {
+            "errorClass": "rate_limited",
+            "card": {
+              "headline": "rate_limited",
+              "primaryAction": "retry_later"
+            }
+          }
+        }
+      },
+      "expect": {
+        "state": "failed",
+        "errorClass": "rate_limited",
+        "headline": "rate_limited",
+        "action": "retry"
+      }
+    },
+    {
+      "caseId": "test.parse_mismatch_preset_retry",
+      "input": {
+        "outcome": {
+          "ok": false,
+          "error": {
+            "errorClass": "parse_mismatch",
+            "card": {
+              "headline": "format_mismatch",
+              "primaryAction": "switch_service"
+            }
+          }
+        }
+      },
+      "expect": {
+        "state": "failed",
+        "errorClass": "parse_mismatch",
+        "headline": "format_mismatch",
+        "action": "retry"
+      }
+    },
+    {
+      "caseId": "test.searxng_json",
+      "input": {
+        "outcome": {
+          "ok": false,
+          "error": {
+            "errorClass": "searxng_json_disabled",
+            "card": {
+              "headline": "searxng_json_disabled",
+              "primaryAction": "view_setup_guide"
+            }
+          }
+        }
+      },
+      "expect": {
+        "state": "failed",
+        "errorClass": "searxng_json_disabled",
+        "headline": "searxng_json_disabled",
+        "action": "view_setup_guide"
+      }
+    },
+    {
+      "caseId": "test.withdrawn_no_action",
+      "input": {
+        "outcome": {
+          "ok": false,
+          "error": {
+            "errorClass": "service_withdrawn",
+            "card": {
+              "headline": "service_withdrawn",
+              "primaryAction": "switch_service"
+            }
+          }
+        }
+      },
+      "expect": {
+        "state": "failed",
+        "errorClass": "service_withdrawn",
+        "headline": "service_withdrawn",
+        "action": "none"
+      }
+    },
+    {
+      "caseId": "test.host_changed",
+      "input": {
+        "outcome": {
+          "ok": false,
+          "error": {
+            "errorClass": "host_changed",
+            "card": {
+              "headline": "host_changed",
+              "primaryAction": "reconfirm"
+            }
+          }
+        }
+      },
+      "expect": {
+        "state": "failed",
+        "errorClass": "host_changed",
+        "headline": "host_changed",
+        "action": "reconfirm"
+      }
+    }
+  ],
+  "formCases": [
+    {
+      "caseId": "form.ok",
+      "input": {
+        "errors": [],
+        "warnings": []
+      },
+      "expect": {
+        "fields": {},
+        "warnings": {},
+        "blocking": false
+      }
+    },
+    {
+      "caseId": "form.lan_warning_not_blocking",
+      "input": {
+        "errors": [],
+        "warnings": [
+          "cleartext_lan"
+        ]
+      },
+      "expect": {
+        "fields": {},
+        "warnings": {
+          "address": "cleartextLan"
+        },
+        "blocking": false
+      }
+    },
+    {
+      "caseId": "form.name_and_address",
+      "input": {
+        "errors": [
+          "name_empty",
+          "http_public_not_allowed"
+        ],
+        "warnings": []
+      },
+      "expect": {
+        "fields": {
+          "name": "nameEmpty",
+          "address": "httpPublic"
+        },
+        "warnings": {},
+        "blocking": true
+      }
+    },
+    {
+      "caseId": "form.web_two_address_errors_first_wins",
+      "input": {
+        "errors": [
+          "http_not_allowed_on_web",
+          "private_address_on_web"
+        ],
+        "warnings": []
+      },
+      "expect": {
+        "fields": {
+          "address": "httpOnWeb"
+        },
+        "warnings": {},
+        "blocking": true
+      }
+    },
+    {
+      "caseId": "form.port_on_web",
+      "input": {
+        "errors": [
+          "port_not_allowed_on_web"
+        ],
+        "warnings": []
+      },
+      "expect": {
+        "fields": {
+          "address": "portOnWeb"
+        },
+        "warnings": {},
+        "blocking": true
+      }
+    },
+    {
+      "caseId": "form.manual_fields",
+      "input": {
+        "errors": [
+          "header_name_invalid",
+          "results_path_invalid",
+          "title_path_invalid",
+          "template_rejected",
+          "get_has_body"
+        ],
+        "warnings": []
+      },
+      "expect": {
+        "fields": {
+          "auth": "headerName",
+          "results": "pathInvalid",
+          "title": "pathInvalid",
+          "params": "template",
+          "method": "getBody"
+        },
+        "warnings": {},
+        "blocking": true
+      }
+    },
+    {
+      "caseId": "form.path_conflict_on_query",
+      "input": {
+        "errors": [
+          "path_conflict"
+        ],
+        "warnings": []
+      },
+      "expect": {
+        "fields": {
+          "query": "pathConflict"
+        },
+        "warnings": {},
+        "blocking": true
+      }
+    },
+    {
+      "caseId": "form.key_invalid",
+      "input": {
+        "errors": [
+          "key_invalid"
+        ],
+        "warnings": []
+      },
+      "expect": {
+        "fields": {
+          "key": "keyInvalid"
+        },
+        "warnings": {},
+        "blocking": true
+      }
+    },
+    {
+      "caseId": "form.preset_unavailable",
+      "input": {
+        "errors": [
+          "preset_unavailable"
+        ],
+        "warnings": []
+      },
+      "expect": {
+        "fields": {
+          "protocol": "presetUnavailable"
+        },
+        "warnings": {},
+        "blocking": true
+      }
+    }
+  ],
+  "countCases": [
+    {
+      "caseId": "count.missing",
+      "input": {
+        "stored": null
+      },
+      "expect": {
+        "count": 5
+      }
+    },
+    {
+      "caseId": "count.choice_kept",
+      "input": {
+        "stored": 8
+      },
+      "expect": {
+        "count": 8
+      }
+    },
+    {
+      "caseId": "count.out_of_choices",
+      "input": {
+        "stored": 7
+      },
+      "expect": {
+        "count": 5
+      }
+    },
+    {
+      "caseId": "count.over_limit",
+      "input": {
+        "stored": 50
+      },
+      "expect": {
+        "count": 5
+      }
+    },
+    {
+      "caseId": "count.zero",
+      "input": {
+        "stored": 0
+      },
+      "expect": {
+        "count": 5
+      }
+    }
+  ],
+  "nameCases": [
+    {
+      "caseId": "name.custom",
+      "input": {
+        "kind": "custom",
+        "name": "我的搜索",
+        "serviceId": null,
+        "catalogDisplayName": null
+      },
+      "expect": {
+        "name": "我的搜索"
+      }
+    },
+    {
+      "caseId": "name.preset_catalog_wins",
+      "input": {
+        "kind": "preset",
+        "name": "Tavily (old)",
+        "serviceId": "tavily",
+        "catalogDisplayName": "Tavily"
+      },
+      "expect": {
+        "name": "Tavily"
+      }
+    },
+    {
+      "caseId": "name.preset_catalog_missing_uses_stored",
+      "input": {
+        "kind": "preset",
+        "name": "Exa",
+        "serviceId": "exa",
+        "catalogDisplayName": null
+      },
+      "expect": {
+        "name": "Exa"
+      }
+    },
+    {
+      "caseId": "name.preset_nothing_uses_id",
+      "input": {
+        "kind": "preset",
+        "name": null,
+        "serviceId": "newco",
+        "catalogDisplayName": null
+      },
+      "expect": {
+        "name": "newco"
+      }
+    }
+  ],
+  "migrateDefaultCases": [
+    {
+      "caseId": "migrate.empty_account_takes_guest_default",
+      "input": {
+        "accountServiceIds": [],
+        "guestServiceIds": [
+          "g1",
+          "g2"
+        ],
+        "guestStoredDefault": "g2",
+        "migratedIds": [
+          "g1",
+          "g2"
+        ]
+      },
+      "expect": {
+        "set": true,
+        "id": "g2"
+      }
+    },
+    {
+      "caseId": "migrate.empty_account_guest_never_picked",
+      "input": {
+        "accountServiceIds": [],
+        "guestServiceIds": [
+          "g1",
+          "g2"
+        ],
+        "guestStoredDefault": null,
+        "migratedIds": [
+          "g1",
+          "g2"
+        ]
+      },
+      "expect": {
+        "set": true,
+        "id": "g1"
+      }
+    },
+    {
+      "caseId": "migrate.account_has_services_keeps_own",
+      "input": {
+        "accountServiceIds": [
+          "a1"
+        ],
+        "guestServiceIds": [
+          "g1"
+        ],
+        "guestStoredDefault": "g1",
+        "migratedIds": [
+          "g1"
+        ]
+      },
+      "expect": {
+        "set": false
+      }
+    },
+    {
+      "caseId": "migrate.guest_default_not_migrated",
+      "input": {
+        "accountServiceIds": [],
+        "guestServiceIds": [
+          "g1",
+          "g2"
+        ],
+        "guestStoredDefault": "g2",
+        "migratedIds": [
+          "g1"
+        ]
+      },
+      "expect": {
+        "set": false
+      }
+    },
+    {
+      "caseId": "migrate.nothing",
+      "input": {
+        "accountServiceIds": [],
+        "guestServiceIds": [],
+        "guestStoredDefault": null,
+        "migratedIds": []
+      },
+      "expect": {
+        "set": false
+      }
+    }
+  ],
+  "editCases": [
+    {
+      "caseId": "edit.name_only",
+      "input": {
+        "before": {
+          "name": "a",
+          "address": "https://search.example.com",
+          "protocol": "searxng"
+        },
+        "after": {
+          "name": "b",
+          "address": "https://search.example.com",
+          "protocol": "searxng"
+        }
+      },
+      "expect": {
+        "mode": "save",
+        "clearsKey": false,
+        "showKeyField": false,
+        "resnapshot": false,
+        "requirePreset": false
+      }
+    },
+    {
+      "caseId": "edit.origin_changed_clears_key",
+      "input": {
+        "before": {
+          "name": "a",
+          "address": "https://search.example.com",
+          "protocol": "searxng"
+        },
+        "after": {
+          "name": "a",
+          "address": "https://other.example.com",
+          "protocol": "searxng"
+        }
+      },
+      "expect": {
+        "mode": "test_then_save",
+        "clearsKey": true,
+        "showKeyField": true,
+        "resnapshot": false,
+        "requirePreset": false
+      }
+    },
+    {
+      "caseId": "edit.port_changed_is_origin",
+      "input": {
+        "before": {
+          "name": "a",
+          "address": "https://search.example.com",
+          "protocol": "searxng"
+        },
+        "after": {
+          "name": "a",
+          "address": "https://search.example.com:8443",
+          "protocol": "searxng"
+        }
+      },
+      "expect": {
+        "mode": "test_then_save",
+        "clearsKey": true,
+        "showKeyField": true,
+        "resnapshot": false,
+        "requirePreset": false
+      }
+    },
+    {
+      "caseId": "edit.path_changed_keeps_key",
+      "input": {
+        "before": {
+          "name": "a",
+          "address": "https://search.example.com",
+          "protocol": "searxng"
+        },
+        "after": {
+          "name": "a",
+          "address": "https://search.example.com/sx",
+          "protocol": "searxng"
+        }
+      },
+      "expect": {
+        "mode": "test_then_save",
+        "clearsKey": false,
+        "showKeyField": false,
+        "resnapshot": false,
+        "requirePreset": false
+      }
+    },
+    {
+      "caseId": "edit.protocol_changed",
+      "input": {
+        "before": {
+          "name": "a",
+          "address": "https://search.example.com",
+          "protocol": "searxng"
+        },
+        "after": {
+          "name": "a",
+          "address": "https://search.example.com",
+          "protocol": "manual",
+          "mapping": {
+            "method": "GET"
+          }
+        }
+      },
+      "expect": {
+        "mode": "test_then_save",
+        "clearsKey": false,
+        "showKeyField": false,
+        "resnapshot": false,
+        "requirePreset": false
+      }
+    },
+    {
+      "caseId": "edit.same_as_rename_keeps_snapshot",
+      "input": {
+        "before": {
+          "name": "a",
+          "address": "https://search.example.com",
+          "protocol": "same_as",
+          "presetId": "tavily",
+          "regionId": "global"
+        },
+        "after": {
+          "name": "b",
+          "address": "https://search.example.com",
+          "protocol": "same_as",
+          "presetId": "tavily",
+          "regionId": "global"
+        }
+      },
+      "expect": {
+        "mode": "save",
+        "clearsKey": false,
+        "showKeyField": false,
+        "resnapshot": false,
+        "requirePreset": false
+      }
+    },
+    {
+      "caseId": "edit.same_as_reference_changed",
+      "input": {
+        "before": {
+          "name": "a",
+          "address": "https://search.example.com",
+          "protocol": "same_as",
+          "presetId": "tavily",
+          "regionId": "global"
+        },
+        "after": {
+          "name": "a",
+          "address": "https://search.example.com",
+          "protocol": "same_as",
+          "presetId": "exa",
+          "regionId": "global"
+        }
+      },
+      "expect": {
+        "mode": "test_then_save",
+        "clearsKey": false,
+        "showKeyField": false,
+        "resnapshot": true,
+        "requirePreset": true
+      }
+    },
+    {
+      "caseId": "edit.to_same_as",
+      "input": {
+        "before": {
+          "name": "a",
+          "address": "https://search.example.com",
+          "protocol": "searxng"
+        },
+        "after": {
+          "name": "a",
+          "address": "https://search.example.com",
+          "protocol": "same_as",
+          "presetId": "brave",
+          "regionId": "global"
+        }
+      },
+      "expect": {
+        "mode": "test_then_save",
+        "clearsKey": false,
+        "showKeyField": false,
+        "resnapshot": true,
+        "requirePreset": true
+      }
+    },
+    {
+      "caseId": "edit.manual_mapping_changed",
+      "input": {
+        "before": {
+          "name": "a",
+          "address": "https://search.example.com",
+          "protocol": "manual",
+          "mapping": {
+            "method": "GET"
+          }
+        },
+        "after": {
+          "name": "a",
+          "address": "https://search.example.com",
+          "protocol": "manual",
+          "mapping": {
+            "method": "POST"
+          }
+        }
+      },
+      "expect": {
+        "mode": "test_then_save",
+        "clearsKey": false,
+        "showKeyField": false,
+        "resnapshot": false,
+        "requirePreset": false
+      }
+    },
+    {
+      "caseId": "edit.manual_rename_only",
+      "input": {
+        "before": {
+          "name": "a",
+          "address": "https://search.example.com",
+          "protocol": "manual",
+          "mapping": {
+            "method": "GET"
+          }
+        },
+        "after": {
+          "name": "b",
+          "address": "https://search.example.com",
+          "protocol": "manual",
+          "mapping": {
+            "method": "GET"
+          }
+        }
+      },
+      "expect": {
+        "mode": "save",
+        "clearsKey": false,
+        "showKeyField": false,
+        "resnapshot": false,
+        "requirePreset": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,6130 @@
+{
+  "schema": "oriveo.search.web-route-resolution/v1",
+  "$comment": "Web search row, web search card and the per-turn path decision (external search service contract, sections 4 / 4a / 5 / 6). cases -> resolveWebSearchRoute; selectableCases -> searchServiceSelectable; oneTapCases -> oneTapReuseTarget (serviceIds take entries from the catalog fixture); sourceCases -> resolveSearchSource; sourceUpdateCases -> updateSearchSource; pickerCases -> searchSourcePickerItems; cardCases -> webSearchCardPresentation; stateCases -> resolveWebSearchState (the single entry point shared by the panel and sending); turnCases -> resolveSearchTurnPath; callCases -> planSearchCalls; regenerateCases -> regenerateSearchPolicy. row / action / card.* are semantic names; card.* maps to each platform's copy keys through the l10n registry. Expectations come from the reference implementation of the route rules.",
+  "legend": {
+    "form": [
+      "byok",
+      "relay",
+      "subscription_codex",
+      "subscription_grok",
+      "free",
+      "managed"
+    ],
+    "nativeWeb": [
+      "available",
+      "unavailable",
+      "unknown",
+      "withdrawn_or_rejected"
+    ],
+    "relayWebRecord": [
+      "searched",
+      "supported",
+      "rejected",
+      "silent",
+      "untested",
+      "template_only",
+      "user_override_off",
+      "local_engine",
+      "protocol_undecided"
+    ],
+    "toolCall": [
+      "supported",
+      "unknown",
+      "unsupported"
+    ],
+    "method": [
+      "default",
+      "native",
+      "external"
+    ],
+    "path": [
+      "none",
+      "native",
+      "relay_fragment",
+      "external_tool",
+      "external_presearch"
+    ]
+  },
+  "cases": [
+    {
+      "caseId": "byok.native_available.no_external",
+      "input": {
+        "form": "byok",
+        "nativeWeb": "available",
+        "externalServices": 0,
+        "reusableConnection": false,
+        "toolCall": "supported",
+        "webOn": true,
+        "method": "default"
+      },
+      "expect": {
+        "row": "toggle_native_unchanged",
+        "path": "native"
+      }
+    },
+    {
+      "caseId": "byok.native_available.with_external.default_native",
+      "input": {
+        "form": "byok",
+        "nativeWeb": "available",
+        "externalServices": 1,
+        "reusableConnection": false,
+        "toolCall": "supported",
+        "webOn": true,
+        "method": "default"
+      },
+      "expect": {
+        "row": "toggle_with_source_picker",
+        "path": "native",
+        "sourceAction": "pick_source"
+      }
+    },
+    {
+      "caseId": "byok.native_available.with_external.user_picked_external",
+      "input": {
+        "form": "byok",
+        "nativeWeb": "available",
+        "externalServices": 1,
+        "reusableConnection": false,
+        "toolCall": "supported",
+        "webOn": true,
+        "method": "external"
+      },
+      "expect": {
+        "row": "toggle_with_source_picker",
+        "path": "external_tool",
+        "sourceAction": "pick_source"
+      }
+    },
+    {
+      "caseId": "byok.native_unknown.with_external",
+      "input": {
+        "form": "byok",
+        "nativeWeb": "unknown",
+        "externalServices": 1,
+        "reusableConnection": false,
+        "toolCall": "supported",
+        "webOn": true,
+        "method": "default"
+      },
+      "expect": {
+        "row": "toggle_external",
+        "path": "external_tool",
+        "sourceAction": "pick_source"
+      }
+    },
+    {
+      "caseId": "byok.native_unavailable.tool_unknown.with_external",
+      "input": {
+        "form": "byok",
+        "nativeWeb": "unavailable",
+        "externalServices": 1,
+        "reusableConnection": false,
+        "toolCall": "unknown",
+        "webOn": true,
+        "method": "default"
+      },
+      "expect": {
+        "row": "toggle_external",
+        "path": "external_tool",
+        "sourceAction": "pick_source"
+      }
+    },
+    {
+      "caseId": "byok.native_unavailable.tool_unsupported.with_external",
+      "input": {
+        "form": "byok",
+        "nativeWeb": "unavailable",
+        "externalServices": 1,
+        "reusableConnection": false,
+        "toolCall": "unsupported",
+        "webOn": true,
+        "method": "default"
+      },
+      "expect": {
+        "row": "toggle_external_presearch_notice",
+        "path": "external_presearch",
+        "sourceAction": "pick_source"
+      }
+    },
+    {
+      "caseId": "byok.native_unavailable.no_external.reusable",
+      "input": {
+        "form": "byok",
+        "nativeWeb": "unavailable",
+        "externalServices": 0,
+        "reusableConnection": true,
+        "toolCall": "supported",
+        "webOn": false,
+        "method": "default"
+      },
+      "expect": {
+        "row": "one_tap_reuse_connection_key",
+        "path": "none",
+        "primaryAction": "one_tap_enable"
+      }
+    },
+    {
+      "caseId": "byok.native_unavailable.no_external",
+      "input": {
+        "form": "byok",
+        "nativeWeb": "unavailable",
+        "externalServices": 0,
+        "reusableConnection": false,
+        "toolCall": "supported",
+        "webOn": false,
+        "method": "default"
+      },
+      "expect": {
+        "row": "cannot_search",
+        "path": "none",
+        "primaryAction": "add_search_service",
+        "secondaryAction": "open_supported_models"
+      }
+    },
+    {
+      "caseId": "byok.native_withdrawn.with_external",
+      "input": {
+        "form": "byok",
+        "nativeWeb": "withdrawn_or_rejected",
+        "externalServices": 1,
+        "reusableConnection": false,
+        "toolCall": "supported",
+        "webOn": true,
+        "method": "default"
+      },
+      "expect": {
+        "row": "toggle_external",
+        "path": "external_tool",
+        "sourceAction": "pick_source"
+      }
+    },
+    {
+      "caseId": "byok.web_on.no_service_cannot_search",
+      "input": {
+        "form": "byok",
+        "nativeWeb": "unavailable",
+        "externalServices": 0,
+        "reusableConnection": false,
+        "toolCall": "supported",
+        "webOn": true,
+        "method": "external"
+      },
+      "expect": {
+        "row": "cannot_search",
+        "path": "none",
+        "primaryAction": "add_search_service",
+        "secondaryAction": "open_supported_models"
+      }
+    },
+    {
+      "caseId": "relay.searched.with_external.default",
+      "input": {
+        "form": "relay",
+        "relayWebRecord": "searched",
+        "externalServices": 1,
+        "reusableConnection": false,
+        "toolCall": "supported",
+        "webOn": true,
+        "method": "default"
+      },
+      "expect": {
+        "row": "toggle_with_source_picker",
+        "path": "relay_fragment",
+        "sourceAction": "pick_source"
+      }
+    },
+    {
+      "caseId": "relay.rejected.with_external",
+      "input": {
+        "form": "relay",
+        "relayWebRecord": "rejected",
+        "externalServices": 1,
+        "reusableConnection": false,
+        "toolCall": "supported",
+        "webOn": true,
+        "method": "default"
+      },
+      "expect": {
+        "row": "toggle_external",
+        "path": "external_tool",
+        "sourceAction": "pick_source",
+        "fragmentAttached": false
+      }
+    },
+    {
+      "caseId": "relay.user_override_off",
+      "input": {
+        "form": "relay",
+        "relayWebRecord": "user_override_off",
+        "externalServices": 1,
+        "reusableConnection": false,
+        "toolCall": "supported",
+        "webOn": false,
+        "method": "default"
+      },
+      "expect": {
+        "row": "relay_unchanged",
+        "path": "none"
+      }
+    },
+    {
+      "caseId": "relay.local_engine",
+      "input": {
+        "form": "relay",
+        "relayWebRecord": "local_engine",
+        "externalServices": 1,
+        "reusableConnection": false,
+        "toolCall": "supported",
+        "webOn": false,
+        "method": "default"
+      },
+      "expect": {
+        "row": "relay_unchanged",
+        "path": "none"
+      }
+    },
+    {
+      "caseId": "subscription.codex.with_external",
+      "input": {
+        "form": "subscription_codex",
+        "nativeWeb": "available",
+        "externalServices": 1,
+        "reusableConnection": false,
+        "toolCall": "supported",
+        "webOn": true,
+        "method": "default"
+      },
+      "expect": {
+        "row": "toggle_with_source_picker",
+        "path": "native",
+        "sourceAction": "pick_source"
+      }
+    },
+    {
+      "caseId": "subscription.grok.always_on",
+      "input": {
+        "form": "subscription_grok",
+        "nativeWeb": "available",
+        "externalServices": 1,
+        "reusableConnection": false,
+        "toolCall": "supported",
+        "webOn": true,
+        "method": "default"
+      },
+      "expect": {
+        "row": "always_on_unchanged",
+        "path": "native"
+      }
+    },
+    {
+      "caseId": "free.unchanged",
+      "input": {
+        "form": "free",
+        "externalServices": 1,
+        "reusableConnection": false,
+        "toolCall": "unsupported",
+        "webOn": false,
+        "method": "default"
+      },
+      "expect": {
+        "row": "free_unchanged",
+        "path": "none"
+      }
+    },
+    {
+      "caseId": "managed.unchanged",
+      "input": {
+        "form": "managed",
+        "nativeWeb": "unavailable",
+        "externalServices": 1,
+        "reusableConnection": false,
+        "toolCall": "supported",
+        "webOn": false,
+        "method": "default"
+      },
+      "expect": {
+        "row": "managed_unchanged",
+        "path": "none"
+      }
+    },
+    {
+      "caseId": "byok.native_available.with_external.web_off",
+      "input": {
+        "externalServices": 2,
+        "reusableConnection": false,
+        "toolCall": "supported",
+        "webOn": false,
+        "method": "default",
+        "form": "byok",
+        "nativeWeb": "available"
+      },
+      "expect": {
+        "row": "toggle_with_source_picker",
+        "path": "none",
+        "sourceAction": "pick_source"
+      }
+    },
+    {
+      "caseId": "byok.native_available.with_external.picked_external.tool_unsupported",
+      "input": {
+        "externalServices": 1,
+        "reusableConnection": false,
+        "toolCall": "unsupported",
+        "webOn": true,
+        "method": "external",
+        "form": "byok",
+        "nativeWeb": "available"
+      },
+      "expect": {
+        "row": "toggle_with_source_picker",
+        "path": "external_presearch",
+        "sourceAction": "pick_source"
+      }
+    },
+    {
+      "caseId": "byok.native_unavailable.with_external.web_off",
+      "input": {
+        "externalServices": 1,
+        "reusableConnection": false,
+        "toolCall": "supported",
+        "webOn": false,
+        "method": "default",
+        "form": "byok",
+        "nativeWeb": "unavailable"
+      },
+      "expect": {
+        "row": "toggle_external",
+        "path": "none",
+        "sourceAction": "pick_source"
+      }
+    },
+    {
+      "caseId": "byok.native_unknown.no_external.web_off",
+      "input": {
+        "externalServices": 0,
+        "reusableConnection": false,
+        "toolCall": "supported",
+        "webOn": false,
+        "method": "default",
+        "form": "byok",
+        "nativeWeb": "unknown"
+      },
+      "expect": {
+        "row": "cannot_search",
+        "path": "none",
+        "primaryAction": "add_search_service",
+        "secondaryAction": "open_supported_models"
+      }
+    },
+    {
+      "caseId": "byok.stale_method_external_after_service_deleted",
+      "input": {
+        "externalServices": 0,
+        "reusableConnection": false,
+        "toolCall": "supported",
+        "webOn": true,
+        "method": "external",
+        "form": "byok",
+        "nativeWeb": "available"
+      },
+      "expect": {
+        "row": "toggle_native_unchanged",
+        "path": "native"
+      }
+    },
+    {
+      "caseId": "relay.searched.no_external",
+      "input": {
+        "externalServices": 0,
+        "reusableConnection": false,
+        "toolCall": "supported",
+        "webOn": true,
+        "method": "default",
+        "form": "relay",
+        "relayWebRecord": "searched"
+      },
+      "expect": {
+        "row": "relay_unchanged",
+        "path": "relay_fragment"
+      }
+    },
+    {
+      "caseId": "relay.searched.with_external.picked_external",
+      "input": {
+        "externalServices": 1,
+        "reusableConnection": false,
+        "toolCall": "supported",
+        "webOn": true,
+        "method": "external",
+        "form": "relay",
+        "relayWebRecord": "searched"
+      },
+      "expect": {
+        "row": "toggle_with_source_picker",
+        "path": "external_tool",
+        "sourceAction": "pick_source"
+      }
+    },
+    {
+      "caseId": "relay.untested.no_external",
+      "input": {
+        "externalServices": 0,
+        "reusableConnection": false,
+        "toolCall": "supported",
+        "webOn": false,
+        "method": "default",
+        "form": "relay",
+        "relayWebRecord": "untested"
+      },
+      "expect": {
+        "row": "relay_unchanged",
+        "path": "none"
+      }
+    },
+    {
+      "caseId": "relay.template_only.with_external.tool_unsupported",
+      "input": {
+        "externalServices": 1,
+        "reusableConnection": false,
+        "toolCall": "unsupported",
+        "webOn": true,
+        "method": "default",
+        "form": "relay",
+        "relayWebRecord": "template_only"
+      },
+      "expect": {
+        "row": "toggle_external_presearch_notice",
+        "path": "external_presearch",
+        "sourceAction": "pick_source",
+        "fragmentAttached": false
+      }
+    },
+    {
+      "caseId": "relay.protocol_undecided.with_external",
+      "input": {
+        "externalServices": 1,
+        "reusableConnection": false,
+        "toolCall": "supported",
+        "webOn": true,
+        "method": "default",
+        "form": "relay",
+        "relayWebRecord": "protocol_undecided"
+      },
+      "expect": {
+        "row": "relay_unchanged",
+        "path": "none"
+      }
+    },
+    {
+      "caseId": "subscription.codex.no_external",
+      "input": {
+        "externalServices": 0,
+        "reusableConnection": false,
+        "toolCall": "supported",
+        "webOn": true,
+        "method": "default",
+        "form": "subscription_codex",
+        "nativeWeb": "available"
+      },
+      "expect": {
+        "row": "toggle_native_unchanged",
+        "path": "native"
+      }
+    },
+    {
+      "caseId": "managed.native_on_unchanged",
+      "input": {
+        "externalServices": 1,
+        "reusableConnection": false,
+        "toolCall": "supported",
+        "webOn": true,
+        "method": "default",
+        "form": "managed",
+        "nativeWeb": "available"
+      },
+      "expect": {
+        "row": "managed_unchanged",
+        "path": "native"
+      }
+    },
+    {
+      "caseId": "free.web_on_ignored",
+      "input": {
+        "externalServices": 2,
+        "reusableConnection": false,
+        "toolCall": "unsupported",
+        "webOn": true,
+        "method": "default",
+        "form": "free"
+      },
+      "expect": {
+        "row": "free_unchanged",
+        "path": "none"
+      }
+    },
+    {
+      "caseId": "byok.web_on.no_service.reusable_one_tap",
+      "input": {
+        "form": "byok",
+        "nativeWeb": "unavailable",
+        "externalServices": 0,
+        "reusableConnection": true,
+        "toolCall": "supported",
+        "webOn": true,
+        "method": "default"
+      },
+      "expect": {
+        "row": "one_tap_reuse_connection_key",
+        "path": "none",
+        "primaryAction": "one_tap_enable"
+      }
+    },
+    {
+      "caseId": "byok.native_unavailable.with_external.reusable_ignored",
+      "input": {
+        "form": "byok",
+        "nativeWeb": "unavailable",
+        "externalServices": 2,
+        "reusableConnection": true,
+        "toolCall": "supported",
+        "webOn": true,
+        "method": "default"
+      },
+      "expect": {
+        "row": "toggle_external",
+        "path": "external_tool",
+        "sourceAction": "pick_source"
+      }
+    }
+  ],
+  "turnCases": [
+    {
+      "caseId": "turn.native_path_has_native_fields_only",
+      "input": {
+        "path": "native",
+        "thinkingOn": false,
+        "continuationStateAvailable": true,
+        "upstreamRejectedTools": false,
+        "thinkingWithTools": "tool_loop",
+        "hostMaxSteps": 6
+      },
+      "expect": {
+        "path": "native",
+        "fallbackReason": null,
+        "noticeOnce": false,
+        "requestHasNativeSearchFields": true,
+        "requestHasWebSearchTool": false
+      }
+    },
+    {
+      "caseId": "turn.relay_fragment_path",
+      "input": {
+        "path": "relay_fragment",
+        "thinkingOn": false,
+        "continuationStateAvailable": true,
+        "upstreamRejectedTools": false,
+        "thinkingWithTools": "tool_loop",
+        "hostMaxSteps": 6
+      },
+      "expect": {
+        "path": "relay_fragment",
+        "fallbackReason": null,
+        "noticeOnce": false,
+        "requestHasNativeSearchFields": true,
+        "requestHasWebSearchTool": false
+      }
+    },
+    {
+      "caseId": "turn.external_tool_one_path_only",
+      "input": {
+        "path": "external_tool",
+        "thinkingOn": false,
+        "continuationStateAvailable": true,
+        "upstreamRejectedTools": false,
+        "thinkingWithTools": "tool_loop",
+        "hostMaxSteps": 6
+      },
+      "expect": {
+        "path": "external_tool",
+        "fallbackReason": null,
+        "noticeOnce": false,
+        "requestHasNativeSearchFields": false,
+        "requestHasWebSearchTool": true
+      }
+    },
+    {
+      "caseId": "turn.tools_rejected_fallback_presearch",
+      "input": {
+        "path": "external_tool",
+        "thinkingOn": false,
+        "continuationStateAvailable": true,
+        "upstreamRejectedTools": true,
+        "thinkingWithTools": "tool_loop",
+        "hostMaxSteps": 6
+      },
+      "expect": {
+        "path": "external_presearch",
+        "fallbackReason": "tools_rejected",
+        "noticeOnce": true,
+        "requestHasNativeSearchFields": false,
+        "requestHasWebSearchTool": false
+      }
+    },
+    {
+      "caseId": "turn.thinking_without_continuation_presearch",
+      "input": {
+        "path": "external_tool",
+        "thinkingOn": true,
+        "continuationStateAvailable": false,
+        "upstreamRejectedTools": false,
+        "thinkingWithTools": "tool_loop",
+        "hostMaxSteps": 6
+      },
+      "expect": {
+        "path": "external_presearch",
+        "fallbackReason": "thinking_no_continuation",
+        "noticeOnce": false,
+        "requestHasNativeSearchFields": false,
+        "requestHasWebSearchTool": false
+      }
+    },
+    {
+      "caseId": "turn.thinking_openai_chat_presearch",
+      "input": {
+        "path": "external_tool",
+        "thinkingOn": true,
+        "continuationStateAvailable": true,
+        "upstreamRejectedTools": false,
+        "thinkingWithTools": "presearch",
+        "hostMaxSteps": 6
+      },
+      "expect": {
+        "path": "external_presearch",
+        "fallbackReason": "thinking_tools_unsupported",
+        "noticeOnce": false,
+        "requestHasNativeSearchFields": false,
+        "requestHasWebSearchTool": false
+      }
+    },
+    {
+      "caseId": "turn.thinking_with_continuation_keeps_tool",
+      "input": {
+        "path": "external_tool",
+        "thinkingOn": true,
+        "continuationStateAvailable": true,
+        "upstreamRejectedTools": false,
+        "thinkingWithTools": "tool_loop",
+        "hostMaxSteps": 6
+      },
+      "expect": {
+        "path": "external_tool",
+        "fallbackReason": null,
+        "noticeOnce": false,
+        "requestHasNativeSearchFields": false,
+        "requestHasWebSearchTool": true
+      }
+    },
+    {
+      "caseId": "turn.no_tool_continuation_presearch",
+      "input": {
+        "path": "external_tool",
+        "thinkingOn": false,
+        "continuationStateAvailable": true,
+        "upstreamRejectedTools": false,
+        "thinkingWithTools": "tool_loop",
+        "hostMaxSteps": 0
+      },
+      "expect": {
+        "path": "external_presearch",
+        "fallbackReason": "no_tool_continuation",
+        "noticeOnce": false,
+        "requestHasNativeSearchFields": false,
+        "requestHasWebSearchTool": false
+      }
+    },
+    {
+      "caseId": "turn.presearch_stays_presearch",
+      "input": {
+        "path": "external_presearch",
+        "thinkingOn": false,
+        "continuationStateAvailable": true,
+        "upstreamRejectedTools": false,
+        "thinkingWithTools": "tool_loop",
+        "hostMaxSteps": 6
+      },
+      "expect": {
+        "path": "external_presearch",
+        "fallbackReason": null,
+        "noticeOnce": false,
+        "requestHasNativeSearchFields": false,
+        "requestHasWebSearchTool": false
+      }
+    }
+  ],
+  "callCases": [
+    {
+      "caseId": "calls.four_requests_cap_three",
+      "input": {
+        "legs": [
+          [
+            {
+              "attempts": [
+                200
+              ]
+            }
+          ],
+          [
+            {
+              "attempts": [
+                200
+              ]
+            }
+          ],
+          [
+            {
+              "attempts": [
+                200
+              ]
+            }
+          ],
+          [
+            {
+              "attempts": [
+                200
+              ]
+            }
+          ]
+        ]
+      },
+      "expect": {
+        "requestsSent": 3,
+        "calls": [
+          {
+            "leg": 0,
+            "call": 0,
+            "requests": 1,
+            "outcome": "response"
+          },
+          {
+            "leg": 1,
+            "call": 0,
+            "requests": 1,
+            "outcome": "response"
+          },
+          {
+            "leg": 2,
+            "call": 0,
+            "requests": 1,
+            "outcome": "response"
+          },
+          {
+            "leg": 3,
+            "call": 0,
+            "requests": 0,
+            "outcome": "cap_reached"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "calls.parallel_count_individually",
+      "input": {
+        "legs": [
+          [
+            {
+              "attempts": [
+                200
+              ]
+            },
+            {
+              "attempts": [
+                200
+              ]
+            }
+          ],
+          [
+            {
+              "attempts": [
+                200
+              ]
+            },
+            {
+              "attempts": [
+                200
+              ]
+            }
+          ]
+        ]
+      },
+      "expect": {
+        "requestsSent": 3,
+        "calls": [
+          {
+            "leg": 0,
+            "call": 0,
+            "requests": 1,
+            "outcome": "response"
+          },
+          {
+            "leg": 0,
+            "call": 1,
+            "requests": 1,
+            "outcome": "response"
+          },
+          {
+            "leg": 1,
+            "call": 0,
+            "requests": 1,
+            "outcome": "response"
+          },
+          {
+            "leg": 1,
+            "call": 1,
+            "requests": 0,
+            "outcome": "cap_reached"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "calls.retry_503_counts_toward_cap",
+      "input": {
+        "legs": [
+          [
+            {
+              "attempts": [
+                503,
+                200
+              ]
+            }
+          ],
+          [
+            {
+              "attempts": [
+                200
+              ]
+            }
+          ],
+          [
+            {
+              "attempts": [
+                200
+              ]
+            }
+          ]
+        ]
+      },
+      "expect": {
+        "requestsSent": 3,
+        "calls": [
+          {
+            "leg": 0,
+            "call": 0,
+            "requests": 2,
+            "outcome": "response"
+          },
+          {
+            "leg": 1,
+            "call": 0,
+            "requests": 1,
+            "outcome": "response"
+          },
+          {
+            "leg": 2,
+            "call": 0,
+            "requests": 0,
+            "outcome": "cap_reached"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "calls.retry_once_only",
+      "input": {
+        "legs": [
+          [
+            {
+              "attempts": [
+                502,
+                502,
+                200
+              ]
+            }
+          ]
+        ]
+      },
+      "expect": {
+        "requestsSent": 2,
+        "calls": [
+          {
+            "leg": 0,
+            "call": 0,
+            "requests": 2,
+            "outcome": "502"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "calls.no_retry_on_429_401_402",
+      "input": {
+        "legs": [
+          [
+            {
+              "attempts": [
+                429,
+                200
+              ]
+            }
+          ],
+          [
+            {
+              "attempts": [
+                401,
+                200
+              ]
+            }
+          ],
+          [
+            {
+              "attempts": [
+                402,
+                200
+              ]
+            }
+          ]
+        ]
+      },
+      "expect": {
+        "requestsSent": 3,
+        "calls": [
+          {
+            "leg": 0,
+            "call": 0,
+            "requests": 1,
+            "outcome": "429"
+          },
+          {
+            "leg": 1,
+            "call": 0,
+            "requests": 1,
+            "outcome": "401"
+          },
+          {
+            "leg": 2,
+            "call": 0,
+            "requests": 1,
+            "outcome": "402"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "calls.no_retry_on_timeout_network",
+      "input": {
+        "legs": [
+          [
+            {
+              "attempts": [
+                "timeout",
+                200
+              ]
+            },
+            {
+              "attempts": [
+                "network",
+                200
+              ]
+            }
+          ]
+        ]
+      },
+      "expect": {
+        "requestsSent": 2,
+        "calls": [
+          {
+            "leg": 0,
+            "call": 0,
+            "requests": 1,
+            "outcome": "timeout"
+          },
+          {
+            "leg": 0,
+            "call": 1,
+            "requests": 1,
+            "outcome": "network"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "calls.retry_skipped_when_cap_exhausted",
+      "input": {
+        "legs": [
+          [
+            {
+              "attempts": [
+                200
+              ]
+            },
+            {
+              "attempts": [
+                200
+              ]
+            },
+            {
+              "attempts": [
+                408,
+                200
+              ]
+            }
+          ]
+        ]
+      },
+      "expect": {
+        "requestsSent": 3,
+        "calls": [
+          {
+            "leg": 0,
+            "call": 0,
+            "requests": 1,
+            "outcome": "response"
+          },
+          {
+            "leg": 0,
+            "call": 1,
+            "requests": 1,
+            "outcome": "response"
+          },
+          {
+            "leg": 0,
+            "call": 2,
+            "requests": 1,
+            "outcome": "408"
+          }
+        ]
+      }
+    }
+  ],
+  "regenerateCases": [
+    {
+      "caseId": "regenerate.reuses_previous_results",
+      "input": {
+        "action": "regenerate",
+        "previousResultsPersisted": true
+      },
+      "expect": {
+        "reusePrevious": true,
+        "newSearchesAllowed": false
+      }
+    },
+    {
+      "caseId": "edit_resend.reuses_previous_results",
+      "input": {
+        "action": "edit_resend",
+        "previousResultsPersisted": true
+      },
+      "expect": {
+        "reusePrevious": true,
+        "newSearchesAllowed": false
+      }
+    },
+    {
+      "caseId": "re_search.searches_again",
+      "input": {
+        "action": "re_search",
+        "previousResultsPersisted": true
+      },
+      "expect": {
+        "reusePrevious": false,
+        "newSearchesAllowed": true
+      }
+    },
+    {
+      "caseId": "regenerate.no_previous_results",
+      "input": {
+        "action": "regenerate",
+        "previousResultsPersisted": false
+      },
+      "expect": {
+        "reusePrevious": false,
+        "newSearchesAllowed": true
+      }
+    }
+  ],
+  "selectableCases": [
+    {
+      "caseId": "selectable.ready",
+      "input": {
+        "status": "ready"
+      },
+      "expect": {
+        "selectable": true
+      }
+    },
+    {
+      "caseId": "selectable.needs_key",
+      "input": {
+        "status": "needs_key"
+      },
+      "expect": {
+        "selectable": true
+      }
+    },
+    {
+      "caseId": "selectable.host_changed",
+      "input": {
+        "status": "host_changed"
+      },
+      "expect": {
+        "selectable": true
+      }
+    },
+    {
+      "caseId": "selectable.connection_missing",
+      "input": {
+        "status": "connection_missing"
+      },
+      "expect": {
+        "selectable": true
+      }
+    },
+    {
+      "caseId": "selectable.withdrawn",
+      "input": {
+        "status": "withdrawn"
+      },
+      "expect": {
+        "selectable": false
+      }
+    },
+    {
+      "caseId": "selectable.catalog_unavailable",
+      "input": {
+        "status": "catalog_unavailable"
+      },
+      "expect": {
+        "selectable": true
+      }
+    }
+  ],
+  "oneTapCases": [
+    {
+      "caseId": "onetap.same_provider_first",
+      "input": {
+        "catalogAvailable": true,
+        "serviceIds": [
+          "deepseek",
+          "zhipu",
+          "kimi",
+          "tavily",
+          "exa",
+          "brave",
+          "perplexity"
+        ],
+        "connections": [
+          {
+            "id": "c1",
+            "name": "DeepSeek",
+            "providerKind": "deepseek",
+            "baseUrl": "https://api.deepseek.com/v1"
+          },
+          {
+            "id": "c2",
+            "name": "我的 Kimi",
+            "providerKind": "moonshot",
+            "baseUrl": "https://api.moonshot.cn/v1"
+          }
+        ],
+        "currentProviderKind": "moonshot"
+      },
+      "expect": {
+        "target": {
+          "serviceId": "kimi",
+          "regionId": "cn",
+          "connectionRef": "c2",
+          "connectionName": "我的 Kimi"
+        }
+      }
+    },
+    {
+      "caseId": "onetap.other_provider_catalog_order",
+      "input": {
+        "catalogAvailable": true,
+        "serviceIds": [
+          "deepseek",
+          "zhipu",
+          "kimi",
+          "tavily",
+          "exa",
+          "brave",
+          "perplexity"
+        ],
+        "connections": [
+          {
+            "id": "c2",
+            "name": "我的 Kimi",
+            "providerKind": "moonshot",
+            "baseUrl": "https://api.moonshot.cn/v1"
+          },
+          {
+            "id": "c1",
+            "name": "DeepSeek",
+            "providerKind": "deepseek",
+            "baseUrl": "https://api.deepseek.com/v1"
+          }
+        ],
+        "currentProviderKind": "openai"
+      },
+      "expect": {
+        "target": {
+          "serviceId": "deepseek",
+          "regionId": "cn",
+          "connectionRef": "c1",
+          "connectionName": "DeepSeek"
+        }
+      }
+    },
+    {
+      "caseId": "onetap.only_kimi",
+      "input": {
+        "catalogAvailable": true,
+        "serviceIds": [
+          "deepseek",
+          "zhipu",
+          "kimi",
+          "tavily",
+          "exa",
+          "brave",
+          "perplexity"
+        ],
+        "connections": [
+          {
+            "id": "c2",
+            "name": "我的 Kimi",
+            "providerKind": "moonshot",
+            "baseUrl": "https://api.moonshot.cn/v1"
+          }
+        ],
+        "currentProviderKind": "deepseek"
+      },
+      "expect": {
+        "target": {
+          "serviceId": "kimi",
+          "regionId": "cn",
+          "connectionRef": "c2",
+          "connectionName": "我的 Kimi"
+        }
+      }
+    },
+    {
+      "caseId": "onetap.kimi_intl_region_by_host",
+      "input": {
+        "catalogAvailable": true,
+        "serviceIds": [
+          "deepseek",
+          "zhipu",
+          "kimi",
+          "tavily",
+          "exa",
+          "brave",
+          "perplexity"
+        ],
+        "connections": [
+          {
+            "id": "c2",
+            "name": "我的 Kimi",
+            "providerKind": "moonshot",
+            "baseUrl": "https://api.moonshot.ai/v1"
+          }
+        ],
+        "currentProviderKind": "moonshot"
+      },
+      "expect": {
+        "target": {
+          "serviceId": "kimi",
+          "regionId": "intl",
+          "connectionRef": "c2",
+          "connectionName": "我的 Kimi"
+        }
+      }
+    },
+    {
+      "caseId": "onetap.unmapped_host_not_reusable",
+      "input": {
+        "catalogAvailable": true,
+        "serviceIds": [
+          "deepseek",
+          "zhipu",
+          "kimi",
+          "tavily",
+          "exa",
+          "brave",
+          "perplexity"
+        ],
+        "connections": [
+          {
+            "id": "c1",
+            "name": "DeepSeek",
+            "providerKind": "deepseek",
+            "baseUrl": "https://my-proxy.example.com/v1"
+          }
+        ],
+        "currentProviderKind": "deepseek"
+      },
+      "expect": {
+        "target": null
+      }
+    },
+    {
+      "caseId": "onetap.no_connections",
+      "input": {
+        "catalogAvailable": true,
+        "serviceIds": [
+          "deepseek",
+          "zhipu",
+          "kimi",
+          "tavily",
+          "exa",
+          "brave",
+          "perplexity"
+        ],
+        "connections": [],
+        "currentProviderKind": "deepseek"
+      },
+      "expect": {
+        "target": null
+      }
+    },
+    {
+      "caseId": "onetap.catalog_unavailable",
+      "input": {
+        "catalogAvailable": false,
+        "serviceIds": [
+          "deepseek",
+          "zhipu",
+          "kimi",
+          "tavily",
+          "exa",
+          "brave",
+          "perplexity"
+        ],
+        "connections": [
+          {
+            "id": "c1",
+            "name": "DeepSeek",
+            "providerKind": "deepseek",
+            "baseUrl": "https://api.deepseek.com/v1"
+          }
+        ],
+        "currentProviderKind": "deepseek"
+      },
+      "expect": {
+        "target": null
+      }
+    }
+  ],
+  "sourceCases": [
+    {
+      "caseId": "source.empty_uses_default",
+      "input": {
+        "stored": null,
+        "modelKey": "m1",
+        "selectable": [
+          {
+            "id": "s1",
+            "status": "ready"
+          },
+          {
+            "id": "s2",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1"
+      },
+      "expect": {
+        "method": "default",
+        "serviceId": "s1",
+        "notice": null,
+        "nextStored": null,
+        "changed": false
+      }
+    },
+    {
+      "caseId": "source.picked_service_kept",
+      "input": {
+        "stored": {
+          "methods": {
+            "m1": "external"
+          },
+          "serviceId": "s2",
+          "serviceName": "Tavily",
+          "notice": null
+        },
+        "modelKey": "m1",
+        "selectable": [
+          {
+            "id": "s1",
+            "status": "ready"
+          },
+          {
+            "id": "s2",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1"
+      },
+      "expect": {
+        "method": "external",
+        "serviceId": "s2",
+        "notice": null,
+        "nextStored": {
+          "methods": {
+            "m1": "external"
+          },
+          "serviceId": "s2",
+          "serviceName": "Tavily",
+          "notice": null
+        },
+        "changed": false
+      }
+    },
+    {
+      "caseId": "source.other_model_has_no_method_keeps_service",
+      "input": {
+        "stored": {
+          "methods": {
+            "m1": "external"
+          },
+          "serviceId": "s2",
+          "serviceName": "Tavily",
+          "notice": null
+        },
+        "modelKey": "m2",
+        "selectable": [
+          {
+            "id": "s1",
+            "status": "ready"
+          },
+          {
+            "id": "s2",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1"
+      },
+      "expect": {
+        "method": "default",
+        "serviceId": "s2",
+        "notice": null,
+        "nextStored": {
+          "methods": {
+            "m1": "external"
+          },
+          "serviceId": "s2",
+          "serviceName": "Tavily",
+          "notice": null
+        },
+        "changed": false
+      }
+    },
+    {
+      "caseId": "source.other_model_default",
+      "input": {
+        "stored": {
+          "methods": {
+            "m1": "native"
+          },
+          "serviceId": null,
+          "serviceName": null,
+          "notice": null
+        },
+        "modelKey": "m2",
+        "selectable": [
+          {
+            "id": "s1",
+            "status": "ready"
+          },
+          {
+            "id": "s2",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1"
+      },
+      "expect": {
+        "method": "default",
+        "serviceId": "s1",
+        "notice": null,
+        "nextStored": {
+          "methods": {
+            "m1": "native"
+          },
+          "serviceId": null,
+          "serviceName": null,
+          "notice": null
+        },
+        "changed": false
+      }
+    },
+    {
+      "caseId": "source.picked_deleted_falls_back_with_notice",
+      "input": {
+        "stored": {
+          "methods": {
+            "m1": "external"
+          },
+          "serviceId": "gone",
+          "serviceName": "Tavily",
+          "notice": null
+        },
+        "modelKey": "m1",
+        "selectable": [
+          {
+            "id": "s1",
+            "status": "ready"
+          },
+          {
+            "id": "s2",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1"
+      },
+      "expect": {
+        "method": "default",
+        "serviceId": "s1",
+        "notice": {
+          "fromName": "Tavily"
+        },
+        "nextStored": {
+          "methods": {},
+          "serviceId": null,
+          "serviceName": null,
+          "notice": {
+            "fromName": "Tavily"
+          }
+        },
+        "changed": true
+      }
+    },
+    {
+      "caseId": "source.notice_pending_stays_until_ack",
+      "input": {
+        "stored": {
+          "methods": {
+            "m1": "external"
+          },
+          "serviceId": null,
+          "serviceName": null,
+          "notice": {
+            "fromName": "Tavily"
+          }
+        },
+        "modelKey": "m1",
+        "selectable": [
+          {
+            "id": "s1",
+            "status": "ready"
+          },
+          {
+            "id": "s2",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1"
+      },
+      "expect": {
+        "method": "external",
+        "serviceId": "s1",
+        "notice": {
+          "fromName": "Tavily"
+        },
+        "nextStored": {
+          "methods": {
+            "m1": "external"
+          },
+          "serviceId": null,
+          "serviceName": null,
+          "notice": {
+            "fromName": "Tavily"
+          }
+        },
+        "changed": false
+      }
+    },
+    {
+      "caseId": "source.default_unselectable_uses_first",
+      "input": {
+        "stored": null,
+        "modelKey": "m1",
+        "selectable": [
+          {
+            "id": "s2",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1"
+      },
+      "expect": {
+        "method": "default",
+        "serviceId": "s2",
+        "notice": null,
+        "nextStored": null,
+        "changed": false
+      }
+    },
+    {
+      "caseId": "source.no_selectable_clears_all",
+      "input": {
+        "stored": {
+          "methods": {
+            "m1": "external"
+          },
+          "serviceId": "s2",
+          "serviceName": "Tavily",
+          "notice": {
+            "fromName": "Exa"
+          }
+        },
+        "modelKey": "m1",
+        "selectable": [],
+        "defaultServiceId": null
+      },
+      "expect": {
+        "method": "default",
+        "serviceId": null,
+        "notice": null,
+        "nextStored": null,
+        "changed": true
+      }
+    },
+    {
+      "caseId": "source.garbage_stored_ignored",
+      "input": {
+        "stored": {
+          "method": "bogus",
+          "serviceId": 7
+        },
+        "modelKey": "m1",
+        "selectable": [
+          {
+            "id": "s1",
+            "status": "ready"
+          },
+          {
+            "id": "s2",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1"
+      },
+      "expect": {
+        "method": "default",
+        "serviceId": "s1",
+        "notice": null,
+        "nextStored": null,
+        "changed": false
+      }
+    },
+    {
+      "caseId": "source.per_model_memory_switch_back",
+      "input": {
+        "stored": {
+          "methods": {
+            "m1": "external",
+            "m2": "native"
+          },
+          "serviceId": "s2",
+          "serviceName": "Tavily",
+          "notice": null
+        },
+        "modelKey": "m1",
+        "selectable": [
+          {
+            "id": "s1",
+            "status": "ready"
+          },
+          {
+            "id": "s2",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1"
+      },
+      "expect": {
+        "method": "external",
+        "serviceId": "s2",
+        "notice": null,
+        "nextStored": {
+          "methods": {
+            "m1": "external",
+            "m2": "native"
+          },
+          "serviceId": "s2",
+          "serviceName": "Tavily",
+          "notice": null
+        },
+        "changed": false
+      }
+    },
+    {
+      "caseId": "source.deleted_service_turns_external_off_keeps_native",
+      "input": {
+        "stored": {
+          "methods": {
+            "m1": "external",
+            "m2": "native",
+            "m3": "external"
+          },
+          "serviceId": "gone",
+          "serviceName": "Tavily",
+          "notice": null
+        },
+        "modelKey": "m1",
+        "selectable": [
+          {
+            "id": "s1",
+            "status": "ready"
+          },
+          {
+            "id": "s2",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1"
+      },
+      "expect": {
+        "method": "default",
+        "serviceId": "s1",
+        "notice": {
+          "fromName": "Tavily"
+        },
+        "nextStored": {
+          "methods": {
+            "m2": "native"
+          },
+          "serviceId": null,
+          "serviceName": null,
+          "notice": {
+            "fromName": "Tavily"
+          }
+        },
+        "changed": true
+      }
+    },
+    {
+      "caseId": "source.catalog_unavailable_service_still_selectable",
+      "input": {
+        "stored": {
+          "methods": {
+            "m1": "external"
+          },
+          "serviceId": "s1",
+          "serviceName": "DeepSeek",
+          "notice": null
+        },
+        "modelKey": "m1",
+        "selectable": [
+          {
+            "id": "s1",
+            "status": "catalog_unavailable"
+          }
+        ],
+        "defaultServiceId": "s1"
+      },
+      "expect": {
+        "method": "external",
+        "serviceId": "s1",
+        "notice": null,
+        "nextStored": {
+          "methods": {
+            "m1": "external"
+          },
+          "serviceId": "s1",
+          "serviceName": "DeepSeek",
+          "notice": null
+        },
+        "changed": false
+      }
+    }
+  ],
+  "sourceUpdateCases": [
+    {
+      "caseId": "update.pick_native",
+      "input": {
+        "stored": null,
+        "modelKey": "m1",
+        "event": {
+          "type": "pick_native"
+        }
+      },
+      "expect": {
+        "nextStored": {
+          "methods": {
+            "m1": "native"
+          },
+          "serviceId": null,
+          "serviceName": null,
+          "notice": null
+        }
+      }
+    },
+    {
+      "caseId": "update.pick_service_clears_notice",
+      "input": {
+        "stored": {
+          "methods": {},
+          "serviceId": null,
+          "serviceName": null,
+          "notice": {
+            "fromName": "Tavily"
+          }
+        },
+        "modelKey": "m1",
+        "event": {
+          "type": "pick_service",
+          "serviceId": "s2",
+          "serviceName": "Exa"
+        }
+      },
+      "expect": {
+        "nextStored": {
+          "methods": {
+            "m1": "external"
+          },
+          "serviceId": "s2",
+          "serviceName": "Exa",
+          "notice": null
+        }
+      }
+    },
+    {
+      "caseId": "update.ack_notice_empty_deletes_key",
+      "input": {
+        "stored": {
+          "methods": {},
+          "serviceId": null,
+          "serviceName": null,
+          "notice": {
+            "fromName": "Tavily"
+          }
+        },
+        "modelKey": "m1",
+        "event": {
+          "type": "acknowledge_notice"
+        }
+      },
+      "expect": {
+        "nextStored": null
+      }
+    },
+    {
+      "caseId": "update.pick_native_keeps_service",
+      "input": {
+        "stored": {
+          "methods": {
+            "m1": "external"
+          },
+          "serviceId": "s2",
+          "serviceName": "Exa",
+          "notice": null
+        },
+        "modelKey": "m1",
+        "event": {
+          "type": "pick_native"
+        }
+      },
+      "expect": {
+        "nextStored": {
+          "methods": {
+            "m1": "native"
+          },
+          "serviceId": "s2",
+          "serviceName": "Exa",
+          "notice": null
+        }
+      }
+    },
+    {
+      "caseId": "update.disarm_keeps_service",
+      "input": {
+        "stored": {
+          "methods": {
+            "m1": "external"
+          },
+          "serviceId": "s2",
+          "serviceName": "Exa",
+          "notice": null
+        },
+        "modelKey": "m1",
+        "event": {
+          "type": "disarm"
+        }
+      },
+      "expect": {
+        "nextStored": {
+          "methods": {},
+          "serviceId": "s2",
+          "serviceName": "Exa",
+          "notice": null
+        }
+      }
+    },
+    {
+      "caseId": "update.pick_service_other_model_keeps_first",
+      "input": {
+        "stored": {
+          "methods": {
+            "m1": "external"
+          },
+          "serviceId": "s1",
+          "serviceName": "DeepSeek",
+          "notice": null
+        },
+        "modelKey": "m2",
+        "event": {
+          "type": "pick_service",
+          "serviceId": "s1",
+          "serviceName": "DeepSeek"
+        }
+      },
+      "expect": {
+        "nextStored": {
+          "methods": {
+            "m1": "external",
+            "m2": "external"
+          },
+          "serviceId": "s1",
+          "serviceName": "DeepSeek",
+          "notice": null
+        }
+      }
+    },
+    {
+      "caseId": "update.disarm_native_method_untouched",
+      "input": {
+        "stored": {
+          "methods": {
+            "m1": "native"
+          },
+          "serviceId": null,
+          "serviceName": null,
+          "notice": null
+        },
+        "modelKey": "m1",
+        "event": {
+          "type": "disarm"
+        }
+      },
+      "expect": {
+        "nextStored": {
+          "methods": {
+            "m1": "native"
+          },
+          "serviceId": null,
+          "serviceName": null,
+          "notice": null
+        }
+      }
+    }
+  ],
+  "pickerCases": [
+    {
+      "caseId": "picker.native_model_default",
+      "input": {
+        "nativeCapable": true,
+        "selectable": [
+          {
+            "id": "s1",
+            "status": "ready"
+          },
+          {
+            "id": "s2",
+            "status": "needs_key"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "method": "default",
+        "serviceId": "s1"
+      },
+      "expect": {
+        "items": [
+          {
+            "kind": "native",
+            "selected": true
+          },
+          {
+            "kind": "service",
+            "serviceId": "s1",
+            "isDefault": true,
+            "status": "ready",
+            "selected": false
+          },
+          {
+            "kind": "service",
+            "serviceId": "s2",
+            "isDefault": false,
+            "status": "needs_key",
+            "selected": false
+          },
+          {
+            "kind": "add"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "picker.native_model_picked_external",
+      "input": {
+        "nativeCapable": true,
+        "selectable": [
+          {
+            "id": "s1",
+            "status": "ready"
+          },
+          {
+            "id": "s2",
+            "status": "needs_key"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "method": "external",
+        "serviceId": "s2"
+      },
+      "expect": {
+        "items": [
+          {
+            "kind": "native",
+            "selected": false
+          },
+          {
+            "kind": "service",
+            "serviceId": "s1",
+            "isDefault": true,
+            "status": "ready",
+            "selected": false
+          },
+          {
+            "kind": "service",
+            "serviceId": "s2",
+            "isDefault": false,
+            "status": "needs_key",
+            "selected": true
+          },
+          {
+            "kind": "add"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "picker.non_native_model",
+      "input": {
+        "nativeCapable": false,
+        "selectable": [
+          {
+            "id": "s1",
+            "status": "ready"
+          },
+          {
+            "id": "s2",
+            "status": "needs_key"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "method": "default",
+        "serviceId": "s1"
+      },
+      "expect": {
+        "items": [
+          {
+            "kind": "service",
+            "serviceId": "s1",
+            "isDefault": true,
+            "status": "ready",
+            "selected": false
+          },
+          {
+            "kind": "service",
+            "serviceId": "s2",
+            "isDefault": false,
+            "status": "needs_key",
+            "selected": false
+          },
+          {
+            "kind": "add"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "picker.non_native_ignores_stale_native_method",
+      "input": {
+        "nativeCapable": false,
+        "selectable": [
+          {
+            "id": "s1",
+            "status": "ready"
+          },
+          {
+            "id": "s2",
+            "status": "needs_key"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "method": "native",
+        "serviceId": "s2"
+      },
+      "expect": {
+        "items": [
+          {
+            "kind": "service",
+            "serviceId": "s1",
+            "isDefault": true,
+            "status": "ready",
+            "selected": false
+          },
+          {
+            "kind": "service",
+            "serviceId": "s2",
+            "isDefault": false,
+            "status": "needs_key",
+            "selected": false
+          },
+          {
+            "kind": "add"
+          }
+        ]
+      }
+    }
+  ],
+  "cardCases": [
+    {
+      "caseId": "card.unchanged_native_no_service",
+      "input": {
+        "route": {
+          "row": "toggle_native_unchanged",
+          "path": "native"
+        },
+        "webOn": true
+      },
+      "expect": {
+        "existing": true
+      }
+    },
+    {
+      "caseId": "card.picker_native",
+      "input": {
+        "route": {
+          "row": "toggle_with_source_picker",
+          "path": "native",
+          "sourceAction": "pick_source"
+        },
+        "webOn": true,
+        "source": {
+          "kind": "native"
+        }
+      },
+      "expect": {
+        "existing": false,
+        "toggle": true,
+        "status": null,
+        "notes": [],
+        "link": {
+          "key": "card.sourceLineNative",
+          "args": {},
+          "action": "pick_source"
+        },
+        "cta": null,
+        "secondary": null
+      }
+    },
+    {
+      "caseId": "card.picker_external",
+      "input": {
+        "route": {
+          "row": "toggle_with_source_picker",
+          "path": "external_tool",
+          "sourceAction": "pick_source"
+        },
+        "webOn": true,
+        "source": {
+          "kind": "service",
+          "name": "DeepSeek",
+          "status": "ready"
+        }
+      },
+      "expect": {
+        "existing": false,
+        "toggle": true,
+        "status": null,
+        "notes": [],
+        "link": {
+          "key": "card.sourceLine",
+          "args": {
+            "name": "DeepSeek"
+          },
+          "action": "pick_source"
+        },
+        "cta": null,
+        "secondary": null
+      }
+    },
+    {
+      "caseId": "card.picker_with_notice",
+      "input": {
+        "route": {
+          "row": "toggle_with_source_picker",
+          "path": "native",
+          "sourceAction": "pick_source"
+        },
+        "webOn": true,
+        "source": {
+          "kind": "native"
+        },
+        "notice": {
+          "fromName": "Tavily"
+        }
+      },
+      "expect": {
+        "existing": false,
+        "toggle": true,
+        "status": null,
+        "notes": [
+          {
+            "key": "card.fallbackNotice",
+            "args": {
+              "from": "Tavily"
+            }
+          }
+        ],
+        "link": {
+          "key": "card.sourceLineNative",
+          "args": {},
+          "action": "pick_source"
+        },
+        "cta": null,
+        "secondary": null
+      }
+    },
+    {
+      "caseId": "card.external_on",
+      "input": {
+        "route": {
+          "row": "toggle_external",
+          "path": "external_tool",
+          "sourceAction": "pick_source"
+        },
+        "webOn": true,
+        "source": {
+          "kind": "service",
+          "name": "DeepSeek",
+          "status": "ready"
+        }
+      },
+      "expect": {
+        "existing": false,
+        "toggle": true,
+        "status": {
+          "key": "card.useService",
+          "args": {
+            "name": "DeepSeek"
+          }
+        },
+        "notes": [],
+        "link": {
+          "key": "card.changeService",
+          "args": {},
+          "action": "pick_source"
+        },
+        "cta": null,
+        "secondary": null
+      }
+    },
+    {
+      "caseId": "card.external_off",
+      "input": {
+        "route": {
+          "row": "toggle_external",
+          "path": "none",
+          "sourceAction": "pick_source"
+        },
+        "webOn": false,
+        "source": {
+          "kind": "service",
+          "name": "DeepSeek",
+          "status": "ready"
+        }
+      },
+      "expect": {
+        "existing": false,
+        "toggle": true,
+        "status": {
+          "key": "card.offUseService",
+          "args": {
+            "name": "DeepSeek"
+          }
+        },
+        "notes": [],
+        "link": {
+          "key": "card.changeService",
+          "args": {},
+          "action": "pick_source"
+        },
+        "cta": null,
+        "secondary": null
+      }
+    },
+    {
+      "caseId": "card.presearch_on",
+      "input": {
+        "route": {
+          "row": "toggle_external_presearch_notice",
+          "path": "external_presearch",
+          "sourceAction": "pick_source"
+        },
+        "webOn": true,
+        "source": {
+          "kind": "service",
+          "name": "DeepSeek",
+          "status": "ready"
+        }
+      },
+      "expect": {
+        "existing": false,
+        "toggle": true,
+        "status": {
+          "key": "card.useService",
+          "args": {
+            "name": "DeepSeek"
+          }
+        },
+        "notes": [
+          {
+            "key": "card.presearchNotice",
+            "args": {}
+          }
+        ],
+        "link": {
+          "key": "card.changeService",
+          "args": {},
+          "action": "pick_source"
+        },
+        "cta": null,
+        "secondary": null
+      }
+    },
+    {
+      "caseId": "card.presearch_notice_wins",
+      "input": {
+        "route": {
+          "row": "toggle_external_presearch_notice",
+          "path": "external_presearch",
+          "sourceAction": "pick_source"
+        },
+        "webOn": true,
+        "source": {
+          "kind": "service",
+          "name": "DeepSeek",
+          "status": "ready"
+        },
+        "notice": {
+          "fromName": "Tavily"
+        }
+      },
+      "expect": {
+        "existing": false,
+        "toggle": true,
+        "status": {
+          "key": "card.useService",
+          "args": {
+            "name": "DeepSeek"
+          }
+        },
+        "notes": [
+          {
+            "key": "card.fallbackNotice",
+            "args": {
+              "from": "Tavily"
+            }
+          },
+          {
+            "key": "card.presearchNotice",
+            "args": {}
+          }
+        ],
+        "link": {
+          "key": "card.changeService",
+          "args": {},
+          "action": "pick_source"
+        },
+        "cta": null,
+        "secondary": null
+      }
+    },
+    {
+      "caseId": "card.one_tap",
+      "input": {
+        "route": {
+          "row": "one_tap_reuse_connection_key",
+          "path": "none",
+          "primaryAction": "one_tap_enable"
+        },
+        "oneTapServiceName": "DeepSeek",
+        "nativeWeb": "unavailable"
+      },
+      "expect": {
+        "existing": false,
+        "toggle": false,
+        "status": {
+          "key": "card.reuseStatus",
+          "args": {
+            "name": "DeepSeek"
+          }
+        },
+        "notes": [],
+        "link": null,
+        "cta": {
+          "key": "card.oneTap",
+          "args": {},
+          "action": "one_tap_enable"
+        },
+        "secondary": null
+      }
+    },
+    {
+      "caseId": "card.cannot_search",
+      "input": {
+        "route": {
+          "row": "cannot_search",
+          "path": "none",
+          "primaryAction": "add_search_service",
+          "secondaryAction": "open_supported_models"
+        },
+        "nativeWeb": "unavailable"
+      },
+      "expect": {
+        "existing": false,
+        "toggle": false,
+        "status": {
+          "key": "card.cannotSearch",
+          "args": {}
+        },
+        "notes": [],
+        "link": null,
+        "cta": {
+          "key": "card.addService",
+          "args": {},
+          "action": "add_search_service"
+        },
+        "secondary": {
+          "key": "card.supportedModels",
+          "args": {},
+          "action": "open_supported_models"
+        }
+      }
+    },
+    {
+      "caseId": "card.relay_unchanged",
+      "input": {
+        "route": {
+          "row": "relay_unchanged",
+          "path": "none"
+        }
+      },
+      "expect": {
+        "existing": true
+      }
+    },
+    {
+      "caseId": "card.free_unchanged",
+      "input": {
+        "route": {
+          "row": "free_unchanged",
+          "path": "none"
+        }
+      },
+      "expect": {
+        "existing": true
+      }
+    },
+    {
+      "caseId": "card.cannot_search.native_unknown_keeps_status",
+      "input": {
+        "route": {
+          "row": "cannot_search",
+          "path": "none",
+          "primaryAction": "add_search_service",
+          "secondaryAction": "open_supported_models"
+        },
+        "nativeWeb": "unknown"
+      },
+      "expect": {
+        "existing": false,
+        "toggle": false,
+        "status": null,
+        "notes": [],
+        "link": null,
+        "cta": {
+          "key": "card.addService",
+          "args": {},
+          "action": "add_search_service"
+        },
+        "secondary": {
+          "key": "card.supportedModels",
+          "args": {},
+          "action": "open_supported_models"
+        }
+      }
+    },
+    {
+      "caseId": "card.cannot_search.withdrawn_keeps_status",
+      "input": {
+        "route": {
+          "row": "cannot_search",
+          "path": "none",
+          "primaryAction": "add_search_service",
+          "secondaryAction": "open_supported_models"
+        },
+        "nativeWeb": "withdrawn_or_rejected"
+      },
+      "expect": {
+        "existing": false,
+        "toggle": false,
+        "status": null,
+        "notes": [],
+        "link": null,
+        "cta": {
+          "key": "card.addService",
+          "args": {},
+          "action": "add_search_service"
+        },
+        "secondary": {
+          "key": "card.supportedModels",
+          "args": {},
+          "action": "open_supported_models"
+        }
+      }
+    },
+    {
+      "caseId": "card.one_tap.native_unknown_detail",
+      "input": {
+        "route": {
+          "row": "one_tap_reuse_connection_key",
+          "path": "none",
+          "primaryAction": "one_tap_enable"
+        },
+        "nativeWeb": "unknown",
+        "oneTapServiceName": "Kimi"
+      },
+      "expect": {
+        "existing": false,
+        "toggle": false,
+        "status": null,
+        "notes": [
+          {
+            "key": "card.reuseDetail",
+            "args": {
+              "name": "Kimi"
+            }
+          }
+        ],
+        "link": null,
+        "cta": {
+          "key": "card.oneTap",
+          "args": {},
+          "action": "one_tap_enable"
+        },
+        "secondary": null
+      }
+    },
+    {
+      "caseId": "card.external_status_note_needs_key",
+      "input": {
+        "route": {
+          "row": "toggle_external",
+          "path": "external_tool",
+          "sourceAction": "pick_source"
+        },
+        "webOn": true,
+        "source": {
+          "kind": "service",
+          "name": "Tavily",
+          "status": "needs_key"
+        }
+      },
+      "expect": {
+        "existing": false,
+        "toggle": true,
+        "status": {
+          "key": "card.useService",
+          "args": {
+            "name": "Tavily"
+          }
+        },
+        "notes": [
+          {
+            "key": "row.needsKey",
+            "args": {}
+          }
+        ],
+        "link": {
+          "key": "card.changeService",
+          "args": {},
+          "action": "pick_source"
+        },
+        "cta": null,
+        "secondary": null
+      }
+    },
+    {
+      "caseId": "card.presearch_with_notice_keeps_both",
+      "input": {
+        "route": {
+          "row": "toggle_external_presearch_notice",
+          "path": "external_presearch",
+          "sourceAction": "pick_source"
+        },
+        "webOn": true,
+        "source": {
+          "kind": "service",
+          "name": "DeepSeek",
+          "status": "ready"
+        },
+        "notice": {
+          "fromName": "Tavily"
+        }
+      },
+      "expect": {
+        "existing": false,
+        "toggle": true,
+        "status": {
+          "key": "card.useService",
+          "args": {
+            "name": "DeepSeek"
+          }
+        },
+        "notes": [
+          {
+            "key": "card.fallbackNotice",
+            "args": {
+              "from": "Tavily"
+            }
+          },
+          {
+            "key": "card.presearchNotice",
+            "args": {}
+          }
+        ],
+        "link": {
+          "key": "card.changeService",
+          "args": {},
+          "action": "pick_source"
+        },
+        "cta": null,
+        "secondary": null
+      }
+    },
+    {
+      "caseId": "card.external_off_arm_hint",
+      "input": {
+        "route": {
+          "row": "toggle_external",
+          "path": "none",
+          "sourceAction": "pick_source"
+        },
+        "webOn": false,
+        "armHint": true,
+        "source": {
+          "kind": "service",
+          "name": "DeepSeek",
+          "status": "ready"
+        }
+      },
+      "expect": {
+        "existing": false,
+        "toggle": true,
+        "status": {
+          "key": "card.offUseService",
+          "args": {
+            "name": "DeepSeek"
+          }
+        },
+        "notes": [
+          {
+            "key": "card.armHint",
+            "args": {
+              "name": "DeepSeek"
+            }
+          }
+        ],
+        "link": {
+          "key": "card.changeService",
+          "args": {},
+          "action": "pick_source"
+        },
+        "cta": null,
+        "secondary": null
+      }
+    },
+    {
+      "caseId": "card.picker_external_catalog_unavailable_note",
+      "input": {
+        "route": {
+          "row": "toggle_with_source_picker",
+          "path": "external_tool",
+          "sourceAction": "pick_source"
+        },
+        "webOn": true,
+        "source": {
+          "kind": "service",
+          "name": "DeepSeek",
+          "status": "catalog_unavailable"
+        }
+      },
+      "expect": {
+        "existing": false,
+        "toggle": true,
+        "status": null,
+        "notes": [
+          {
+            "key": "row.catalogUnavailable",
+            "args": {}
+          }
+        ],
+        "link": {
+          "key": "card.sourceLine",
+          "args": {
+            "name": "DeepSeek"
+          },
+          "action": "pick_source"
+        },
+        "cta": null,
+        "secondary": null
+      }
+    }
+  ],
+  "stateCases": [
+    {
+      "caseId": "state.byok.native.no_service",
+      "input": {
+        "facts": {
+          "toolCall": "supported",
+          "form": "byok",
+          "recipeWeb": "auto_available"
+        },
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [],
+        "defaultServiceId": null,
+        "stored": null,
+        "oneTapTarget": null,
+        "oneTapServiceName": null
+      },
+      "expect": {
+        "nativeWeb": "available",
+        "route": {
+          "row": "toggle_native_unchanged",
+          "path": "native"
+        },
+        "source": {
+          "method": "default",
+          "serviceId": null,
+          "notice": null,
+          "nextStored": null,
+          "changed": false
+        },
+        "shapeMode": "existing",
+        "card": {
+          "existing": true
+        },
+        "pickerItems": [],
+        "toggleOn": false,
+        "chipLit": null,
+        "toggleControls": null,
+        "armHint": false,
+        "nativeFieldsSuppressed": false,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.byok.native.with_service.default",
+      "input": {
+        "facts": {
+          "toolCall": "supported",
+          "form": "byok",
+          "recipeWeb": "auto_available"
+        },
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "ready"
+          },
+          {
+            "id": "s2",
+            "name": "Tavily",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": null,
+        "oneTapTarget": null,
+        "oneTapServiceName": null
+      },
+      "expect": {
+        "nativeWeb": "available",
+        "route": {
+          "row": "toggle_with_source_picker",
+          "path": "native",
+          "sourceAction": "pick_source"
+        },
+        "source": {
+          "method": "default",
+          "serviceId": "s1",
+          "notice": null,
+          "nextStored": null,
+          "changed": false
+        },
+        "shapeMode": "toggle_with_source",
+        "card": {
+          "existing": false,
+          "toggle": true,
+          "status": null,
+          "notes": [],
+          "link": {
+            "key": "card.sourceLineNative",
+            "args": {},
+            "action": "pick_source"
+          },
+          "cta": null,
+          "secondary": null
+        },
+        "pickerItems": [
+          {
+            "kind": "native",
+            "selected": true
+          },
+          {
+            "kind": "service",
+            "serviceId": "s1",
+            "isDefault": true,
+            "status": "ready",
+            "selected": false
+          },
+          {
+            "kind": "service",
+            "serviceId": "s2",
+            "isDefault": false,
+            "status": "ready",
+            "selected": false
+          },
+          {
+            "kind": "add"
+          }
+        ],
+        "toggleOn": true,
+        "chipLit": true,
+        "toggleControls": "conversation_web",
+        "armHint": false,
+        "nativeFieldsSuppressed": false,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.byok.native.cold_start_picked_external",
+      "input": {
+        "facts": {
+          "toolCall": "supported",
+          "form": "byok",
+          "recipeWeb": "auto_available"
+        },
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "ready"
+          },
+          {
+            "id": "s2",
+            "name": "Tavily",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": {
+          "methods": {
+            "c1:m1": "external"
+          },
+          "serviceId": "s2",
+          "serviceName": "Tavily",
+          "notice": null
+        },
+        "oneTapTarget": null,
+        "oneTapServiceName": null
+      },
+      "expect": {
+        "nativeWeb": "available",
+        "route": {
+          "row": "toggle_with_source_picker",
+          "path": "external_tool",
+          "sourceAction": "pick_source"
+        },
+        "source": {
+          "method": "external",
+          "serviceId": "s2",
+          "notice": null,
+          "nextStored": {
+            "methods": {
+              "c1:m1": "external"
+            },
+            "serviceId": "s2",
+            "serviceName": "Tavily",
+            "notice": null
+          },
+          "changed": false
+        },
+        "shapeMode": "toggle_with_source",
+        "card": {
+          "existing": false,
+          "toggle": true,
+          "status": null,
+          "notes": [],
+          "link": {
+            "key": "card.sourceLine",
+            "args": {
+              "name": "Tavily"
+            },
+            "action": "pick_source"
+          },
+          "cta": null,
+          "secondary": null
+        },
+        "pickerItems": [
+          {
+            "kind": "native",
+            "selected": false
+          },
+          {
+            "kind": "service",
+            "serviceId": "s1",
+            "isDefault": true,
+            "status": "ready",
+            "selected": false
+          },
+          {
+            "kind": "service",
+            "serviceId": "s2",
+            "isDefault": false,
+            "status": "ready",
+            "selected": true
+          },
+          {
+            "kind": "add"
+          }
+        ],
+        "toggleOn": true,
+        "chipLit": true,
+        "toggleControls": "conversation_web",
+        "armHint": false,
+        "nativeFieldsSuppressed": true,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.byok.native.external_recorded_for_other_model_only",
+      "input": {
+        "facts": {
+          "toolCall": "supported",
+          "form": "byok",
+          "recipeWeb": "auto_available"
+        },
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m2",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "ready"
+          },
+          {
+            "id": "s2",
+            "name": "Tavily",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": {
+          "methods": {
+            "c1:m1": "external"
+          },
+          "serviceId": "s2",
+          "serviceName": "Tavily",
+          "notice": null
+        },
+        "oneTapTarget": null,
+        "oneTapServiceName": null
+      },
+      "expect": {
+        "nativeWeb": "available",
+        "route": {
+          "row": "toggle_with_source_picker",
+          "path": "native",
+          "sourceAction": "pick_source"
+        },
+        "source": {
+          "method": "default",
+          "serviceId": "s2",
+          "notice": null,
+          "nextStored": {
+            "methods": {
+              "c1:m1": "external"
+            },
+            "serviceId": "s2",
+            "serviceName": "Tavily",
+            "notice": null
+          },
+          "changed": false
+        },
+        "shapeMode": "toggle_with_source",
+        "card": {
+          "existing": false,
+          "toggle": true,
+          "status": null,
+          "notes": [],
+          "link": {
+            "key": "card.sourceLineNative",
+            "args": {},
+            "action": "pick_source"
+          },
+          "cta": null,
+          "secondary": null
+        },
+        "pickerItems": [
+          {
+            "kind": "native",
+            "selected": true
+          },
+          {
+            "kind": "service",
+            "serviceId": "s1",
+            "isDefault": true,
+            "status": "ready",
+            "selected": false
+          },
+          {
+            "kind": "service",
+            "serviceId": "s2",
+            "isDefault": false,
+            "status": "ready",
+            "selected": false
+          },
+          {
+            "kind": "add"
+          }
+        ],
+        "toggleOn": true,
+        "chipLit": true,
+        "toggleControls": "conversation_web",
+        "armHint": false,
+        "nativeFieldsSuppressed": false,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.byok.unavailable.with_service",
+      "input": {
+        "facts": {
+          "toolCall": "supported",
+          "form": "byok",
+          "recipeWeb": "unavailable"
+        },
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": {
+          "methods": {
+            "c1:m1": "external"
+          },
+          "serviceId": "s1",
+          "serviceName": "DeepSeek",
+          "notice": null
+        },
+        "oneTapTarget": null,
+        "oneTapServiceName": null
+      },
+      "expect": {
+        "nativeWeb": "unavailable",
+        "route": {
+          "row": "toggle_external",
+          "path": "external_tool",
+          "sourceAction": "pick_source"
+        },
+        "source": {
+          "method": "external",
+          "serviceId": "s1",
+          "notice": null,
+          "nextStored": {
+            "methods": {
+              "c1:m1": "external"
+            },
+            "serviceId": "s1",
+            "serviceName": "DeepSeek",
+            "notice": null
+          },
+          "changed": false
+        },
+        "shapeMode": "toggle_with_source",
+        "card": {
+          "existing": false,
+          "toggle": true,
+          "status": {
+            "key": "card.useService",
+            "args": {
+              "name": "DeepSeek"
+            }
+          },
+          "notes": [],
+          "link": {
+            "key": "card.changeService",
+            "args": {},
+            "action": "pick_source"
+          },
+          "cta": null,
+          "secondary": null
+        },
+        "pickerItems": [
+          {
+            "kind": "service",
+            "serviceId": "s1",
+            "isDefault": true,
+            "status": "ready",
+            "selected": true
+          },
+          {
+            "kind": "add"
+          }
+        ],
+        "toggleOn": true,
+        "chipLit": true,
+        "toggleControls": "external",
+        "armHint": false,
+        "nativeFieldsSuppressed": true,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.byok.unavailable.tool_unsupported",
+      "input": {
+        "facts": {
+          "toolCall": "unsupported",
+          "form": "byok",
+          "recipeWeb": "unavailable"
+        },
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": {
+          "methods": {
+            "c1:m1": "external"
+          },
+          "serviceId": "s1",
+          "serviceName": "DeepSeek",
+          "notice": null
+        },
+        "oneTapTarget": null,
+        "oneTapServiceName": null
+      },
+      "expect": {
+        "nativeWeb": "unavailable",
+        "route": {
+          "row": "toggle_external_presearch_notice",
+          "path": "external_presearch",
+          "sourceAction": "pick_source"
+        },
+        "source": {
+          "method": "external",
+          "serviceId": "s1",
+          "notice": null,
+          "nextStored": {
+            "methods": {
+              "c1:m1": "external"
+            },
+            "serviceId": "s1",
+            "serviceName": "DeepSeek",
+            "notice": null
+          },
+          "changed": false
+        },
+        "shapeMode": "toggle_with_source",
+        "card": {
+          "existing": false,
+          "toggle": true,
+          "status": {
+            "key": "card.useService",
+            "args": {
+              "name": "DeepSeek"
+            }
+          },
+          "notes": [
+            {
+              "key": "card.presearchNotice",
+              "args": {}
+            }
+          ],
+          "link": {
+            "key": "card.changeService",
+            "args": {},
+            "action": "pick_source"
+          },
+          "cta": null,
+          "secondary": null
+        },
+        "pickerItems": [
+          {
+            "kind": "service",
+            "serviceId": "s1",
+            "isDefault": true,
+            "status": "ready",
+            "selected": true
+          },
+          {
+            "kind": "add"
+          }
+        ],
+        "toggleOn": true,
+        "chipLit": true,
+        "toggleControls": "external",
+        "armHint": false,
+        "nativeFieldsSuppressed": true,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.byok.unavailable.no_service.one_tap",
+      "input": {
+        "facts": {
+          "toolCall": "supported",
+          "form": "byok",
+          "recipeWeb": "unavailable"
+        },
+        "panelWritable": true,
+        "webOn": false,
+        "modelKey": "c1:m1",
+        "services": [],
+        "defaultServiceId": null,
+        "stored": null,
+        "oneTapTarget": {
+          "serviceId": "deepseek",
+          "regionId": "cn",
+          "connectionRef": "c1",
+          "connectionName": "DeepSeek"
+        },
+        "oneTapServiceName": "DeepSeek"
+      },
+      "expect": {
+        "nativeWeb": "unavailable",
+        "route": {
+          "row": "one_tap_reuse_connection_key",
+          "path": "none",
+          "primaryAction": "one_tap_enable"
+        },
+        "source": {
+          "method": "default",
+          "serviceId": null,
+          "notice": null,
+          "nextStored": null,
+          "changed": false
+        },
+        "shapeMode": "search_notice",
+        "card": {
+          "existing": false,
+          "toggle": false,
+          "status": {
+            "key": "card.reuseStatus",
+            "args": {
+              "name": "DeepSeek"
+            }
+          },
+          "notes": [],
+          "link": null,
+          "cta": {
+            "key": "card.oneTap",
+            "args": {},
+            "action": "one_tap_enable"
+          },
+          "secondary": null
+        },
+        "pickerItems": [],
+        "toggleOn": false,
+        "chipLit": null,
+        "toggleControls": null,
+        "armHint": false,
+        "nativeFieldsSuppressed": false,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.byok.unavailable.no_service.nothing",
+      "input": {
+        "facts": {
+          "toolCall": "supported",
+          "form": "byok",
+          "recipeWeb": "unavailable"
+        },
+        "panelWritable": true,
+        "webOn": false,
+        "modelKey": "c1:m1",
+        "services": [],
+        "defaultServiceId": null,
+        "stored": null,
+        "oneTapTarget": null,
+        "oneTapServiceName": null
+      },
+      "expect": {
+        "nativeWeb": "unavailable",
+        "route": {
+          "row": "cannot_search",
+          "path": "none",
+          "primaryAction": "add_search_service",
+          "secondaryAction": "open_supported_models"
+        },
+        "source": {
+          "method": "default",
+          "serviceId": null,
+          "notice": null,
+          "nextStored": null,
+          "changed": false
+        },
+        "shapeMode": "search_notice",
+        "card": {
+          "existing": false,
+          "toggle": false,
+          "status": {
+            "key": "card.cannotSearch",
+            "args": {}
+          },
+          "notes": [],
+          "link": null,
+          "cta": {
+            "key": "card.addService",
+            "args": {},
+            "action": "add_search_service"
+          },
+          "secondary": {
+            "key": "card.supportedModels",
+            "args": {},
+            "action": "open_supported_models"
+          }
+        },
+        "pickerItems": [],
+        "toggleOn": false,
+        "chipLit": null,
+        "toggleControls": null,
+        "armHint": false,
+        "nativeFieldsSuppressed": false,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.byok.no_recipe.no_service",
+      "input": {
+        "facts": {
+          "toolCall": "supported",
+          "form": "byok",
+          "recipeWeb": "none"
+        },
+        "panelWritable": true,
+        "webOn": false,
+        "modelKey": "c1:m1",
+        "services": [],
+        "defaultServiceId": null,
+        "stored": null,
+        "oneTapTarget": null,
+        "oneTapServiceName": null
+      },
+      "expect": {
+        "nativeWeb": "unknown",
+        "route": {
+          "row": "cannot_search",
+          "path": "none",
+          "primaryAction": "add_search_service",
+          "secondaryAction": "open_supported_models"
+        },
+        "source": {
+          "method": "default",
+          "serviceId": null,
+          "notice": null,
+          "nextStored": null,
+          "changed": false
+        },
+        "shapeMode": "existing_with_actions",
+        "card": {
+          "existing": false,
+          "toggle": false,
+          "status": null,
+          "notes": [],
+          "link": null,
+          "cta": {
+            "key": "card.addService",
+            "args": {},
+            "action": "add_search_service"
+          },
+          "secondary": {
+            "key": "card.supportedModels",
+            "args": {},
+            "action": "open_supported_models"
+          }
+        },
+        "pickerItems": [],
+        "toggleOn": false,
+        "chipLit": null,
+        "toggleControls": null,
+        "armHint": false,
+        "nativeFieldsSuppressed": false,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.byok.custom_only.no_service.one_tap",
+      "input": {
+        "facts": {
+          "toolCall": "supported",
+          "form": "byok",
+          "recipeWeb": "custom_only"
+        },
+        "panelWritable": true,
+        "webOn": false,
+        "modelKey": "c1:m1",
+        "services": [],
+        "defaultServiceId": null,
+        "stored": null,
+        "oneTapTarget": {
+          "serviceId": "deepseek",
+          "regionId": "cn",
+          "connectionRef": "c1",
+          "connectionName": "DeepSeek"
+        },
+        "oneTapServiceName": "DeepSeek"
+      },
+      "expect": {
+        "nativeWeb": "unknown",
+        "route": {
+          "row": "one_tap_reuse_connection_key",
+          "path": "none",
+          "primaryAction": "one_tap_enable"
+        },
+        "source": {
+          "method": "default",
+          "serviceId": null,
+          "notice": null,
+          "nextStored": null,
+          "changed": false
+        },
+        "shapeMode": "existing_with_actions",
+        "card": {
+          "existing": false,
+          "toggle": false,
+          "status": null,
+          "notes": [
+            {
+              "key": "card.reuseDetail",
+              "args": {
+                "name": "DeepSeek"
+              }
+            }
+          ],
+          "link": null,
+          "cta": {
+            "key": "card.oneTap",
+            "args": {},
+            "action": "one_tap_enable"
+          },
+          "secondary": null
+        },
+        "pickerItems": [],
+        "toggleOn": false,
+        "chipLit": null,
+        "toggleControls": null,
+        "armHint": false,
+        "nativeFieldsSuppressed": false,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.byok.rejected.no_service_keeps_existing",
+      "input": {
+        "facts": {
+          "toolCall": "supported",
+          "form": "byok",
+          "recipeWeb": "auto_available",
+          "nativeRejected": true
+        },
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [],
+        "defaultServiceId": null,
+        "stored": null,
+        "oneTapTarget": null,
+        "oneTapServiceName": null
+      },
+      "expect": {
+        "nativeWeb": "withdrawn_or_rejected",
+        "route": {
+          "row": "cannot_search",
+          "path": "none",
+          "primaryAction": "add_search_service",
+          "secondaryAction": "open_supported_models"
+        },
+        "source": {
+          "method": "default",
+          "serviceId": null,
+          "notice": null,
+          "nextStored": null,
+          "changed": false
+        },
+        "shapeMode": "existing_with_actions",
+        "card": {
+          "existing": false,
+          "toggle": false,
+          "status": null,
+          "notes": [],
+          "link": null,
+          "cta": {
+            "key": "card.addService",
+            "args": {},
+            "action": "add_search_service"
+          },
+          "secondary": {
+            "key": "card.supportedModels",
+            "args": {},
+            "action": "open_supported_models"
+          }
+        },
+        "pickerItems": [],
+        "toggleOn": false,
+        "chipLit": null,
+        "toggleControls": null,
+        "armHint": false,
+        "nativeFieldsSuppressed": false,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.byok.rejected.with_service",
+      "input": {
+        "facts": {
+          "toolCall": "supported",
+          "form": "byok",
+          "recipeWeb": "auto_available",
+          "nativeRejected": true
+        },
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": {
+          "methods": {
+            "c1:m1": "external"
+          },
+          "serviceId": "s1",
+          "serviceName": "DeepSeek",
+          "notice": null
+        },
+        "oneTapTarget": null,
+        "oneTapServiceName": null
+      },
+      "expect": {
+        "nativeWeb": "withdrawn_or_rejected",
+        "route": {
+          "row": "toggle_external",
+          "path": "external_tool",
+          "sourceAction": "pick_source"
+        },
+        "source": {
+          "method": "external",
+          "serviceId": "s1",
+          "notice": null,
+          "nextStored": {
+            "methods": {
+              "c1:m1": "external"
+            },
+            "serviceId": "s1",
+            "serviceName": "DeepSeek",
+            "notice": null
+          },
+          "changed": false
+        },
+        "shapeMode": "toggle_with_source",
+        "card": {
+          "existing": false,
+          "toggle": true,
+          "status": {
+            "key": "card.useService",
+            "args": {
+              "name": "DeepSeek"
+            }
+          },
+          "notes": [],
+          "link": {
+            "key": "card.changeService",
+            "args": {},
+            "action": "pick_source"
+          },
+          "cta": null,
+          "secondary": null
+        },
+        "pickerItems": [
+          {
+            "kind": "service",
+            "serviceId": "s1",
+            "isDefault": true,
+            "status": "ready",
+            "selected": true
+          },
+          {
+            "kind": "add"
+          }
+        ],
+        "toggleOn": true,
+        "chipLit": true,
+        "toggleControls": "external",
+        "armHint": false,
+        "nativeFieldsSuppressed": true,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.byok.web_on.no_service.one_tap",
+      "input": {
+        "facts": {
+          "toolCall": "supported",
+          "form": "byok",
+          "recipeWeb": "unavailable"
+        },
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [],
+        "defaultServiceId": null,
+        "stored": null,
+        "oneTapTarget": {
+          "serviceId": "deepseek",
+          "regionId": "cn",
+          "connectionRef": "c1",
+          "connectionName": "DeepSeek"
+        },
+        "oneTapServiceName": "DeepSeek"
+      },
+      "expect": {
+        "nativeWeb": "unavailable",
+        "route": {
+          "row": "one_tap_reuse_connection_key",
+          "path": "none",
+          "primaryAction": "one_tap_enable"
+        },
+        "source": {
+          "method": "default",
+          "serviceId": null,
+          "notice": null,
+          "nextStored": null,
+          "changed": false
+        },
+        "shapeMode": "search_notice",
+        "card": {
+          "existing": false,
+          "toggle": false,
+          "status": {
+            "key": "card.reuseStatus",
+            "args": {
+              "name": "DeepSeek"
+            }
+          },
+          "notes": [],
+          "link": null,
+          "cta": {
+            "key": "card.oneTap",
+            "args": {},
+            "action": "one_tap_enable"
+          },
+          "secondary": null
+        },
+        "pickerItems": [],
+        "toggleOn": false,
+        "chipLit": null,
+        "toggleControls": null,
+        "armHint": false,
+        "nativeFieldsSuppressed": false,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.byok.picked_deleted_notice",
+      "input": {
+        "facts": {
+          "toolCall": "supported",
+          "form": "byok",
+          "recipeWeb": "unavailable"
+        },
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": {
+          "methods": {
+            "c1:m1": "external"
+          },
+          "serviceId": "s2",
+          "serviceName": "Tavily",
+          "notice": null
+        },
+        "oneTapTarget": null,
+        "oneTapServiceName": null
+      },
+      "expect": {
+        "nativeWeb": "unavailable",
+        "route": {
+          "row": "toggle_external",
+          "path": "none",
+          "sourceAction": "pick_source"
+        },
+        "source": {
+          "method": "default",
+          "serviceId": "s1",
+          "notice": {
+            "fromName": "Tavily"
+          },
+          "nextStored": {
+            "methods": {},
+            "serviceId": null,
+            "serviceName": null,
+            "notice": {
+              "fromName": "Tavily"
+            }
+          },
+          "changed": true
+        },
+        "shapeMode": "toggle_with_source",
+        "card": {
+          "existing": false,
+          "toggle": true,
+          "status": {
+            "key": "card.offUseService",
+            "args": {
+              "name": "DeepSeek"
+            }
+          },
+          "notes": [
+            {
+              "key": "card.fallbackNotice",
+              "args": {
+                "from": "Tavily"
+              }
+            },
+            {
+              "key": "card.armHint",
+              "args": {
+                "name": "DeepSeek"
+              }
+            }
+          ],
+          "link": {
+            "key": "card.changeService",
+            "args": {},
+            "action": "pick_source"
+          },
+          "cta": null,
+          "secondary": null
+        },
+        "pickerItems": [
+          {
+            "kind": "service",
+            "serviceId": "s1",
+            "isDefault": true,
+            "status": "ready",
+            "selected": false
+          },
+          {
+            "kind": "add"
+          }
+        ],
+        "toggleOn": false,
+        "chipLit": false,
+        "toggleControls": "external",
+        "armHint": true,
+        "nativeFieldsSuppressed": false,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.byok.withdrawn_not_counted",
+      "input": {
+        "facts": {
+          "toolCall": "supported",
+          "form": "byok",
+          "recipeWeb": "unavailable"
+        },
+        "panelWritable": true,
+        "webOn": false,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s9",
+            "name": "Exa",
+            "status": "withdrawn"
+          }
+        ],
+        "defaultServiceId": null,
+        "stored": null,
+        "oneTapTarget": null,
+        "oneTapServiceName": null
+      },
+      "expect": {
+        "nativeWeb": "unavailable",
+        "route": {
+          "row": "cannot_search",
+          "path": "none",
+          "primaryAction": "add_search_service",
+          "secondaryAction": "open_supported_models"
+        },
+        "source": {
+          "method": "default",
+          "serviceId": null,
+          "notice": null,
+          "nextStored": null,
+          "changed": false
+        },
+        "shapeMode": "search_notice",
+        "card": {
+          "existing": false,
+          "toggle": false,
+          "status": {
+            "key": "card.cannotSearch",
+            "args": {}
+          },
+          "notes": [],
+          "link": null,
+          "cta": {
+            "key": "card.addService",
+            "args": {},
+            "action": "add_search_service"
+          },
+          "secondary": {
+            "key": "card.supportedModels",
+            "args": {},
+            "action": "open_supported_models"
+          }
+        },
+        "pickerItems": [],
+        "toggleOn": false,
+        "chipLit": null,
+        "toggleControls": null,
+        "armHint": false,
+        "nativeFieldsSuppressed": false,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.readonly.toggle_row_existing",
+      "input": {
+        "facts": {
+          "toolCall": "supported",
+          "form": "byok",
+          "recipeWeb": "unavailable"
+        },
+        "panelWritable": false,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": {
+          "methods": {
+            "c1:m1": "external"
+          },
+          "serviceId": "s1",
+          "serviceName": "DeepSeek",
+          "notice": null
+        },
+        "oneTapTarget": null,
+        "oneTapServiceName": null
+      },
+      "expect": {
+        "nativeWeb": "unavailable",
+        "route": {
+          "row": "toggle_external",
+          "path": "none",
+          "sourceAction": "pick_source"
+        },
+        "source": {
+          "method": "default",
+          "serviceId": "s1",
+          "notice": null,
+          "nextStored": {
+            "methods": {
+              "c1:m1": "external"
+            },
+            "serviceId": "s1",
+            "serviceName": "DeepSeek",
+            "notice": null
+          },
+          "changed": false
+        },
+        "shapeMode": "existing",
+        "card": {
+          "existing": false,
+          "toggle": true,
+          "status": {
+            "key": "card.offUseService",
+            "args": {
+              "name": "DeepSeek"
+            }
+          },
+          "notes": [
+            {
+              "key": "card.armHint",
+              "args": {
+                "name": "DeepSeek"
+              }
+            }
+          ],
+          "link": {
+            "key": "card.changeService",
+            "args": {},
+            "action": "pick_source"
+          },
+          "cta": null,
+          "secondary": null
+        },
+        "pickerItems": [
+          {
+            "kind": "service",
+            "serviceId": "s1",
+            "isDefault": true,
+            "status": "ready",
+            "selected": false
+          },
+          {
+            "kind": "add"
+          }
+        ],
+        "toggleOn": false,
+        "chipLit": null,
+        "toggleControls": "external",
+        "armHint": true,
+        "nativeFieldsSuppressed": false,
+        "oneTapArms": false
+      }
+    },
+    {
+      "caseId": "state.readonly.no_service_one_tap_no_write",
+      "input": {
+        "facts": {
+          "toolCall": "supported",
+          "form": "byok",
+          "recipeWeb": "unavailable"
+        },
+        "panelWritable": false,
+        "webOn": false,
+        "modelKey": "c1:m1",
+        "services": [],
+        "defaultServiceId": null,
+        "stored": null,
+        "oneTapTarget": {
+          "serviceId": "deepseek",
+          "regionId": "cn",
+          "connectionRef": "c1",
+          "connectionName": "DeepSeek"
+        },
+        "oneTapServiceName": "DeepSeek"
+      },
+      "expect": {
+        "nativeWeb": "unavailable",
+        "route": {
+          "row": "one_tap_reuse_connection_key",
+          "path": "none",
+          "primaryAction": "one_tap_enable"
+        },
+        "source": {
+          "method": "default",
+          "serviceId": null,
+          "notice": null,
+          "nextStored": null,
+          "changed": false
+        },
+        "shapeMode": "search_notice",
+        "card": {
+          "existing": false,
+          "toggle": false,
+          "status": {
+            "key": "card.reuseStatus",
+            "args": {
+              "name": "DeepSeek"
+            }
+          },
+          "notes": [],
+          "link": null,
+          "cta": {
+            "key": "card.oneTap",
+            "args": {},
+            "action": "one_tap_enable"
+          },
+          "secondary": null
+        },
+        "pickerItems": [],
+        "toggleOn": false,
+        "chipLit": null,
+        "toggleControls": null,
+        "armHint": false,
+        "nativeFieldsSuppressed": false,
+        "oneTapArms": false
+      }
+    },
+    {
+      "caseId": "state.relay.searched.with_service",
+      "input": {
+        "facts": {
+          "toolCall": "supported",
+          "form": "relay",
+          "relayStatus": "web_probe_searched"
+        },
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "ready"
+          },
+          {
+            "id": "s2",
+            "name": "Tavily",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": null,
+        "oneTapTarget": null,
+        "oneTapServiceName": null
+      },
+      "expect": {
+        "nativeWeb": null,
+        "route": {
+          "row": "toggle_with_source_picker",
+          "path": "relay_fragment",
+          "sourceAction": "pick_source"
+        },
+        "source": {
+          "method": "default",
+          "serviceId": "s1",
+          "notice": null,
+          "nextStored": null,
+          "changed": false
+        },
+        "shapeMode": "toggle_with_source",
+        "card": {
+          "existing": false,
+          "toggle": true,
+          "status": null,
+          "notes": [],
+          "link": {
+            "key": "card.sourceLineNative",
+            "args": {},
+            "action": "pick_source"
+          },
+          "cta": null,
+          "secondary": null
+        },
+        "pickerItems": [
+          {
+            "kind": "native",
+            "selected": true
+          },
+          {
+            "kind": "service",
+            "serviceId": "s1",
+            "isDefault": true,
+            "status": "ready",
+            "selected": false
+          },
+          {
+            "kind": "service",
+            "serviceId": "s2",
+            "isDefault": false,
+            "status": "ready",
+            "selected": false
+          },
+          {
+            "kind": "add"
+          }
+        ],
+        "toggleOn": true,
+        "chipLit": true,
+        "toggleControls": "conversation_web",
+        "armHint": false,
+        "nativeFieldsSuppressed": false,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.relay.user_on.with_service_picked_external",
+      "input": {
+        "facts": {
+          "toolCall": "supported",
+          "form": "relay",
+          "relayStatus": "web_user_on"
+        },
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "ready"
+          },
+          {
+            "id": "s2",
+            "name": "Tavily",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": {
+          "methods": {
+            "c1:m1": "external"
+          },
+          "serviceId": "s2",
+          "serviceName": "Tavily",
+          "notice": null
+        },
+        "oneTapTarget": null,
+        "oneTapServiceName": null
+      },
+      "expect": {
+        "nativeWeb": null,
+        "route": {
+          "row": "toggle_with_source_picker",
+          "path": "external_tool",
+          "sourceAction": "pick_source"
+        },
+        "source": {
+          "method": "external",
+          "serviceId": "s2",
+          "notice": null,
+          "nextStored": {
+            "methods": {
+              "c1:m1": "external"
+            },
+            "serviceId": "s2",
+            "serviceName": "Tavily",
+            "notice": null
+          },
+          "changed": false
+        },
+        "shapeMode": "toggle_with_source",
+        "card": {
+          "existing": false,
+          "toggle": true,
+          "status": null,
+          "notes": [],
+          "link": {
+            "key": "card.sourceLine",
+            "args": {
+              "name": "Tavily"
+            },
+            "action": "pick_source"
+          },
+          "cta": null,
+          "secondary": null
+        },
+        "pickerItems": [
+          {
+            "kind": "native",
+            "selected": false
+          },
+          {
+            "kind": "service",
+            "serviceId": "s1",
+            "isDefault": true,
+            "status": "ready",
+            "selected": false
+          },
+          {
+            "kind": "service",
+            "serviceId": "s2",
+            "isDefault": false,
+            "status": "ready",
+            "selected": true
+          },
+          {
+            "kind": "add"
+          }
+        ],
+        "toggleOn": true,
+        "chipLit": true,
+        "toggleControls": "conversation_web",
+        "armHint": false,
+        "nativeFieldsSuppressed": true,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.relay.rejected.with_service",
+      "input": {
+        "facts": {
+          "toolCall": "supported",
+          "form": "relay",
+          "relayStatus": "web_probe_rejected"
+        },
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": {
+          "methods": {
+            "c1:m1": "external"
+          },
+          "serviceId": "s1",
+          "serviceName": "DeepSeek",
+          "notice": null
+        },
+        "oneTapTarget": null,
+        "oneTapServiceName": null
+      },
+      "expect": {
+        "nativeWeb": null,
+        "route": {
+          "row": "toggle_external",
+          "path": "external_tool",
+          "sourceAction": "pick_source",
+          "fragmentAttached": false
+        },
+        "source": {
+          "method": "external",
+          "serviceId": "s1",
+          "notice": null,
+          "nextStored": {
+            "methods": {
+              "c1:m1": "external"
+            },
+            "serviceId": "s1",
+            "serviceName": "DeepSeek",
+            "notice": null
+          },
+          "changed": false
+        },
+        "shapeMode": "toggle_with_source",
+        "card": {
+          "existing": false,
+          "toggle": true,
+          "status": {
+            "key": "card.useService",
+            "args": {
+              "name": "DeepSeek"
+            }
+          },
+          "notes": [],
+          "link": {
+            "key": "card.changeService",
+            "args": {},
+            "action": "pick_source"
+          },
+          "cta": null,
+          "secondary": null
+        },
+        "pickerItems": [
+          {
+            "kind": "service",
+            "serviceId": "s1",
+            "isDefault": true,
+            "status": "ready",
+            "selected": true
+          },
+          {
+            "kind": "add"
+          }
+        ],
+        "toggleOn": true,
+        "chipLit": true,
+        "toggleControls": "external",
+        "armHint": false,
+        "nativeFieldsSuppressed": true,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.relay.unverified.no_service",
+      "input": {
+        "facts": {
+          "toolCall": "supported",
+          "form": "relay",
+          "relayStatus": "web_probe_unverified"
+        },
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [],
+        "defaultServiceId": null,
+        "stored": null,
+        "oneTapTarget": null,
+        "oneTapServiceName": null
+      },
+      "expect": {
+        "nativeWeb": null,
+        "route": {
+          "row": "relay_unchanged",
+          "path": "none"
+        },
+        "source": {
+          "method": "default",
+          "serviceId": null,
+          "notice": null,
+          "nextStored": null,
+          "changed": false
+        },
+        "shapeMode": "existing",
+        "card": {
+          "existing": true
+        },
+        "pickerItems": [],
+        "toggleOn": false,
+        "chipLit": null,
+        "toggleControls": null,
+        "armHint": false,
+        "nativeFieldsSuppressed": false,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.relay.untested_template.with_service",
+      "input": {
+        "facts": {
+          "toolCall": "supported",
+          "form": "relay",
+          "relayStatus": "web_probe_untested"
+        },
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": {
+          "methods": {
+            "c1:m1": "external"
+          },
+          "serviceId": "s1",
+          "serviceName": "DeepSeek",
+          "notice": null
+        },
+        "oneTapTarget": null,
+        "oneTapServiceName": null
+      },
+      "expect": {
+        "nativeWeb": null,
+        "route": {
+          "row": "toggle_external",
+          "path": "external_tool",
+          "sourceAction": "pick_source",
+          "fragmentAttached": false
+        },
+        "source": {
+          "method": "external",
+          "serviceId": "s1",
+          "notice": null,
+          "nextStored": {
+            "methods": {
+              "c1:m1": "external"
+            },
+            "serviceId": "s1",
+            "serviceName": "DeepSeek",
+            "notice": null
+          },
+          "changed": false
+        },
+        "shapeMode": "toggle_with_source",
+        "card": {
+          "existing": false,
+          "toggle": true,
+          "status": {
+            "key": "card.useService",
+            "args": {
+              "name": "DeepSeek"
+            }
+          },
+          "notes": [],
+          "link": {
+            "key": "card.changeService",
+            "args": {},
+            "action": "pick_source"
+          },
+          "cta": null,
+          "secondary": null
+        },
+        "pickerItems": [
+          {
+            "kind": "service",
+            "serviceId": "s1",
+            "isDefault": true,
+            "status": "ready",
+            "selected": true
+          },
+          {
+            "kind": "add"
+          }
+        ],
+        "toggleOn": true,
+        "chipLit": true,
+        "toggleControls": "external",
+        "armHint": false,
+        "nativeFieldsSuppressed": true,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.relay.silent.with_service",
+      "input": {
+        "facts": {
+          "toolCall": "supported",
+          "form": "relay",
+          "relayStatus": "web_probe_silent"
+        },
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": {
+          "methods": {
+            "c1:m1": "external"
+          },
+          "serviceId": "s1",
+          "serviceName": "DeepSeek",
+          "notice": null
+        },
+        "oneTapTarget": null,
+        "oneTapServiceName": null
+      },
+      "expect": {
+        "nativeWeb": null,
+        "route": {
+          "row": "toggle_external",
+          "path": "external_tool",
+          "sourceAction": "pick_source",
+          "fragmentAttached": false
+        },
+        "source": {
+          "method": "external",
+          "serviceId": "s1",
+          "notice": null,
+          "nextStored": {
+            "methods": {
+              "c1:m1": "external"
+            },
+            "serviceId": "s1",
+            "serviceName": "DeepSeek",
+            "notice": null
+          },
+          "changed": false
+        },
+        "shapeMode": "toggle_with_source",
+        "card": {
+          "existing": false,
+          "toggle": true,
+          "status": {
+            "key": "card.useService",
+            "args": {
+              "name": "DeepSeek"
+            }
+          },
+          "notes": [],
+          "link": {
+            "key": "card.changeService",
+            "args": {},
+            "action": "pick_source"
+          },
+          "cta": null,
+          "secondary": null
+        },
+        "pickerItems": [
+          {
+            "kind": "service",
+            "serviceId": "s1",
+            "isDefault": true,
+            "status": "ready",
+            "selected": true
+          },
+          {
+            "kind": "add"
+          }
+        ],
+        "toggleOn": true,
+        "chipLit": true,
+        "toggleControls": "external",
+        "armHint": false,
+        "nativeFieldsSuppressed": true,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.relay.user_off",
+      "input": {
+        "facts": {
+          "toolCall": "supported",
+          "form": "relay",
+          "relayStatus": "web_user_off"
+        },
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": null,
+        "oneTapTarget": null,
+        "oneTapServiceName": null
+      },
+      "expect": {
+        "nativeWeb": null,
+        "route": {
+          "row": "relay_unchanged",
+          "path": "none"
+        },
+        "source": {
+          "method": "default",
+          "serviceId": "s1",
+          "notice": null,
+          "nextStored": null,
+          "changed": false
+        },
+        "shapeMode": "existing",
+        "card": {
+          "existing": true
+        },
+        "pickerItems": [],
+        "toggleOn": false,
+        "chipLit": null,
+        "toggleControls": null,
+        "armHint": false,
+        "nativeFieldsSuppressed": false,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.relay.local_engine",
+      "input": {
+        "facts": {
+          "toolCall": "supported",
+          "form": "relay",
+          "relayStatus": "local_engine"
+        },
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": null,
+        "oneTapTarget": null,
+        "oneTapServiceName": null
+      },
+      "expect": {
+        "nativeWeb": null,
+        "route": {
+          "row": "relay_unchanged",
+          "path": "none"
+        },
+        "source": {
+          "method": "default",
+          "serviceId": "s1",
+          "notice": null,
+          "nextStored": null,
+          "changed": false
+        },
+        "shapeMode": "existing",
+        "card": {
+          "existing": true
+        },
+        "pickerItems": [],
+        "toggleOn": false,
+        "chipLit": null,
+        "toggleControls": null,
+        "armHint": false,
+        "nativeFieldsSuppressed": false,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.relay.protocol_undecided",
+      "input": {
+        "facts": {
+          "toolCall": "supported",
+          "form": "relay",
+          "relayStatus": "protocol_undecided"
+        },
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": null,
+        "oneTapTarget": null,
+        "oneTapServiceName": null
+      },
+      "expect": {
+        "nativeWeb": null,
+        "route": {
+          "row": "relay_unchanged",
+          "path": "none"
+        },
+        "source": {
+          "method": "default",
+          "serviceId": "s1",
+          "notice": null,
+          "nextStored": null,
+          "changed": false
+        },
+        "shapeMode": "existing",
+        "card": {
+          "existing": true
+        },
+        "pickerItems": [],
+        "toggleOn": false,
+        "chipLit": null,
+        "toggleControls": null,
+        "armHint": false,
+        "nativeFieldsSuppressed": false,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.codex.with_service",
+      "input": {
+        "facts": {
+          "toolCall": "supported",
+          "form": "subscription_codex",
+          "recipeWeb": "auto_available"
+        },
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": null,
+        "oneTapTarget": null,
+        "oneTapServiceName": null
+      },
+      "expect": {
+        "nativeWeb": "available",
+        "route": {
+          "row": "toggle_with_source_picker",
+          "path": "native",
+          "sourceAction": "pick_source"
+        },
+        "source": {
+          "method": "default",
+          "serviceId": "s1",
+          "notice": null,
+          "nextStored": null,
+          "changed": false
+        },
+        "shapeMode": "toggle_with_source",
+        "card": {
+          "existing": false,
+          "toggle": true,
+          "status": null,
+          "notes": [],
+          "link": {
+            "key": "card.sourceLineNative",
+            "args": {},
+            "action": "pick_source"
+          },
+          "cta": null,
+          "secondary": null
+        },
+        "pickerItems": [
+          {
+            "kind": "native",
+            "selected": true
+          },
+          {
+            "kind": "service",
+            "serviceId": "s1",
+            "isDefault": true,
+            "status": "ready",
+            "selected": false
+          },
+          {
+            "kind": "add"
+          }
+        ],
+        "toggleOn": true,
+        "chipLit": true,
+        "toggleControls": "conversation_web",
+        "armHint": false,
+        "nativeFieldsSuppressed": false,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.grok.always_on",
+      "input": {
+        "facts": {
+          "toolCall": "supported",
+          "form": "subscription_grok"
+        },
+        "panelWritable": true,
+        "webOn": false,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": null,
+        "oneTapTarget": null,
+        "oneTapServiceName": null
+      },
+      "expect": {
+        "nativeWeb": null,
+        "route": {
+          "row": "always_on_unchanged",
+          "path": "native"
+        },
+        "source": {
+          "method": "default",
+          "serviceId": "s1",
+          "notice": null,
+          "nextStored": null,
+          "changed": false
+        },
+        "shapeMode": "existing",
+        "card": {
+          "existing": true
+        },
+        "pickerItems": [],
+        "toggleOn": false,
+        "chipLit": null,
+        "toggleControls": null,
+        "armHint": false,
+        "nativeFieldsSuppressed": false,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.free.unchanged",
+      "input": {
+        "facts": {
+          "toolCall": "supported",
+          "form": "free"
+        },
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": null,
+        "oneTapTarget": null,
+        "oneTapServiceName": null
+      },
+      "expect": {
+        "nativeWeb": null,
+        "route": {
+          "row": "free_unchanged",
+          "path": "none"
+        },
+        "source": {
+          "method": "default",
+          "serviceId": "s1",
+          "notice": null,
+          "nextStored": null,
+          "changed": false
+        },
+        "shapeMode": "existing",
+        "card": {
+          "existing": true
+        },
+        "pickerItems": [],
+        "toggleOn": false,
+        "chipLit": null,
+        "toggleControls": null,
+        "armHint": false,
+        "nativeFieldsSuppressed": false,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.managed.web_available_on",
+      "input": {
+        "facts": {
+          "toolCall": "supported",
+          "form": "managed",
+          "managedWebAvailable": true
+        },
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": null,
+        "oneTapTarget": null,
+        "oneTapServiceName": null
+      },
+      "expect": {
+        "nativeWeb": "available",
+        "route": {
+          "row": "managed_unchanged",
+          "path": "native"
+        },
+        "source": {
+          "method": "default",
+          "serviceId": "s1",
+          "notice": null,
+          "nextStored": null,
+          "changed": false
+        },
+        "shapeMode": "existing",
+        "card": {
+          "existing": true
+        },
+        "pickerItems": [],
+        "toggleOn": false,
+        "chipLit": null,
+        "toggleControls": null,
+        "armHint": false,
+        "nativeFieldsSuppressed": false,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.managed.web_unavailable",
+      "input": {
+        "facts": {
+          "toolCall": "supported",
+          "form": "managed",
+          "managedWebAvailable": false
+        },
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": null,
+        "oneTapTarget": null,
+        "oneTapServiceName": null
+      },
+      "expect": {
+        "nativeWeb": "unavailable",
+        "route": {
+          "row": "managed_unchanged",
+          "path": "none"
+        },
+        "source": {
+          "method": "default",
+          "serviceId": "s1",
+          "notice": null,
+          "nextStored": null,
+          "changed": false
+        },
+        "shapeMode": "existing",
+        "card": {
+          "existing": true
+        },
+        "pickerItems": [],
+        "toggleOn": false,
+        "chipLit": null,
+        "toggleControls": null,
+        "armHint": false,
+        "nativeFieldsSuppressed": false,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.arm.switched_from_native_model_not_armed",
+      "input": {
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": null,
+        "oneTapTarget": null,
+        "oneTapServiceName": null,
+        "facts": {
+          "form": "byok",
+          "recipeWeb": "unavailable",
+          "toolCall": "supported"
+        }
+      },
+      "expect": {
+        "nativeWeb": "unavailable",
+        "route": {
+          "row": "toggle_external",
+          "path": "none",
+          "sourceAction": "pick_source"
+        },
+        "source": {
+          "method": "default",
+          "serviceId": "s1",
+          "notice": null,
+          "nextStored": null,
+          "changed": false
+        },
+        "shapeMode": "toggle_with_source",
+        "card": {
+          "existing": false,
+          "toggle": true,
+          "status": {
+            "key": "card.offUseService",
+            "args": {
+              "name": "DeepSeek"
+            }
+          },
+          "notes": [
+            {
+              "key": "card.armHint",
+              "args": {
+                "name": "DeepSeek"
+              }
+            }
+          ],
+          "link": {
+            "key": "card.changeService",
+            "args": {},
+            "action": "pick_source"
+          },
+          "cta": null,
+          "secondary": null
+        },
+        "pickerItems": [
+          {
+            "kind": "service",
+            "serviceId": "s1",
+            "isDefault": true,
+            "status": "ready",
+            "selected": false
+          },
+          {
+            "kind": "add"
+          }
+        ],
+        "toggleOn": false,
+        "chipLit": false,
+        "toggleControls": "external",
+        "armHint": true,
+        "nativeFieldsSuppressed": false,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.arm.armed_on_other_model_not_armed",
+      "input": {
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": {
+          "methods": {
+            "c1:m0": "external"
+          },
+          "serviceId": "s1",
+          "serviceName": "DeepSeek",
+          "notice": null
+        },
+        "oneTapTarget": null,
+        "oneTapServiceName": null,
+        "facts": {
+          "form": "byok",
+          "recipeWeb": "unavailable",
+          "toolCall": "supported"
+        }
+      },
+      "expect": {
+        "nativeWeb": "unavailable",
+        "route": {
+          "row": "toggle_external",
+          "path": "none",
+          "sourceAction": "pick_source"
+        },
+        "source": {
+          "method": "default",
+          "serviceId": "s1",
+          "notice": null,
+          "nextStored": {
+            "methods": {
+              "c1:m0": "external"
+            },
+            "serviceId": "s1",
+            "serviceName": "DeepSeek",
+            "notice": null
+          },
+          "changed": false
+        },
+        "shapeMode": "toggle_with_source",
+        "card": {
+          "existing": false,
+          "toggle": true,
+          "status": {
+            "key": "card.offUseService",
+            "args": {
+              "name": "DeepSeek"
+            }
+          },
+          "notes": [
+            {
+              "key": "card.armHint",
+              "args": {
+                "name": "DeepSeek"
+              }
+            }
+          ],
+          "link": {
+            "key": "card.changeService",
+            "args": {},
+            "action": "pick_source"
+          },
+          "cta": null,
+          "secondary": null
+        },
+        "pickerItems": [
+          {
+            "kind": "service",
+            "serviceId": "s1",
+            "isDefault": true,
+            "status": "ready",
+            "selected": false
+          },
+          {
+            "kind": "add"
+          }
+        ],
+        "toggleOn": false,
+        "chipLit": false,
+        "toggleControls": "external",
+        "armHint": true,
+        "nativeFieldsSuppressed": false,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.arm.web_off_armed_still_on",
+      "input": {
+        "panelWritable": true,
+        "webOn": false,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": {
+          "methods": {
+            "c1:m1": "external"
+          },
+          "serviceId": "s1",
+          "serviceName": "DeepSeek",
+          "notice": null
+        },
+        "oneTapTarget": null,
+        "oneTapServiceName": null,
+        "facts": {
+          "form": "byok",
+          "recipeWeb": "unavailable",
+          "toolCall": "supported"
+        }
+      },
+      "expect": {
+        "nativeWeb": "unavailable",
+        "route": {
+          "row": "toggle_external",
+          "path": "external_tool",
+          "sourceAction": "pick_source"
+        },
+        "source": {
+          "method": "external",
+          "serviceId": "s1",
+          "notice": null,
+          "nextStored": {
+            "methods": {
+              "c1:m1": "external"
+            },
+            "serviceId": "s1",
+            "serviceName": "DeepSeek",
+            "notice": null
+          },
+          "changed": false
+        },
+        "shapeMode": "toggle_with_source",
+        "card": {
+          "existing": false,
+          "toggle": true,
+          "status": {
+            "key": "card.useService",
+            "args": {
+              "name": "DeepSeek"
+            }
+          },
+          "notes": [],
+          "link": {
+            "key": "card.changeService",
+            "args": {},
+            "action": "pick_source"
+          },
+          "cta": null,
+          "secondary": null
+        },
+        "pickerItems": [
+          {
+            "kind": "service",
+            "serviceId": "s1",
+            "isDefault": true,
+            "status": "ready",
+            "selected": true
+          },
+          {
+            "kind": "add"
+          }
+        ],
+        "toggleOn": true,
+        "chipLit": true,
+        "toggleControls": "external",
+        "armHint": false,
+        "nativeFieldsSuppressed": true,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.arm.relay_rejected_not_armed",
+      "input": {
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": null,
+        "oneTapTarget": null,
+        "oneTapServiceName": null,
+        "facts": {
+          "form": "relay",
+          "relayStatus": "web_probe_rejected",
+          "toolCall": "supported"
+        }
+      },
+      "expect": {
+        "nativeWeb": null,
+        "route": {
+          "row": "toggle_external",
+          "path": "none",
+          "sourceAction": "pick_source",
+          "fragmentAttached": false
+        },
+        "source": {
+          "method": "default",
+          "serviceId": "s1",
+          "notice": null,
+          "nextStored": null,
+          "changed": false
+        },
+        "shapeMode": "toggle_with_source",
+        "card": {
+          "existing": false,
+          "toggle": true,
+          "status": {
+            "key": "card.offUseService",
+            "args": {
+              "name": "DeepSeek"
+            }
+          },
+          "notes": [
+            {
+              "key": "card.armHint",
+              "args": {
+                "name": "DeepSeek"
+              }
+            }
+          ],
+          "link": {
+            "key": "card.changeService",
+            "args": {},
+            "action": "pick_source"
+          },
+          "cta": null,
+          "secondary": null
+        },
+        "pickerItems": [
+          {
+            "kind": "service",
+            "serviceId": "s1",
+            "isDefault": true,
+            "status": "ready",
+            "selected": false
+          },
+          {
+            "kind": "add"
+          }
+        ],
+        "toggleOn": false,
+        "chipLit": false,
+        "toggleControls": "external",
+        "armHint": true,
+        "nativeFieldsSuppressed": false,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.readonly.native_model_stored_external_ignored",
+      "input": {
+        "panelWritable": false,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "ready"
+          },
+          {
+            "id": "s2",
+            "name": "Tavily",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": {
+          "methods": {
+            "c1:m1": "external"
+          },
+          "serviceId": "s2",
+          "serviceName": "Tavily",
+          "notice": null
+        },
+        "oneTapTarget": null,
+        "oneTapServiceName": null,
+        "facts": {
+          "form": "byok",
+          "recipeWeb": "auto_available",
+          "toolCall": "supported"
+        }
+      },
+      "expect": {
+        "nativeWeb": "available",
+        "route": {
+          "row": "toggle_with_source_picker",
+          "path": "native",
+          "sourceAction": "pick_source"
+        },
+        "source": {
+          "method": "default",
+          "serviceId": "s2",
+          "notice": null,
+          "nextStored": {
+            "methods": {
+              "c1:m1": "external"
+            },
+            "serviceId": "s2",
+            "serviceName": "Tavily",
+            "notice": null
+          },
+          "changed": false
+        },
+        "shapeMode": "existing",
+        "card": {
+          "existing": false,
+          "toggle": true,
+          "status": null,
+          "notes": [],
+          "link": {
+            "key": "card.sourceLineNative",
+            "args": {},
+            "action": "pick_source"
+          },
+          "cta": null,
+          "secondary": null
+        },
+        "pickerItems": [
+          {
+            "kind": "native",
+            "selected": true
+          },
+          {
+            "kind": "service",
+            "serviceId": "s1",
+            "isDefault": true,
+            "status": "ready",
+            "selected": false
+          },
+          {
+            "kind": "service",
+            "serviceId": "s2",
+            "isDefault": false,
+            "status": "ready",
+            "selected": false
+          },
+          {
+            "kind": "add"
+          }
+        ],
+        "toggleOn": true,
+        "chipLit": null,
+        "toggleControls": "conversation_web",
+        "armHint": false,
+        "nativeFieldsSuppressed": false,
+        "oneTapArms": false
+      }
+    },
+    {
+      "caseId": "state.relay.unverified.web_on_keeps_existing_outbound",
+      "input": {
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [],
+        "defaultServiceId": "s1",
+        "stored": null,
+        "oneTapTarget": null,
+        "oneTapServiceName": null,
+        "facts": {
+          "form": "relay",
+          "relayStatus": "web_probe_unverified",
+          "toolCall": "supported"
+        }
+      },
+      "expect": {
+        "nativeWeb": null,
+        "route": {
+          "row": "relay_unchanged",
+          "path": "none"
+        },
+        "source": {
+          "method": "default",
+          "serviceId": null,
+          "notice": null,
+          "nextStored": null,
+          "changed": false
+        },
+        "shapeMode": "existing",
+        "card": {
+          "existing": true
+        },
+        "pickerItems": [],
+        "toggleOn": false,
+        "chipLit": null,
+        "toggleControls": null,
+        "armHint": false,
+        "nativeFieldsSuppressed": false,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.e38.external_on_independent_of_web_off",
+      "input": {
+        "panelWritable": true,
+        "webOn": false,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": {
+          "methods": {
+            "c1:m1": "external"
+          },
+          "serviceId": "s1",
+          "serviceName": "DeepSeek",
+          "notice": null
+        },
+        "oneTapTarget": null,
+        "oneTapServiceName": null,
+        "facts": {
+          "form": "byok",
+          "recipeWeb": "unavailable",
+          "toolCall": "supported"
+        }
+      },
+      "expect": {
+        "nativeWeb": "unavailable",
+        "route": {
+          "row": "toggle_external",
+          "path": "external_tool",
+          "sourceAction": "pick_source"
+        },
+        "source": {
+          "method": "external",
+          "serviceId": "s1",
+          "notice": null,
+          "nextStored": {
+            "methods": {
+              "c1:m1": "external"
+            },
+            "serviceId": "s1",
+            "serviceName": "DeepSeek",
+            "notice": null
+          },
+          "changed": false
+        },
+        "shapeMode": "toggle_with_source",
+        "card": {
+          "existing": false,
+          "toggle": true,
+          "status": {
+            "key": "card.useService",
+            "args": {
+              "name": "DeepSeek"
+            }
+          },
+          "notes": [],
+          "link": {
+            "key": "card.changeService",
+            "args": {},
+            "action": "pick_source"
+          },
+          "cta": null,
+          "secondary": null
+        },
+        "pickerItems": [
+          {
+            "kind": "service",
+            "serviceId": "s1",
+            "isDefault": true,
+            "status": "ready",
+            "selected": true
+          },
+          {
+            "kind": "add"
+          }
+        ],
+        "toggleOn": true,
+        "chipLit": true,
+        "toggleControls": "external",
+        "armHint": false,
+        "nativeFieldsSuppressed": true,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.e38.switch_back_still_armed",
+      "input": {
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": {
+          "methods": {
+            "c1:m1": "external",
+            "c1:m0": "native"
+          },
+          "serviceId": "s1",
+          "serviceName": "DeepSeek",
+          "notice": null
+        },
+        "oneTapTarget": null,
+        "oneTapServiceName": null,
+        "facts": {
+          "form": "byok",
+          "recipeWeb": "unavailable",
+          "toolCall": "supported"
+        }
+      },
+      "expect": {
+        "nativeWeb": "unavailable",
+        "route": {
+          "row": "toggle_external",
+          "path": "external_tool",
+          "sourceAction": "pick_source"
+        },
+        "source": {
+          "method": "external",
+          "serviceId": "s1",
+          "notice": null,
+          "nextStored": {
+            "methods": {
+              "c1:m1": "external",
+              "c1:m0": "native"
+            },
+            "serviceId": "s1",
+            "serviceName": "DeepSeek",
+            "notice": null
+          },
+          "changed": false
+        },
+        "shapeMode": "toggle_with_source",
+        "card": {
+          "existing": false,
+          "toggle": true,
+          "status": {
+            "key": "card.useService",
+            "args": {
+              "name": "DeepSeek"
+            }
+          },
+          "notes": [],
+          "link": {
+            "key": "card.changeService",
+            "args": {},
+            "action": "pick_source"
+          },
+          "cta": null,
+          "secondary": null
+        },
+        "pickerItems": [
+          {
+            "kind": "service",
+            "serviceId": "s1",
+            "isDefault": true,
+            "status": "ready",
+            "selected": true
+          },
+          {
+            "kind": "add"
+          }
+        ],
+        "toggleOn": true,
+        "chipLit": true,
+        "toggleControls": "external",
+        "armHint": false,
+        "nativeFieldsSuppressed": true,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.e38.catalog_unavailable_keeps_choice",
+      "input": {
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "catalog_unavailable"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": {
+          "methods": {
+            "c1:m1": "external"
+          },
+          "serviceId": "s1",
+          "serviceName": "DeepSeek",
+          "notice": null
+        },
+        "oneTapTarget": null,
+        "oneTapServiceName": null,
+        "facts": {
+          "form": "byok",
+          "recipeWeb": "unavailable",
+          "toolCall": "supported"
+        }
+      },
+      "expect": {
+        "nativeWeb": "unavailable",
+        "route": {
+          "row": "toggle_external",
+          "path": "external_tool",
+          "sourceAction": "pick_source"
+        },
+        "source": {
+          "method": "external",
+          "serviceId": "s1",
+          "notice": null,
+          "nextStored": {
+            "methods": {
+              "c1:m1": "external"
+            },
+            "serviceId": "s1",
+            "serviceName": "DeepSeek",
+            "notice": null
+          },
+          "changed": false
+        },
+        "shapeMode": "toggle_with_source",
+        "card": {
+          "existing": false,
+          "toggle": true,
+          "status": {
+            "key": "card.useService",
+            "args": {
+              "name": "DeepSeek"
+            }
+          },
+          "notes": [
+            {
+              "key": "row.catalogUnavailable",
+              "args": {}
+            }
+          ],
+          "link": {
+            "key": "card.changeService",
+            "args": {},
+            "action": "pick_source"
+          },
+          "cta": null,
+          "secondary": null
+        },
+        "pickerItems": [
+          {
+            "kind": "service",
+            "serviceId": "s1",
+            "isDefault": true,
+            "status": "catalog_unavailable",
+            "selected": true
+          },
+          {
+            "kind": "add"
+          }
+        ],
+        "toggleOn": true,
+        "chipLit": true,
+        "toggleControls": "external",
+        "armHint": false,
+        "nativeFieldsSuppressed": true,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.e38.needs_key_note",
+      "input": {
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "needs_key"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": {
+          "methods": {
+            "c1:m1": "external"
+          },
+          "serviceId": "s1",
+          "serviceName": "DeepSeek",
+          "notice": null
+        },
+        "oneTapTarget": null,
+        "oneTapServiceName": null,
+        "facts": {
+          "form": "byok",
+          "recipeWeb": "unavailable",
+          "toolCall": "supported"
+        }
+      },
+      "expect": {
+        "nativeWeb": "unavailable",
+        "route": {
+          "row": "toggle_external",
+          "path": "external_tool",
+          "sourceAction": "pick_source"
+        },
+        "source": {
+          "method": "external",
+          "serviceId": "s1",
+          "notice": null,
+          "nextStored": {
+            "methods": {
+              "c1:m1": "external"
+            },
+            "serviceId": "s1",
+            "serviceName": "DeepSeek",
+            "notice": null
+          },
+          "changed": false
+        },
+        "shapeMode": "toggle_with_source",
+        "card": {
+          "existing": false,
+          "toggle": true,
+          "status": {
+            "key": "card.useService",
+            "args": {
+              "name": "DeepSeek"
+            }
+          },
+          "notes": [
+            {
+              "key": "row.needsKey",
+              "args": {}
+            }
+          ],
+          "link": {
+            "key": "card.changeService",
+            "args": {},
+            "action": "pick_source"
+          },
+          "cta": null,
+          "secondary": null
+        },
+        "pickerItems": [
+          {
+            "kind": "service",
+            "serviceId": "s1",
+            "isDefault": true,
+            "status": "needs_key",
+            "selected": true
+          },
+          {
+            "kind": "add"
+          }
+        ],
+        "toggleOn": true,
+        "chipLit": true,
+        "toggleControls": "external",
+        "armHint": false,
+        "nativeFieldsSuppressed": true,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.e38.deleted_service_turns_off_with_notice",
+      "input": {
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": {
+          "methods": {
+            "c1:m1": "external"
+          },
+          "serviceId": "gone",
+          "serviceName": "Tavily",
+          "notice": null
+        },
+        "oneTapTarget": null,
+        "oneTapServiceName": null,
+        "facts": {
+          "form": "byok",
+          "recipeWeb": "unavailable",
+          "toolCall": "supported"
+        }
+      },
+      "expect": {
+        "nativeWeb": "unavailable",
+        "route": {
+          "row": "toggle_external",
+          "path": "none",
+          "sourceAction": "pick_source"
+        },
+        "source": {
+          "method": "default",
+          "serviceId": "s1",
+          "notice": {
+            "fromName": "Tavily"
+          },
+          "nextStored": {
+            "methods": {},
+            "serviceId": null,
+            "serviceName": null,
+            "notice": {
+              "fromName": "Tavily"
+            }
+          },
+          "changed": true
+        },
+        "shapeMode": "toggle_with_source",
+        "card": {
+          "existing": false,
+          "toggle": true,
+          "status": {
+            "key": "card.offUseService",
+            "args": {
+              "name": "DeepSeek"
+            }
+          },
+          "notes": [
+            {
+              "key": "card.fallbackNotice",
+              "args": {
+                "from": "Tavily"
+              }
+            },
+            {
+              "key": "card.armHint",
+              "args": {
+                "name": "DeepSeek"
+              }
+            }
+          ],
+          "link": {
+            "key": "card.changeService",
+            "args": {},
+            "action": "pick_source"
+          },
+          "cta": null,
+          "secondary": null
+        },
+        "pickerItems": [
+          {
+            "kind": "service",
+            "serviceId": "s1",
+            "isDefault": true,
+            "status": "ready",
+            "selected": false
+          },
+          {
+            "kind": "add"
+          }
+        ],
+        "toggleOn": false,
+        "chipLit": false,
+        "toggleControls": "external",
+        "armHint": true,
+        "nativeFieldsSuppressed": false,
+        "oneTapArms": true
+      }
+    },
+    {
+      "caseId": "state.e38.native_model_picked_external_controls_conversation_web",
+      "input": {
+        "panelWritable": true,
+        "webOn": true,
+        "modelKey": "c1:m1",
+        "services": [
+          {
+            "id": "s1",
+            "name": "DeepSeek",
+            "status": "ready"
+          },
+          {
+            "id": "s2",
+            "name": "Tavily",
+            "status": "ready"
+          }
+        ],
+        "defaultServiceId": "s1",
+        "stored": {
+          "methods": {
+            "c1:m1": "external"
+          },
+          "serviceId": "s2",
+          "serviceName": "Tavily",
+          "notice": null
+        },
+        "oneTapTarget": null,
+        "oneTapServiceName": null,
+        "facts": {
+          "form": "byok",
+          "recipeWeb": "auto_available",
+          "toolCall": "supported"
+        }
+      },
+      "expect": {
+        "nativeWeb": "available",
+        "route": {
+          "row": "toggle_with_source_picker",
+          "path": "external_tool",
+          "sourceAction": "pick_source"
+        },
+        "source": {
+          "method": "external",
+          "serviceId": "s2",
+          "notice": null,
+          "nextStored": {
+            "methods": {
+              "c1:m1": "external"
+            },
+            "serviceId": "s2",
+            "serviceName": "Tavily",
+            "notice": null
+          },
+          "changed": false
+        },
+        "shapeMode": "toggle_with_source",
+        "card": {
+          "existing": false,
+          "toggle": true,
+          "status": null,
+          "notes": [],
+          "link": {
+            "key": "card.sourceLine",
+            "args": {
+              "name": "Tavily"
+            },
+            "action": "pick_source"
+          },
+          "cta": null,
+          "secondary": null
+        },
+        "pickerItems": [
+          {
+            "kind": "native",
+            "selected": false
+          },
+          {
+            "kind": "service",
+            "serviceId": "s1",
+            "isDefault": true,
+            "status": "ready",
+            "selected": false
+          },
+          {
+            "kind": "service",
+            "serviceId": "s2",
+            "isDefault": false,
+            "status": "ready",
+            "selected": true
+          },
+          {
+            "kind": "add"
+          }
+        ],
+        "toggleOn": true,
+        "chipLit": true,
+        "toggleControls": "conversation_web",
+        "armHint": false,
+        "nativeFieldsSuppressed": true,
+        "oneTapArms": true
+      }
+    }
+  ]
+}

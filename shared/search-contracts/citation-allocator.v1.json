@@ -1,0 +1,168 @@
+{
+  "schema": "oriveo.search.citation-allocator/v1",
+  "$comment": "One unified citation number allocator per message (external search service contract, section 13): library, external search and MCP share an incrementing numbering and the same key is reused. Expectations come from the reference implementation of allocateCitations.",
+  "cases": [
+    {
+      "caseId": "cite.library_then_web",
+      "input": {
+        "batches": [
+          {
+            "source": "library",
+            "items": [
+              {
+                "libraryKey": "doc-a"
+              },
+              {
+                "libraryKey": "doc-b"
+              }
+            ]
+          },
+          {
+            "source": "external_search",
+            "items": [
+              {
+                "url": "https://x.example/1"
+              },
+              {
+                "url": "https://y.example/2"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": [
+        {
+          "source": "library",
+          "numbers": [
+            1,
+            2
+          ]
+        },
+        {
+          "source": "external_search",
+          "numbers": [
+            3,
+            4
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "cite.second_search_dedupes_same_url",
+      "input": {
+        "batches": [
+          {
+            "source": "external_search",
+            "items": [
+              {
+                "url": "https://x.example/1"
+              },
+              {
+                "url": "https://y.example/"
+              }
+            ]
+          },
+          {
+            "source": "external_search",
+            "items": [
+              {
+                "url": "HTTPS://X.EXAMPLE/1"
+              },
+              {
+                "url": "https://y.example"
+              },
+              {
+                "url": "https://z.example/3#frag"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": [
+        {
+          "source": "external_search",
+          "numbers": [
+            1,
+            2
+          ]
+        },
+        {
+          "source": "external_search",
+          "numbers": [
+            1,
+            2,
+            3
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "cite.mcp_and_web_share_numbers",
+      "input": {
+        "batches": [
+          {
+            "source": "mcp",
+            "items": [
+              {
+                "url": "https://m.example/a"
+              }
+            ]
+          },
+          {
+            "source": "external_search",
+            "items": [
+              {
+                "url": "https://m.example/a"
+              },
+              {
+                "url": "https://n.example/b"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": [
+        {
+          "source": "mcp",
+          "numbers": [
+            1
+          ]
+        },
+        {
+          "source": "external_search",
+          "numbers": [
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "caseId": "cite.path_case_preserved",
+      "input": {
+        "batches": [
+          {
+            "source": "external_search",
+            "items": [
+              {
+                "url": "https://x.example/A"
+              },
+              {
+                "url": "https://x.example/a"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": [
+        {
+          "source": "external_search",
+          "numbers": [
+            1,
+            2
+          ]
+        }
+      ]
+    }
+  ]
+}

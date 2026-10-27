@@ -1,0 +1,203 @@
+{
+  "schema": "oriveo.search.result-facts/v1",
+  "$comment": "Message facts of external search (external search service contract, section 14): source external_search, evidence external_search_result; observed = the device received at least one result and delivered it to the model. The vocabulary mirrors the externalSearch block of request_preference_contract.v2.json. Expectations come from the reference implementation of summarizeSearchFacts.",
+  "constants": {
+    "states": [
+      "not_requested",
+      "observed",
+      "unconfirmed",
+      "failed"
+    ],
+    "source": "external_search",
+    "evidenceKind": "external_search_result"
+  },
+  "cases": [
+    {
+      "caseId": "facts.web_off",
+      "input": {
+        "path": "external_tool",
+        "webOn": false,
+        "serviceName": "DeepSeek"
+      },
+      "expect": {
+        "state": "not_requested",
+        "source": null,
+        "evidenceKind": null,
+        "searchCount": 0,
+        "sourceCount": 0
+      }
+    },
+    {
+      "caseId": "facts.native_path_not_external",
+      "input": {
+        "path": "native",
+        "webOn": true,
+        "serviceName": "DeepSeek"
+      },
+      "expect": {
+        "state": "not_requested",
+        "source": null,
+        "evidenceKind": null,
+        "searchCount": 0,
+        "sourceCount": 0
+      }
+    },
+    {
+      "caseId": "facts.tool_registered_not_called",
+      "input": {
+        "path": "external_tool",
+        "webOn": true,
+        "calls": [],
+        "serviceName": "DeepSeek"
+      },
+      "expect": {
+        "state": "unconfirmed",
+        "source": "external_search",
+        "evidenceKind": null,
+        "searchCount": 0,
+        "sourceCount": 0,
+        "serviceName": "DeepSeek"
+      }
+    },
+    {
+      "caseId": "facts.tool_two_searches_delivered",
+      "input": {
+        "path": "external_tool",
+        "webOn": true,
+        "calls": [
+          {
+            "outcome": "results",
+            "delivered": 5
+          },
+          {
+            "outcome": "results",
+            "delivered": 1
+          }
+        ],
+        "serviceName": "DeepSeek"
+      },
+      "expect": {
+        "state": "observed",
+        "source": "external_search",
+        "evidenceKind": "external_search_result",
+        "searchCount": 2,
+        "sourceCount": 6,
+        "serviceName": "DeepSeek"
+      }
+    },
+    {
+      "caseId": "facts.tool_only_empty",
+      "input": {
+        "path": "external_tool",
+        "webOn": true,
+        "calls": [
+          {
+            "outcome": "empty",
+            "delivered": 0
+          }
+        ],
+        "serviceName": "Tavily"
+      },
+      "expect": {
+        "state": "unconfirmed",
+        "source": "external_search",
+        "evidenceKind": null,
+        "searchCount": 1,
+        "sourceCount": 0,
+        "serviceName": "Tavily"
+      }
+    },
+    {
+      "caseId": "facts.tool_all_failed",
+      "input": {
+        "path": "external_tool",
+        "webOn": true,
+        "calls": [
+          {
+            "outcome": "auth_invalid",
+            "delivered": 0
+          },
+          {
+            "outcome": "rate_limited",
+            "delivered": 0
+          }
+        ],
+        "serviceName": "Tavily"
+      },
+      "expect": {
+        "state": "failed",
+        "source": "external_search",
+        "evidenceKind": null,
+        "searchCount": 2,
+        "sourceCount": 0,
+        "serviceName": "Tavily"
+      }
+    },
+    {
+      "caseId": "facts.tool_cap_reached_not_counted",
+      "input": {
+        "path": "external_tool",
+        "webOn": true,
+        "calls": [
+          {
+            "outcome": "results",
+            "delivered": 3
+          },
+          {
+            "outcome": "cap_reached",
+            "delivered": 0
+          }
+        ],
+        "serviceName": "Exa"
+      },
+      "expect": {
+        "state": "observed",
+        "source": "external_search",
+        "evidenceKind": "external_search_result",
+        "searchCount": 1,
+        "sourceCount": 3,
+        "serviceName": "Exa"
+      }
+    },
+    {
+      "caseId": "facts.presearch_delivered",
+      "input": {
+        "path": "external_presearch",
+        "webOn": true,
+        "presearch": {
+          "outcome": "results",
+          "delivered": 4
+        },
+        "serviceName": "Kimi"
+      },
+      "expect": {
+        "state": "observed",
+        "source": "external_search",
+        "evidenceKind": "external_search_result",
+        "searchCount": 1,
+        "sourceCount": 4,
+        "serviceName": "Kimi"
+      }
+    },
+    {
+      "caseId": "facts.presearch_failed",
+      "input": {
+        "path": "external_presearch",
+        "webOn": true,
+        "presearch": {
+          "outcome": "timeout",
+          "delivered": 0
+        },
+        "serviceName": "Kimi"
+      },
+      "expect": {
+        "state": "failed",
+        "source": "external_search",
+        "evidenceKind": null,
+        "searchCount": 1,
+        "sourceCount": 0,
+        "serviceName": "Kimi"
+      }
+    }
+  ]
+}

@@ -1,0 +1,647 @@
+{
+  "schema": "oriveo.search.error-mapping/v1",
+  "$comment": "Search error mapping (external search service contract, section 10): generic rules plus entry / protocol specific rules (serviceId refers to an entry of search_catalog_contract.v1.json; protocol=searxng refers to the built-in client protocol). toolMessage is the fixed message key returned to the model; card is the error card headline key and primary action. Expectations come from the reference implementation of classifySearchError.",
+  "constants": {
+    "classes": {
+      "auth_invalid": {
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "key_rejected",
+          "primaryAction": "update_key"
+        }
+      },
+      "insufficient_balance": {
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "insufficient_balance",
+          "primaryAction": "top_up"
+        }
+      },
+      "rate_limited": {
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "rate_limited",
+          "primaryAction": "retry_later"
+        }
+      },
+      "timeout": {
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "no_response",
+          "primaryAction": "retry"
+        }
+      },
+      "network": {
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "no_response",
+          "primaryAction": "retry"
+        }
+      },
+      "upstream_unavailable": {
+        "retryOnce": true,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "no_response",
+          "primaryAction": "retry"
+        }
+      },
+      "upstream_error": {
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "service_error",
+          "primaryAction": "retry"
+        }
+      },
+      "request_rejected": {
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "service_error",
+          "primaryAction": "switch_service"
+        }
+      },
+      "parse_mismatch": {
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "format_mismatch",
+          "primaryAction": "switch_service"
+        }
+      },
+      "searxng_json_disabled": {
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "searxng_json_disabled",
+          "primaryAction": "view_setup_guide"
+        }
+      },
+      "host_changed": {
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "host_changed",
+          "primaryAction": "reconfirm"
+        }
+      },
+      "service_withdrawn": {
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "service_withdrawn",
+          "primaryAction": "switch_service"
+        }
+      },
+      "response_too_large": {
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "service_error",
+          "primaryAction": "switch_service"
+        }
+      }
+    },
+    "toolMessages": {
+      "no_results": "The web search returned no results. Do not search again for this; answer from what you know and say that the search found nothing.",
+      "unavailable": "Web search is not available right now. Do not call web_search again in this reply. Answer directly and tell the user you could not search the web.",
+      "cap_reached": "The web search limit for this reply has been reached. Do not call web_search again. Answer from the results you already have."
+    },
+    "retryableStatuses": [
+      408,
+      502,
+      503
+    ]
+  },
+  "cases": [
+    {
+      "caseId": "err.deepseek_401",
+      "input": {
+        "serviceId": "deepseek",
+        "status": 401,
+        "body": {
+          "error": {
+            "type": "authentication_error"
+          }
+        }
+      },
+      "expect": {
+        "errorClass": "auth_invalid",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "key_rejected",
+          "primaryAction": "update_key"
+        }
+      }
+    },
+    {
+      "caseId": "err.deepseek_402_balance",
+      "input": {
+        "serviceId": "deepseek",
+        "status": 402,
+        "body": {
+          "error": {
+            "message": "Insufficient Balance"
+          }
+        },
+        "otherServices": 1
+      },
+      "expect": {
+        "errorClass": "insufficient_balance",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "insufficient_balance",
+          "primaryAction": "top_up",
+          "secondaryAction": "switch_to_other_service"
+        }
+      }
+    },
+    {
+      "caseId": "err.zhipu_429_1113_balance",
+      "input": {
+        "serviceId": "zhipu",
+        "status": 429,
+        "body": {
+          "error": {
+            "code": "1113",
+            "message": "您的账户已欠费"
+          }
+        }
+      },
+      "expect": {
+        "errorClass": "insufficient_balance",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "insufficient_balance",
+          "primaryAction": "top_up"
+        }
+      }
+    },
+    {
+      "caseId": "err.zhipu_429_1302_rate",
+      "input": {
+        "serviceId": "zhipu",
+        "status": 429,
+        "body": {
+          "error": {
+            "code": "1302"
+          }
+        }
+      },
+      "expect": {
+        "errorClass": "rate_limited",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "rate_limited",
+          "primaryAction": "retry_later"
+        }
+      }
+    },
+    {
+      "caseId": "err.kimi_401_empty_body",
+      "input": {
+        "serviceId": "kimi",
+        "status": 401,
+        "body": null
+      },
+      "expect": {
+        "errorClass": "auth_invalid",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "key_rejected",
+          "primaryAction": "update_key"
+        }
+      }
+    },
+    {
+      "caseId": "err.kimi_429_quota_balance",
+      "input": {
+        "serviceId": "kimi",
+        "status": 429,
+        "body": {
+          "error": {
+            "type": "exceeded_current_quota_error"
+          }
+        }
+      },
+      "expect": {
+        "errorClass": "insufficient_balance",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "insufficient_balance",
+          "primaryAction": "top_up"
+        }
+      }
+    },
+    {
+      "caseId": "err.kimi_429_rate_limit",
+      "input": {
+        "serviceId": "kimi",
+        "status": 429,
+        "body": {
+          "error": {
+            "type": "rate_limit_reached_error"
+          }
+        }
+      },
+      "expect": {
+        "errorClass": "rate_limited",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "rate_limited",
+          "primaryAction": "retry_later"
+        }
+      }
+    },
+    {
+      "caseId": "err.tavily_432_plan_limit",
+      "input": {
+        "serviceId": "tavily",
+        "status": 432,
+        "body": {
+          "detail": {
+            "error": "limit"
+          }
+        }
+      },
+      "expect": {
+        "errorClass": "insufficient_balance",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "insufficient_balance",
+          "primaryAction": "top_up"
+        }
+      }
+    },
+    {
+      "caseId": "err.tavily_433_paygo_limit",
+      "input": {
+        "serviceId": "tavily",
+        "status": 433,
+        "body": {
+          "detail": {
+            "error": "limit"
+          }
+        }
+      },
+      "expect": {
+        "errorClass": "insufficient_balance",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "insufficient_balance",
+          "primaryAction": "top_up"
+        }
+      }
+    },
+    {
+      "caseId": "err.exa_402",
+      "input": {
+        "serviceId": "exa",
+        "status": 402,
+        "body": {
+          "error": "out of credits",
+          "tag": "NO_MORE_CREDITS"
+        }
+      },
+      "expect": {
+        "errorClass": "insufficient_balance",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "insufficient_balance",
+          "primaryAction": "top_up"
+        }
+      }
+    },
+    {
+      "caseId": "err.brave_422_invalid_token",
+      "input": {
+        "serviceId": "brave",
+        "status": 422,
+        "body": {
+          "error": {
+            "code": "SUBSCRIPTION_TOKEN_INVALID"
+          }
+        }
+      },
+      "expect": {
+        "errorClass": "auth_invalid",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "key_rejected",
+          "primaryAction": "update_key"
+        }
+      }
+    },
+    {
+      "caseId": "err.brave_422_other_is_rejected",
+      "input": {
+        "serviceId": "brave",
+        "status": 422,
+        "body": {
+          "error": {
+            "code": "VALIDATION"
+          }
+        }
+      },
+      "expect": {
+        "errorClass": "request_rejected",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "service_error",
+          "primaryAction": "switch_service"
+        }
+      }
+    },
+    {
+      "caseId": "err.perplexity_429",
+      "input": {
+        "serviceId": "perplexity",
+        "status": 429,
+        "body": null,
+        "otherServices": 2
+      },
+      "expect": {
+        "errorClass": "rate_limited",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "rate_limited",
+          "primaryAction": "retry_later",
+          "secondaryAction": "switch_to_other_service"
+        }
+      }
+    },
+    {
+      "caseId": "err.503_retry_once",
+      "input": {
+        "serviceId": "deepseek",
+        "status": 503,
+        "body": null
+      },
+      "expect": {
+        "errorClass": "upstream_unavailable",
+        "retryOnce": true,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "no_response",
+          "primaryAction": "retry"
+        }
+      }
+    },
+    {
+      "caseId": "err.500_no_retry",
+      "input": {
+        "serviceId": "deepseek",
+        "status": 500,
+        "body": null
+      },
+      "expect": {
+        "errorClass": "upstream_error",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "service_error",
+          "primaryAction": "retry"
+        }
+      }
+    },
+    {
+      "caseId": "err.408_upstream_unavailable_retried_once",
+      "input": {
+        "serviceId": "deepseek",
+        "status": 408,
+        "body": null
+      },
+      "expect": {
+        "errorClass": "upstream_unavailable",
+        "retryOnce": true,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "no_response",
+          "primaryAction": "retry"
+        }
+      }
+    },
+    {
+      "caseId": "err.client_timeout",
+      "input": {
+        "serviceId": "deepseek",
+        "transportFailure": "timeout"
+      },
+      "expect": {
+        "errorClass": "timeout",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "no_response",
+          "primaryAction": "retry"
+        }
+      }
+    },
+    {
+      "caseId": "err.network",
+      "input": {
+        "serviceId": "tavily",
+        "transportFailure": "network",
+        "otherServices": 1
+      },
+      "expect": {
+        "errorClass": "network",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "no_response",
+          "primaryAction": "retry"
+        }
+      }
+    },
+    {
+      "caseId": "err.response_too_large",
+      "input": {
+        "serviceId": "tavily",
+        "transportFailure": "too_large"
+      },
+      "expect": {
+        "errorClass": "response_too_large",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "service_error",
+          "primaryAction": "switch_service"
+        }
+      }
+    },
+    {
+      "caseId": "err.local_policy_blocked_preset",
+      "input": {
+        "serviceId": "tavily",
+        "transportFailure": "blocked",
+        "otherServices": 1
+      },
+      "expect": {
+        "errorClass": "request_rejected",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "service_error",
+          "primaryAction": "switch_service"
+        }
+      }
+    },
+    {
+      "caseId": "err.local_policy_blocked_custom",
+      "input": {
+        "protocol": "searxng",
+        "custom": true,
+        "transportFailure": "blocked"
+      },
+      "expect": {
+        "errorClass": "request_rejected",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "service_error",
+          "primaryAction": "check_settings"
+        }
+      }
+    },
+    {
+      "caseId": "err.host_changed_preflight",
+      "input": {
+        "serviceId": "deepseek",
+        "preflight": "host_changed"
+      },
+      "expect": {
+        "errorClass": "host_changed",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "host_changed",
+          "primaryAction": "reconfirm"
+        }
+      }
+    },
+    {
+      "caseId": "err.service_withdrawn_preflight",
+      "input": {
+        "serviceId": "tavily",
+        "preflight": "service_withdrawn",
+        "otherServices": 1
+      },
+      "expect": {
+        "errorClass": "service_withdrawn",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "service_withdrawn",
+          "primaryAction": "switch_service"
+        }
+      }
+    },
+    {
+      "caseId": "err.parse_mismatch_preset",
+      "input": {
+        "serviceId": "deepseek",
+        "parse": "mismatch"
+      },
+      "expect": {
+        "errorClass": "parse_mismatch",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "format_mismatch",
+          "primaryAction": "switch_service"
+        }
+      }
+    },
+    {
+      "caseId": "err.custom_parse_mismatch_check_settings",
+      "input": {
+        "protocol": "manual",
+        "custom": true,
+        "parse": "mismatch"
+      },
+      "expect": {
+        "errorClass": "parse_mismatch",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "format_mismatch",
+          "primaryAction": "check_settings"
+        }
+      }
+    },
+    {
+      "caseId": "err.custom_402_check_settings",
+      "input": {
+        "protocol": "manual",
+        "custom": true,
+        "status": 402,
+        "body": null
+      },
+      "expect": {
+        "errorClass": "insufficient_balance",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "insufficient_balance",
+          "primaryAction": "check_settings"
+        }
+      }
+    },
+    {
+      "caseId": "err.searxng_403_json_disabled",
+      "input": {
+        "protocol": "searxng",
+        "custom": true,
+        "status": 403,
+        "body": null
+      },
+      "expect": {
+        "errorClass": "searxng_json_disabled",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "searxng_json_disabled",
+          "primaryAction": "view_setup_guide"
+        }
+      }
+    },
+    {
+      "caseId": "err.searxng_429",
+      "input": {
+        "protocol": "searxng",
+        "custom": true,
+        "status": 429,
+        "body": null
+      },
+      "expect": {
+        "errorClass": "rate_limited",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "rate_limited",
+          "primaryAction": "retry_later"
+        }
+      }
+    }
+  ]
+}

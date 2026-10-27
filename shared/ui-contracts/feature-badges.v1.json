@@ -2,6 +2,7 @@
   "$comment": "New-feature dots shown on entry rows. Each end keeps the same id list (tests compare against this file). A dot is shown while its id is in this list and not in the device's local seen set; opening the destination marks it seen. To re-announce an updated feature, add a new id; delete ids that are no longer needed. Keys starting with '$' are documentation.",
   "schema": "oriveo.feature-badges/v1",
   "badges": [
-    { "id": "settings.memory.2026-10", "entry": "settings.memory", "$clearsWhen": "the memory settings page is opened" }
+    { "id": "settings.memory.2026-10", "entry": "settings.memory", "$clearsWhen": "the memory settings page is opened" },
+    { "id": "settings.webSearch.2026-10", "entry": "settings.webSearch", "$clearsWhen": "the web search settings page is opened" }
   ]
 }

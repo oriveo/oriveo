@@ -1,0 +1,4591 @@
+{
+  "schema": "oriveo.search.catalog-contract/v1",
+  "$comment": "Shape, canonicalization and signing, entry validation and client acceptance rules of the search-catalog/v1 catalog (external search service contract, section 8). The catalog here is a sample catalog of 7 services; acceptCases incoming catalogs are already materialized and signed where needed. Expectations come from the reference implementation of the catalog rules. productionKeys are the production verification public keys (keyId -> 32-byte raw Ed25519 public key, base64); the private keys live only in the maintainer's login keychain. Server, iOS, Android and Web constants copy them verbatim.",
+  "testKeys": {
+    "keyId": "test-p1",
+    "seedB64": "RToBzQxLKOXL4Lvax6hmVJqxIZ3MropZtPn/QlCLKnc=",
+    "publicKeyB64": "7IWgXGqSKTYlKF8tDz7gK4e9+5LvPpv3nUzoPeeNAO4=",
+    "$comment": "Test-only key, public in the fixture; the client trusts it only in tests, production trusts only the production public keys."
+  },
+  "productionKeys": {
+    "prod-2026-10": "5Fo/ncB5euOXDYwMN8s8SWDkPPTw5itMBa10j1/JoFU="
+  },
+  "constants": {
+    "schema": "search-catalog/v1",
+    "transport": "json_http/v1",
+    "hardLimits": {
+      "maxCount": 10,
+      "defaultCount": 5,
+      "maxTimeoutSec": 60,
+      "maxResponseBytes": 2097152,
+      "titleMaxChars": 200,
+      "snippetMaxChars": 1000,
+      "siteMaxChars": 100,
+      "dateMaxChars": 32,
+      "maxQueryChars": 400
+    },
+    "staticParamWhitelist": {
+      "search_engine": {
+        "enum": [
+          "search_std",
+          "search-prime"
+        ]
+      },
+      "search_intent": {
+        "enum": [
+          false
+        ]
+      },
+      "search_depth": {
+        "enum": [
+          "basic"
+        ]
+      },
+      "type": {
+        "enum": [
+          "auto"
+        ]
+      },
+      "max_tokens_per_page": {
+        "int": [
+          1,
+          512
+        ]
+      },
+      "contents.text": {
+        "enum": [
+          false
+        ]
+      },
+      "contents.highlights.maxCharacters": {
+        "int": [
+          1,
+          1000
+        ]
+      },
+      "format": {
+        "enum": [
+          "json"
+        ]
+      }
+    }
+  },
+  "catalog": {
+    "schema": "search-catalog/v1",
+    "revision": 1,
+    "generatedAt": "2026-10-26T00:00:00Z",
+    "services": [
+      {
+        "id": "deepseek",
+        "displayName": "DeepSeek",
+        "group": "domestic",
+        "urls": {
+          "homepage": "https://www.deepseek.com",
+          "docs": "https://api-docs.deepseek.com/zh-cn/guides/search",
+          "terms": "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html",
+          "keyHelp": "https://platform.deepseek.com/api_keys"
+        },
+        "pricing": {
+          "sourceUrl": "https://api-docs.deepseek.com/zh-cn/guides/search"
+        },
+        "regions": [
+          {
+            "id": "cn",
+            "host": "api.deepseek.com",
+            "source": "recorded",
+            "pricing": {
+              "unit": "per_1k_requests",
+              "amount": "5",
+              "currency": "CNY",
+              "billing": "non_empty_only",
+              "free": null
+            }
+          }
+        ],
+        "reuse": {
+          "providerKind": "deepseek",
+          "regionByConnectionHost": {
+            "api.deepseek.com": "cn"
+          }
+        },
+        "transport": {
+          "kind": "json_http/v1",
+          "method": "POST",
+          "path": "/v1/tools/search",
+          "auth": {
+            "kind": "bearer"
+          },
+          "query": {
+            "field": "query",
+            "in": "body",
+            "maxChars": 128
+          },
+          "count": {
+            "field": "count",
+            "in": "body",
+            "max": 50
+          },
+          "static": null,
+          "response": {
+            "results": "results",
+            "title": [
+              "title"
+            ],
+            "url": [
+              "url"
+            ],
+            "snippet": [
+              "summary",
+              "snippet"
+            ],
+            "site": [
+              "site_name"
+            ],
+            "date": [
+              "date"
+            ],
+            "html": false
+          },
+          "errors": []
+        },
+        "limits": {
+          "timeoutSec": 20
+        },
+        "citationStorage": "full",
+        "trust": {
+          "entity": "DeepSeek（杭州深度求索）",
+          "evidence": [
+            "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html"
+          ],
+          "reviewedAt": "2026-10-26"
+        }
+      },
+      {
+        "id": "zhipu",
+        "displayName": "智谱",
+        "group": "domestic",
+        "urls": {
+          "homepage": "https://bigmodel.cn",
+          "docs": "https://docs.bigmodel.cn",
+          "terms": "https://docs.bigmodel.cn/cn/terms/user-agreement",
+          "keyHelp": "https://docs.bigmodel.cn"
+        },
+        "pricing": {
+          "sourceUrl": "https://docs.bigmodel.cn"
+        },
+        "regions": [
+          {
+            "id": "cn",
+            "host": "open.bigmodel.cn",
+            "source": "recorded",
+            "static": {
+              "search_engine": "search_std"
+            },
+            "pricing": {
+              "unit": "per_request",
+              "amount": "0.01",
+              "currency": "CNY",
+              "billing": "all",
+              "free": null
+            }
+          },
+          {
+            "id": "intl",
+            "host": "api.z.ai",
+            "source": "docs",
+            "static": {
+              "search_engine": "search-prime"
+            },
+            "urls": {
+              "docs": "https://docs.z.ai/guides/tools/web-search",
+              "pricing": "https://docs.z.ai/guides/overview/pricing",
+              "keyHelp": "https://z.ai/manage-apikey/apikey-list"
+            },
+            "pricing": {
+              "unit": "per_request",
+              "amount": "0.01",
+              "currency": "USD",
+              "billing": "all",
+              "free": null
+            }
+          }
+        ],
+        "reuse": {
+          "providerKind": "zhipu",
+          "regionByConnectionHost": {
+            "open.bigmodel.cn": "cn"
+          }
+        },
+        "transport": {
+          "kind": "json_http/v1",
+          "method": "POST",
+          "path": "/api/paas/v4/web_search",
+          "auth": {
+            "kind": "bearer"
+          },
+          "query": {
+            "field": "search_query",
+            "in": "body"
+          },
+          "count": {
+            "field": "count",
+            "in": "body",
+            "max": 50
+          },
+          "static": {
+            "in": "body",
+            "params": {
+              "search_intent": false
+            }
+          },
+          "response": {
+            "results": "search_result",
+            "title": [
+              "title"
+            ],
+            "url": [
+              "link"
+            ],
+            "snippet": [
+              "content"
+            ],
+            "site": [
+              "media"
+            ],
+            "date": [
+              "publish_date"
+            ],
+            "html": false
+          },
+          "errors": [
+            {
+              "status": 429,
+              "match": {
+                "path": "error.code",
+                "equals": "1113"
+              },
+              "class": "insufficient_balance"
+            },
+            {
+              "status": 429,
+              "match": {
+                "path": "error.code",
+                "equals": "1316"
+              },
+              "class": "insufficient_balance"
+            },
+            {
+              "status": 429,
+              "match": {
+                "path": "error.code",
+                "equals": "1317"
+              },
+              "class": "insufficient_balance"
+            }
+          ]
+        },
+        "limits": {
+          "timeoutSec": 20
+        },
+        "citationStorage": "full",
+        "trust": {
+          "entity": "北京智谱华章科技（港股 2513）",
+          "evidence": [
+            "https://docs.bigmodel.cn/cn/terms/user-agreement"
+          ],
+          "reviewedAt": "2026-10-26"
+        }
+      },
+      {
+        "id": "kimi",
+        "displayName": "Kimi",
+        "group": "domestic",
+        "urls": {
+          "homepage": "https://www.moonshot.cn",
+          "docs": "https://platform.moonshot.cn/docs",
+          "terms": "https://platform.moonshot.cn/docs/agreement/modeluse",
+          "keyHelp": "https://platform.moonshot.cn/console/api-keys"
+        },
+        "pricing": {
+          "sourceUrl": "https://platform.moonshot.cn/docs"
+        },
+        "regions": [
+          {
+            "id": "cn",
+            "host": "api.moonshot.cn",
+            "source": "recorded",
+            "pricing": {
+              "unit": "per_request",
+              "amount": "0.01",
+              "currency": "CNY",
+              "billing": "non_empty_only",
+              "free": null
+            }
+          },
+          {
+            "id": "intl",
+            "host": "api.moonshot.ai",
+            "source": "docs",
+            "urls": {
+              "docs": "https://platform.kimi.ai/docs/api/tools-search",
+              "pricing": "https://platform.kimi.ai/docs/pricing/websearch",
+              "keyHelp": "https://platform.kimi.ai/console/api-keys"
+            },
+            "pricing": {
+              "unit": "per_request",
+              "amount": "0.002",
+              "currency": "USD",
+              "billing": "non_empty_only",
+              "free": null
+            }
+          }
+        ],
+        "reuse": {
+          "providerKind": "moonshot",
+          "regionByConnectionHost": {
+            "api.moonshot.cn": "cn",
+            "api.moonshot.ai": "intl"
+          }
+        },
+        "transport": {
+          "kind": "json_http/v1",
+          "method": "POST",
+          "path": "/v1/tools/search",
+          "auth": {
+            "kind": "bearer"
+          },
+          "query": {
+            "field": "text_query",
+            "in": "body"
+          },
+          "count": {
+            "field": "limit",
+            "in": "body"
+          },
+          "static": null,
+          "response": {
+            "results": "search_results",
+            "title": [
+              "title"
+            ],
+            "url": [
+              "url"
+            ],
+            "snippet": [
+              "snippet",
+              "text"
+            ],
+            "site": [
+              "site_name"
+            ],
+            "date": [
+              "date"
+            ],
+            "html": false
+          },
+          "errors": [
+            {
+              "status": 429,
+              "match": {
+                "path": "error.type",
+                "equals": "exceeded_current_quota_error"
+              },
+              "class": "insufficient_balance"
+            }
+          ]
+        },
+        "limits": {
+          "timeoutSec": 20
+        },
+        "citationStorage": "full",
+        "trust": {
+          "entity": "北京月之暗面科技",
+          "evidence": [
+            "https://platform.moonshot.cn/docs/agreement/modeluse",
+            "https://platform.kimi.ai/docs/agreement/modeluse"
+          ],
+          "reviewedAt": "2026-10-26"
+        }
+      },
+      {
+        "id": "tavily",
+        "displayName": "Tavily",
+        "group": "overseas",
+        "urls": {
+          "homepage": "https://www.tavily.com",
+          "docs": "https://docs.tavily.com/documentation/api-reference/endpoint/search",
+          "terms": "https://tavily.com/terms",
+          "keyHelp": "https://app.tavily.com"
+        },
+        "pricing": {
+          "sourceUrl": "https://docs.tavily.com/documentation/api-reference/endpoint/search"
+        },
+        "regions": [
+          {
+            "id": "global",
+            "host": "api.tavily.com",
+            "source": "recorded",
+            "pricing": {
+              "unit": "per_request",
+              "amount": "1",
+              "currency": "CREDIT",
+              "billing": "all",
+              "free": {
+                "kind": "monthly_credits",
+                "amount": 1000,
+                "cardRequired": false
+              }
+            }
+          }
+        ],
+        "transport": {
+          "kind": "json_http/v1",
+          "method": "POST",
+          "path": "/search",
+          "auth": {
+            "kind": "bearer"
+          },
+          "query": {
+            "field": "query",
+            "in": "body"
+          },
+          "count": {
+            "field": "max_results",
+            "in": "body"
+          },
+          "static": {
+            "in": "body",
+            "params": {
+              "search_depth": "basic"
+            }
+          },
+          "response": {
+            "results": "results",
+            "title": [
+              "title"
+            ],
+            "url": [
+              "url"
+            ],
+            "snippet": [
+              "content"
+            ],
+            "html": false
+          },
+          "errors": [
+            {
+              "status": 432,
+              "class": "insufficient_balance"
+            },
+            {
+              "status": 433,
+              "class": "insufficient_balance"
+            }
+          ]
+        },
+        "limits": {
+          "timeoutSec": 20
+        },
+        "citationStorage": "full",
+        "trust": {
+          "entity": "Tavily（2026-02 被 Nebius 收购，NASDAQ）",
+          "evidence": [
+            "https://tavily.com/terms"
+          ],
+          "reviewedAt": "2026-10-26"
+        }
+      },
+      {
+        "id": "exa",
+        "displayName": "Exa",
+        "group": "overseas",
+        "urls": {
+          "homepage": "https://exa.ai",
+          "docs": "https://exa.ai/docs/reference/search",
+          "terms": "https://exa.ai/terms",
+          "keyHelp": "https://dashboard.exa.ai/api-keys"
+        },
+        "pricing": {
+          "sourceUrl": "https://exa.ai/docs/reference/search"
+        },
+        "regions": [
+          {
+            "id": "global",
+            "host": "api.exa.ai",
+            "source": "recorded",
+            "pricing": {
+              "unit": "per_1k_requests",
+              "amount": "7",
+              "currency": "USD",
+              "billing": "all",
+              "free": {
+                "kind": "monthly_usd",
+                "amount": "10",
+                "cardRequired": false
+              }
+            }
+          }
+        ],
+        "transport": {
+          "kind": "json_http/v1",
+          "method": "POST",
+          "path": "/search",
+          "auth": {
+            "kind": "header",
+            "name": "x-api-key"
+          },
+          "query": {
+            "field": "query",
+            "in": "body"
+          },
+          "count": {
+            "field": "numResults",
+            "in": "body"
+          },
+          "static": {
+            "in": "body",
+            "params": {
+              "type": "auto",
+              "contents.text": false,
+              "contents.highlights.maxCharacters": 600
+            }
+          },
+          "response": {
+            "results": "results",
+            "title": [
+              "title"
+            ],
+            "url": [
+              "url"
+            ],
+            "snippet": [
+              "highlights"
+            ],
+            "date": [
+              "publishedDate"
+            ],
+            "html": false
+          },
+          "errors": []
+        },
+        "limits": {
+          "timeoutSec": 25
+        },
+        "citationStorage": "full",
+        "trust": {
+          "entity": "Exa Labs（SOC 2 Type II）",
+          "evidence": [
+            "https://exa.ai/terms"
+          ],
+          "reviewedAt": "2026-10-26"
+        }
+      },
+      {
+        "id": "brave",
+        "displayName": "Brave Search",
+        "group": "overseas",
+        "urls": {
+          "homepage": "https://brave.com/search/api/",
+          "docs": "https://brave.com/search/api/",
+          "terms": "https://api-dashboard.search.brave.com/terms-of-service",
+          "keyHelp": "https://api-dashboard.search.brave.com"
+        },
+        "pricing": {
+          "sourceUrl": "https://brave.com/search/api/"
+        },
+        "regions": [
+          {
+            "id": "global",
+            "host": "api.search.brave.com",
+            "source": "recorded",
+            "pricing": {
+              "unit": "per_1k_requests",
+              "amount": "5",
+              "currency": "USD",
+              "billing": "all",
+              "free": {
+                "kind": "monthly_usd",
+                "amount": "5",
+                "cardRequired": true
+              }
+            }
+          }
+        ],
+        "transport": {
+          "kind": "json_http/v1",
+          "method": "GET",
+          "path": "/res/v1/web/search",
+          "auth": {
+            "kind": "header",
+            "name": "X-Subscription-Token"
+          },
+          "query": {
+            "field": "q",
+            "in": "query"
+          },
+          "count": {
+            "field": "count",
+            "in": "query",
+            "max": 20
+          },
+          "static": null,
+          "response": {
+            "results": "web.results",
+            "title": [
+              "title"
+            ],
+            "url": [
+              "url"
+            ],
+            "snippet": [
+              "description"
+            ],
+            "site": [
+              "profile.long_name"
+            ],
+            "date": [
+              "page_age"
+            ],
+            "html": true
+          },
+          "errors": [
+            {
+              "status": 422,
+              "match": {
+                "path": "error.code",
+                "equals": "SUBSCRIPTION_TOKEN_INVALID"
+              },
+              "class": "auth_invalid"
+            }
+          ]
+        },
+        "limits": {
+          "timeoutSec": 20
+        },
+        "citationStorage": "full",
+        "attribution": {
+          "required": false,
+          "text": "Powered by Brave"
+        },
+        "trust": {
+          "entity": "Brave Software（SOC 2 Type II）",
+          "evidence": [
+            "https://api-dashboard.search.brave.com/terms-of-service"
+          ],
+          "reviewedAt": "2026-10-26"
+        }
+      },
+      {
+        "id": "perplexity",
+        "displayName": "Perplexity",
+        "group": "overseas",
+        "urls": {
+          "homepage": "https://www.perplexity.ai",
+          "docs": "https://docs.perplexity.ai",
+          "terms": "https://www.perplexity.ai/hub/legal/perplexity-api-terms-of-service",
+          "keyHelp": "https://www.perplexity.ai/account/api"
+        },
+        "pricing": {
+          "sourceUrl": "https://docs.perplexity.ai"
+        },
+        "regions": [
+          {
+            "id": "global",
+            "host": "api.perplexity.ai",
+            "source": "recorded",
+            "pricing": {
+              "unit": "per_1k_requests",
+              "amount": "5",
+              "currency": "USD",
+              "billing": "all",
+              "free": null
+            }
+          }
+        ],
+        "transport": {
+          "kind": "json_http/v1",
+          "method": "POST",
+          "path": "/search",
+          "auth": {
+            "kind": "bearer"
+          },
+          "query": {
+            "field": "query",
+            "in": "body"
+          },
+          "count": {
+            "field": "max_results",
+            "in": "body"
+          },
+          "static": {
+            "in": "body",
+            "params": {
+              "max_tokens_per_page": 256
+            }
+          },
+          "response": {
+            "results": "results",
+            "title": [
+              "title"
+            ],
+            "url": [
+              "url"
+            ],
+            "snippet": [
+              "snippet"
+            ],
+            "date": [
+              "date"
+            ],
+            "html": false
+          },
+          "errors": []
+        },
+        "limits": {
+          "timeoutSec": 20
+        },
+        "citationStorage": "full",
+        "trust": {
+          "entity": "Perplexity AI",
+          "evidence": [
+            "https://www.perplexity.ai/hub/legal/perplexity-api-terms-of-service"
+          ],
+          "reviewedAt": "2026-10-26"
+        }
+      }
+    ],
+    "signature": {
+      "alg": "ed25519",
+      "keyId": "test-p1",
+      "value": "iIEa81QhPS3Iizqo9EwJXXPeQZlQqalttmSvS6OvLHs0c7HTRTd4APKXqXjRIOQ4aNyLMPGOitgAsdvfTq/7BA=="
+    }
+  },
+  "canonicalCases": [
+    {
+      "caseId": "canonical.key_order_and_no_whitespace",
+      "input": {
+        "b": [
+          1,
+          {
+            "d": true,
+            "c": null
+          }
+        ],
+        "a": "中文\"\n"
+      },
+      "expect": {
+        "output": "{\"a\":\"中文\\\"\\n\",\"b\":[1,{\"c\":null,\"d\":true}]}"
+      }
+    },
+    {
+      "caseId": "canonical.rejects_float",
+      "input": {
+        "price": 0.5
+      },
+      "expect": {
+        "error": "non_integer_number"
+      }
+    },
+    {
+      "caseId": "canonical.utf16_code_unit_key_order",
+      "$comment": "Keys sort by UTF-16 code unit: the emoji (D83D...) sorts before U+FF61; sorting by Unicode scalar would reverse them",
+      "input": {
+        "｡": true,
+        "😀": false,
+        "a": 1,
+        "B": 2,
+        "é": 3
+      },
+      "expect": {
+        "output": "{\"B\":2,\"a\":1,\"é\":3,\"😀\":false,\"｡\":true}"
+      }
+    },
+    {
+      "caseId": "canonical.json_stringify_escaping",
+      "$comment": "Only escape \" \\ and U+0000-U+001F (\\b \\f \\n \\r \\t use the short form, the rest use lowercase \\u00xx); / < > & U+007F U+2028 and non-ASCII stay as is",
+      "input": {
+        "s": "a/b <&> \u0001\b\f\t\r\u001f é😀"
+      },
+      "expect": {
+        "output": "{\"s\":\"a/b <&> \\u0001\\b\\f\\t\\r\\u001f é😀\"}"
+      }
+    },
+    {
+      "caseId": "canonical.integers_and_empty_containers",
+      "input": {
+        "neg": -3,
+        "zero": 0,
+        "max": 9007199254740991,
+        "arr": [],
+        "obj": {},
+        "nested": [
+          [
+            2,
+            1
+          ],
+          {
+            "z": {
+              "y": []
+            }
+          }
+        ]
+      },
+      "expect": {
+        "output": "{\"arr\":[],\"max\":9007199254740991,\"neg\":-3,\"nested\":[[2,1],{\"z\":{\"y\":[]}}],\"obj\":{},\"zero\":0}"
+      }
+    },
+    {
+      "caseId": "canonical.rejects_unsafe_integer",
+      "input": {
+        "n": 9007199254740992
+      },
+      "expect": {
+        "error": "non_integer_number"
+      }
+    }
+  ],
+  "acceptCases": [
+    {
+      "caseId": "accept.first_network_doc",
+      "state": {
+        "maxSeenRevision": 0,
+        "current": null
+      },
+      "source": "network",
+      "incoming": {
+        "schema": "search-catalog/v1",
+        "revision": 3,
+        "generatedAt": "2026-10-26T00:00:00Z",
+        "services": [
+          {
+            "id": "deepseek",
+            "displayName": "DeepSeek",
+            "group": "domestic",
+            "urls": {
+              "homepage": "https://www.deepseek.com",
+              "docs": "https://api-docs.deepseek.com/zh-cn/guides/search",
+              "terms": "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html",
+              "keyHelp": "https://platform.deepseek.com/api_keys"
+            },
+            "pricing": {
+              "sourceUrl": "https://api-docs.deepseek.com/zh-cn/guides/search"
+            },
+            "regions": [
+              {
+                "id": "cn",
+                "host": "api.deepseek.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_1k_requests",
+                  "amount": "5",
+                  "currency": "CNY",
+                  "billing": "non_empty_only",
+                  "free": null
+                }
+              }
+            ],
+            "reuse": {
+              "providerKind": "deepseek",
+              "regionByConnectionHost": {
+                "api.deepseek.com": "cn"
+              }
+            },
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/v1/tools/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body",
+                "maxChars": 128
+              },
+              "count": {
+                "field": "count",
+                "in": "body",
+                "max": 50
+              },
+              "static": null,
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "summary",
+                  "snippet"
+                ],
+                "site": [
+                  "site_name"
+                ],
+                "date": [
+                  "date"
+                ],
+                "html": false
+              },
+              "errors": []
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "DeepSeek（杭州深度求索）",
+              "evidence": [
+                "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          },
+          {
+            "id": "tavily",
+            "displayName": "Tavily",
+            "group": "overseas",
+            "urls": {
+              "homepage": "https://www.tavily.com",
+              "docs": "https://docs.tavily.com/documentation/api-reference/endpoint/search",
+              "terms": "https://tavily.com/terms",
+              "keyHelp": "https://app.tavily.com"
+            },
+            "pricing": {
+              "sourceUrl": "https://docs.tavily.com/documentation/api-reference/endpoint/search"
+            },
+            "regions": [
+              {
+                "id": "global",
+                "host": "api.tavily.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_request",
+                  "amount": "1",
+                  "currency": "CREDIT",
+                  "billing": "all",
+                  "free": {
+                    "kind": "monthly_credits",
+                    "amount": 1000,
+                    "cardRequired": false
+                  }
+                }
+              }
+            ],
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body"
+              },
+              "count": {
+                "field": "max_results",
+                "in": "body"
+              },
+              "static": {
+                "in": "body",
+                "params": {
+                  "search_depth": "basic"
+                }
+              },
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "content"
+                ],
+                "html": false
+              },
+              "errors": [
+                {
+                  "status": 432,
+                  "class": "insufficient_balance"
+                },
+                {
+                  "status": 433,
+                  "class": "insufficient_balance"
+                }
+              ]
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "Tavily（2026-02 被 Nebius 收购，NASDAQ）",
+              "evidence": [
+                "https://tavily.com/terms"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          }
+        ],
+        "signature": {
+          "alg": "ed25519",
+          "keyId": "test-p1",
+          "value": "3Dn8A6v4/gQ993YAa0SxPkI4hC1ksq5eIgWlo8CtBqoAL+BTyWDfZ1iJuQMM4r/eGvpFPTEoaek+5GUZsBUVAQ=="
+        }
+      },
+      "expect": {
+        "accepted": true,
+        "maxSeenRevision": 3,
+        "current": {
+          "revision": 3,
+          "services": [
+            {
+              "id": "deepseek",
+              "status": "active",
+              "limits": {
+                "timeoutSec": 20,
+                "maxCount": 10
+              }
+            },
+            {
+              "id": "tavily",
+              "status": "active",
+              "limits": {
+                "timeoutSec": 20,
+                "maxCount": 10
+              }
+            }
+          ]
+        },
+        "skipped": []
+      },
+      "note": "signed with testKeys"
+    },
+    {
+      "caseId": "accept.newer_revision",
+      "state": {
+        "maxSeenRevision": 3,
+        "current": {
+          "revision": 3,
+          "services": []
+        }
+      },
+      "source": "network",
+      "incoming": {
+        "schema": "search-catalog/v1",
+        "revision": 4,
+        "generatedAt": "2026-10-26T00:00:00Z",
+        "services": [
+          {
+            "id": "deepseek",
+            "displayName": "DeepSeek",
+            "group": "domestic",
+            "urls": {
+              "homepage": "https://www.deepseek.com",
+              "docs": "https://api-docs.deepseek.com/zh-cn/guides/search",
+              "terms": "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html",
+              "keyHelp": "https://platform.deepseek.com/api_keys"
+            },
+            "pricing": {
+              "sourceUrl": "https://api-docs.deepseek.com/zh-cn/guides/search"
+            },
+            "regions": [
+              {
+                "id": "cn",
+                "host": "api.deepseek.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_1k_requests",
+                  "amount": "5",
+                  "currency": "CNY",
+                  "billing": "non_empty_only",
+                  "free": null
+                }
+              }
+            ],
+            "reuse": {
+              "providerKind": "deepseek",
+              "regionByConnectionHost": {
+                "api.deepseek.com": "cn"
+              }
+            },
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/v1/tools/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body",
+                "maxChars": 128
+              },
+              "count": {
+                "field": "count",
+                "in": "body",
+                "max": 50
+              },
+              "static": null,
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "summary",
+                  "snippet"
+                ],
+                "site": [
+                  "site_name"
+                ],
+                "date": [
+                  "date"
+                ],
+                "html": false
+              },
+              "errors": []
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "DeepSeek（杭州深度求索）",
+              "evidence": [
+                "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          },
+          {
+            "id": "tavily",
+            "displayName": "Tavily",
+            "group": "overseas",
+            "urls": {
+              "homepage": "https://www.tavily.com",
+              "docs": "https://docs.tavily.com/documentation/api-reference/endpoint/search",
+              "terms": "https://tavily.com/terms",
+              "keyHelp": "https://app.tavily.com"
+            },
+            "pricing": {
+              "sourceUrl": "https://docs.tavily.com/documentation/api-reference/endpoint/search"
+            },
+            "regions": [
+              {
+                "id": "global",
+                "host": "api.tavily.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_request",
+                  "amount": "1",
+                  "currency": "CREDIT",
+                  "billing": "all",
+                  "free": {
+                    "kind": "monthly_credits",
+                    "amount": 1000,
+                    "cardRequired": false
+                  }
+                }
+              }
+            ],
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body"
+              },
+              "count": {
+                "field": "max_results",
+                "in": "body"
+              },
+              "static": {
+                "in": "body",
+                "params": {
+                  "search_depth": "basic"
+                }
+              },
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "content"
+                ],
+                "html": false
+              },
+              "errors": [
+                {
+                  "status": 432,
+                  "class": "insufficient_balance"
+                },
+                {
+                  "status": 433,
+                  "class": "insufficient_balance"
+                }
+              ]
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "Tavily（2026-02 被 Nebius 收购，NASDAQ）",
+              "evidence": [
+                "https://tavily.com/terms"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          }
+        ],
+        "signature": {
+          "alg": "ed25519",
+          "keyId": "test-p1",
+          "value": "XZ9Y0SEKVmPU3hpdqdCRE6VNKeFXVo4Y4NMB1/9wZKnbc4M2ApbgOnCeBYYJY8tmVg4swSJ29aYkC6k+I4r2CQ=="
+        }
+      },
+      "expect": {
+        "accepted": true,
+        "maxSeenRevision": 4,
+        "current": {
+          "revision": 4,
+          "services": [
+            {
+              "id": "deepseek",
+              "status": "active",
+              "limits": {
+                "timeoutSec": 20,
+                "maxCount": 10
+              }
+            },
+            {
+              "id": "tavily",
+              "status": "active",
+              "limits": {
+                "timeoutSec": 20,
+                "maxCount": 10
+              }
+            }
+          ]
+        },
+        "skipped": []
+      },
+      "note": "signed with testKeys"
+    },
+    {
+      "caseId": "reject.rollback_below_max_seen",
+      "state": {
+        "maxSeenRevision": 5,
+        "current": {
+          "revision": 5,
+          "services": []
+        }
+      },
+      "source": "network",
+      "incoming": {
+        "schema": "search-catalog/v1",
+        "revision": 4,
+        "generatedAt": "2026-10-26T00:00:00Z",
+        "services": [
+          {
+            "id": "deepseek",
+            "displayName": "DeepSeek",
+            "group": "domestic",
+            "urls": {
+              "homepage": "https://www.deepseek.com",
+              "docs": "https://api-docs.deepseek.com/zh-cn/guides/search",
+              "terms": "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html",
+              "keyHelp": "https://platform.deepseek.com/api_keys"
+            },
+            "pricing": {
+              "sourceUrl": "https://api-docs.deepseek.com/zh-cn/guides/search"
+            },
+            "regions": [
+              {
+                "id": "cn",
+                "host": "api.deepseek.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_1k_requests",
+                  "amount": "5",
+                  "currency": "CNY",
+                  "billing": "non_empty_only",
+                  "free": null
+                }
+              }
+            ],
+            "reuse": {
+              "providerKind": "deepseek",
+              "regionByConnectionHost": {
+                "api.deepseek.com": "cn"
+              }
+            },
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/v1/tools/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body",
+                "maxChars": 128
+              },
+              "count": {
+                "field": "count",
+                "in": "body",
+                "max": 50
+              },
+              "static": null,
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "summary",
+                  "snippet"
+                ],
+                "site": [
+                  "site_name"
+                ],
+                "date": [
+                  "date"
+                ],
+                "html": false
+              },
+              "errors": []
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "DeepSeek（杭州深度求索）",
+              "evidence": [
+                "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          },
+          {
+            "id": "tavily",
+            "displayName": "Tavily",
+            "group": "overseas",
+            "urls": {
+              "homepage": "https://www.tavily.com",
+              "docs": "https://docs.tavily.com/documentation/api-reference/endpoint/search",
+              "terms": "https://tavily.com/terms",
+              "keyHelp": "https://app.tavily.com"
+            },
+            "pricing": {
+              "sourceUrl": "https://docs.tavily.com/documentation/api-reference/endpoint/search"
+            },
+            "regions": [
+              {
+                "id": "global",
+                "host": "api.tavily.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_request",
+                  "amount": "1",
+                  "currency": "CREDIT",
+                  "billing": "all",
+                  "free": {
+                    "kind": "monthly_credits",
+                    "amount": 1000,
+                    "cardRequired": false
+                  }
+                }
+              }
+            ],
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body"
+              },
+              "count": {
+                "field": "max_results",
+                "in": "body"
+              },
+              "static": {
+                "in": "body",
+                "params": {
+                  "search_depth": "basic"
+                }
+              },
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "content"
+                ],
+                "html": false
+              },
+              "errors": [
+                {
+                  "status": 432,
+                  "class": "insufficient_balance"
+                },
+                {
+                  "status": 433,
+                  "class": "insufficient_balance"
+                }
+              ]
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "Tavily（2026-02 被 Nebius 收购，NASDAQ）",
+              "evidence": [
+                "https://tavily.com/terms"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          }
+        ],
+        "signature": {
+          "alg": "ed25519",
+          "keyId": "test-p1",
+          "value": "XZ9Y0SEKVmPU3hpdqdCRE6VNKeFXVo4Y4NMB1/9wZKnbc4M2ApbgOnCeBYYJY8tmVg4swSJ29aYkC6k+I4r2CQ=="
+        }
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "revision_rollback",
+        "maxSeenRevision": 5
+      },
+      "note": "signed with testKeys"
+    },
+    {
+      "caseId": "reject.builtin_below_max_seen",
+      "state": {
+        "maxSeenRevision": 5,
+        "current": null
+      },
+      "source": "builtin",
+      "incoming": {
+        "schema": "search-catalog/v1",
+        "revision": 2,
+        "generatedAt": "2026-10-26T00:00:00Z",
+        "services": [
+          {
+            "id": "deepseek",
+            "displayName": "DeepSeek",
+            "group": "domestic",
+            "urls": {
+              "homepage": "https://www.deepseek.com",
+              "docs": "https://api-docs.deepseek.com/zh-cn/guides/search",
+              "terms": "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html",
+              "keyHelp": "https://platform.deepseek.com/api_keys"
+            },
+            "pricing": {
+              "sourceUrl": "https://api-docs.deepseek.com/zh-cn/guides/search"
+            },
+            "regions": [
+              {
+                "id": "cn",
+                "host": "api.deepseek.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_1k_requests",
+                  "amount": "5",
+                  "currency": "CNY",
+                  "billing": "non_empty_only",
+                  "free": null
+                }
+              }
+            ],
+            "reuse": {
+              "providerKind": "deepseek",
+              "regionByConnectionHost": {
+                "api.deepseek.com": "cn"
+              }
+            },
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/v1/tools/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body",
+                "maxChars": 128
+              },
+              "count": {
+                "field": "count",
+                "in": "body",
+                "max": 50
+              },
+              "static": null,
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "summary",
+                  "snippet"
+                ],
+                "site": [
+                  "site_name"
+                ],
+                "date": [
+                  "date"
+                ],
+                "html": false
+              },
+              "errors": []
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "DeepSeek（杭州深度求索）",
+              "evidence": [
+                "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          },
+          {
+            "id": "tavily",
+            "displayName": "Tavily",
+            "group": "overseas",
+            "urls": {
+              "homepage": "https://www.tavily.com",
+              "docs": "https://docs.tavily.com/documentation/api-reference/endpoint/search",
+              "terms": "https://tavily.com/terms",
+              "keyHelp": "https://app.tavily.com"
+            },
+            "pricing": {
+              "sourceUrl": "https://docs.tavily.com/documentation/api-reference/endpoint/search"
+            },
+            "regions": [
+              {
+                "id": "global",
+                "host": "api.tavily.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_request",
+                  "amount": "1",
+                  "currency": "CREDIT",
+                  "billing": "all",
+                  "free": {
+                    "kind": "monthly_credits",
+                    "amount": 1000,
+                    "cardRequired": false
+                  }
+                }
+              }
+            ],
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body"
+              },
+              "count": {
+                "field": "max_results",
+                "in": "body"
+              },
+              "static": {
+                "in": "body",
+                "params": {
+                  "search_depth": "basic"
+                }
+              },
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "content"
+                ],
+                "html": false
+              },
+              "errors": [
+                {
+                  "status": 432,
+                  "class": "insufficient_balance"
+                },
+                {
+                  "status": 433,
+                  "class": "insufficient_balance"
+                }
+              ]
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "Tavily（2026-02 被 Nebius 收购，NASDAQ）",
+              "evidence": [
+                "https://tavily.com/terms"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          }
+        ],
+        "signature": {
+          "alg": "ed25519",
+          "keyId": "test-p1",
+          "value": "l5r/wNNAUbEA072h9/9lW69Bwzurs4mkiOpraZmGlwyy1vnvc/Dks4Gl8h03kJ5iCUs2EtbsyULNXstlaKHPBg=="
+        }
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "revision_rollback",
+        "maxSeenRevision": 5
+      },
+      "note": "signed with testKeys"
+    },
+    {
+      "caseId": "keep.same_revision_unchanged",
+      "state": {
+        "maxSeenRevision": 3,
+        "current": {
+          "revision": 3,
+          "services": []
+        }
+      },
+      "source": "cache",
+      "incoming": {
+        "schema": "search-catalog/v1",
+        "revision": 3,
+        "generatedAt": "2026-10-26T00:00:00Z",
+        "services": [
+          {
+            "id": "deepseek",
+            "displayName": "DeepSeek",
+            "group": "domestic",
+            "urls": {
+              "homepage": "https://www.deepseek.com",
+              "docs": "https://api-docs.deepseek.com/zh-cn/guides/search",
+              "terms": "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html",
+              "keyHelp": "https://platform.deepseek.com/api_keys"
+            },
+            "pricing": {
+              "sourceUrl": "https://api-docs.deepseek.com/zh-cn/guides/search"
+            },
+            "regions": [
+              {
+                "id": "cn",
+                "host": "api.deepseek.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_1k_requests",
+                  "amount": "5",
+                  "currency": "CNY",
+                  "billing": "non_empty_only",
+                  "free": null
+                }
+              }
+            ],
+            "reuse": {
+              "providerKind": "deepseek",
+              "regionByConnectionHost": {
+                "api.deepseek.com": "cn"
+              }
+            },
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/v1/tools/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body",
+                "maxChars": 128
+              },
+              "count": {
+                "field": "count",
+                "in": "body",
+                "max": 50
+              },
+              "static": null,
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "summary",
+                  "snippet"
+                ],
+                "site": [
+                  "site_name"
+                ],
+                "date": [
+                  "date"
+                ],
+                "html": false
+              },
+              "errors": []
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "DeepSeek（杭州深度求索）",
+              "evidence": [
+                "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          },
+          {
+            "id": "tavily",
+            "displayName": "Tavily",
+            "group": "overseas",
+            "urls": {
+              "homepage": "https://www.tavily.com",
+              "docs": "https://docs.tavily.com/documentation/api-reference/endpoint/search",
+              "terms": "https://tavily.com/terms",
+              "keyHelp": "https://app.tavily.com"
+            },
+            "pricing": {
+              "sourceUrl": "https://docs.tavily.com/documentation/api-reference/endpoint/search"
+            },
+            "regions": [
+              {
+                "id": "global",
+                "host": "api.tavily.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_request",
+                  "amount": "1",
+                  "currency": "CREDIT",
+                  "billing": "all",
+                  "free": {
+                    "kind": "monthly_credits",
+                    "amount": 1000,
+                    "cardRequired": false
+                  }
+                }
+              }
+            ],
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body"
+              },
+              "count": {
+                "field": "max_results",
+                "in": "body"
+              },
+              "static": {
+                "in": "body",
+                "params": {
+                  "search_depth": "basic"
+                }
+              },
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "content"
+                ],
+                "html": false
+              },
+              "errors": [
+                {
+                  "status": 432,
+                  "class": "insufficient_balance"
+                },
+                {
+                  "status": 433,
+                  "class": "insufficient_balance"
+                }
+              ]
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "Tavily（2026-02 被 Nebius 收购，NASDAQ）",
+              "evidence": [
+                "https://tavily.com/terms"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          }
+        ],
+        "signature": {
+          "alg": "ed25519",
+          "keyId": "test-p1",
+          "value": "3Dn8A6v4/gQ993YAa0SxPkI4hC1ksq5eIgWlo8CtBqoAL+BTyWDfZ1iJuQMM4r/eGvpFPTEoaek+5GUZsBUVAQ=="
+        }
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "unchanged",
+        "maxSeenRevision": 3
+      },
+      "note": "signed with testKeys"
+    },
+    {
+      "caseId": "reject.signature_missing",
+      "state": {
+        "maxSeenRevision": 0,
+        "current": null
+      },
+      "source": "network",
+      "incoming": {
+        "schema": "search-catalog/v1",
+        "revision": 3,
+        "generatedAt": "2026-10-26T00:00:00Z",
+        "services": [
+          {
+            "id": "deepseek",
+            "displayName": "DeepSeek",
+            "group": "domestic",
+            "urls": {
+              "homepage": "https://www.deepseek.com",
+              "docs": "https://api-docs.deepseek.com/zh-cn/guides/search",
+              "terms": "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html",
+              "keyHelp": "https://platform.deepseek.com/api_keys"
+            },
+            "pricing": {
+              "sourceUrl": "https://api-docs.deepseek.com/zh-cn/guides/search"
+            },
+            "regions": [
+              {
+                "id": "cn",
+                "host": "api.deepseek.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_1k_requests",
+                  "amount": "5",
+                  "currency": "CNY",
+                  "billing": "non_empty_only",
+                  "free": null
+                }
+              }
+            ],
+            "reuse": {
+              "providerKind": "deepseek",
+              "regionByConnectionHost": {
+                "api.deepseek.com": "cn"
+              }
+            },
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/v1/tools/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body",
+                "maxChars": 128
+              },
+              "count": {
+                "field": "count",
+                "in": "body",
+                "max": 50
+              },
+              "static": null,
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "summary",
+                  "snippet"
+                ],
+                "site": [
+                  "site_name"
+                ],
+                "date": [
+                  "date"
+                ],
+                "html": false
+              },
+              "errors": []
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "DeepSeek（杭州深度求索）",
+              "evidence": [
+                "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          },
+          {
+            "id": "tavily",
+            "displayName": "Tavily",
+            "group": "overseas",
+            "urls": {
+              "homepage": "https://www.tavily.com",
+              "docs": "https://docs.tavily.com/documentation/api-reference/endpoint/search",
+              "terms": "https://tavily.com/terms",
+              "keyHelp": "https://app.tavily.com"
+            },
+            "pricing": {
+              "sourceUrl": "https://docs.tavily.com/documentation/api-reference/endpoint/search"
+            },
+            "regions": [
+              {
+                "id": "global",
+                "host": "api.tavily.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_request",
+                  "amount": "1",
+                  "currency": "CREDIT",
+                  "billing": "all",
+                  "free": {
+                    "kind": "monthly_credits",
+                    "amount": 1000,
+                    "cardRequired": false
+                  }
+                }
+              }
+            ],
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body"
+              },
+              "count": {
+                "field": "max_results",
+                "in": "body"
+              },
+              "static": {
+                "in": "body",
+                "params": {
+                  "search_depth": "basic"
+                }
+              },
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "content"
+                ],
+                "html": false
+              },
+              "errors": [
+                {
+                  "status": 432,
+                  "class": "insufficient_balance"
+                },
+                {
+                  "status": 433,
+                  "class": "insufficient_balance"
+                }
+              ]
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "Tavily（2026-02 被 Nebius 收购，NASDAQ）",
+              "evidence": [
+                "https://tavily.com/terms"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          }
+        ]
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "signature_missing",
+        "maxSeenRevision": 0
+      },
+      "note": "unsigned"
+    },
+    {
+      "caseId": "reject.tampered_after_signing",
+      "state": {
+        "maxSeenRevision": 0,
+        "current": null
+      },
+      "source": "network",
+      "incoming": {
+        "schema": "search-catalog/v1",
+        "revision": 3,
+        "generatedAt": "2026-10-26T00:00:00Z",
+        "services": [
+          {
+            "id": "deepseek",
+            "displayName": "DeepSeek",
+            "group": "domestic",
+            "urls": {
+              "homepage": "https://www.deepseek.com",
+              "docs": "https://api-docs.deepseek.com/zh-cn/guides/search",
+              "terms": "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html",
+              "keyHelp": "https://platform.deepseek.com/api_keys"
+            },
+            "pricing": {
+              "sourceUrl": "https://api-docs.deepseek.com/zh-cn/guides/search"
+            },
+            "regions": [
+              {
+                "id": "cn",
+                "host": "evil.example.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_1k_requests",
+                  "amount": "5",
+                  "currency": "CNY",
+                  "billing": "non_empty_only",
+                  "free": null
+                }
+              }
+            ],
+            "reuse": {
+              "providerKind": "deepseek",
+              "regionByConnectionHost": {
+                "api.deepseek.com": "cn"
+              }
+            },
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/v1/tools/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body",
+                "maxChars": 128
+              },
+              "count": {
+                "field": "count",
+                "in": "body",
+                "max": 50
+              },
+              "static": null,
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "summary",
+                  "snippet"
+                ],
+                "site": [
+                  "site_name"
+                ],
+                "date": [
+                  "date"
+                ],
+                "html": false
+              },
+              "errors": []
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "DeepSeek（杭州深度求索）",
+              "evidence": [
+                "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          },
+          {
+            "id": "tavily",
+            "displayName": "Tavily",
+            "group": "overseas",
+            "urls": {
+              "homepage": "https://www.tavily.com",
+              "docs": "https://docs.tavily.com/documentation/api-reference/endpoint/search",
+              "terms": "https://tavily.com/terms",
+              "keyHelp": "https://app.tavily.com"
+            },
+            "pricing": {
+              "sourceUrl": "https://docs.tavily.com/documentation/api-reference/endpoint/search"
+            },
+            "regions": [
+              {
+                "id": "global",
+                "host": "api.tavily.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_request",
+                  "amount": "1",
+                  "currency": "CREDIT",
+                  "billing": "all",
+                  "free": {
+                    "kind": "monthly_credits",
+                    "amount": 1000,
+                    "cardRequired": false
+                  }
+                }
+              }
+            ],
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body"
+              },
+              "count": {
+                "field": "max_results",
+                "in": "body"
+              },
+              "static": {
+                "in": "body",
+                "params": {
+                  "search_depth": "basic"
+                }
+              },
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "content"
+                ],
+                "html": false
+              },
+              "errors": [
+                {
+                  "status": 432,
+                  "class": "insufficient_balance"
+                },
+                {
+                  "status": 433,
+                  "class": "insufficient_balance"
+                }
+              ]
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "Tavily（2026-02 被 Nebius 收购，NASDAQ）",
+              "evidence": [
+                "https://tavily.com/terms"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          }
+        ],
+        "signature": {
+          "alg": "ed25519",
+          "keyId": "test-p1",
+          "value": "3Dn8A6v4/gQ993YAa0SxPkI4hC1ksq5eIgWlo8CtBqoAL+BTyWDfZ1iJuQMM4r/eGvpFPTEoaek+5GUZsBUVAQ=="
+        }
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "signature_invalid",
+        "maxSeenRevision": 0
+      },
+      "note": "signed with testKeys; then tampered services.0.regions.0.host"
+    },
+    {
+      "caseId": "reject.unknown_key_id",
+      "state": {
+        "maxSeenRevision": 0,
+        "current": null
+      },
+      "source": "network",
+      "incoming": {
+        "schema": "search-catalog/v1",
+        "revision": 3,
+        "generatedAt": "2026-10-26T00:00:00Z",
+        "services": [
+          {
+            "id": "deepseek",
+            "displayName": "DeepSeek",
+            "group": "domestic",
+            "urls": {
+              "homepage": "https://www.deepseek.com",
+              "docs": "https://api-docs.deepseek.com/zh-cn/guides/search",
+              "terms": "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html",
+              "keyHelp": "https://platform.deepseek.com/api_keys"
+            },
+            "pricing": {
+              "sourceUrl": "https://api-docs.deepseek.com/zh-cn/guides/search"
+            },
+            "regions": [
+              {
+                "id": "cn",
+                "host": "api.deepseek.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_1k_requests",
+                  "amount": "5",
+                  "currency": "CNY",
+                  "billing": "non_empty_only",
+                  "free": null
+                }
+              }
+            ],
+            "reuse": {
+              "providerKind": "deepseek",
+              "regionByConnectionHost": {
+                "api.deepseek.com": "cn"
+              }
+            },
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/v1/tools/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body",
+                "maxChars": 128
+              },
+              "count": {
+                "field": "count",
+                "in": "body",
+                "max": 50
+              },
+              "static": null,
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "summary",
+                  "snippet"
+                ],
+                "site": [
+                  "site_name"
+                ],
+                "date": [
+                  "date"
+                ],
+                "html": false
+              },
+              "errors": []
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "DeepSeek（杭州深度求索）",
+              "evidence": [
+                "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          },
+          {
+            "id": "tavily",
+            "displayName": "Tavily",
+            "group": "overseas",
+            "urls": {
+              "homepage": "https://www.tavily.com",
+              "docs": "https://docs.tavily.com/documentation/api-reference/endpoint/search",
+              "terms": "https://tavily.com/terms",
+              "keyHelp": "https://app.tavily.com"
+            },
+            "pricing": {
+              "sourceUrl": "https://docs.tavily.com/documentation/api-reference/endpoint/search"
+            },
+            "regions": [
+              {
+                "id": "global",
+                "host": "api.tavily.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_request",
+                  "amount": "1",
+                  "currency": "CREDIT",
+                  "billing": "all",
+                  "free": {
+                    "kind": "monthly_credits",
+                    "amount": 1000,
+                    "cardRequired": false
+                  }
+                }
+              }
+            ],
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body"
+              },
+              "count": {
+                "field": "max_results",
+                "in": "body"
+              },
+              "static": {
+                "in": "body",
+                "params": {
+                  "search_depth": "basic"
+                }
+              },
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "content"
+                ],
+                "html": false
+              },
+              "errors": [
+                {
+                  "status": 432,
+                  "class": "insufficient_balance"
+                },
+                {
+                  "status": 433,
+                  "class": "insufficient_balance"
+                }
+              ]
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "Tavily（2026-02 被 Nebius 收购，NASDAQ）",
+              "evidence": [
+                "https://tavily.com/terms"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          }
+        ],
+        "signature": {
+          "alg": "ed25519",
+          "keyId": "other",
+          "value": "3Dn8A6v4/gQ993YAa0SxPkI4hC1ksq5eIgWlo8CtBqoAL+BTyWDfZ1iJuQMM4r/eGvpFPTEoaek+5GUZsBUVAQ=="
+        }
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "signature_unknown_key",
+        "maxSeenRevision": 0
+      },
+      "note": "signed with testKeys; keyId other"
+    },
+    {
+      "caseId": "skip.tombstone_withdraws_service",
+      "state": {
+        "maxSeenRevision": 3,
+        "current": null
+      },
+      "source": "network",
+      "incoming": {
+        "schema": "search-catalog/v1",
+        "revision": 6,
+        "generatedAt": "2026-10-26T00:00:00Z",
+        "services": [
+          {
+            "id": "deepseek",
+            "displayName": "DeepSeek",
+            "group": "domestic",
+            "urls": {
+              "homepage": "https://www.deepseek.com",
+              "docs": "https://api-docs.deepseek.com/zh-cn/guides/search",
+              "terms": "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html",
+              "keyHelp": "https://platform.deepseek.com/api_keys"
+            },
+            "pricing": {
+              "sourceUrl": "https://api-docs.deepseek.com/zh-cn/guides/search"
+            },
+            "regions": [
+              {
+                "id": "cn",
+                "host": "api.deepseek.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_1k_requests",
+                  "amount": "5",
+                  "currency": "CNY",
+                  "billing": "non_empty_only",
+                  "free": null
+                }
+              }
+            ],
+            "reuse": {
+              "providerKind": "deepseek",
+              "regionByConnectionHost": {
+                "api.deepseek.com": "cn"
+              }
+            },
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/v1/tools/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body",
+                "maxChars": 128
+              },
+              "count": {
+                "field": "count",
+                "in": "body",
+                "max": 50
+              },
+              "static": null,
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "summary",
+                  "snippet"
+                ],
+                "site": [
+                  "site_name"
+                ],
+                "date": [
+                  "date"
+                ],
+                "html": false
+              },
+              "errors": []
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "DeepSeek（杭州深度求索）",
+              "evidence": [
+                "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          },
+          {
+            "id": "tavily",
+            "tombstone": {
+              "reason": "terms_changed",
+              "at": "2026-11-01"
+            }
+          }
+        ],
+        "signature": {
+          "alg": "ed25519",
+          "keyId": "test-p1",
+          "value": "9Y6jbM+QYU/3n16s3ZAW4PoV+SqQR5E0iKwgHjCZ4U3QtIakjWVDM53GdeY/jc+ZUij2aP2JU8Gl6TuPGU6iBA=="
+        }
+      },
+      "expect": {
+        "accepted": true,
+        "maxSeenRevision": 6,
+        "current": {
+          "revision": 6,
+          "services": [
+            {
+              "id": "deepseek",
+              "status": "active",
+              "limits": {
+                "timeoutSec": 20,
+                "maxCount": 10
+              }
+            },
+            {
+              "id": "tavily",
+              "status": "withdrawn"
+            }
+          ]
+        },
+        "skipped": []
+      },
+      "note": "signed with testKeys"
+    },
+    {
+      "caseId": "skip.unknown_transport_entry",
+      "state": {
+        "maxSeenRevision": 0,
+        "current": null
+      },
+      "source": "network",
+      "incoming": {
+        "schema": "search-catalog/v1",
+        "revision": 3,
+        "generatedAt": "2026-10-26T00:00:00Z",
+        "services": [
+          {
+            "id": "deepseek",
+            "displayName": "DeepSeek",
+            "group": "domestic",
+            "urls": {
+              "homepage": "https://www.deepseek.com",
+              "docs": "https://api-docs.deepseek.com/zh-cn/guides/search",
+              "terms": "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html",
+              "keyHelp": "https://platform.deepseek.com/api_keys"
+            },
+            "pricing": {
+              "sourceUrl": "https://api-docs.deepseek.com/zh-cn/guides/search"
+            },
+            "regions": [
+              {
+                "id": "cn",
+                "host": "api.deepseek.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_1k_requests",
+                  "amount": "5",
+                  "currency": "CNY",
+                  "billing": "non_empty_only",
+                  "free": null
+                }
+              }
+            ],
+            "reuse": {
+              "providerKind": "deepseek",
+              "regionByConnectionHost": {
+                "api.deepseek.com": "cn"
+              }
+            },
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/v1/tools/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body",
+                "maxChars": 128
+              },
+              "count": {
+                "field": "count",
+                "in": "body",
+                "max": 50
+              },
+              "static": null,
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "summary",
+                  "snippet"
+                ],
+                "site": [
+                  "site_name"
+                ],
+                "date": [
+                  "date"
+                ],
+                "html": false
+              },
+              "errors": []
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "DeepSeek（杭州深度求索）",
+              "evidence": [
+                "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          },
+          {
+            "id": "tavily",
+            "displayName": "Tavily",
+            "group": "overseas",
+            "urls": {
+              "homepage": "https://www.tavily.com",
+              "docs": "https://docs.tavily.com/documentation/api-reference/endpoint/search",
+              "terms": "https://tavily.com/terms",
+              "keyHelp": "https://app.tavily.com"
+            },
+            "pricing": {
+              "sourceUrl": "https://docs.tavily.com/documentation/api-reference/endpoint/search"
+            },
+            "regions": [
+              {
+                "id": "global",
+                "host": "api.tavily.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_request",
+                  "amount": "1",
+                  "currency": "CREDIT",
+                  "billing": "all",
+                  "free": {
+                    "kind": "monthly_credits",
+                    "amount": 1000,
+                    "cardRequired": false
+                  }
+                }
+              }
+            ],
+            "transport": {
+              "kind": "tc3_signed/v1",
+              "method": "POST",
+              "path": "/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body"
+              },
+              "count": {
+                "field": "max_results",
+                "in": "body"
+              },
+              "static": {
+                "in": "body",
+                "params": {
+                  "search_depth": "basic"
+                }
+              },
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "content"
+                ],
+                "html": false
+              },
+              "errors": [
+                {
+                  "status": 432,
+                  "class": "insufficient_balance"
+                },
+                {
+                  "status": 433,
+                  "class": "insufficient_balance"
+                }
+              ]
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "Tavily（2026-02 被 Nebius 收购，NASDAQ）",
+              "evidence": [
+                "https://tavily.com/terms"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          }
+        ],
+        "signature": {
+          "alg": "ed25519",
+          "keyId": "test-p1",
+          "value": "i1wGmdkVkPJitR00LUmWR6a13SCx5ubGmbMAnlcoadolFqs0I+3FnzwXxoHMptcq1ovk1O1An9btdGIEzWg4Ag=="
+        }
+      },
+      "expect": {
+        "accepted": true,
+        "maxSeenRevision": 3,
+        "current": {
+          "revision": 3,
+          "services": [
+            {
+              "id": "deepseek",
+              "status": "active",
+              "limits": {
+                "timeoutSec": 20,
+                "maxCount": 10
+              }
+            }
+          ]
+        },
+        "skipped": [
+          {
+            "id": "tavily",
+            "reason": "unsupported_transport"
+          }
+        ]
+      },
+      "note": "signed with testKeys"
+    },
+    {
+      "caseId": "skip.static_param_not_whitelisted",
+      "state": {
+        "maxSeenRevision": 0,
+        "current": null
+      },
+      "source": "network",
+      "incoming": {
+        "schema": "search-catalog/v1",
+        "revision": 3,
+        "generatedAt": "2026-10-26T00:00:00Z",
+        "services": [
+          {
+            "id": "deepseek",
+            "displayName": "DeepSeek",
+            "group": "domestic",
+            "urls": {
+              "homepage": "https://www.deepseek.com",
+              "docs": "https://api-docs.deepseek.com/zh-cn/guides/search",
+              "terms": "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html",
+              "keyHelp": "https://platform.deepseek.com/api_keys"
+            },
+            "pricing": {
+              "sourceUrl": "https://api-docs.deepseek.com/zh-cn/guides/search"
+            },
+            "regions": [
+              {
+                "id": "cn",
+                "host": "api.deepseek.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_1k_requests",
+                  "amount": "5",
+                  "currency": "CNY",
+                  "billing": "non_empty_only",
+                  "free": null
+                }
+              }
+            ],
+            "reuse": {
+              "providerKind": "deepseek",
+              "regionByConnectionHost": {
+                "api.deepseek.com": "cn"
+              }
+            },
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/v1/tools/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body",
+                "maxChars": 128
+              },
+              "count": {
+                "field": "count",
+                "in": "body",
+                "max": 50
+              },
+              "static": {
+                "in": "body",
+                "params": {
+                  "need_content": true
+                }
+              },
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "summary",
+                  "snippet"
+                ],
+                "site": [
+                  "site_name"
+                ],
+                "date": [
+                  "date"
+                ],
+                "html": false
+              },
+              "errors": []
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "DeepSeek（杭州深度求索）",
+              "evidence": [
+                "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          },
+          {
+            "id": "tavily",
+            "displayName": "Tavily",
+            "group": "overseas",
+            "urls": {
+              "homepage": "https://www.tavily.com",
+              "docs": "https://docs.tavily.com/documentation/api-reference/endpoint/search",
+              "terms": "https://tavily.com/terms",
+              "keyHelp": "https://app.tavily.com"
+            },
+            "pricing": {
+              "sourceUrl": "https://docs.tavily.com/documentation/api-reference/endpoint/search"
+            },
+            "regions": [
+              {
+                "id": "global",
+                "host": "api.tavily.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_request",
+                  "amount": "1",
+                  "currency": "CREDIT",
+                  "billing": "all",
+                  "free": {
+                    "kind": "monthly_credits",
+                    "amount": 1000,
+                    "cardRequired": false
+                  }
+                }
+              }
+            ],
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body"
+              },
+              "count": {
+                "field": "max_results",
+                "in": "body"
+              },
+              "static": {
+                "in": "body",
+                "params": {
+                  "search_depth": "basic"
+                }
+              },
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "content"
+                ],
+                "html": false
+              },
+              "errors": [
+                {
+                  "status": 432,
+                  "class": "insufficient_balance"
+                },
+                {
+                  "status": 433,
+                  "class": "insufficient_balance"
+                }
+              ]
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "Tavily（2026-02 被 Nebius 收购，NASDAQ）",
+              "evidence": [
+                "https://tavily.com/terms"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          }
+        ],
+        "signature": {
+          "alg": "ed25519",
+          "keyId": "test-p1",
+          "value": "YDWi44Kdi2hIV93vpEiBRZ4aoJu2OpXG1fUmMrXZlU9YmAN6MLfC3jbvzt/haHdbCJ2oBPt3BXY97R5oY8tIDA=="
+        }
+      },
+      "expect": {
+        "accepted": true,
+        "maxSeenRevision": 3,
+        "current": {
+          "revision": 3,
+          "services": [
+            {
+              "id": "tavily",
+              "status": "active",
+              "limits": {
+                "timeoutSec": 20,
+                "maxCount": 10
+              }
+            }
+          ]
+        },
+        "skipped": [
+          {
+            "id": "deepseek",
+            "reason": "static_param_not_allowed"
+          }
+        ]
+      },
+      "note": "signed with testKeys"
+    },
+    {
+      "caseId": "skip.cost_raising_search_depth",
+      "state": {
+        "maxSeenRevision": 0,
+        "current": null
+      },
+      "source": "network",
+      "incoming": {
+        "schema": "search-catalog/v1",
+        "revision": 3,
+        "generatedAt": "2026-10-26T00:00:00Z",
+        "services": [
+          {
+            "id": "deepseek",
+            "displayName": "DeepSeek",
+            "group": "domestic",
+            "urls": {
+              "homepage": "https://www.deepseek.com",
+              "docs": "https://api-docs.deepseek.com/zh-cn/guides/search",
+              "terms": "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html",
+              "keyHelp": "https://platform.deepseek.com/api_keys"
+            },
+            "pricing": {
+              "sourceUrl": "https://api-docs.deepseek.com/zh-cn/guides/search"
+            },
+            "regions": [
+              {
+                "id": "cn",
+                "host": "api.deepseek.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_1k_requests",
+                  "amount": "5",
+                  "currency": "CNY",
+                  "billing": "non_empty_only",
+                  "free": null
+                }
+              }
+            ],
+            "reuse": {
+              "providerKind": "deepseek",
+              "regionByConnectionHost": {
+                "api.deepseek.com": "cn"
+              }
+            },
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/v1/tools/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body",
+                "maxChars": 128
+              },
+              "count": {
+                "field": "count",
+                "in": "body",
+                "max": 50
+              },
+              "static": null,
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "summary",
+                  "snippet"
+                ],
+                "site": [
+                  "site_name"
+                ],
+                "date": [
+                  "date"
+                ],
+                "html": false
+              },
+              "errors": []
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "DeepSeek（杭州深度求索）",
+              "evidence": [
+                "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          },
+          {
+            "id": "tavily",
+            "displayName": "Tavily",
+            "group": "overseas",
+            "urls": {
+              "homepage": "https://www.tavily.com",
+              "docs": "https://docs.tavily.com/documentation/api-reference/endpoint/search",
+              "terms": "https://tavily.com/terms",
+              "keyHelp": "https://app.tavily.com"
+            },
+            "pricing": {
+              "sourceUrl": "https://docs.tavily.com/documentation/api-reference/endpoint/search"
+            },
+            "regions": [
+              {
+                "id": "global",
+                "host": "api.tavily.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_request",
+                  "amount": "1",
+                  "currency": "CREDIT",
+                  "billing": "all",
+                  "free": {
+                    "kind": "monthly_credits",
+                    "amount": 1000,
+                    "cardRequired": false
+                  }
+                }
+              }
+            ],
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body"
+              },
+              "count": {
+                "field": "max_results",
+                "in": "body"
+              },
+              "static": {
+                "in": "body",
+                "params": {
+                  "search_depth": "advanced"
+                }
+              },
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "content"
+                ],
+                "html": false
+              },
+              "errors": [
+                {
+                  "status": 432,
+                  "class": "insufficient_balance"
+                },
+                {
+                  "status": 433,
+                  "class": "insufficient_balance"
+                }
+              ]
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "Tavily（2026-02 被 Nebius 收购，NASDAQ）",
+              "evidence": [
+                "https://tavily.com/terms"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          }
+        ],
+        "signature": {
+          "alg": "ed25519",
+          "keyId": "test-p1",
+          "value": "TQ/yCknuXQUc1wlu+LcI+4Vwv5D1bMMP6oYrTvEDzkg30+/C17IEYKDKBRCqLQeU562r1Q2v9gAVUNbqvgdPAw=="
+        }
+      },
+      "expect": {
+        "accepted": true,
+        "maxSeenRevision": 3,
+        "current": {
+          "revision": 3,
+          "services": [
+            {
+              "id": "deepseek",
+              "status": "active",
+              "limits": {
+                "timeoutSec": 20,
+                "maxCount": 10
+              }
+            }
+          ]
+        },
+        "skipped": [
+          {
+            "id": "tavily",
+            "reason": "static_param_not_allowed"
+          }
+        ]
+      },
+      "note": "signed with testKeys"
+    },
+    {
+      "caseId": "skip.ip_host_not_allowed",
+      "state": {
+        "maxSeenRevision": 0,
+        "current": null
+      },
+      "source": "network",
+      "incoming": {
+        "schema": "search-catalog/v1",
+        "revision": 3,
+        "generatedAt": "2026-10-26T00:00:00Z",
+        "services": [
+          {
+            "id": "deepseek",
+            "displayName": "DeepSeek",
+            "group": "domestic",
+            "urls": {
+              "homepage": "https://www.deepseek.com",
+              "docs": "https://api-docs.deepseek.com/zh-cn/guides/search",
+              "terms": "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html",
+              "keyHelp": "https://platform.deepseek.com/api_keys"
+            },
+            "pricing": {
+              "sourceUrl": "https://api-docs.deepseek.com/zh-cn/guides/search"
+            },
+            "regions": [
+              {
+                "id": "cn",
+                "host": "10.0.0.8",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_1k_requests",
+                  "amount": "5",
+                  "currency": "CNY",
+                  "billing": "non_empty_only",
+                  "free": null
+                }
+              }
+            ],
+            "reuse": {
+              "providerKind": "deepseek",
+              "regionByConnectionHost": {
+                "api.deepseek.com": "cn"
+              }
+            },
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/v1/tools/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body",
+                "maxChars": 128
+              },
+              "count": {
+                "field": "count",
+                "in": "body",
+                "max": 50
+              },
+              "static": null,
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "summary",
+                  "snippet"
+                ],
+                "site": [
+                  "site_name"
+                ],
+                "date": [
+                  "date"
+                ],
+                "html": false
+              },
+              "errors": []
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "DeepSeek（杭州深度求索）",
+              "evidence": [
+                "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          },
+          {
+            "id": "tavily",
+            "displayName": "Tavily",
+            "group": "overseas",
+            "urls": {
+              "homepage": "https://www.tavily.com",
+              "docs": "https://docs.tavily.com/documentation/api-reference/endpoint/search",
+              "terms": "https://tavily.com/terms",
+              "keyHelp": "https://app.tavily.com"
+            },
+            "pricing": {
+              "sourceUrl": "https://docs.tavily.com/documentation/api-reference/endpoint/search"
+            },
+            "regions": [
+              {
+                "id": "global",
+                "host": "api.tavily.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_request",
+                  "amount": "1",
+                  "currency": "CREDIT",
+                  "billing": "all",
+                  "free": {
+                    "kind": "monthly_credits",
+                    "amount": 1000,
+                    "cardRequired": false
+                  }
+                }
+              }
+            ],
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body"
+              },
+              "count": {
+                "field": "max_results",
+                "in": "body"
+              },
+              "static": {
+                "in": "body",
+                "params": {
+                  "search_depth": "basic"
+                }
+              },
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "content"
+                ],
+                "html": false
+              },
+              "errors": [
+                {
+                  "status": 432,
+                  "class": "insufficient_balance"
+                },
+                {
+                  "status": 433,
+                  "class": "insufficient_balance"
+                }
+              ]
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "Tavily（2026-02 被 Nebius 收购，NASDAQ）",
+              "evidence": [
+                "https://tavily.com/terms"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          }
+        ],
+        "signature": {
+          "alg": "ed25519",
+          "keyId": "test-p1",
+          "value": "amC8DYObsr6mIN5G061JhfTdrUy7ghnmhNWs0JTmT17Pb4z2UQec2IepAqo2oAHbFlf2TD0c/8Masno0rBRZDg=="
+        }
+      },
+      "expect": {
+        "accepted": true,
+        "maxSeenRevision": 3,
+        "current": {
+          "revision": 3,
+          "services": [
+            {
+              "id": "tavily",
+              "status": "active",
+              "limits": {
+                "timeoutSec": 20,
+                "maxCount": 10
+              }
+            }
+          ]
+        },
+        "skipped": [
+          {
+            "id": "deepseek",
+            "reason": "host_invalid"
+          }
+        ]
+      },
+      "note": "signed with testKeys"
+    },
+    {
+      "caseId": "clamp.timeout_and_count_hard_limits",
+      "state": {
+        "maxSeenRevision": 0,
+        "current": null
+      },
+      "source": "network",
+      "incoming": {
+        "schema": "search-catalog/v1",
+        "revision": 3,
+        "generatedAt": "2026-10-26T00:00:00Z",
+        "services": [
+          {
+            "id": "deepseek",
+            "displayName": "DeepSeek",
+            "group": "domestic",
+            "urls": {
+              "homepage": "https://www.deepseek.com",
+              "docs": "https://api-docs.deepseek.com/zh-cn/guides/search",
+              "terms": "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html",
+              "keyHelp": "https://platform.deepseek.com/api_keys"
+            },
+            "pricing": {
+              "sourceUrl": "https://api-docs.deepseek.com/zh-cn/guides/search"
+            },
+            "regions": [
+              {
+                "id": "cn",
+                "host": "api.deepseek.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_1k_requests",
+                  "amount": "5",
+                  "currency": "CNY",
+                  "billing": "non_empty_only",
+                  "free": null
+                }
+              }
+            ],
+            "reuse": {
+              "providerKind": "deepseek",
+              "regionByConnectionHost": {
+                "api.deepseek.com": "cn"
+              }
+            },
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/v1/tools/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body",
+                "maxChars": 128
+              },
+              "count": {
+                "field": "count",
+                "in": "body",
+                "max": 50
+              },
+              "static": null,
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "summary",
+                  "snippet"
+                ],
+                "site": [
+                  "site_name"
+                ],
+                "date": [
+                  "date"
+                ],
+                "html": false
+              },
+              "errors": []
+            },
+            "limits": {
+              "timeoutSec": 300
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "DeepSeek（杭州深度求索）",
+              "evidence": [
+                "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          },
+          {
+            "id": "tavily",
+            "displayName": "Tavily",
+            "group": "overseas",
+            "urls": {
+              "homepage": "https://www.tavily.com",
+              "docs": "https://docs.tavily.com/documentation/api-reference/endpoint/search",
+              "terms": "https://tavily.com/terms",
+              "keyHelp": "https://app.tavily.com"
+            },
+            "pricing": {
+              "sourceUrl": "https://docs.tavily.com/documentation/api-reference/endpoint/search"
+            },
+            "regions": [
+              {
+                "id": "global",
+                "host": "api.tavily.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_request",
+                  "amount": "1",
+                  "currency": "CREDIT",
+                  "billing": "all",
+                  "free": {
+                    "kind": "monthly_credits",
+                    "amount": 1000,
+                    "cardRequired": false
+                  }
+                }
+              }
+            ],
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body"
+              },
+              "count": {
+                "field": "max_results",
+                "in": "body"
+              },
+              "static": {
+                "in": "body",
+                "params": {
+                  "search_depth": "basic"
+                }
+              },
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "content"
+                ],
+                "html": false
+              },
+              "errors": [
+                {
+                  "status": 432,
+                  "class": "insufficient_balance"
+                },
+                {
+                  "status": 433,
+                  "class": "insufficient_balance"
+                }
+              ]
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "Tavily（2026-02 被 Nebius 收购，NASDAQ）",
+              "evidence": [
+                "https://tavily.com/terms"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          }
+        ],
+        "signature": {
+          "alg": "ed25519",
+          "keyId": "test-p1",
+          "value": "153X87wZ94j7EjKVlPTPVsehckElqmEyKtRBQkl7zpYIR0o6J4Hh6VNgh5dekC+95ayWETLEux5MCuD5zIBmDA=="
+        }
+      },
+      "expect": {
+        "accepted": true,
+        "maxSeenRevision": 3,
+        "current": {
+          "revision": 3,
+          "services": [
+            {
+              "id": "deepseek",
+              "status": "active",
+              "limits": {
+                "timeoutSec": 60,
+                "maxCount": 10
+              }
+            },
+            {
+              "id": "tavily",
+              "status": "active",
+              "limits": {
+                "timeoutSec": 20,
+                "maxCount": 10
+              }
+            }
+          ]
+        },
+        "skipped": []
+      },
+      "note": "signed with testKeys"
+    },
+    {
+      "caseId": "skip.region_urls_not_https",
+      "state": {
+        "maxSeenRevision": 0,
+        "current": null
+      },
+      "source": "network",
+      "incoming": {
+        "schema": "search-catalog/v1",
+        "revision": 3,
+        "generatedAt": "2026-10-26T00:00:00Z",
+        "services": [
+          {
+            "id": "deepseek",
+            "displayName": "DeepSeek",
+            "group": "domestic",
+            "urls": {
+              "homepage": "https://www.deepseek.com",
+              "docs": "https://api-docs.deepseek.com/zh-cn/guides/search",
+              "terms": "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html",
+              "keyHelp": "https://platform.deepseek.com/api_keys"
+            },
+            "pricing": {
+              "sourceUrl": "https://api-docs.deepseek.com/zh-cn/guides/search"
+            },
+            "regions": [
+              {
+                "id": "cn",
+                "host": "api.deepseek.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_1k_requests",
+                  "amount": "5",
+                  "currency": "CNY",
+                  "billing": "non_empty_only",
+                  "free": null
+                },
+                "urls": {
+                  "docs": "http://docs.example.com/search"
+                }
+              }
+            ],
+            "reuse": {
+              "providerKind": "deepseek",
+              "regionByConnectionHost": {
+                "api.deepseek.com": "cn"
+              }
+            },
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/v1/tools/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body",
+                "maxChars": 128
+              },
+              "count": {
+                "field": "count",
+                "in": "body",
+                "max": 50
+              },
+              "static": null,
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "summary",
+                  "snippet"
+                ],
+                "site": [
+                  "site_name"
+                ],
+                "date": [
+                  "date"
+                ],
+                "html": false
+              },
+              "errors": []
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "DeepSeek（杭州深度求索）",
+              "evidence": [
+                "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          },
+          {
+            "id": "tavily",
+            "displayName": "Tavily",
+            "group": "overseas",
+            "urls": {
+              "homepage": "https://www.tavily.com",
+              "docs": "https://docs.tavily.com/documentation/api-reference/endpoint/search",
+              "terms": "https://tavily.com/terms",
+              "keyHelp": "https://app.tavily.com"
+            },
+            "pricing": {
+              "sourceUrl": "https://docs.tavily.com/documentation/api-reference/endpoint/search"
+            },
+            "regions": [
+              {
+                "id": "global",
+                "host": "api.tavily.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_request",
+                  "amount": "1",
+                  "currency": "CREDIT",
+                  "billing": "all",
+                  "free": {
+                    "kind": "monthly_credits",
+                    "amount": 1000,
+                    "cardRequired": false
+                  }
+                }
+              }
+            ],
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body"
+              },
+              "count": {
+                "field": "max_results",
+                "in": "body"
+              },
+              "static": {
+                "in": "body",
+                "params": {
+                  "search_depth": "basic"
+                }
+              },
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "content"
+                ],
+                "html": false
+              },
+              "errors": [
+                {
+                  "status": 432,
+                  "class": "insufficient_balance"
+                },
+                {
+                  "status": 433,
+                  "class": "insufficient_balance"
+                }
+              ]
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "Tavily（2026-02 被 Nebius 收购，NASDAQ）",
+              "evidence": [
+                "https://tavily.com/terms"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          }
+        ],
+        "signature": {
+          "alg": "ed25519",
+          "keyId": "test-p1",
+          "value": "GnbzU665Cl3dFwiyUb/uNl8gF5/MeGEYepsVS55/z6j2PlQAm3c/KfwiipKZXl52DqFWPI8PIJ24VCo8sLCTBQ=="
+        }
+      },
+      "note": "signed with testKeys",
+      "expect": {
+        "accepted": true,
+        "maxSeenRevision": 3,
+        "current": {
+          "revision": 3,
+          "services": [
+            {
+              "id": "tavily",
+              "status": "active",
+              "limits": {
+                "timeoutSec": 20,
+                "maxCount": 10
+              }
+            }
+          ]
+        },
+        "skipped": [
+          {
+            "id": "deepseek",
+            "reason": "entry_invalid"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "accept.region_urls_unknown_key_ignored",
+      "state": {
+        "maxSeenRevision": 0,
+        "current": null
+      },
+      "source": "network",
+      "incoming": {
+        "schema": "search-catalog/v1",
+        "revision": 3,
+        "generatedAt": "2026-10-26T00:00:00Z",
+        "services": [
+          {
+            "id": "deepseek",
+            "displayName": "DeepSeek",
+            "group": "domestic",
+            "urls": {
+              "homepage": "https://www.deepseek.com",
+              "docs": "https://api-docs.deepseek.com/zh-cn/guides/search",
+              "terms": "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html",
+              "keyHelp": "https://platform.deepseek.com/api_keys"
+            },
+            "pricing": {
+              "sourceUrl": "https://api-docs.deepseek.com/zh-cn/guides/search"
+            },
+            "regions": [
+              {
+                "id": "cn",
+                "host": "api.deepseek.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_1k_requests",
+                  "amount": "5",
+                  "currency": "CNY",
+                  "billing": "non_empty_only",
+                  "free": null
+                },
+                "urls": {
+                  "terms": "not-a-url",
+                  "keyHelp": "https://console.example.com/keys"
+                }
+              }
+            ],
+            "reuse": {
+              "providerKind": "deepseek",
+              "regionByConnectionHost": {
+                "api.deepseek.com": "cn"
+              }
+            },
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/v1/tools/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body",
+                "maxChars": 128
+              },
+              "count": {
+                "field": "count",
+                "in": "body",
+                "max": 50
+              },
+              "static": null,
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "summary",
+                  "snippet"
+                ],
+                "site": [
+                  "site_name"
+                ],
+                "date": [
+                  "date"
+                ],
+                "html": false
+              },
+              "errors": []
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "DeepSeek（杭州深度求索）",
+              "evidence": [
+                "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          },
+          {
+            "id": "tavily",
+            "displayName": "Tavily",
+            "group": "overseas",
+            "urls": {
+              "homepage": "https://www.tavily.com",
+              "docs": "https://docs.tavily.com/documentation/api-reference/endpoint/search",
+              "terms": "https://tavily.com/terms",
+              "keyHelp": "https://app.tavily.com"
+            },
+            "pricing": {
+              "sourceUrl": "https://docs.tavily.com/documentation/api-reference/endpoint/search"
+            },
+            "regions": [
+              {
+                "id": "global",
+                "host": "api.tavily.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_request",
+                  "amount": "1",
+                  "currency": "CREDIT",
+                  "billing": "all",
+                  "free": {
+                    "kind": "monthly_credits",
+                    "amount": 1000,
+                    "cardRequired": false
+                  }
+                }
+              }
+            ],
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body"
+              },
+              "count": {
+                "field": "max_results",
+                "in": "body"
+              },
+              "static": {
+                "in": "body",
+                "params": {
+                  "search_depth": "basic"
+                }
+              },
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "content"
+                ],
+                "html": false
+              },
+              "errors": [
+                {
+                  "status": 432,
+                  "class": "insufficient_balance"
+                },
+                {
+                  "status": 433,
+                  "class": "insufficient_balance"
+                }
+              ]
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "Tavily（2026-02 被 Nebius 收购，NASDAQ）",
+              "evidence": [
+                "https://tavily.com/terms"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          }
+        ],
+        "signature": {
+          "alg": "ed25519",
+          "keyId": "test-p1",
+          "value": "L0pLQ6ApM4QTJI/8iaRy00gZJtSBWQj8GuCAf+LXis6cCQpyf/wmZNVpDR0uzLpVqEuaR9/+baO2iDKZc7tJBw=="
+        }
+      },
+      "note": "signed with testKeys",
+      "expect": {
+        "accepted": true,
+        "maxSeenRevision": 3,
+        "current": {
+          "revision": 3,
+          "services": [
+            {
+              "id": "deepseek",
+              "status": "active",
+              "limits": {
+                "timeoutSec": 20,
+                "maxCount": 10
+              }
+            },
+            {
+              "id": "tavily",
+              "status": "active",
+              "limits": {
+                "timeoutSec": 20,
+                "maxCount": 10
+              }
+            }
+          ]
+        },
+        "skipped": []
+      }
+    },
+    {
+      "caseId": "skip.unknown_error_class_rule",
+      "state": {
+        "maxSeenRevision": 0,
+        "current": null
+      },
+      "source": "network",
+      "incoming": {
+        "schema": "search-catalog/v1",
+        "revision": 3,
+        "generatedAt": "2026-10-26T00:00:00Z",
+        "services": [
+          {
+            "id": "deepseek",
+            "displayName": "DeepSeek",
+            "group": "domestic",
+            "urls": {
+              "homepage": "https://www.deepseek.com",
+              "docs": "https://api-docs.deepseek.com/zh-cn/guides/search",
+              "terms": "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html",
+              "keyHelp": "https://platform.deepseek.com/api_keys"
+            },
+            "pricing": {
+              "sourceUrl": "https://api-docs.deepseek.com/zh-cn/guides/search"
+            },
+            "regions": [
+              {
+                "id": "cn",
+                "host": "api.deepseek.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_1k_requests",
+                  "amount": "5",
+                  "currency": "CNY",
+                  "billing": "non_empty_only",
+                  "free": null
+                }
+              }
+            ],
+            "reuse": {
+              "providerKind": "deepseek",
+              "regionByConnectionHost": {
+                "api.deepseek.com": "cn"
+              }
+            },
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/v1/tools/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body",
+                "maxChars": 128
+              },
+              "count": {
+                "field": "count",
+                "in": "body",
+                "max": 50
+              },
+              "static": null,
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "summary",
+                  "snippet"
+                ],
+                "site": [
+                  "site_name"
+                ],
+                "date": [
+                  "date"
+                ],
+                "html": false
+              },
+              "errors": [
+                {
+                  "status": 429,
+                  "match": {
+                    "path": "error.code",
+                    "equals": "x"
+                  },
+                  "class": "out_of_credits_typo"
+                }
+              ]
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "DeepSeek（杭州深度求索）",
+              "evidence": [
+                "https://cdn.deepseek.com/policies/zh-CN/deepseek-open-platform-terms-of-service.html"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          },
+          {
+            "id": "tavily",
+            "displayName": "Tavily",
+            "group": "overseas",
+            "urls": {
+              "homepage": "https://www.tavily.com",
+              "docs": "https://docs.tavily.com/documentation/api-reference/endpoint/search",
+              "terms": "https://tavily.com/terms",
+              "keyHelp": "https://app.tavily.com"
+            },
+            "pricing": {
+              "sourceUrl": "https://docs.tavily.com/documentation/api-reference/endpoint/search"
+            },
+            "regions": [
+              {
+                "id": "global",
+                "host": "api.tavily.com",
+                "source": "recorded",
+                "pricing": {
+                  "unit": "per_request",
+                  "amount": "1",
+                  "currency": "CREDIT",
+                  "billing": "all",
+                  "free": {
+                    "kind": "monthly_credits",
+                    "amount": 1000,
+                    "cardRequired": false
+                  }
+                }
+              }
+            ],
+            "transport": {
+              "kind": "json_http/v1",
+              "method": "POST",
+              "path": "/search",
+              "auth": {
+                "kind": "bearer"
+              },
+              "query": {
+                "field": "query",
+                "in": "body"
+              },
+              "count": {
+                "field": "max_results",
+                "in": "body"
+              },
+              "static": {
+                "in": "body",
+                "params": {
+                  "search_depth": "basic"
+                }
+              },
+              "response": {
+                "results": "results",
+                "title": [
+                  "title"
+                ],
+                "url": [
+                  "url"
+                ],
+                "snippet": [
+                  "content"
+                ],
+                "html": false
+              },
+              "errors": [
+                {
+                  "status": 432,
+                  "class": "insufficient_balance"
+                },
+                {
+                  "status": 433,
+                  "class": "insufficient_balance"
+                }
+              ]
+            },
+            "limits": {
+              "timeoutSec": 20
+            },
+            "citationStorage": "full",
+            "trust": {
+              "entity": "Tavily（2026-02 被 Nebius 收购，NASDAQ）",
+              "evidence": [
+                "https://tavily.com/terms"
+              ],
+              "reviewedAt": "2026-10-26"
+            }
+          }
+        ],
+        "signature": {
+          "alg": "ed25519",
+          "keyId": "test-p1",
+          "value": "8yWs54X98Iy1DO1xOEergk17k7USYaULTKtV3Z7UWnQEYPzD2bWqCF0mrbltqS5pNSboq8Ne2hFtSMIG+2xWCw=="
+        }
+      },
+      "note": "signed with testKeys",
+      "expect": {
+        "accepted": true,
+        "maxSeenRevision": 3,
+        "current": {
+          "revision": 3,
+          "services": [
+            {
+              "id": "tavily",
+              "status": "active",
+              "limits": {
+                "timeoutSec": 20,
+                "maxCount": 10
+              }
+            }
+          ]
+        },
+        "skipped": [
+          {
+            "id": "deepseek",
+            "reason": "transport_invalid"
+          }
+        ]
+      }
+    }
+  ],
+  "regionCases": [
+    {
+      "caseId": "region.kimi_cn_connection",
+      "serviceId": "kimi",
+      "connectionBaseUrl": "https://api.moonshot.cn/v1",
+      "expect": {
+        "region": "cn"
+      }
+    },
+    {
+      "caseId": "region.kimi_intl_connection",
+      "serviceId": "kimi",
+      "connectionBaseUrl": "api.moonshot.ai/v1",
+      "expect": {
+        "region": "intl"
+      }
+    },
+    {
+      "caseId": "region.zhipu_unknown_host_not_reusable",
+      "serviceId": "zhipu",
+      "connectionBaseUrl": "https://api.z.ai/api/paas/v4",
+      "expect": {
+        "region": null
+      }
+    },
+    {
+      "caseId": "region.tavily_has_no_reuse",
+      "serviceId": "tavily",
+      "connectionBaseUrl": "https://api.tavily.com",
+      "expect": {
+        "region": null
+      }
+    }
+  ],
+  "linkCases": [
+    {
+      "caseId": "link.zhipu_intl_region_overrides",
+      "serviceId": "zhipu",
+      "regionId": "intl",
+      "expect": {
+        "links": {
+          "homepage": "https://bigmodel.cn",
+          "docs": "https://docs.z.ai/guides/tools/web-search",
+          "terms": "https://docs.bigmodel.cn/cn/terms/user-agreement",
+          "keyHelp": "https://z.ai/manage-apikey/apikey-list",
+          "pricing": "https://docs.z.ai/guides/overview/pricing"
+        }
+      }
+    },
+    {
+      "caseId": "link.zhipu_cn_falls_back_to_entry",
+      "serviceId": "zhipu",
+      "regionId": "cn",
+      "expect": {
+        "links": {
+          "homepage": "https://bigmodel.cn",
+          "docs": "https://docs.bigmodel.cn",
+          "terms": "https://docs.bigmodel.cn/cn/terms/user-agreement",
+          "keyHelp": "https://docs.bigmodel.cn",
+          "pricing": "https://docs.bigmodel.cn"
+        }
+      }
+    },
+    {
+      "caseId": "link.kimi_intl_region_overrides",
+      "serviceId": "kimi",
+      "regionId": "intl",
+      "expect": {
+        "links": {
+          "homepage": "https://www.moonshot.cn",
+          "docs": "https://platform.kimi.ai/docs/api/tools-search",
+          "terms": "https://platform.moonshot.cn/docs/agreement/modeluse",
+          "keyHelp": "https://platform.kimi.ai/console/api-keys",
+          "pricing": "https://platform.kimi.ai/docs/pricing/websearch"
+        }
+      }
+    },
+    {
+      "caseId": "link.partial_override_falls_back_per_key",
+      "serviceId": "kimi",
+      "regionId": "intl",
+      "regionUrlsOverride": {
+        "docs": "https://platform.kimi.ai/docs/api/tools-search"
+      },
+      "expect": {
+        "links": {
+          "homepage": "https://www.moonshot.cn",
+          "docs": "https://platform.kimi.ai/docs/api/tools-search",
+          "terms": "https://platform.moonshot.cn/docs/agreement/modeluse",
+          "keyHelp": "https://platform.moonshot.cn/console/api-keys",
+          "pricing": "https://platform.moonshot.cn/docs"
+        }
+      }
+    },
+    {
+      "caseId": "link.unknown_region_uses_entry",
+      "serviceId": "zhipu",
+      "regionId": "eu",
+      "expect": {
+        "links": {
+          "homepage": "https://bigmodel.cn",
+          "docs": "https://docs.bigmodel.cn",
+          "terms": "https://docs.bigmodel.cn/cn/terms/user-agreement",
+          "keyHelp": "https://docs.bigmodel.cn",
+          "pricing": "https://docs.bigmodel.cn"
+        }
+      }
+    }
+  ],
+  "fetchCases": [
+    {
+      "caseId": "fetch.200_adopts",
+      "input": {
+        "status": 200
+      },
+      "expect": {
+        "action": "adopt"
+      }
+    },
+    {
+      "caseId": "fetch.304_keeps",
+      "input": {
+        "status": 304
+      },
+      "expect": {
+        "action": "keep"
+      }
+    },
+    {
+      "caseId": "fetch.404_withdraws_presets",
+      "input": {
+        "status": 404
+      },
+      "expect": {
+        "action": "withdraw_presets"
+      }
+    },
+    {
+      "caseId": "fetch.503_keeps",
+      "input": {
+        "status": 503
+      },
+      "expect": {
+        "action": "keep"
+      }
+    },
+    {
+      "caseId": "fetch.400_old_server_keeps",
+      "$comment": "An older server without ?view=search answers 400 (unknown view); this is not a revocation",
+      "input": {
+        "status": 400
+      },
+      "expect": {
+        "action": "keep"
+      }
+    },
+    {
+      "caseId": "fetch.timeout_keeps",
+      "input": {
+        "transportFailure": "timeout"
+      },
+      "expect": {
+        "action": "keep"
+      }
+    },
+    {
+      "caseId": "fetch.network_keeps",
+      "input": {
+        "transportFailure": "network"
+      },
+      "expect": {
+        "action": "keep"
+      }
+    }
+  ],
+  "hostCases": [
+    {
+      "caseId": "host.unchanged_sends_key",
+      "boundHost": "api.deepseek.com",
+      "serviceId": "deepseek",
+      "regionId": "cn",
+      "expect": {
+        "verdict": "ok"
+      }
+    },
+    {
+      "caseId": "host.changed_requires_reconfirm",
+      "boundHost": "api.deepseek.com",
+      "serviceId": "deepseek",
+      "regionId": "cn",
+      "catalogHostOverride": "search.deepseek.com",
+      "expect": {
+        "verdict": "host_changed"
+      }
+    },
+    {
+      "caseId": "host.withdrawn_stops_key",
+      "boundHost": "api.tavily.com",
+      "serviceId": "tavily",
+      "regionId": "global",
+      "withdrawn": true,
+      "expect": {
+        "verdict": "service_withdrawn"
+      }
+    }
+  ]
+}
