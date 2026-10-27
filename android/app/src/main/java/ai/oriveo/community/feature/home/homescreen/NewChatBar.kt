@@ -337,7 +337,7 @@ private fun HeroComposerInput(
     }
 
     val placeholder = stringResource(AuroraGreeting.placeholderResId)
-    // The system cursor matches the decorative one (dark #C4B5FD / light #8B5CF6)
+    // The system cursor matches the decorative one (dark = palette accent / light = fixed purple, see AuroraTheme.accentGlow)
     val cursorColor = AuroraTheme.accentGlow()
     val inputStyle = AuroraTheme.Typography.composerPlaceholder.copy(color = AuroraTheme.textPrimary())
     val placeholderStyle = AuroraTheme.Typography.composerPlaceholder.copy(
@@ -475,7 +475,7 @@ private fun AuroraSendButton(
         modifier = Modifier
             .size(HOME_HERO_SEND_SIZE)
             .clip(CircleShape)
-            .background(AuroraTheme.Colors.sendFill)
+            .background(AuroraTheme.sendFill())
             .testTag("home_send_button")
             .clickable(
                 enabled = enabled,

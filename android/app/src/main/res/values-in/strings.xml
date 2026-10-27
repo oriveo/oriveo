@@ -159,18 +159,26 @@
     </plurals>
     <string name="undo">Urungkan</string>
     <string name="settings_title">Pengaturan</string>
-    <string name="appearance">Penampilan</string>
     <string name="theme">Tema</string>
     <string name="theme_system">Ikuti Sistem</string>
-    <string name="theme_light">Lampu</string>
+    <string name="theme_light">Terang</string>
     <string name="theme_dark">Gelap</string>
+    <string name="theme_follow_system_hint">Saat sistem dalam mode gelap, palet gelap yang dipilih akan digunakan.</string>
+    <string name="theme_section_palettes">Palet</string>
+    <string name="theme_palette_purple">Ungu</string>
+    <string name="theme_palette_graphite">Grafit</string>
+    <string name="theme_palette_black">Hitam</string>
+    <string name="theme_palette_ocean">Samudra</string>
+    <string name="theme_palette_forest">Hutan</string>
+    <string name="theme_palette_sunset">Senja</string>
+    <string name="theme_preview_question">Jelaskan ownership di Rust dalam satu paragraf.</string>
+    <string name="theme_preview_reply">Setiap nilai punya tepat satu %1$s. Saat pemilik itu keluar dari cakupan, nilainya dibuang; untuk meminjamnya, gunakan %2$s.</string>
+    <string name="theme_preview_owner">pemilik</string>
+    <string name="theme_summary_follow_system">Ikuti Sistem · %1$s</string>
     <string name="language">Bahasa</string>
-    <string name="data_section">Data</string>
     <string name="backup_and_export">Cadangkan &amp; Ekspor</string>
-    <string name="about">Tentang</string>
     <string name="privacy_policy">Kebijakan Privasi</string>
     <string name="terms_of_service">Ketentuan Layanan</string>
-    <string name="help_feedback">Bantuan &amp; Masukan</string>
     <string name="settings_source_code">Kode Sumber</string>
     <string name="settings_report_issue">Laporkan Masalah</string>
     <string name="snackbar_provider_ready">Penyedia sudah siap. Anda dapat mulai mengobrol sekarang.</string>
@@ -2235,4 +2243,6 @@
     <string name="context_confirm_send">Tetap kirim</string>
     <string name="chat_last_used_model_retired_hint">Model yang terakhir Anda pakai sudah dihentikan. Sekarang memakai %1$s.</string>
     <string name="model_options_shows_thinking_fixed">Menampilkan proses berpikir · tidak bisa diatur</string>
+    <string name="settings_section_general">Umum</string>
+    <string name="settings_section_help_about">Bantuan &amp; Tentang</string>
 </resources>

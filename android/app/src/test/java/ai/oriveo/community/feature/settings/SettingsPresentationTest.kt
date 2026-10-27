@@ -20,18 +20,51 @@ class SettingsPresentationTest {
     }
 
     @Test
-    fun `voice row follows skills with tag`() {
+    fun `footer version line opens changelog while logo keeps isolated ten tap trigger`() {
+        val source = File("src/main/java/ai/oriveo/community/feature/settings/SettingsScreen.kt").readText()
+        val footerSource = source
+            .substringAfter("// Footer:")
+            .substringBefore("Spacer(modifier = Modifier.height(OriveoTheme.spacing.xxl))")
+
+        assertTrue(footerSource.contains("OriveoWebDestination.Changelog"))
+        assertTrue(footerSource.contains("registerAboutLogoTap(aboutTapCount)"))
+        assertTrue(footerSource.contains(".clearAndSetSemantics {}"))
+        assertTrue(footerSource.contains("rememberBrandPainter(R.drawable.ic_oriveo_logo, 40.dp)"))
+        assertTrue(footerSource.contains("formatAppVersion("))
+        assertTrue(footerSource.contains("OriveoWebDestination.PrivacyPolicy"))
+        assertTrue(footerSource.contains("OriveoWebDestination.TermsOfService"))
+    }
+
+    @Test
+    fun `voice tile follows skills with its original tag and the tts engine value`() {
         val source = File("src/main/java/ai/oriveo/community/feature/settings/SettingsScreen.kt").readText()
         val afterSkills = source
             .substringAfter("title = stringResource(R.string.skills_title),")
-            .substringBefore("SettingsToolsSection(")
+            .substringBefore("// Tools & connections")
+        val gridSource = File("src/main/java/ai/oriveo/community/feature/settings/SettingsHomeGrid.kt").readText()
 
         assertTrue(source.contains("onNavigateToVoiceSettings: () -> Unit = {}"))
-        assertTrue(afterSkills.contains("InsetHairline()"))
         assertTrue(afterSkills.contains("onClick = onNavigateToVoiceSettings"))
-        assertTrue(afterSkills.contains("Modifier.testTag(\"settings_voice_row\")"))
-        assertTrue(afterSkills.contains("Icons.Outlined.GraphicEq"))
+        assertTrue(afterSkills.contains("tag = \"settings_voice_row\""))
+        assertTrue(afterSkills.contains("R.drawable.ic_settings_voice"))
         assertTrue(afterSkills.contains("R.string.voice_settings_title"))
+        assertTrue(afterSkills.contains("value = voiceEngineLabel?.resolve(context)"))
+        assertTrue(source.contains("tag = \"settings_context_row\""))
+        assertTrue(gridSource.contains(".testTag(item.tag)"))
+    }
+
+    @Test
+    fun `help and about grid orders report issue then source code`() {
+        val help = File("src/main/java/ai/oriveo/community/feature/settings/SettingsScreen.kt")
+            .readText()
+            .substringAfter("// Help & about")
+            .substringBefore("// Footer:")
+        val issue = help.indexOf("R.string.settings_report_issue")
+        val source = help.indexOf("R.string.settings_source_code")
+        assertTrue(help.contains("style = SettingsGridStyle.Compact"))
+        assertTrue(issue in 0 until source)
+        assertTrue(help.contains("OriveoWebDestination.Issues"))
+        assertTrue(help.contains("OriveoWebDestination.SourceCode"))
     }
 
     @Test
@@ -50,53 +83,31 @@ class SettingsPresentationTest {
     }
 
     @Test
-    fun `appearance theme and language share OriveoSettingsRow caption value`() {
-        val appearance = File("src/main/java/ai/oriveo/community/feature/settings/SettingsScreen.kt")
-            .readText()
-            .substringAfter("R.string.appearance")
-            .substringBefore("R.string.help_feedback")
-        val rowSource = File("src/main/java/ai/oriveo/community/ui/component/OriveoSettingsRows.kt").readText()
-        val valueBlock = rowSource
-            .substringAfter("if (!value.isNullOrBlank())")
-            .substringBefore("trailingContent")
+    fun `general list merges theme language and backup`() {
+        val source = File("src/main/java/ai/oriveo/community/feature/settings/SettingsScreen.kt").readText()
+        val general = source.substringAfter("// General:").substringBefore("// Help & about")
 
-        assertTrue(appearance.contains("value = themeSummaryLabel("))
-        assertTrue(appearance.contains("value = languageSummaryLabel("))
-        assertFalse(appearance.contains("DropdownMenu"))
-        assertFalse(appearance.contains("ExposedDropdownMenu"))
-        assertTrue(valueBlock.contains("OriveoTheme.typography.caption"))
-        assertFalse(valueBlock.contains("OriveoTheme.typography.body"))
+        assertTrue(general.contains("value = themeSummaryLabel("))
+        assertTrue(general.contains("value = languageSummaryLabel("))
+        assertTrue(general.contains("onClick = onNavigateToBackup"))
+        assertFalse(general.contains("DropdownMenu"))
+        assertFalse(general.contains("ExposedDropdownMenu"))
+        // The old "Data" and "Appearance" group titles are merged into "General"
+        assertFalse(source.contains("R.string.data_section"))
+        assertFalse(source.contains("R.string.appearance"))
     }
 
     @Test
-    fun `theme summary label mirrors iOS style labels`() {
-        assertEquals(
-            "Follow System",
-            themeSummaryLabel(
-                theme = ThemeOption.System,
-                systemLabel = "Follow System",
-                lightLabel = "Light",
-                darkLabel = "Dark",
-            ),
-        )
-        assertEquals(
-            "Light",
-            themeSummaryLabel(
-                theme = ThemeOption.Light,
-                systemLabel = "Follow System",
-                lightLabel = "Light",
-                darkLabel = "Dark",
-            ),
-        )
-        assertEquals(
-            "Dark",
-            themeSummaryLabel(
-                theme = ThemeOption.Dark,
-                systemLabel = "Follow System",
-                lightLabel = "Light",
-                darkLabel = "Dark",
-            ),
-        )
+    fun `theme row opens the theme page instead of a bottom sheet`() {
+        val source = File("src/main/java/ai/oriveo/community/feature/settings/SettingsScreen.kt").readText()
+        val general = source.substringAfter("// General:").substringBefore("// Help & about")
+
+        assertTrue(general.contains("onClick = onNavigateToThemeSettings"))
+        assertTrue(general.contains("darkPalette = darkPalette"))
+        // The color dot only shows in dark
+        assertTrue(general.contains("leadingValueDot = if (isDark) settingsThemeDotBrush(colors.primary, colors.accent) else null"))
+        assertFalse(source.contains("showThemePicker"))
+        assertFalse(source.contains("DebugDarkPalette"))
     }
 
     @Test
@@ -144,5 +155,17 @@ class SettingsPresentationTest {
         // "Not set" also goes in the trailing value, not in a subtitle under the title
         assertNull(content.subtitle)
         assertEquals("Not set", content.value)
+    }
+
+    @Test
+    fun `memory row preview strips list markers and joins lines`() {
+        assertEquals(
+            "I am a PM be brief",
+            memoryRowContent(memoryText = "- I am a PM\n- be brief", notSetLabel = "Not set").value,
+        )
+        assertEquals("a b", memoryRowContent(memoryText = "* a\n• b", notSetLabel = "Not set").value)
+        // A bare list marker counts as unset; a hyphen inside the text is left alone
+        assertEquals("Not set", memoryRowContent(memoryText = "  -  \n", notSetLabel = "Not set").value)
+        assertEquals("a-b - c", memoryRowContent(memoryText = "a-b - c", notSetLabel = "Not set").value)
     }
 }

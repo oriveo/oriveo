@@ -162,18 +162,26 @@
     </plurals>
     <string name="undo">Отменить</string>
     <string name="settings_title">Настройки</string>
-    <string name="appearance">Появление</string>
     <string name="theme">Тема</string>
-    <string name="theme_system">Следовать за системой</string>
-    <string name="theme_light">Свет</string>
-    <string name="theme_dark">Темный</string>
+    <string name="theme_system">Как в системе</string>
+    <string name="theme_light">Светлая</string>
+    <string name="theme_dark">Тёмная</string>
+    <string name="theme_follow_system_hint">Когда в системе включён тёмный режим, используется выбранная тёмная палитра.</string>
+    <string name="theme_section_palettes">Палитры</string>
+    <string name="theme_palette_purple">Фиолетовый</string>
+    <string name="theme_palette_graphite">Графит</string>
+    <string name="theme_palette_black">Чёрный</string>
+    <string name="theme_palette_ocean">Океан</string>
+    <string name="theme_palette_forest">Лес</string>
+    <string name="theme_palette_sunset">Закат</string>
+    <string name="theme_preview_question">Объясни владение в Rust одним абзацем.</string>
+    <string name="theme_preview_reply">У каждого значения ровно один %1$s. Когда он выходит из области видимости, значение удаляется, а позаимствовать его можно через %2$s.</string>
+    <string name="theme_preview_owner">владелец</string>
+    <string name="theme_summary_follow_system">Как в системе · %1$s</string>
     <string name="language">Язык</string>
-    <string name="data_section">Данные</string>
     <string name="backup_and_export">Резервное копирование и экспорт</string>
-    <string name="about">О</string>
     <string name="privacy_policy">политика конфиденциальности</string>
     <string name="terms_of_service">Условия использования</string>
-    <string name="help_feedback">Помощь и обратная связь</string>
     <string name="settings_source_code">Исходный код</string>
     <string name="settings_report_issue">Сообщить о проблеме</string>
     <string name="snackbar_provider_ready">Провайдер готов. Вы можете начать общаться прямо сейчас.</string>
@@ -2349,4 +2357,6 @@
     <string name="context_confirm_send">Всё равно отправить</string>
     <string name="chat_last_used_model_retired_hint">Прежняя модель больше не поддерживается. Теперь используется %1$s.</string>
     <string name="model_options_shows_thinking_fixed">Показывает ход размышлений · не настраивается</string>
+    <string name="settings_section_general">Основные</string>
+    <string name="settings_section_help_about">Справка и информация</string>
 </resources>

@@ -232,18 +232,26 @@
 
     <!-- Settings -->
     <string name="settings_title">設定</string>
-    <string name="appearance">外觀</string>
     <string name="theme">主題</string>
     <string name="theme_system">跟隨系統</string>
     <string name="theme_light">淺色</string>
     <string name="theme_dark">深色</string>
+    <string name="theme_follow_system_hint">系統為深色模式時，套用你選的深色配色。</string>
+    <string name="theme_section_palettes">配色</string>
+    <string name="theme_palette_purple">紫色</string>
+    <string name="theme_palette_graphite">石墨</string>
+    <string name="theme_palette_black">純黑</string>
+    <string name="theme_palette_ocean">海洋</string>
+    <string name="theme_palette_forest">森林</string>
+    <string name="theme_palette_sunset">日落</string>
+    <string name="theme_preview_question">用一段話解釋 Rust 的所有權。</string>
+    <string name="theme_preview_reply">每個值都有且只有一個%1$s。擁有者離開作用域時，值就會被釋放；要借用它，可以用 %2$s。</string>
+    <string name="theme_preview_owner">擁有者</string>
+    <string name="theme_summary_follow_system">跟隨系統 · %1$s</string>
     <string name="language">語言</string>
-    <string name="data_section">資料</string>
     <string name="backup_and_export">備份與匯入/匯出</string>
-    <string name="about">關於</string>
     <string name="privacy_policy">隱私權政策</string>
     <string name="terms_of_service">服務條款</string>
-    <string name="help_feedback">幫助與回饋</string>
     <string name="settings_source_code">原始碼</string>
     <string name="settings_report_issue">回報問題</string>
 
@@ -2291,4 +2299,6 @@
     <string name="context_confirm_send">仍要傳送</string>
     <string name="chat_last_used_model_retired_hint">上次使用的模型已下架，已改用 %1$s。</string>
     <string name="model_options_shows_thinking_fixed">會顯示思考過程 · 無法調整</string>
+    <string name="settings_section_general">一般</string>
+    <string name="settings_section_help_about">說明與關於</string>
 </resources>

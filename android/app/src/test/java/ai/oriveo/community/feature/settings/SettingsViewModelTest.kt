@@ -38,6 +38,7 @@ class SettingsViewModelTest {
         Dispatchers.setMain(dispatcher)
 
         every { appPreferencesRepository.theme } returns themeFlow
+        every { appPreferencesRepository.darkPalette } returns MutableStateFlow<String?>(null)
         every { appPreferencesRepository.language } returns languageFlow
         every { appPreferencesRepository.memoryText } returns memoryTextFlow
         every { appPreferencesRepository.featureBadgeUnseen(any()) } returns MutableStateFlow(false)

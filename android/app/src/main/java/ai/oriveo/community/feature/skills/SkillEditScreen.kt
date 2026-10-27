@@ -127,12 +127,15 @@ private val capabilityOptions = listOf(
     "any", "reasoning", "vision", "fast", "large-context",
 )
 
-private fun parseHexColor(hex: String): Color {
+/**
+ * Parses a hex color supplied by the user or the catalog; falls back to [fallback] (the caller passes the current palette's primary) when parsing fails.
+ */
+private fun parseHexColor(hex: String, fallback: Color): Color {
     val clean = hex.removePrefix("#")
     return try {
         Color(android.graphics.Color.parseColor("#$clean"))
     } catch (_: Exception) {
-        Color(0xFF8C5FF8) // = LightOriveoColors.primary
+        fallback
     }
 }
 
@@ -427,7 +430,7 @@ fun SkillEditScreen(
         showDiscardDialog = true
     }
 
-    val skillColor = parseHexColor(color)
+    val skillColor = parseHexColor(color, OriveoTheme.colors.primary)
 
     Box(modifier = Modifier.fillMaxSize()) {
         OriveoScreenBackground()
@@ -642,7 +645,7 @@ fun SkillEditScreen(
                             maxItemsInEachRow = 6,
                         ) {
                             colorPalette.forEach { hex ->
-                                val c = parseHexColor(hex)
+                                val c = parseHexColor(hex, OriveoTheme.colors.primary)
                                 val isSelected = hex == color
                                 Box(
                                     modifier = Modifier

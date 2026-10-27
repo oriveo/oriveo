@@ -24,6 +24,7 @@ import ai.oriveo.community.feature.chat.composer.DictationHostActions
 import ai.oriveo.community.feature.chat.composer.DictationHostCoordinator
 import ai.oriveo.community.feature.chat.composer.DictationToastSpec
 import ai.oriveo.community.feature.home.HomeViewModel
+import ai.oriveo.community.feature.home.AuroraDarkColors
 import ai.oriveo.community.feature.home.AuroraGreeting
 import ai.oriveo.community.feature.home.AuroraHeroCardAppearance
 import ai.oriveo.community.feature.home.AuroraTheme
@@ -32,6 +33,8 @@ import ai.oriveo.community.feature.home.auroraHeroRimBrush
 import ai.oriveo.community.feature.home.homeHeroPillModelName
 import ai.oriveo.community.feature.notes.homeNotesAccessibilityText
 import ai.oriveo.community.feature.notes.homeNotesPreviewLine
+import ai.oriveo.community.ui.theme.DarkForestOriveoColors
+import ai.oriveo.community.ui.theme.DarkOriveoColors
 import ai.oriveo.community.ui.theme.OriveoTheme
 import java.io.File
 import java.util.Calendar
@@ -150,13 +153,14 @@ class HomeHeroVisualContractTest {
         // the top, and moves the aurora to the top edge and outside the card.
         val themeSource = File("src/main/java/ai/oriveo/community/feature/home/AuroraTheme.kt").readText()
 
-        // Face: a two-stop vertical gradient with no directional glow blobs; only the afterglow below the top edge remains inside
-        assertTrue(
-            themeSource.contains("colors = listOf(AuroraTheme.Colors.heroSurfaceDarkTop, AuroraTheme.Colors.heroSurfaceDarkBottom)"),
-        )
+        // Face: two vertical stops with no directional glow blobs; only the afterglow a finger's width below the top edge remains. Both stops derive from the current dark palette
+        assertTrue(themeSource.contains("colors = listOf(dark.heroSurfaceTop, dark.heroSurfaceBottom)"))
+        assertFalse("the dark face no longer hard-codes one palette's base", themeSource.contains("heroSurfaceDarkTop"))
+        assertFalse("the dark face no longer uses the 150-degree diagonal gradient", themeSource.contains("auroraCssGradientPoints(150f, size)"))
 
-        // The pill is opaque: a translucent white over the face fades into a grey patch
-        assertEquals(1f, AuroraTheme.Colors.pillFillDark.alpha)
+        // The pill is opaque: a translucent white over the face fades into a grey patch (the same for every dark palette)
+        assertEquals(1f, AuroraDarkColors.from(DarkOriveoColors).pillFill.alpha)
+        assertEquals(1f, AuroraDarkColors.from(DarkForestOriveoColors).pillFill.alpha)
         // Grey text inside the hero shares the face's hue and is not the global t3 (a warm grey-purple)
         assertNotEquals(AuroraTheme.Colors.textTertiaryDark, AuroraTheme.Colors.heroTextTertiaryDark)
         val barSource = File("src/main/java/ai/oriveo/community/feature/home/homescreen/NewChatBar.kt").readText()
@@ -172,9 +176,9 @@ class HomeHeroVisualContractTest {
         val themeSource = File("src/main/java/ai/oriveo/community/feature/home/AuroraTheme.kt").readText()
 
         // The hero has the near-white hot core + the outer halo; Notes is the same light one step weaker, without core or halo
-        assertTrue(themeSource.contains("drawAuroraCrown(hairlinePath, hairlineWidth, scale = 1f, hotCore = true, alpha = 1f - p)"))
+        assertTrue(themeSource.contains("drawAuroraCrown(dark, hairlinePath, hairlineWidth, scale = 1f, hotCore = true, alpha = 1f - p)"))
         assertTrue(
-            themeSource.contains("drawAuroraCrown(borderPath, hairlineWidth, scale = AURORA_CROWN_NOTES_SCALE, hotCore = false, alpha = 1f)"),
+            themeSource.contains("drawAuroraCrown(dark, borderPath, hairlineWidth, scale = AURORA_CROWN_NOTES_SCALE, hotCore = false, alpha = 1f)"),
         )
         // On focus the crown and the outer halo fade out together in favor of the ring: both glows at once look smeared
         assertTrue(themeSource.contains("if (p < 1f) halo.forEach { with(it) { draw(size, alpha = 1f - p) } }"))

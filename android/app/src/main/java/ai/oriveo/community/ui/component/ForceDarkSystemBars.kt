@@ -9,19 +9,28 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
+import ai.oriveo.community.ui.theme.DarkPaletteId
+import ai.oriveo.community.ui.theme.LocalIsDarkTheme
+import ai.oriveo.community.ui.theme.LocalOriveoColors
 import ai.oriveo.community.ui.util.findActivity
 
 @Composable
 fun ForceDarkSystemBars(windowBackground: Color = DarkSurfaceBackground) {
     val view = LocalView.current
     val isSystemDark = isSystemInDarkTheme()
+    // The dark restore value = the OriveoTheme window background (current palette bg); when the app is in light it takes the bg of the default dark palette
+    val themeWindowBackgroundDark = if (LocalIsDarkTheme.current) {
+        LocalOriveoColors.current.backgroundBase
+    } else {
+        DarkPaletteId.Default.colors.backgroundBase
+    }
     val hostWindow = remember(view) {
         (view.parent as? DialogWindowProvider)?.window ?: view.context.findActivity()?.window
     }
 
     if (view.isInEditMode || hostWindow == null) return
 
-    DisposableEffect(view, isSystemDark, hostWindow, windowBackground) {
+    DisposableEffect(view, isSystemDark, hostWindow, windowBackground, themeWindowBackgroundDark) {
         val controller = WindowCompat.getInsetsController(hostWindow, view)
         val previousLightStatusBars = controller.isAppearanceLightStatusBars
         val previousLightNavigationBars = controller.isAppearanceLightNavigationBars
@@ -34,7 +43,7 @@ fun ForceDarkSystemBars(windowBackground: Color = DarkSurfaceBackground) {
             controller.isAppearanceLightStatusBars = previousLightStatusBars
             controller.isAppearanceLightNavigationBars = previousLightNavigationBars
             hostWindow.decorView.setBackgroundColor(
-                if (isSystemDark) ThemeWindowBackgroundDark.toArgb()
+                if (isSystemDark) themeWindowBackgroundDark.toArgb()
                 else ThemeWindowBackgroundLight.toArgb(),
             )
         }
@@ -43,5 +52,5 @@ fun ForceDarkSystemBars(windowBackground: Color = DarkSurfaceBackground) {
 
 val DarkSurfaceBackground = Color(0xFF0B0A14)
 
-private val ThemeWindowBackgroundDark = Color(0xFF090E1B)
+// The light restore value matches the light window background in OriveoTheme; keep them in sync.
 private val ThemeWindowBackgroundLight = Color(0xFFF6F5FA)

@@ -184,20 +184,28 @@
 
     <!-- Settings -->
     <string name="settings_title">Settings</string>
-    <string name="appearance">Appearance</string>
     <string name="theme">Theme</string>
     <string name="theme_system">Follow System</string>
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
+    <string name="theme_follow_system_hint">Uses your selected dark palette when the system is in dark mode.</string>
+    <string name="theme_section_palettes">Palettes</string>
+    <string name="theme_palette_purple">Purple</string>
+    <string name="theme_palette_graphite">Graphite</string>
+    <string name="theme_palette_black">Black</string>
+    <string name="theme_palette_ocean">Ocean</string>
+    <string name="theme_palette_forest">Forest</string>
+    <string name="theme_palette_sunset">Sunset</string>
+    <string name="theme_preview_question">Explain Rust ownership in one paragraph.</string>
+    <string name="theme_preview_reply">Every value has exactly one %1$s. When it goes out of scope, the value is dropped — borrow it with %2$s.</string>
+    <string name="theme_preview_owner">owner</string>
+    <string name="theme_summary_follow_system">Follow System · %1$s</string>
     <string name="language">Language</string>
-    <string name="data_section">Data</string>
     <string name="backup_and_export">Backup &amp; Export</string>
-    <string name="about">About</string>
     <string name="api_endpoint">API Endpoint</string>
     <string name="api_endpoint_not_configured">Not configured</string>
     <string name="privacy_policy">Privacy Policy</string>
     <string name="terms_of_service">Terms of Service</string>
-    <string name="help_feedback">Help &amp; Feedback</string>
     <string name="settings_source_code">Source Code</string>
     <string name="settings_report_issue">Report an Issue</string>
     <!-- Snackbars -->
@@ -2330,4 +2338,6 @@
     <string name="context_confirm_send">Send anyway</string>
     <string name="chat_last_used_model_retired_hint">Your last model was retired. Now using %1$s.</string>
     <string name="model_options_shows_thinking_fixed">Shows its thinking · can’t be adjusted</string>
+    <string name="settings_section_general">General</string>
+    <string name="settings_section_help_about">Help &amp; About</string>
 </resources>

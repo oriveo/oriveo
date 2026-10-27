@@ -110,7 +110,6 @@ import ai.oriveo.community.ui.component.OriveoSecondaryButton
 import ai.oriveo.community.ui.component.OriveoTextButton
 import ai.oriveo.community.ui.component.ProviderBadgeIcon
 import ai.oriveo.community.ui.component.brandWatermarkIcon
-import ai.oriveo.community.ui.theme.DarkOriveoColors
 import ai.oriveo.community.ui.theme.OriveoGradients
 import ai.oriveo.community.ui.theme.OriveoScreenBackground
 import ai.oriveo.community.ui.theme.OriveoSurfaceStyle
@@ -140,7 +139,7 @@ fun ProviderSetupScreen(
     }
 
     val colors = OriveoTheme.colors
-    val isDark = colors.backgroundBase == DarkOriveoColors.backgroundBase
+    val isDark = OriveoTheme.isDark
     val selectedKind = viewModel.selectedKind
     val connectedProviders by viewModel.connectedProviders.collectAsState()
     var selectedCategory by remember { mutableStateOf(ProviderCategory.All) }
@@ -554,7 +553,7 @@ private fun SetupHeroSection(compact: Boolean) {
                     imageVector = Icons.Filled.AddLink,
                     contentDescription = null,
                     modifier = Modifier.size(symbolSize),
-                    tint = Color.White,
+                    tint = OriveoGradients.onPrimary,
                 )
             }
         }

@@ -18,7 +18,7 @@ object ProviderBadgeColors {
     @Composable
     fun forProvider(kind: ProviderKind): ProviderBrandColors {
         val colors = OriveoTheme.colors
-        val isDark = colors.backgroundBase == DarkOriveoColors.backgroundBase
+        val isDark = OriveoTheme.isDark
         return when (kind) {
             ProviderKind.OpenAI -> if (isDark) {
                 ProviderBrandColors(
@@ -222,7 +222,7 @@ object ProviderBadgeColors {
     @Composable
     fun usageBreakdown(kind: ProviderKind): Color {
         val colors = OriveoTheme.colors
-        val isDark = colors.backgroundBase == DarkOriveoColors.backgroundBase
+        val isDark = OriveoTheme.isDark
         return when (kind) {
             ProviderKind.OpenAI -> if (isDark) Color(0xFF22C18D) else Color(0xFF10A37F)
             ProviderKind.Anthropic -> if (isDark) Color(0xFFE0B58E) else Color(0xFFC7956D)

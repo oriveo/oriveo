@@ -936,6 +936,47 @@ class BackupServiceTest {
     }
 
     @Test
+    fun `backup_restores_dark_palette`() = runTest {
+        coEvery { providerDao.getAll(LOCAL_PARTITION_ID) } returns listOf(existingProviderEntity())
+        coEvery { conversationDao.getAll(LOCAL_PARTITION_ID) } returns emptyList()
+        coEvery { preferenceDao.get(AppPreferenceKeys.THEME) } returns ThemeOption.Dark.name
+        coEvery { preferenceDao.get(AppPreferenceKeys.DARK_PALETTE) } returns "dark-ocean"
+
+        val exported = decodeBackupZip(backupService.exportBackup())
+        assertEquals("export carries the raw id", "dark-ocean", exported.data.preferences?.darkPalette)
+
+        val backupFile = BackupFile(
+            version = BackupService.CURRENT_VERSION,
+            createdAt = "2026-03-20T10:00:00Z",
+            appVersion = "1.0.0",
+            platform = "Web",
+            checksum = "",
+            containsKeys = false,
+            data = BackupData(preferences = exported.data.preferences),
+        )
+        backupService.executeImport(mode = ImportMode.ReplaceAll, bytes = json.encodeToString(backupFile).toByteArray())
+
+        coVerify { preferenceDao.set(PreferenceEntity(AppPreferenceKeys.DARK_PALETTE, "dark-ocean")) }
+    }
+
+    @Test
+    fun `backup_without_dark_palette_restores_default_dark`() = runTest {
+        // An older backup has no darkPalette field: restoring clears it to unset (renders dark), the same rule as theme being overwritten by a backup
+        val bytes = """
+            {"version":${BackupService.CURRENT_VERSION},"createdAt":"2026-03-20T10:00:00Z","appVersion":"1.0.0",
+             "platform":"Web","checksum":"","containsKeys":false,
+             "data":{"providers":[],"conversations":[],"preferences":{"theme":"dark","language":"system"}}}
+        """.trimIndent().toByteArray()
+
+        backupService.executeImport(mode = ImportMode.Merge, bytes = bytes)
+
+        coVerify { preferenceDao.delete(AppPreferenceKeys.DARK_PALETTE) }
+        coVerify(exactly = 0) {
+            preferenceDao.set(match { it.key == AppPreferenceKeys.DARK_PALETTE })
+        }
+    }
+
+    @Test
     fun `replaceAll deletes only current account attachments instead of clearing global store`() = runTest {
         val attachmentsJson = json.encodeToString(
             ListSerializer(Attachment.serializer()),

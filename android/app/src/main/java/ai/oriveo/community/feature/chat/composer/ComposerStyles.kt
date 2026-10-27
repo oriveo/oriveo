@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import ai.oriveo.community.core.model.ModelCapability
 import ai.oriveo.community.ui.theme.OriveoTheme
+import ai.oriveo.community.ui.theme.primarySubtle
 
 internal data class ComposerCapabilityAccent(
     val tint: Color,
@@ -22,8 +23,10 @@ internal enum class ComposerControlChipAccessory {
 @Composable
 internal fun composerAttachmentAccent(): ComposerCapabilityAccent = ComposerCapabilityAccent(
     tint = composerDynamicColor(light = 0x52607A, dark = 0xCBD5E1),
-    iconStart = composerDynamicColor(light = 0xA5B4FC, dark = 0x818CF8),
-    iconEnd = composerDynamicColor(light = 0x6366F1, dark = 0x6366F1),
+    // The dark start follows the palette primary; light keeps its original value
+    iconStart = if (OriveoTheme.isDark) OriveoTheme.colors.primary else composerLightColor(0xA5B4FC),
+    // Both dark ends follow the palette (primary -> primaryActive), so the badge foreground can uniformly use onPrimary
+    iconEnd = if (OriveoTheme.isDark) OriveoTheme.colors.primaryActive else composerLightColor(0x6366F1),
     softFill = composerDynamicColor(light = 0xF8FAFC, dark = 0x172136, darkAlpha = 0.94f),
     softBorder = composerDynamicColor(light = 0xD5DBE7, dark = 0x94A3B8, darkAlpha = 0.26f),
     shadow = OriveoTheme.colors.shadow,
@@ -39,15 +42,34 @@ internal fun composerLibraryAccent(): ComposerCapabilityAccent = ComposerCapabil
     shadow = composerDynamicColor(light = 0x166534, dark = 0x000000, lightAlpha = 0.14f, darkAlpha = 0.22f),
 )
 
+/** The model-behavior chip is a brand-purple accent: dark uses the current palette tokens (accent -> primary), light keeps its original value. */
 @Composable
-internal fun composerModelBehaviorAccent(): ComposerCapabilityAccent = ComposerCapabilityAccent(
-    tint = composerDynamicColor(light = 0x5B4AB8, dark = 0xC4B5FD),
-    iconStart = composerDynamicColor(light = 0xA78BFA, dark = 0xC4B5FD),
-    iconEnd = composerDynamicColor(light = 0x6D5BD0, dark = 0x8B5CF6),
-    softFill = composerDynamicColor(light = 0xF5F3FF, dark = 0x211B36, darkAlpha = 0.94f),
-    softBorder = composerDynamicColor(light = 0xC4B5FD, dark = 0xA78BFA, lightAlpha = 0.70f, darkAlpha = 0.30f),
-    shadow = composerDynamicColor(light = 0x6D5BD0, dark = 0x000000, lightAlpha = 0.15f, darkAlpha = 0.22f),
-)
+internal fun composerModelBehaviorAccent(): ComposerCapabilityAccent {
+    val colors = OriveoTheme.colors
+    if (OriveoTheme.isDark) {
+        return ComposerCapabilityAccent(
+            tint = colors.accent,
+            iconStart = colors.accent,
+            iconEnd = colors.primary,
+            softFill = colors.primarySubtle,
+            softBorder = colors.primary.copy(alpha = 0.30f),
+            shadow = Color.Black.copy(alpha = 0.22f),
+        )
+    }
+    return ComposerCapabilityAccent(
+        tint = composerLightColor(0x5B4AB8),
+        // dark-palette-guard: keep (d) light branch
+        iconStart = composerLightColor(0xA78BFA),
+        iconEnd = composerLightColor(0x6D5BD0),
+        softFill = composerLightColor(0xF5F3FF),
+        // dark-palette-guard: keep (d) light branch
+        softBorder = composerLightColor(0xC4B5FD, alpha = 0.70f),
+        shadow = composerLightColor(0x6D5BD0, alpha = 0.15f),
+    )
+}
+
+/** For the light branch only: the same algorithm as the light side of [composerDynamicColor], so light values stay bit-for-bit unchanged. */
+private fun composerLightColor(hex: Long, alpha: Float = 1f): Color = Color(0xFF000000L or hex).copy(alpha = alpha)
 
 @Composable
 internal fun composerAccent(capability: ModelCapability): ComposerCapabilityAccent = when (capability) {

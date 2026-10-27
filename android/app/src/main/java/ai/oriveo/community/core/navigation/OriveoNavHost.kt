@@ -80,6 +80,7 @@ import ai.oriveo.community.feature.providers.setup.ProviderSetupScreen
 import ai.oriveo.community.feature.settings.MemoryInboxScreen
 import ai.oriveo.community.feature.settings.MemoryScreen
 import ai.oriveo.community.feature.settings.ContextSettingsScreen
+import ai.oriveo.community.feature.settings.ThemeSettingsScreen
 import ai.oriveo.community.feature.settings.VoiceSettingsScreen
 import ai.oriveo.community.feature.settings.SettingsScreen
 import ai.oriveo.community.feature.skills.SkillEditScreen
@@ -112,15 +113,20 @@ private val tabs = listOf(
 )
 
 /**
- * Selected label color. The iOS system tab bar renders its tint (purple for Home, teal for Providers,
- * orange for Settings) vibrantly against the glass: brighter in dark mode, deeper in light mode. These
- * are the colors measured from that rendering rather than the raw tint values.
+ * Selected label color. In dark, all three tabs take the current palette's primary (following the dark palette immediately);
+ * light keeps the colors measured on an iOS 26 device after the iOS system tab bar renders its tint
+ * (purple for Home, teal for Providers, orange for Settings) vibrantly.
  */
-internal fun tabSelectedLabelColor(route: AppRoute, isDark: Boolean): Color = when (route) {
-    AppRoute.Providers -> if (isDark) Color(0xFF4CFFF2) else Color(0xFF007E75)
-    AppRoute.Settings -> if (isDark) Color(0xFFFFBB64) else Color(0xFFDE3D00)
-    else -> if (isDark) Color(0xFFD2B3FF) else Color(0xFF7442EE)
-}
+internal fun tabSelectedLabelColor(route: AppRoute, isDark: Boolean, darkPrimary: Color): Color =
+    if (isDark) {
+        darkPrimary
+    } else {
+        when (route) {
+            AppRoute.Providers -> Color(0xFF007E75)
+            AppRoute.Settings -> Color(0xFFDE3D00)
+            else -> Color(0xFF7442EE)
+        }
+    }
 
 private fun NavDestination.tabIndex(): Int = tabs.indexOfFirst { hasRoute(it.route::class) }
 
@@ -141,6 +147,7 @@ private val fullScreenRoutes = setOf(
     AppRoute.Memory::class,
     AppRoute.MemoryInbox::class,
     AppRoute.ContextSettings::class,
+    AppRoute.ThemeSettings::class,
     AppRoute.VoiceSettings::class,
     AppRoute.McpServers::class,
     AppRoute.McpAddServer::class,
@@ -386,6 +393,10 @@ fun OriveoNavHost(
                     onNavigateToContextSettings = {
                         PageTrace.begin("ContextSettings")
                         navController.navigate(AppRoute.ContextSettings)
+                    },
+                    onNavigateToThemeSettings = {
+                        PageTrace.begin("ThemeSettings")
+                        navController.navigate(AppRoute.ThemeSettings) { launchSingleTop = true }
                     },
                     onNavigateToVoiceSettings = {
                         PageTrace.begin("VoiceSettings")
@@ -702,6 +713,12 @@ fun OriveoNavHost(
                     onNavigateBack = { navController.popBackStack() },
                 )
             }
+            composable<AppRoute.ThemeSettings> {
+                LaunchedEffect(Unit) { PageTrace.end("ThemeSettings") }
+                ThemeSettingsScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                )
+            }
             composable<AppRoute.VoiceSettings> {
                 LaunchedEffect(Unit) { PageTrace.end("VoiceSettings") }
                 VoiceSettingsScreen(
@@ -808,12 +825,13 @@ fun OriveoNavHost(
                 // are reused while language and theme stay the same.
                 val tabBarLabels = tabs.map { stringResource(it.labelRes) }
                 val isDarkTheme = OriveoTheme.isDark
-                val tabBarItems = remember(tabBarLabels, isDarkTheme) {
+                val darkPrimary = OriveoTheme.colors.primary
+                val tabBarItems = remember(tabBarLabels, isDarkTheme, darkPrimary) {
                     tabs.mapIndexed { index, tab ->
                         LiquidGlassTabBarItem(
                             label = tabBarLabels[index],
                             glyph = tab.glyph,
-                            selectedLabelColor = tabSelectedLabelColor(tab.route, isDarkTheme),
+                            selectedLabelColor = tabSelectedLabelColor(tab.route, isDarkTheme, darkPrimary),
                         )
                     }
                 }

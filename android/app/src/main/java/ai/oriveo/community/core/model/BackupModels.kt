@@ -449,6 +449,8 @@ data class BackupPreferences(
     val memoryAntiForgetEnabled: Boolean = false,
     val memoryAntiForgetText: String = "",
     val memoryUpdatedAt: String? = null,
+    /** Raw dark palette id; null means unset (older backups lack the field and render as dark after restore). */
+    val darkPalette: String? = null,
 )
 
 @Serializable

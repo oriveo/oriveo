@@ -100,7 +100,7 @@ fun OriveoPrimaryButton(
         if (loading) {
             CircularProgressIndicator(
                 modifier = Modifier.size(20.dp),
-                color = Color.White,
+                color = OriveoGradients.onPrimary,
                 strokeWidth = 2.dp,
             )
         } else if (leadingIcon != null) {
@@ -112,7 +112,7 @@ fun OriveoPrimaryButton(
                 Text(
                     text = text,
                     style = OriveoTheme.typography.title3,
-                    color = Color.White,
+                    color = OriveoGradients.onPrimary,
                     maxLines = 1,
                     // With a fixed height and maxLines = 1, Compose clips by default and slices an
                     // over-wide label through the middle of a glyph. Long compound words in Russian
@@ -125,7 +125,7 @@ fun OriveoPrimaryButton(
             Text(
                 text = text,
                 style = OriveoTheme.typography.title3,
-                color = Color.White,
+                color = OriveoGradients.onPrimary,
                 maxLines = 1,
                 // With a fixed height and maxLines = 1, Compose clips by default and slices an
                 // over-wide label through the middle of a glyph. Long compound words in Russian or
@@ -256,7 +256,7 @@ fun OriveoCircleIconButton(
     size: Dp = 36.dp,
     iconSize: Dp = 16.dp,
     fillColor: Color = OriveoTheme.colors.primary,
-    iconColor: Color = Color.White,
+    iconColor: Color = OriveoGradients.onPrimary,
 ) {
     val colors = OriveoTheme.colors
     val isDark = OriveoTheme.isDark

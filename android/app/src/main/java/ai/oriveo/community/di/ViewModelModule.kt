@@ -17,6 +17,7 @@ import ai.oriveo.community.feature.providers.setup.ProviderSetupViewModel
 import ai.oriveo.community.feature.settings.MemoryInboxViewModel
 import ai.oriveo.community.feature.settings.MemoryViewModel
 import ai.oriveo.community.feature.settings.ContextSettingsViewModel
+import ai.oriveo.community.feature.settings.ThemeSettingsViewModel
 import ai.oriveo.community.feature.settings.SettingsViewModel
 import ai.oriveo.community.feature.settings.VoiceSettingsViewModel
 import ai.oriveo.community.core.model.GenerationParameterSettingsStore
@@ -189,7 +190,12 @@ val viewModelModule = module {
             generationParameterPresetStore = GenerationParameterPresetStore.from(androidContext()),
         )
     }
-    viewModelOf(::SettingsViewModel)
+    viewModel {
+        SettingsViewModel(
+            appPreferencesRepository = get(),
+            voiceEngineSettings = get(),
+        )
+    }
     viewModel {
         MemoryViewModel(
             appPreferencesRepository = get(),
@@ -211,6 +217,7 @@ val viewModelModule = module {
         )
     }
     viewModelOf(::ContextSettingsViewModel)
+    viewModelOf(::ThemeSettingsViewModel)
     viewModelOf(::VoiceSettingsViewModel)
     viewModel { (conversationId: String) ->
         val generationParameters = GenerationParameterSettingsStore.from(androidContext())

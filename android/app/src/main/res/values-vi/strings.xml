@@ -159,18 +159,26 @@
     </plurals>
     <string name="undo">Hoàn tác</string>
     <string name="settings_title">Cài đặt</string>
-    <string name="appearance">Vẻ bề ngoài</string>
-    <string name="theme">chủ đề</string>
-    <string name="theme_system">Theo dõi hệ thống</string>
-    <string name="theme_light">Ánh sáng</string>
-    <string name="theme_dark">Tối tăm</string>
+    <string name="theme">Chủ đề</string>
+    <string name="theme_system">Theo hệ thống</string>
+    <string name="theme_light">Sáng</string>
+    <string name="theme_dark">Tối</string>
+    <string name="theme_follow_system_hint">Khi hệ thống ở chế độ tối, bảng màu tối bạn chọn sẽ được dùng.</string>
+    <string name="theme_section_palettes">Bảng màu</string>
+    <string name="theme_palette_purple">Tím</string>
+    <string name="theme_palette_graphite">Than chì</string>
+    <string name="theme_palette_black">Đen</string>
+    <string name="theme_palette_ocean">Đại dương</string>
+    <string name="theme_palette_forest">Rừng</string>
+    <string name="theme_palette_sunset">Hoàng hôn</string>
+    <string name="theme_preview_question">Giải thích cơ chế ownership của Rust trong một đoạn văn.</string>
+    <string name="theme_preview_reply">Mỗi giá trị có đúng một %1$s. Khi chủ sở hữu ra khỏi phạm vi, giá trị sẽ bị giải phóng; muốn mượn thì dùng %2$s.</string>
+    <string name="theme_preview_owner">chủ sở hữu</string>
+    <string name="theme_summary_follow_system">Theo hệ thống · %1$s</string>
     <string name="language">Ngôn ngữ</string>
-    <string name="data_section">dữ liệu</string>
     <string name="backup_and_export">Sao lưu &amp; Xuất</string>
-    <string name="about">Về</string>
     <string name="privacy_policy">Chính sách bảo mật</string>
     <string name="terms_of_service">Điều khoản dịch vụ</string>
-    <string name="help_feedback">Trợ giúp &amp; Phản hồi</string>
     <string name="settings_source_code">Mã nguồn</string>
     <string name="settings_report_issue">Báo cáo sự cố</string>
     <string name="snackbar_provider_ready">Nhà cung cấp đã sẵn sàng. Bạn có thể bắt đầu trò chuyện ngay bây giờ.</string>
@@ -2235,4 +2243,6 @@
     <string name="context_confirm_send">Vẫn gửi</string>
     <string name="chat_last_used_model_retired_hint">Mô hình bạn dùng lần trước đã ngừng cung cấp. Hiện đang dùng %1$s.</string>
     <string name="model_options_shows_thinking_fixed">Hiển thị quá trình suy nghĩ · không thể điều chỉnh</string>
+    <string name="settings_section_general">Cài đặt chung</string>
+    <string name="settings_section_help_about">Trợ giúp &amp; Giới thiệu</string>
 </resources>

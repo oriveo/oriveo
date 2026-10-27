@@ -40,6 +40,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import ai.oriveo.community.R
 import ai.oriveo.community.core.model.QuoteContext
+import ai.oriveo.community.ui.theme.OriveoColors
+import ai.oriveo.community.ui.theme.OriveoGradients
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.opacity
 
@@ -63,6 +65,8 @@ internal fun QuoteContextChip(
             .compositeOver(colors.surfaceElevated.opacity(if (isDark) 0.78f else 0.92f))
         QuoteContextChipPresentation.SentMessage -> Color.White.opacity(if (isDark) 0.14f else 0.12f)
     }
+    // Inside the user bubble it matches the bubble text color (onPrimary in dark, white in light)
+    val sentInk = sentQuoteChipContentColor(colors, isDark)
     var expanded by remember(quote) { mutableStateOf(false) }
     val selectedDescription = stringResource(R.string.chat_quote_selected_content, quote.summaryText)
     val removeDescription = stringResource(R.string.chat_quote_remove)
@@ -92,13 +96,13 @@ internal fun QuoteContextChip(
                 Icon(
                     imageVector = Icons.Outlined.FormatQuote,
                     contentDescription = null,
-                    tint = if (presentation == QuoteContextChipPresentation.Composer) colors.primary else Color.White,
+                    tint = if (presentation == QuoteContextChipPresentation.Composer) colors.primary else sentInk,
                     modifier = Modifier.size(16.dp),
                 )
                 Text(
                     text = quote.summaryText,
                     style = OriveoTheme.typography.footnote,
-                    color = if (presentation == QuoteContextChipPresentation.Composer) colors.textPrimary else Color.White,
+                    color = if (presentation == QuoteContextChipPresentation.Composer) colors.textPrimary else sentInk,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.semantics { contentDescription = selectedDescription },
@@ -169,3 +173,7 @@ internal fun QuoteContextChip(
         }
     }
 }
+
+/** Icon / text color of the quote chip inside the user bubble (SentMessage): same source as the bubble text, onPrimary in dark and white in light. */
+internal fun sentQuoteChipContentColor(colors: OriveoColors, isDark: Boolean): Color =
+    OriveoGradients.onPrimaryContent(colors, isDark)

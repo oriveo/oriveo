@@ -9,6 +9,8 @@ package ai.oriveo.community.core.app
 object AppPreferenceKeys {
     const val ONBOARDING_COMPLETED = "has_completed_onboarding"
     const val THEME = "theme"
+    /** Dark palette: stores the raw id string (e.g. `dark-ocean`, may be unknown); no row means unset and renders as `dark`. */
+    const val DARK_PALETTE = "darkPalette"
     const val LANGUAGE = "language"
     const val LAST_USED_PROVIDER_ID = "last_used_provider_id"
     const val LAST_USED_MODEL_ID = "last_used_model_id"
@@ -64,6 +66,7 @@ object AppPreferenceKeys {
     val DEVICE_SCOPED_KEYS = setOf(
         ONBOARDING_COMPLETED,
         THEME,
+        DARK_PALETTE,
         LANGUAGE,
         PROVIDER_DISCLOSURE_ACCEPTED_LIST,
         NOTE_CAPTURE_HINT_SEEN,

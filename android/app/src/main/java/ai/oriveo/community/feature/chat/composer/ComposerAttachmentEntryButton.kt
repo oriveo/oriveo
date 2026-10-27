@@ -39,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.oriveo.community.R
+import ai.oriveo.community.ui.theme.OriveoGradients
 import ai.oriveo.community.ui.theme.OriveoTheme
 
 @Composable
@@ -66,6 +67,8 @@ internal fun ComposerAttachmentEntryButton(
     val pressed by interactionSource.collectIsPressedAsState()
     val buttonScale by animateFloatAsState(if (pressed) 0.975f else 1f, label = "attachmentButtonScale")
 
+    // Uniform flat lavender circle: light brand purple@12% / dark white@10% (dark is not tinted).
+    // dark-palette-guard: keep (d) light branch
     val flatFill = if (isDark) Color.White.copy(alpha = 0.10f) else Color(0xFF8C5FF8).copy(alpha = 0.12f)
 
     val iconTint = if (emphasized) colors.primary else colors.textPrimary
@@ -125,7 +128,7 @@ internal fun ComposerAttachmentEntryButton(
                 Text(
                     text = count.toString(),
                     style = OriveoTheme.typography.footnote.copy(fontSize = 8.5.sp, fontWeight = FontWeight.SemiBold),
-                    color = Color.White,
+                    color = OriveoGradients.onPrimary,
                     maxLines = 1,
                 )
             }

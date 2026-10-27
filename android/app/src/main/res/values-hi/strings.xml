@@ -160,18 +160,26 @@
     </plurals>
     <string name="undo">पूर्ववत</string>
     <string name="settings_title">सेटिंग्स</string>
-    <string name="appearance">उपस्थिति</string>
-    <string name="theme">विषय</string>
+    <string name="theme">थीม</string>
     <string name="theme_system">सिस्टम के अनुसार</string>
     <string name="theme_light">लाइट</string>
     <string name="theme_dark">डार्क</string>
+    <string name="theme_follow_system_hint">सिस्टम डार्क मोड में होने पर आपका चुना हुआ डार्क पैलेट इस्तेमाल होगा।</string>
+    <string name="theme_section_palettes">पैलेट</string>
+    <string name="theme_palette_purple">पर्पल</string>
+    <string name="theme_palette_graphite">ग्रेफ़ाइट</string>
+    <string name="theme_palette_black">ब्लैक</string>
+    <string name="theme_palette_ocean">ओशन</string>
+    <string name="theme_palette_forest">फ़ॉरेस्ट</string>
+    <string name="theme_palette_sunset">सनसेट</string>
+    <string name="theme_preview_question">Rust में ओनरशिप को एक पैराग्राफ़ में समझाइए।</string>
+    <string name="theme_preview_reply">हर वैल्यू का ठीक एक %1$s होता है। जब वह स्कोप से बाहर जाता है, तो वैल्यू ड्रॉप हो जाती है — उधार लेने के लिए %2$s का इस्तेमाल करें।</string>
+    <string name="theme_preview_owner">ओनर</string>
+    <string name="theme_summary_follow_system">सिस्टम के अनुसार · %1$s</string>
     <string name="language">भाषा</string>
-    <string name="data_section">डेटा</string>
     <string name="backup_and_export">बैकअप और निर्यात</string>
-    <string name="about">के बारे में</string>
     <string name="privacy_policy">गोपनीयता नीति</string>
     <string name="terms_of_service">सेवा की शर्तें</string>
-    <string name="help_feedback">सहायता एवं प्रतिक्रिया</string>
     <string name="settings_source_code">सोर्स कोड</string>
     <string name="settings_report_issue">समस्या की रिपोर्ट करें</string>
     <string name="snackbar_provider_ready">प्रोवाइडर तैयार है। अब आप चैट करना शुरू कर सकते हैं।</string>
@@ -2273,4 +2281,6 @@
     <string name="context_confirm_send">फिर भी भेजें</string>
     <string name="chat_last_used_model_retired_hint">पिछली बार इस्तेमाल किया गया मॉडल बंद हो चुका है। अब %1$s इस्तेमाल हो रहा है।</string>
     <string name="model_options_shows_thinking_fixed">अपनी सोच दिखाता है · बदला नहीं जा सकता</string>
+    <string name="settings_section_general">सामान्य</string>
+    <string name="settings_section_help_about">सहायता और जानकारी</string>
 </resources>

@@ -201,7 +201,11 @@ class IdleRenderingPerformanceContractTest {
         // Visuals must be fully preserved: offscreen compositing isolation + dot-grid caching + three glow layers
         assertTrue("Aurora must keep Offscreen isolation, otherwise the dark BlendMode.Screen pollutes layers beneath it", source.contains("CompositingStrategy.Offscreen"))
         assertTrue("Dot grid must still be cached once per size/theme", source.contains("drawWithCache"))
-        assertEquals("Three glow layers (main + secondary + top subtle glow) must not be reduced", 3, source.split("Brush.radialGradient(").size - 1)
+        // Glow layers are data-driven (four layers by the aurora formula in dark, the original three in light); the count comes from the production function, not from counting source
+        assertEquals("Three light glow layers (main + secondary + top subtle glow) must not be reduced", 3,
+            ai.oriveo.community.feature.chat.components.chatAuroraGlowLayers(ai.oriveo.community.ui.theme.LightOriveoColors, isDark = false).size)
+        assertEquals("Dark has four layers by the aurora formula (bottom / bottom-left / bottom-right / top)", 4,
+            ai.oriveo.community.feature.chat.components.chatAuroraGlowLayers(ai.oriveo.community.ui.theme.DarkOriveoColors, isDark = true).size)
         // Entrance is a finite animation that settles once it finishes
         assertTrue("Entrance settle should be a one-shot tween", source.contains("label = \"auroraSettle\""))
         assertTrue("Entrance fade-in must be preserved", source.contains("label = \"auroraAlpha\""))

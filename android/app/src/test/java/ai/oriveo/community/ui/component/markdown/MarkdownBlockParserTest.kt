@@ -279,4 +279,30 @@ print("hello")
         val blocks = parseBlocks("   \n\n   ")
         assertEquals(0, blocks.size)
     }
+    @Test
+    fun `list directly after paragraph line interrupts it (CommonMark)`() {
+        // An assistant reply where a list follows a paragraph line directly, with no blank line between them
+        val text = "**What changed**\n" +
+            "- No completion handler, so no branch can forget to call it\n" +
+            "- `try await` replaces the `switch` over `Result`"
+        val blocks = parseBlocks(text)
+
+        assertEquals(3, blocks.size)
+        assertEquals(MarkdownBlock.Paragraph("**What changed**"), blocks[0])
+        assertEquals(
+            MarkdownBlock.ListItem("No completion handler, so no branch can forget to call it", "•"),
+            blocks[1],
+        )
+        assertEquals(MarkdownBlock.ListItem("`try await` replaces the `switch` over `Result`", "•"), blocks[2])
+    }
+
+    @Test
+    fun `only non-empty list starting at 1 interrupts a paragraph`() {
+        // CommonMark 5.2: an ordered list must start at 1 and be a non-empty item indented fewer than 4 columns to interrupt a paragraph
+        assertEquals(listOf(MarkdownBlock.Paragraph("year\n2. not a list")), parseBlocks("year\n2. not a list"))
+        // Indented 4 or more columns it is a lazy paragraph continuation and does not interrupt
+        assertEquals(listOf(MarkdownBlock.Paragraph("a\n    - b")), parseBlocks("a\n    - b"))
+        val blocks = parseBlocks("steps\n1. first")
+        assertEquals(MarkdownBlock.ListItem("first", "1."), blocks[1])
+    }
 }

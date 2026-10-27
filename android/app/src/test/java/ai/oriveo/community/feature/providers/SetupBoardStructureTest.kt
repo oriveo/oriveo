@@ -271,11 +271,12 @@ class SetupBoardStructureTest {
     }
 
     @Test
-    fun `BOARD-SETUP-08 the action bar loading indicator in the primary button is white`() {
+    fun `BOARD-SETUP-08 the action bar loading indicator in the primary button uses palette onPrimary`() {
         val buttons = File("src/main/java/ai/oriveo/community/ui/component/OriveoButtons.kt").readText()
         val primary = buttons.substringAfter("fun OriveoPrimaryButton(").substringBefore("\n}\n")
         val loading = primary.substringAfter("if (loading) {").substringBefore("} else")
-        assertTrue("the primary button spinner is hard-coded white", loading.contains("CircularProgressIndicator(") && loading.contains("color = Color.White"))
+        // The foreground on the gradient primary button uses the palette onPrimary; a white spinner on the light gradient lacks contrast
+        assertTrue("the primary button spinner uses the palette onPrimary", loading.contains("CircularProgressIndicator(") && loading.contains("color = OriveoGradients.onPrimary"))
         // The step 2 save and manual-setup primary buttons both go through this primary button via the primaryLoading of SetupActionBar.
         val actionBar = File("src/main/java/ai/oriveo/community/feature/providers/relay/SetupBoardComponents.kt").readText()
             .substringAfter("internal fun SetupActionBar(")

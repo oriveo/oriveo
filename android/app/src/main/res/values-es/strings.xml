@@ -90,15 +90,24 @@
 
     <!-- Settings -->
     <string name="settings_title">Ajustes</string>
-    <string name="appearance">Apariencia</string>
     <string name="theme">Tema</string>
     <string name="theme_system">Seguir el sistema</string>
     <string name="theme_light">Claro</string>
     <string name="theme_dark">Oscuro</string>
+    <string name="theme_follow_system_hint">Cuando el sistema está en modo oscuro, se usa la paleta oscura que elegiste.</string>
+    <string name="theme_section_palettes">Paletas</string>
+    <string name="theme_palette_purple">Morado</string>
+    <string name="theme_palette_graphite">Grafito</string>
+    <string name="theme_palette_black">Negro</string>
+    <string name="theme_palette_ocean">Océano</string>
+    <string name="theme_palette_forest">Bosque</string>
+    <string name="theme_palette_sunset">Atardecer</string>
+    <string name="theme_preview_question">Explícame en un párrafo cómo funciona el ownership en Rust.</string>
+    <string name="theme_preview_reply">Cada valor tiene un único %1$s. Cuando este sale del ámbito, el valor se libera; para tomarlo prestado, usa %2$s.</string>
+    <string name="theme_preview_owner">propietario</string>
+    <string name="theme_summary_follow_system">Seguir el sistema · %1$s</string>
     <string name="language">Idioma</string>
-    <string name="data_section">Datos</string>
     <string name="backup_and_export">Copia de seguridad y exportación</string>
-    <string name="about">Acerca de</string>
     <string name="privacy_policy">Política de privacidad</string>
     <string name="terms_of_service">Términos de servicio</string>
 
@@ -297,7 +306,6 @@
     <string name="provider_detail_add_model_manually">+ Agregar ID de modelo manualmente</string>
     <string name="provider_detail_badge_recent">Recientes</string>
     <string name="undo">Deshacer</string>
-    <string name="help_feedback">Ayuda y comentarios</string>
     <string name="settings_source_code">Código fuente</string>
     <string name="settings_report_issue">Reportar un problema</string>
     <string name="manual_model_entry_title">Modelo alternativo</string>
@@ -2337,4 +2345,6 @@
     <string name="context_confirm_send">Enviar de todos modos</string>
     <string name="chat_last_used_model_retired_hint">El último modelo que usaste fue retirado. Ahora se usa %1$s.</string>
     <string name="model_options_shows_thinking_fixed">Muestra su razonamiento · no se puede ajustar</string>
+    <string name="settings_section_general">General</string>
+    <string name="settings_section_help_about">Ayuda e información</string>
 </resources>

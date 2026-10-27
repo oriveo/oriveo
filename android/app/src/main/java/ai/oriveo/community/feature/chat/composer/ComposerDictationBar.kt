@@ -158,6 +158,7 @@ internal fun DictationMicButton(
 ) {
     val colors = OriveoTheme.colors
     val isDark = OriveoTheme.isDark
+    // dark-palette-guard: keep (d) light branch
     val flatFill = if (isDark) Color.White.copy(alpha = 0.10f) else Color(0xFF8C5FF8).copy(alpha = 0.12f)
     val label = stringResource(R.string.voice_dictate)
     Box(
@@ -261,7 +262,7 @@ private fun DictationSendButton(
             imageVector = Icons.Filled.ArrowUpward,
             contentDescription = null,
             modifier = Modifier.size(16.dp),
-            tint = if (enabled) Color.White else colors.textTertiary,
+            tint = if (enabled) OriveoGradients.onPrimary else colors.textTertiary,
         )
     }
 }

@@ -6,6 +6,7 @@ import ai.oriveo.community.core.model.LastUsedModelRef
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ThemeOption
 import ai.oriveo.community.core.model.LanguageOption
+import ai.oriveo.community.ui.theme.DarkPaletteId
 import io.mockk.every
 import io.mockk.verify
 import io.mockk.runs
@@ -155,6 +156,30 @@ class AppPreferencesRepositoryTest {
 
         assertNull(scopedRepository.lastUsedModelRefSnapshot)
         assertEquals(LastUsedModelRef("p", "m"), scopedRepository.lastUsedModelRef.first())
+    }
+
+    @Test
+    fun `darkPalette is null when unset and resolves to default dark`() = runTest {
+        assertNull(repository.darkPalette.first())
+        assertEquals(DarkPaletteId.Dark, repository.resolvedDarkPalette.first())
+    }
+
+    @Test
+    fun `setDarkPalette persists raw id and reads back`() = runTest {
+        repository.setDarkPalette(DarkPaletteId.Ocean)
+
+        // Stores the raw id string, not the enum name
+        assertEquals("dark-ocean", preferenceDao.get(AppPreferenceKeys.DARK_PALETTE))
+        assertEquals("dark-ocean", repository.darkPalette.first())
+        assertEquals(DarkPaletteId.Ocean, repository.resolvedDarkPalette.first())
+    }
+
+    @Test
+    fun `darkPalette keeps unknown raw id and renders default dark`() = runTest {
+        preferenceDao.set(PreferenceEntity(AppPreferenceKeys.DARK_PALETTE, "dark-aurora-future"))
+
+        assertEquals("dark-aurora-future", repository.darkPalette.first())
+        assertEquals(DarkPaletteId.Dark, repository.resolvedDarkPalette.first())
     }
 
     @Test

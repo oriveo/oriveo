@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from settings-theme.svg; gradient coords = path bounding box (SVG objectBoundingBox 0,0 -> 1,1). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M2.8 12A9.2 9.2 0 1 1 21.2 12A9.2 9.2 0 1 1 2.8 12Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="2.8"
+                android:startY="2.8"
+                android:endX="21.2"
+                android:endY="21.2">
+                <item android:offset="0" android:color="#FDBA74" />
+                <item android:offset="1" android:color="#F43F5E" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:pathData="M12 2.8A9.2 9.2 0 0 1 12 21.2Z"
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.55" />
+</vector>

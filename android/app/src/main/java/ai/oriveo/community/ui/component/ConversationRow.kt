@@ -83,7 +83,7 @@ fun ConversationRow(
     val textPrimary = if (isDark) CONVERSATION_ROW_T1_DARK else CONVERSATION_ROW_T1_LIGHT
     val textSecondary = if (isDark) CONVERSATION_ROW_T2_DARK else CONVERSATION_ROW_T2_LIGHT
     val textTertiary = if (isDark) CONVERSATION_ROW_T3_DARK else CONVERSATION_ROW_T3_LIGHT
-    val accent = if (isDark) CONVERSATION_ROW_ACCENT_DARK else CONVERSATION_ROW_ACCENT_LIGHT
+    val accent = if (isDark) OriveoTheme.colors.primary else CONVERSATION_ROW_ACCENT_LIGHT
     val photoLabel = stringResource(R.string.attachment_photo)
     val fileLabel = stringResource(R.string.file)
     val emptyPreviewText = stringResource(R.string.ready_to_start_conversation)
@@ -293,8 +293,8 @@ private val CONVERSATION_ROW_T2_LIGHT = Color(0xFF6B6378)
 private val CONVERSATION_ROW_T2_DARK = Color(0xFFC4BFD3)
 private val CONVERSATION_ROW_T3_LIGHT = Color(0xFF9C95AA)
 private val CONVERSATION_ROW_T3_DARK = Color(0xFF8C8499)
-private val CONVERSATION_ROW_ACCENT_LIGHT = Color(0xFF8B5CF6)
-private val CONVERSATION_ROW_ACCENT_DARK = Color(0xFFA78BFA)
+// Dark accent = the current palette primary
+private val CONVERSATION_ROW_ACCENT_LIGHT = Color(0xFF8B5CF6) // dark-palette-guard: keep (d) light branch
 
 /**
  * Provider logo avatar (matches iOS conversationAvatar)

@@ -186,7 +186,8 @@ fun LiquidGlassTabBar(
         if (!dragging) lensCenter.animateTo(liquidGlassItemCenterX(clampedSelected).value, slideSpec)
     }
 
-    val palette = remember(isDark) { liquidGlassPalette(isDark) }
+    val surface = OriveoTheme.colors.surface
+    val palette = remember(isDark, surface) { liquidGlassPalette(isDark, surface) }
 
     Box(
         modifier = modifier
@@ -378,7 +379,7 @@ private fun LiquidGlassTabItem(
     ) {
         Icon(
             imageVector = if (selected) {
-                OriveoTabBarIcons.selected(item.glyph, isDark)
+                OriveoTabBarIcons.selected(item.glyph, isDark, OriveoTheme.colors.let { it.primary to it.accent })
             } else {
                 OriveoTabBarIcons.template(item.glyph)
             },
@@ -424,10 +425,11 @@ private data class LiquidGlassPalette(
     val shadowColor: Color,
 )
 
-private fun liquidGlassPalette(isDark: Boolean): LiquidGlassPalette = if (isDark) {
+/** [surface] = the current palette surface: the non-blurred dark fill follows the palette (95% opaque). */
+private fun liquidGlassPalette(isDark: Boolean, surface: Color): LiquidGlassPalette = if (isDark) {
     LiquidGlassPalette(
         glassTint = HazeTint(Color.White.copy(alpha = 0.06f), BlendMode.SrcOver),
-        fallbackFill = Color(0xF2211F2B),
+        fallbackFill = surface.copy(alpha = 0.95f),
         rimTop = Color.White.copy(alpha = 0.16f),
         rimBottom = Color.White.copy(alpha = 0.06f),
         lensFill = Color.White.copy(alpha = 0.15f),

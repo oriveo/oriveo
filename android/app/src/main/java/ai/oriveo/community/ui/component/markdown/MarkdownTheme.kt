@@ -3,7 +3,6 @@ package ai.oriveo.community.ui.component.markdown
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
-import ai.oriveo.community.ui.theme.DarkOriveoColors
 import ai.oriveo.community.ui.theme.OriveoTheme
 
 /** Colour set used for Markdown rendering. */
@@ -49,7 +48,7 @@ object MarkdownTheme {
     @Composable
     fun colors(): MarkdownColors {
         val c = OriveoTheme.colors
-        val isDark = c.backgroundBase == DarkOriveoColors.backgroundBase
+        val isDark = OriveoTheme.isDark
         return resolveColors(c, isDark)
     }
 
@@ -66,6 +65,7 @@ object MarkdownTheme {
         inlineCodeBg = Color(0xFFE2E8F0),
         codeBlockBg = Color(0xFF0B1220),
         codeBlockSurface = Color(0xFF111A2E),
+        // dark-palette-guard: keep (d) light branch
         codeBlockBorder = Color(0x388C5FF8),          // 22%
         codeBlockFg = Color(0xFFE7EEF8),
         // Code blocks sit on a dark background in both light and dark themes, so the
@@ -96,11 +96,13 @@ object MarkdownTheme {
         text = c.textPrimary,
         textSecondary = c.textSecondary,
         link = c.primary,
-        inlineCodeText = Color(0xFFE2E8F0),
-        inlineCodeBg = Color(0xFF1E293B),
-        codeBlockBg = Color(0xFF050814),
-        codeBlockSurface = Color(0xFF0B1020),
-        codeBlockBorder = Color(0x33C4B5FD),         // 20%
+        // Inline code follows the dark palette: text = secondary accent (the second information layer), fill = white 7%
+        inlineCodeText = c.accent,
+        inlineCodeBg = Color.White.copy(alpha = 0.07f),
+        // Code block fill / header follow the dark palette (JSON codeBg / codeHeaderBg)
+        codeBlockBg = c.codeBlockBg,
+        codeBlockSurface = c.codeBlockHeaderBg,
+        codeBlockBorder = c.primary.copy(alpha = 0.20f),
         codeBlockFg = Color(0xFFEAF1FB),
         // Lifted: #9AA8BD only reached a marginal 5.5:1 against the very dark
         // codeBlockBg (#050814). #C7D2E0 reaches 8:1, which makes the language pill and
@@ -117,9 +119,11 @@ object MarkdownTheme {
         quoteBorder = c.primary.copy(alpha = 0.5f),
         // The dark textSecondary (#B4BAC6) is already the right value here, so reuse it.
         quoteText = c.textSecondary,
-        tableBorder = Color(0xFF334155),
-        tableHeaderBg = Color(0xFF1E293B),
-        tableCellBg = Color(0xFF0F172A),
-        tableAltRowBg = Color(0xFF131C2E),
+        // Tables follow the dark palette: border = palette border (JSON shared.border, white 10%),
+        // header = surfaceRaised (OriveoColors.surfaceElevated), cell = surface, zebra row = bgInset (OriveoColors.surfaceInset)
+        tableBorder = c.border,
+        tableHeaderBg = c.surfaceElevated,
+        tableCellBg = c.surface,
+        tableAltRowBg = c.surfaceInset,
     )
 }

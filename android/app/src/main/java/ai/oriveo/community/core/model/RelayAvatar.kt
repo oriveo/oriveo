@@ -32,6 +32,7 @@ import ai.oriveo.community.ui.theme.DarkOriveoColors
 import ai.oriveo.community.ui.theme.DetailRowPalette
 import ai.oriveo.community.ui.theme.LocalIsDarkTheme
 import ai.oriveo.community.ui.theme.LocalOriveoColors
+import ai.oriveo.community.ui.theme.OriveoColors
 import ai.oriveo.community.ui.theme.OriveoTheme
 import java.util.Locale
 
@@ -356,7 +357,8 @@ fun ConnectionAvatar(
             contentScaleOverride = contentScaleOverride,
         )
         is ConnectionAvatarSpec.Relay -> if (forceDarkAppearance) {
-            CompositionLocalProvider(LocalIsDarkTheme provides true, LocalOriveoColors provides DarkOriveoColors) {
+            val darkColors = forcedDarkAppearanceColors(LocalIsDarkTheme.current, LocalOriveoColors.current)
+            CompositionLocalProvider(LocalIsDarkTheme provides true, LocalOriveoColors provides darkColors) {
                 RelayAvatar(result = spec.result, size = size, modifier = modifier)
             }
         } else {
@@ -364,3 +366,10 @@ fun ConnectionAvatar(
         }
     }
 }
+
+/**
+ * Palette for the relay avatar when a dark look is forced (brand dark-surface cards): if the app is already dark the current palette is reused, so it follows the 7 dark palettes;
+ * in the light theme there is no "current dark palette", so it falls back to the default dark.
+ */
+internal fun forcedDarkAppearanceColors(isDark: Boolean, current: OriveoColors): OriveoColors =
+    if (isDark) current else DarkOriveoColors

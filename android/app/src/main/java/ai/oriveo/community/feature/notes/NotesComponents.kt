@@ -96,6 +96,8 @@ import ai.oriveo.community.ui.component.markdown.MarkdownRenderer
 import ai.oriveo.community.ui.component.markdown.MarkdownTheme
 import ai.oriveo.community.ui.theme.OriveoRadius
 import ai.oriveo.community.ui.theme.OriveoSurfaceStyle
+import ai.oriveo.community.ui.theme.OriveoColors
+import ai.oriveo.community.ui.theme.OriveoGradients
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.oriveoSurface
 
@@ -659,6 +661,8 @@ fun FolderFilterChips(
                 label = stringResource(R.string.notes_folders_all),
                 icon = Icons.Outlined.Apps,
                 tint = OriveoTheme.colors.primary,
+                // Solid primary fill: the dark foreground uses the palette onPrimary; folder colors / the neutral color stay white
+                activeContent = OriveoGradients.onPrimary,
                 count = null,
                 active = selectedFolderId == null,
                 onClick = { onSelect(null) },
@@ -680,6 +684,8 @@ fun FolderFilterChips(
                 label = stringResource(R.string.notes_folders_uncategorized),
                 icon = Icons.Outlined.Inbox,
                 tint = OriveoTheme.colors.textSecondary,
+                // The neutral fill is near-white textSecondary in dark: the selected foreground uses the palette background, and light stays white
+                activeContent = neutralFolderChipActiveContent(OriveoTheme.colors, OriveoTheme.isDark),
                 count = uncategorizedCount,
                 active = selectedFolderId == uncategorizedSentinel,
                 onClick = { onSelect(uncategorizedSentinel) },
@@ -687,6 +693,10 @@ fun FolderFilterChips(
         }
     }
 }
+
+/** Foreground of the neutral "Uncategorized" chip (fill textSecondary) when selected: palette backgroundBase in dark, white in light. */
+internal fun neutralFolderChipActiveContent(colors: OriveoColors, isDark: Boolean): Color =
+    if (isDark) colors.backgroundBase else Color.White
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -698,6 +708,7 @@ private fun FolderChip(
     active: Boolean,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
+    activeContent: Color = Color.White,
 ) {
     val colors = OriveoTheme.colors
     val shape = RoundedCornerShape(OriveoRadius.md)
@@ -714,19 +725,19 @@ private fun FolderChip(
             imageVector = icon,
             contentDescription = null,
             modifier = Modifier.size(15.dp),
-            tint = if (active) Color.White else tint,
+            tint = if (active) activeContent else tint,
         )
         Text(
             text = label,
             style = OriveoTheme.typography.caption.copy(fontWeight = FontWeight.SemiBold),
-            color = if (active) Color.White else colors.textPrimary,
+            color = if (active) activeContent else colors.textPrimary,
             maxLines = 1,
         )
         if (count != null) {
             Text(
                 text = "$count",
                 style = OriveoTheme.typography.footnote,
-                color = if (active) Color.White.copy(alpha = 0.75f) else colors.textTertiary,
+                color = if (active) activeContent.copy(alpha = 0.75f) else colors.textTertiary,
             )
         }
     }

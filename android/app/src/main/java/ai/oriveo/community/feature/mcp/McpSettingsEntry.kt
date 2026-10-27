@@ -1,9 +1,8 @@
 package ai.oriveo.community.feature.mcp
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Build
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -11,9 +10,10 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import ai.oriveo.community.R
 import ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID
@@ -21,11 +21,9 @@ import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.mcp.McpCredentialStore
 import ai.oriveo.community.core.mcp.McpServerOverview
 import ai.oriveo.community.core.mcp.McpServerStore
-import ai.oriveo.community.ui.component.FlatGroup
-import ai.oriveo.community.ui.component.FlatSectionHeader
-import ai.oriveo.community.ui.component.FlatTapRow
-import ai.oriveo.community.ui.component.OriveoSettingsRow
-import ai.oriveo.community.ui.theme.OriveoTheme
+import ai.oriveo.community.feature.settings.SettingsGrid
+import ai.oriveo.community.feature.settings.SettingsGridItem
+import ai.oriveo.community.feature.settings.SettingsSectionTitle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
@@ -34,12 +32,11 @@ import org.koin.compose.koinInject
 data class McpSettingsEntrySummary(val serverCount: Int, val attentionCount: Int)
 
 /**
- * The "Tools & connections" group on the settings screen. It is hidden entirely when `mcpRuntimeConfig.enabled = false`
- * (stored servers are kept).
+ * The "Tools & connections" group on the settings home: a single MCP servers cell. It is hidden entirely when
+ * `mcpRuntimeConfig.enabled = false` (stored servers are kept).
  */
 @Composable
 fun SettingsToolsSection(
-    iconColor: Color,
     onNavigateToMcpServers: () -> Unit,
 ) {
     val store: McpServerStore = koinInject()
@@ -68,7 +65,6 @@ fun SettingsToolsSection(
 
     if (!enabled) return
     SettingsToolsSectionContent(
-        iconColor = iconColor,
         mcpSummary = summary,
         onNavigateToMcpServers = onNavigateToMcpServers,
     )
@@ -76,22 +72,24 @@ fun SettingsToolsSection(
 
 @Composable
 internal fun SettingsToolsSectionContent(
-    iconColor: Color,
     mcpSummary: McpSettingsEntrySummary?,
     onNavigateToMcpServers: () -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm)) {
-        FlatSectionHeader(title = stringResource(R.string.mcp_settings_section))
-        FlatGroup {
-            FlatTapRow(onClick = onNavigateToMcpServers) {
-                OriveoSettingsRow(
-                    icon = Icons.Outlined.Build,
-                    iconColor = iconColor,
+    Column {
+        SettingsSectionTitle(text = stringResource(R.string.mcp_settings_section))
+        Spacer(modifier = Modifier.height(10.dp))
+        SettingsGrid(
+            items = listOf(
+                SettingsGridItem(
+                    key = "mcp",
+                    icon = R.drawable.ic_settings_mcp,
                     title = stringResource(R.string.mcp_servers_title),
-                    subtitle = mcpSettingsEntrySubtitle(mcpSummary),
-                )
-            }
-        }
+                    tag = "settings_mcp_tile",
+                    value = mcpSettingsEntrySubtitle(mcpSummary),
+                    onClick = onNavigateToMcpServers,
+                ),
+            ),
+        )
     }
 }
 

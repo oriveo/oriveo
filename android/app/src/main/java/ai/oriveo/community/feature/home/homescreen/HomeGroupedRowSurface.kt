@@ -37,7 +37,7 @@ import ai.oriveo.community.ui.theme.OriveoTheme
  * frame, with main-thread frames of about 13 seconds. So each conversation is its own item and this modifier
  * stitches adjacent items back into one card:
  *  - one card per group, corner radius 20, **no dividers** inside; rows are separated by their own padding only;
- *  - dark #221F35 + a 1dp 5.5% white stroke + a 1px 3% white inner highlight at the top of the first row; light is
+ *  - dark = palette surface + a 1dp 5.5% white stroke + a 1px 3% white inner highlight at the top of the first row; light is
  *    pure white + a 1dp 5% black stroke + two very faint shadows;
  *  - the design's 1dp stroke takes space (border-box): content sits 1 + row padding from the card edge.
  *

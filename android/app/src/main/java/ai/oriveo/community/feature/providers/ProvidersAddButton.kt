@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import ai.oriveo.community.R
+import ai.oriveo.community.ui.theme.OriveoGradients
 import ai.oriveo.community.ui.theme.OriveoTheme
 
 @Composable
@@ -76,7 +77,7 @@ fun ProvidersAddButton(
             contentDescription = stringResource(R.string.add_provider),
 
             modifier = Modifier.size(18.dp),
-            tint = Color.White,
+            tint = OriveoGradients.onPrimary,
         )
     }
 }

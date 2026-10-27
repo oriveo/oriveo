@@ -1564,6 +1564,7 @@ class BackupService(
         if (replaceAll) {
 
             preferenceDao.delete(AppPreferenceKeys.THEME)
+            preferenceDao.delete(AppPreferenceKeys.DARK_PALETTE)
             preferenceDao.set(PreferenceEntity(AppPreferenceKeys.LANGUAGE, LanguageOption.System.name))
             clearUserStatePreferences()
         }
@@ -1573,6 +1574,13 @@ class BackupService(
             val language = AppPreferencesRepository.parseLanguagePreference(preferences.language)
                 ?: LanguageOption.System
             preferenceDao.set(PreferenceEntity(AppPreferenceKeys.THEME, theme.name))
+            // Same rule as theme: write the backed-up value verbatim; a missing field (older backup) clears it to unset
+            val darkPalette = preferences.darkPalette
+            if (darkPalette != null) {
+                preferenceDao.set(PreferenceEntity(AppPreferenceKeys.DARK_PALETTE, darkPalette))
+            } else {
+                preferenceDao.delete(AppPreferenceKeys.DARK_PALETTE)
+            }
             preferenceDao.set(PreferenceEntity(AppPreferenceKeys.LANGUAGE, language.name))
             val normalizedMemoryText = preferences.memoryText.trim()
                 .takeGraphemes(AppPreferencesRepository.MEMORY_CHARACTER_LIMIT)
@@ -1957,6 +1965,7 @@ class BackupService(
             memoryAntiForgetEnabled = getUserStatePreference(AppPreferenceKeys.MEMORY_ANTI_FORGET_ENABLED)?.toBooleanStrictOrNull() ?: false,
             memoryAntiForgetText = getUserStatePreference(AppPreferenceKeys.MEMORY_ANTI_FORGET_TEXT).orEmpty(),
             memoryUpdatedAt = getUserStatePreference(AppPreferenceKeys.MEMORY_UPDATED_AT),
+            darkPalette = preferenceDao.get(AppPreferenceKeys.DARK_PALETTE),
         )
     }
 
@@ -1974,7 +1983,9 @@ class BackupService(
         }
         val memoryAntiForgetText = preferences["memoryAntiForgetText"]?.toString().orEmpty()
         val memoryUpdatedAt = preferences["memoryUpdatedAt"]?.toString()
+        val darkPalette = preferences["darkPalette"] as? String
         if (theme == null &&
+            darkPalette == null &&
             language == null &&
             memoryText.isBlank() &&
             !memoryAntiForgetEnabled &&
@@ -1990,6 +2001,7 @@ class BackupService(
             memoryAntiForgetEnabled = memoryAntiForgetEnabled,
             memoryAntiForgetText = memoryAntiForgetText,
             memoryUpdatedAt = memoryUpdatedAt,
+            darkPalette = darkPalette,
         )
     }
 

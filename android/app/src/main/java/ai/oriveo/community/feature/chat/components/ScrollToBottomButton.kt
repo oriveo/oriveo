@@ -14,7 +14,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import ai.oriveo.community.ui.theme.OriveoBorderWidth
 import ai.oriveo.community.ui.theme.OriveoGradients
@@ -43,8 +42,8 @@ internal fun ScrollToBottomButton(
             imageVector = Icons.Filled.KeyboardArrowDown,
             contentDescription = null,
             modifier = Modifier.size(18.dp),
-
-            tint = Color.White,
+            // Foreground on the primary gradient button: white in light, the palette's onPrimary in dark
+            tint = OriveoGradients.onPrimary,
         )
     }
 }

@@ -90,15 +90,24 @@
 
     <!-- Settings -->
     <string name="settings_title">Einstellungen</string>
-    <string name="appearance">Erscheinungsbild</string>
     <string name="theme">Design</string>
     <string name="theme_system">Automatisch</string>
     <string name="theme_light">Hell</string>
     <string name="theme_dark">Dunkel</string>
+    <string name="theme_follow_system_hint">Im dunklen Systemmodus wird die von dir gewählte dunkle Palette verwendet.</string>
+    <string name="theme_section_palettes">Paletten</string>
+    <string name="theme_palette_purple">Lila</string>
+    <string name="theme_palette_graphite">Graphit</string>
+    <string name="theme_palette_black">Schwarz</string>
+    <string name="theme_palette_ocean">Ozean</string>
+    <string name="theme_palette_forest">Wald</string>
+    <string name="theme_palette_sunset">Abendrot</string>
+    <string name="theme_preview_question">Erklär mir Eigentümerschaft in Rust in einem Absatz.</string>
+    <string name="theme_preview_reply">Jeder Wert hat genau einen %1$s. Verlässt er den Gültigkeitsbereich, wird der Wert freigegeben – ausleihen kannst du ihn mit %2$s.</string>
+    <string name="theme_preview_owner">Eigentümer</string>
+    <string name="theme_summary_follow_system">Automatisch · %1$s</string>
     <string name="language">Sprache</string>
-    <string name="data_section">Daten</string>
     <string name="backup_and_export">Sicherung &amp; Export</string>
-    <string name="about">Über</string>
     <string name="privacy_policy">Datenschutzrichtlinie</string>
     <string name="terms_of_service">Nutzungsbedingungen</string>
 
@@ -297,7 +306,6 @@
     <string name="provider_detail_add_model_manually">+ Modell-ID manuell hinzufügen</string>
     <string name="provider_detail_badge_recent">Kürzlich</string>
     <string name="undo">Rückgängig</string>
-    <string name="help_feedback">Hilfe und Feedback</string>
     <string name="settings_source_code">Quellcode</string>
     <string name="settings_report_issue">Problem melden</string>
     <string name="manual_model_entry_title">Fallback-Modell</string>
@@ -2318,4 +2326,6 @@
     <string name="context_confirm_send">Trotzdem senden</string>
     <string name="chat_last_used_model_retired_hint">Dein zuletzt genutztes Modell wurde eingestellt. Jetzt wird %1$s verwendet.</string>
     <string name="model_options_shows_thinking_fixed">Zeigt sein Nachdenken · nicht einstellbar</string>
+    <string name="settings_section_general">Allgemein</string>
+    <string name="settings_section_help_about">Hilfe &amp; Info</string>
 </resources>
