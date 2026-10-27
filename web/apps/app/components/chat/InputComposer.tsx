@@ -6,7 +6,9 @@ import { useLocale, useTranslations } from 'next-intl';
 import type { Attachment, AIModel, Provider, ReasoningMode, SendShortcut, QuoteContext } from '@oriveo/shared';
 import { AttachmentPreview } from './AttachmentPreview';
 import { MODEL_OPTIONS_POPOVER_ID, ModelOptionsPopover } from './ModelOptionsPopover';
+import { ChatSearchServiceSheet, type ChatSearchServiceSheetRequest } from './ChatSearchServiceSheet';
 import { OPEN_ADDITIONAL_BODY_EDITOR_EVENT } from '../../lib/core/chat/additional-body-rejection';
+import { OPEN_SEARCH_SOURCE_PICKER_EVENT } from '../../lib/search/search-chat-presentation';
 import { ComposerToolButton } from './ComposerToolButton';
 import { Brain, FileText, Globe, Library, Quote, SlidersHorizontal } from 'lucide-react';
 import { AttachmentIcon, StopIcon, SendIcon, CloseIcon } from '../icons';
@@ -76,7 +78,11 @@ interface InputComposerProps {
   webPreference?: CapabilityWebPreference;
   onWebPreferenceChange?: (next: CapabilityWebPreference) => void;
   webOutboundActive?: boolean;
+  /** Web chip lit state from the external-search combined entry (`resolveWebSearchState().chipLit`); null / omitted = the previous liveness. */
+  webChipLit?: boolean | null;
   webRuntimeRejected?: boolean;
+  /** Draft conversation id of this page (the model options keep a new conversation's search source in memory under it). */
+  searchDraftSessionId?: string;
   /* Library research — caller owns login/connection/model gates. */
   libraryResearchEnabled?: boolean;
   onLibraryResearchToggle?: (next: boolean) => void;
@@ -349,7 +355,9 @@ export function InputComposer({
   webPreference,
   onWebPreferenceChange,
   webOutboundActive = false,
+  webChipLit = null,
   webRuntimeRejected = false,
+  searchDraftSessionId,
   libraryResearchEnabled,
   onLibraryResearchToggle,
   currentModel,
@@ -423,15 +431,24 @@ export function InputComposer({
   const storageQuota = null as { blockUploads?: boolean; status?: string } | null;
   const [modelControlsOpen, setModelControlsOpen] = useState(false);
   const [hasModelBehaviorOverride, setHasModelBehaviorOverride] = useState(false);
+  /** Connect sheet opened in place from the model options ("turn on in one tap" / "add a search service"); the nonce makes every open start from the first page. */
+  const [searchServiceSheet, setSearchServiceSheet] = useState<(ChatSearchServiceSheetRequest & { nonce: number }) | null>(null);
   // "Edit" on the additional request body error card: opens the overlay straight at the additional request body editor; the nonce makes an already open overlay remount on that page.
-  const [modelControlsInitialPane, setModelControlsInitialPane] = useState<{ pane: 'customFields'; nonce: number } | null>(null);
+  // "Switch service" on the web-search error card: likewise opens the popover's "Search method" page directly.
+  const [modelControlsInitialPane, setModelControlsInitialPane] = useState<{ pane: 'customFields' | 'searchSource'; nonce: number } | null>(null);
   useEffect(() => {
-    const open = () => {
-      setModelControlsInitialPane((previous) => ({ pane: 'customFields', nonce: (previous?.nonce ?? 0) + 1 }));
+    const openAt = (pane: 'customFields' | 'searchSource') => () => {
+      setModelControlsInitialPane((previous) => ({ pane, nonce: (previous?.nonce ?? 0) + 1 }));
       setModelControlsOpen(true);
     };
-    window.addEventListener(OPEN_ADDITIONAL_BODY_EDITOR_EVENT, open);
-    return () => window.removeEventListener(OPEN_ADDITIONAL_BODY_EDITOR_EVENT, open);
+    const openCustomFields = openAt('customFields');
+    const openSearchSource = openAt('searchSource');
+    window.addEventListener(OPEN_ADDITIONAL_BODY_EDITOR_EVENT, openCustomFields);
+    window.addEventListener(OPEN_SEARCH_SOURCE_PICKER_EVENT, openSearchSource);
+    return () => {
+      window.removeEventListener(OPEN_ADDITIONAL_BODY_EDITOR_EVENT, openCustomFields);
+      window.removeEventListener(OPEN_SEARCH_SOURCE_PICKER_EVENT, openSearchSource);
+    };
   }, []);
   /**
    * Return focus to the chip after the popover closes.
@@ -735,7 +752,7 @@ export function InputComposer({
     ? t('aiAnswering')
     : tCommon('capabilityControlsReadOnlyConversation');
   const closeModelControls = closeModelControlsWithFocus;
-  const webModelControlGlyphActive = webOutboundActive && !webRuntimeRejected;
+  const webModelControlGlyphActive = webChipLit ?? (webOutboundActive && !webRuntimeRejected);
   const reasoningModelControlGlyphActive = reasoningOutboundActive && !reasoningRuntimeRejected;
   const modelBehaviorGlyphActive = generationControl?.state !== 'unavailable'
     && hasModelBehaviorOverride;
@@ -940,7 +957,20 @@ export function InputComposer({
             onOpenRelayModelAdvanced={onOpenRelayModelAdvanced}
             onFindModelsSupportingParameter={onFindModelsSupportingParameter}
             onOverrideChange={setHasModelBehaviorOverride}
+            onOpenSearchServiceSheet={(request) => setSearchServiceSheet({ ...request, nonce: Date.now() })}
+            {...(searchDraftSessionId ? { searchDraftSessionId } : {})}
             onClose={closeModelControls}
+          />
+        )}
+        {searchServiceSheet && (
+          <ChatSearchServiceSheet
+            key={searchServiceSheet.nonce}
+            request={searchServiceSheet}
+            onClose={() => {
+              setSearchServiceSheet(null);
+              // Close the sheet only when the test passes (completes) or the user cancels, then return to the model options panel; on test failure stay in the sheet with the reason and fix actions.
+              setModelControlsOpen(true);
+            }}
           />
         )}
 

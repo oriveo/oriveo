@@ -185,7 +185,8 @@ export function MessageMeta({ providerName, modelName, estimatedCost, nonUsdCost
             {costPillText}
           </span>
         )}
-        {capabilityResults?.map((result) => (
+        {/* Message facts for external search are shown by the sources row / error card, not as a pill here. */}
+        {capabilityResults?.filter((result) => result.source !== 'external_search').map((result) => (
           <span className={styles.metaPill} key={`${result.owner}:${result.revision}`} data-capability-result={result.state}>
             {t(`capabilityResult.${result.state}` as any, { owner: t(`capabilityResult.${result.owner}` as any) })}
           </span>

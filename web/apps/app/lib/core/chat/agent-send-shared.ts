@@ -239,6 +239,8 @@ export interface ToolLoopContext {
   searchMemoryEntry(): ToolRegistryEntry;
   /** The window input used by the first-leg plan (the pre-send confirmation gate decides by it). */
   readonly window: ChatPlanWindow;
+  /** Budget basis for external search: the same context budget B as memory-recall scaling (window unknown = null) and this turn's ρ_hi. */
+  readonly searchBudget: { B: number | null; rhoHi: number };
 }
 
 export async function prepareToolLoopContext(ctx: ChatOpCtx, input: {
@@ -252,6 +254,11 @@ export async function prepareToolLoopContext(ctx: ChatOpCtx, input: {
   latestUserText: string;
   streamOptions?: StreamOptions;
   toolSafety: string;
+  /**
+   * Pre-search / resend reuse for external search: runs with the first plan's B and ρ and returns deliver.content,
+   * placed verbatim in [D] right after <oriveo-library>; returning null places nothing.
+   */
+  webDynamic?: (budget: { B: number | null; rhoHi: number }) => Promise<string | null>;
 }): Promise<ToolLoopContext> {
   const assembly = await prepareChatContextAssembly({
     store: ctx.store,
@@ -296,10 +303,15 @@ export async function prepareToolLoopContext(ctx: ChatOpCtx, input: {
     const compacted = compactChatContextAssembly(base, plan, oldSummary);
     return compacted ? assembleChatPlan(compacted, options) : plan;
   };
-  const toolPlan = planWithFallback(
-    { ...assembly, input: { ...assembly.input, toolSafety: input.toolSafety } },
-    recallDynamic,
-  );
+  const toolAssembly = { ...assembly, input: { ...assembly.input, toolSafety: input.toolSafety } };
+  let toolPlan = planWithFallback(toolAssembly, recallDynamic);
+  const searchBudget = { B: toolPlan.budget.B ?? null, rhoHi: assembly.input.rhoHi ?? CONTEXT_BUDGET_CONSTANTS.rho0 };
+  // A rejected plan is not searched (preflight failed, the request will not be sent).
+  const web = input.webDynamic && !toolPlan.reject ? await input.webDynamic(searchBudget) : null;
+  if (web) {
+    recallDynamic.web = web;
+    toolPlan = planWithFallback(toolAssembly, recallDynamic);
+  }
   let currentPlan = toolPlan;
   let planned = projectPlanMessages(toolPlan, input.messages);
   const window = chatPlanWindowOf(assembly, planOptions);
@@ -308,6 +320,7 @@ export async function prepareToolLoopContext(ctx: ChatOpCtx, input: {
   let searchIdsDropped = 0;
   return {
     window,
+    searchBudget,
     // A real send takes the retrieval usage: a retrieval that hit the cache or was already billed by a successful send is not counted again.
     promptContext: unbilledSkillRetrievalUsage(assembly.promptContext),
     history: await wire(planned, true),

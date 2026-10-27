@@ -498,6 +498,27 @@ export interface Citation {
     serverId: string;
     adapter: string;
   };
+  /**
+   * `source === "external_search"` (persisted): which search and which service retrieved this source.
+   * The number is stored in `index`; the full snippet is stored in `snippet`. Older data lacks these fields.
+   */
+  query?: string;
+  serviceId?: string;
+  serviceName?: string;
+  retrievedAt?: string;
+  site?: string;
+  date?: string;
+}
+
+/** Error card of this reply when every external search failed (finishSearchReply.errorCard verbatim + serviceId). */
+export interface ExternalSearchErrorCard {
+  errorClass: string;
+  headline: string;
+  primaryAction: string;
+  secondaryAction?: string;
+  serviceId: string;
+  serviceName: string;
+  switchTo: { id: string; name: string } | null;
 }
 
 export type ResearchStepStatus = 'pending' | 'running' | 'completed' | 'failed';
@@ -586,9 +607,19 @@ export interface ChatMessage {
   /** Local execution facts. Only normalized parser evidence can mark observed. */
   capabilityResults?: Array<{
     owner: 'web' | 'reasoning' | 'generation';
-    state: 'not_requested' | 'requested' | 'observed' | 'unconfirmed' | 'rejected' | 'recovered';
-    source: 'provider_recipe' | 'custom';
+    /** `failed` appears only for source = external_search (every search request actually sent failed). */
+    state: 'not_requested' | 'requested' | 'observed' | 'unconfirmed' | 'rejected' | 'recovered' | 'failed';
+    source: 'provider_recipe' | 'custom' | 'external_search';
     revision: string;
+    /** Message facts for source = external_search (summarizeSearchFacts): search count, number of sources handed to the model, service name, evidence kind. */
+    searchCount?: number;
+    sourceCount?: number;
+    serviceName?: string;
+    evidenceKind?: 'external_search_result';
+    /** Everything came from resend reuse (no new requests, no new charges). */
+    reused?: boolean;
+    /** The source service is a custom service (the sources card shows a "Custom" tag after the service name; finishSearchReply.sourcesLine.custom). */
+    custom?: boolean;
   }>;
   /** Native tool requests that reached ordinary chat without an active executor. */
   unhandledToolCalls?: Array<{
@@ -598,6 +629,10 @@ export interface ChatMessage {
   }>;
   /** Device-local explanation for a one-shot resend that intentionally omitted tools. */
   toolFallbackNotice?: 'library_not_searched' | 'web_recovered';
+  /** Error card when every external search failed; absent when there were results or no search. */
+  searchErrorCard?: ExternalSearchErrorCard;
+  /** One-time notice that this reply switched to pre-search (finishSearchReply.notice; currently only tools_rejected). */
+  searchNotice?: 'no_tool_continuation' | 'thinking_tools_unsupported' | 'thinking_no_continuation' | 'tools_rejected';
   /**
    * Ids of the memory items actually injected into the system prompt by the request that produced this answer (the final plan.memoryIds).
    * Stored on this device only: not backed up, stripped from backup exports, dropped on import; the field is not written when nothing was injected.

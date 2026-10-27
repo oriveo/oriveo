@@ -75,6 +75,11 @@ export interface CompactOptions {
   signal?: AbortSignal;
   /** AI summary only (pre-compaction): when AI is not used, or AI fails or is cancelled, returns noop and saves no fallback row (the breaker still counts). */
   aiOnly?: boolean;
+  /**
+   * Pre-send compaction: the library row id the caller applied when assembling the request (null = there was no library row then; omitted = the caller does not provide one).
+   * If the newest library row is not it and applying it already falls below 0.90·B, return it directly, so a send arriving after pre-compaction finished does not summarize the same span again.
+   */
+  assembledCheckpointId?: string | null;
 }
 
 /* ── AI summary in progress (in-memory per conversation, only during the summary call) ── */
@@ -428,8 +433,11 @@ export function createCompactionCoordinator(deps: CompactionCoordinatorDeps) {
       ctx.messages.map((m) => ({ id: m.id, text: m.text })),
     );
     if (signal?.aborted) return stopped();
-    // Waited for another compaction (e.g. pre-compaction): if applying the row it saved is already below 0.90·B, do not compact again and hand that row to the caller to use directly.
-    if (waited && previous && trigger !== 'manual') {
+    // Waited for another compaction (e.g. pre-compaction), or a row landed after the caller assembled: if applying that row is already below 0.90·B, do not compact again and hand it to the caller to use directly.
+    const landedAfterAssembly = options.assembledCheckpointId !== undefined
+      && previous !== null && previous !== undefined
+      && previous.checkpointId !== options.assembledCheckpointId;
+    if ((waited || landedAfterAssembly) && previous && trigger !== 'manual') {
       const pHat = pHatWith(ctx, previous);
       if (pHat !== null && pHat < ContextBudget.derive(ctx.B).sendCompactAt) {
         return { outcome: 'noop', row: previous, failures: [] };

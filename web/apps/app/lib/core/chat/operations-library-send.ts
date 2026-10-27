@@ -5,6 +5,7 @@ import type {
   AIModel,
   Attachment,
   ChatMessage,
+  Citation,
   Conversation,
   Provider,
   QuoteContext,
@@ -45,6 +46,7 @@ import {
   providerControlsAreManaged,
 } from "./stream-options";
 import { generationParameterFallbackModelId, generationParameterProfileFingerprint, resolveGenerationParameterOverrides } from "./generation-parameter-settings";
+import { adoptDraftSearchSource } from '../../search/external-search-context';
 import { migrateDraftScopedModelControls } from "./draft-scope-migration";
 import { capabilityRuntimeIdentity, resolveCapabilityPreferences } from './capability-preference-settings';
 import {
@@ -90,6 +92,9 @@ import {
   readProviderErrorSource,
 } from "./agent-send-shared";
 import { withMemoryItemIds } from "./memory-item-ids";
+import { hostMemoryToolsRegistered, prepareAgentExternalSearch, type AgentExternalSearch } from "./external-search-turn";
+import { isContextOverflowFailure } from "./context-pipeline/chat-context";
+import type { SearchRegenerateAction } from "@oriveo/core/search/search-route";
 import { continueOutboundMessages, prepareLibraryServerResearch, sendMessage } from "./operations-send";
 import { CONTEXT_ASSEMBLE_CONSTANTS } from "@oriveo/core/context/assemble";
 import {
@@ -148,6 +153,10 @@ type SendLibraryMessageParams = {
   attemptKind?: ChatAttemptKind;
   /** Called once after the pre-send confirmation passes (including when none is needed) and before the first leg (same as sendMessage). */
   onSendConfirmed?: () => void;
+  /** Session web-search switch (the external search "Search method" row reads it). */
+  webSearchEnabled?: boolean;
+  /** External search regenerate basis, same as sendMessage. */
+  searchRegenerate?: { action: SearchRegenerateAction; previousCitations?: readonly Citation[] | null };
 } & LibraryMessagePresentation & LibraryRecoveryOptions;
 
 /** Sources and route of this library message; send / retry / continue share this one decision. */
@@ -326,6 +335,10 @@ export function sendLibraryMessage(
     draftSessionId: params.generationParameterDraftSessionId,
     conversationId: finalConvId,
   });
+  // New conversation created: write the draft source once under the real id.
+  if (!params.conversation && params.generationParameterDraftSessionId) {
+    adoptDraftSearchSource({ draftSessionId: params.generationParameterDraftSessionId, conversationId: finalConvId });
+  }
   const effectiveConversation =
     params.conversation ?? initialConversationSnapshot;
   // Remote MCP together with the library: the MCP entries join the same registry and share one
@@ -344,6 +357,10 @@ export function sendLibraryMessage(
         onActivity: (activity) => store.getState().setStreamingActivity(finalConvId, activity),
       })
     : null;
+  // External web search (shared tool loop): web_search joins the library loop's registry, or pre-search goes into [D].
+  let searchRef: AgentExternalSearch | null = null;
+  const searchPatch = (existing: Pick<ChatMessage, 'citations' | 'capabilityResults'> = {}): Partial<ChatMessage> =>
+    searchRef?.patch(existing, controller.signal.aborted) ?? {};
   // The final write-back of the whole message starts from the snapshot taken when the send began, so the steps recorded during the loop are carried along.
   const mcpToolStepsPatch = (): Partial<ChatMessage> => {
     const steps = mcpSession?.steps() ?? [];
@@ -392,8 +409,29 @@ export function sendLibraryMessage(
       const outbound = filterCurrentTurnAttachments(
         withoutUnreceivableImages(outboundDraft, params.provider, params.model, attachmentScopeOptions),
         userMessage.id, params.provider, params.model, undefined, attachmentScopeOptions);
+      const agentSearch = params.continueAssistant ? null : await prepareAgentExternalSearch({
+        store, provider: params.provider, model: params.model, conversationId: finalConvId,
+        reasoningMode: params.reasoningMode, webSearchEnabled: params.webSearchEnabled === true, userText: params.text,
+        ...(params.searchRegenerate ? { searchRegenerate: params.searchRegenerate } : {}),
+        host: { library: true, mcp: mcpSession !== null },
+        streamOptions: attachmentScopeOptions,
+      });
+      searchRef = agentSearch;
+      // New library sources and web results share one citation number allocator: library sources from before web_search was on enter through priorBatches, later ones take numbers through other_sources.
+      const libraryKeysBeforeSearch: string[] = [];
+      const allocateCitationIndex = agentSearch?.plan.requestHasWebSearchTool
+        ? (libraryKey: string, fallback: number) => {
+          const reply = agentSearch.reply();
+          if (!reply) {
+            libraryKeysBeforeSearch.push(libraryKey);
+            return fallback;
+          }
+          return reply.otherSources('library', [{ libraryKey }])[0] ?? fallback;
+        }
+        : undefined;
       // The assembler (purpose toolLoopLeg) produces the only system message: toolSafety = library tool description + the MCP safety prompt when MCP is also on.
       const toolLoopContext = await prepareToolLoopContext(ctx, {
+        ...(agentSearch?.webDynamic ? { webDynamic: agentSearch.webDynamic } : {}),
         conversation: effectiveConversation,
         conversationId: finalConvId,
         provider: params.provider,
@@ -512,6 +550,16 @@ export function sendLibraryMessage(
       });
       inputRejectionTapRef = inputRejectionTap;
       const config = getLibraryRuntimeConfig();
+      // memory-search.v1: in tool mode search_memory is registered after propose_memory (retry / regenerate register it the same way).
+      const searchEntry = resolveSearchMemoryMode({
+        store, conversationId: finalConvId, provider: params.provider, model: params.model, generationParameters,
+      }) === "tool" ? toolLoopContext.searchMemoryEntry() : undefined;
+      // The planned host.memoryTools = the loop registry really holds a memory tool entry (the same test as a regular send).
+      const webSearchEntry = agentSearch?.toolEntry(
+        () => toolLoopContext.searchBudget,
+        () => [{ source: 'library', items: libraryKeysBeforeSearch.map((libraryKey) => ({ libraryKey })) }],
+        { memoryTools: toolsEnabled && hostMemoryToolsRegistered({ propose: proposeEntry !== undefined, search: searchEntry !== undefined }) },
+      );
       // There is deliberately no pre-send cost confirmation here. Estimating with a fixed
       // estimatedTokensPerStep x maxSteps is unrelated to actual usage and would cross the
       // threshold on every message for expensive models, so it would prompt on every send. The
@@ -551,11 +599,25 @@ export function sendLibraryMessage(
             toolCallId,
           }),
         requestConfirmation: requestOwnConfirmation,
-        ...(mcpSession ? { additionalEntries: mcpSession.entries } : {}),
+        ...(mcpSession || webSearchEntry
+          ? { additionalEntries: [...(mcpSession?.entries ?? []), ...(webSearchEntry ? [webSearchEntry] : [])] }
+          : {}),
+        ...(allocateCitationIndex ? { allocateCitationIndex } : {}),
+        ...(webSearchEntry && agentSearch
+          ? {
+            // First leg with web_search got 400 / 422: switch to pre-search and answer again without tools (tools_rejected).
+            onWebSearchToolsRejected: async (status: number, error: unknown) => {
+              // Context too long (recognized by the overflow check) does not count as tools rejected.
+              if (isContextOverflowFailure(error, params.provider.kind, libraryOutbound.streamOptions?.relayTransport)) return null;
+              const web = await agentSearch.replanAfterRejection(status, toolLoopContext.searchBudget);
+              if (!web) return null;
+              if (proposeTicket) generateMemoryCandidate(store, proposeTicket, userMessage);
+              return toolLoopContext.chatRequest({ web });
+            },
+          }
+          : {}),
         ...(proposeEntry ? { proposeEntry } : {}),
-        ...(resolveSearchMemoryMode({
-          store, conversationId: finalConvId, provider: params.provider, model: params.model, generationParameters,
-        }) === "tool" ? { searchEntry: toolLoopContext.searchMemoryEntry() } : {}),
+        ...(searchEntry ? { searchEntry } : {}),
         onFirstLegWithoutToolCalls: async () => {
           const evidence = await buildNoToolCallFallback({
             params,
@@ -635,7 +697,10 @@ export function sendLibraryMessage(
         ),
         researchSteps: combineResearchSteps(initialSteps, result.steps),
         ...mcpToolStepsPatch(),
-        toolFallbackNotice: !toolsEnabled || result.toolFallbackApplied
+        ...searchPatch({
+          citations: mergeCitationsWithExisting(params.appendToAssistant ? assistantMessage.citations : undefined, result.citations),
+        }),
+        toolFallbackNotice: !toolsEnabled || result.toolFallbackApplied || result.webSearchReplanned
           ? 'library_not_searched'
           : undefined,
       }, toolLoopContext.memoryIds, Boolean(params.appendToAssistant));
@@ -712,10 +777,11 @@ export function sendLibraryMessage(
             state: "interrupted",
             researchSteps: currentAssistant?.researchSteps,
             ...mcpToolStepsPatch(),
+            ...searchPatch(assistantMessage),
             ...partialCostPatch,
           });
-        } else if (mcpSession) {
-          patchAssistantMessage(store, finalConvId, assistantMessage.id, mcpToolStepsPatch());
+        } else if (mcpSession || searchRef) {
+          patchAssistantMessage(store, finalConvId, assistantMessage.id, { ...mcpToolStepsPatch(), ...searchPatch(currentAssistant) });
         }
         // User stop: sent is still reported; the outcome is the stopped event from the stop side, and failed is not reported.
         reportSent();
@@ -777,6 +843,7 @@ export function sendLibraryMessage(
             : readLibraryErrorCode(error),
         ...(errorSource ? { errorSource } : {}),
         ...rejectionPatch,
+        ...searchPatch(assistantMessage),
         researchSteps: readResearchSteps(
           store,
           finalConvId,

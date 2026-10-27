@@ -100,9 +100,13 @@ import { CUSTOM_FRAGMENT_ERROR_KIND } from '../../lib/core/chat/custom-fragment-
 import type { ReasoningIntent } from '@oriveo/core/providers/request-preference/types';
 import { generationParameterProfileFingerprint } from '../../lib/core/chat/generation-parameter-settings';
 import { readComposerCapabilityPreferences, writeComposerReasoningIntent, writeComposerWebPreference } from '../../lib/core/chat/composer-web-preference';
+import { SEARCH_SERVICES_CHANGED_EVENT } from '../../lib/search/external-search-context';
+import { webSearchNativeRejected } from '../../lib/core/chat/model-option-capability-shape';
+import { loadExternalSearchSendState } from '../../lib/core/chat/external-search-send';
+import { searchConnectionsFromProviders } from '../../lib/search/search-settings-data';
 import { relayDetailPageQuery } from '../../app/providers/[providerId]/relay-detail-nav';
 import { capabilityPreferenceIdentity as resolveCapabilityPreferenceIdentity, capabilityRuntimeIdentity } from '../../lib/core/chat/capability-preference-settings';
-import { capabilityRejectionIsDormant, capabilityRejectionState, invokeCapabilityRecoveryRetry } from '../../lib/core/chat/capability-recovery-runtime';
+import { capabilityRejectionState, invokeCapabilityRecoveryRetry } from '../../lib/core/chat/capability-recovery-runtime';
 import { relayReasoningTierCacheKey, relayRejectedReasoningTiers } from '../../lib/core/chat/relay-reasoning-tiers';
 import { resolveChatCapabilityOutboundDecision } from '../../lib/core/chat/chat-capability-outbound-decision';
 import { LibraryContextPicker } from './LibraryContextPicker';
@@ -684,9 +688,7 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
   }, [account, activeLibraryConnection, libraryResearchAvailable, libraryFeatureEnabled, libraryResearchEnabled, setLibraryResearchEnabled]);
 
   const capabilityRecoveryIdentity = capabilityEvidenceStreamOptions?.capabilityRecoveryIdentity;
-  const webRuntimeRejected = capabilityRecoveryIdentity
-    ? capabilityRejectionIsDormant(capabilityRecoveryIdentity, 'web', 'provider_recipe')
-    : false;
+  const webRuntimeRejected = webSearchNativeRejected(capabilityRecoveryIdentity);
   // Reasoning rejections are per tier: the whole group goes dormant only when the tiers are not distinguished or every declared tier was rejected; otherwise just those tiers are.
   // Rejected tiers on a relay come only from the relay negative cache, the same one the outbound tier fallback uses; the 24-hour parameter self-heal cache is not read.
   const relayTierKey = provider && currentModel ? relayReasoningTierCacheKey(provider, currentModel) : null;
@@ -717,6 +719,31 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
     // customFragmentSettingsVersion is the change signal
     // for local custom configuration (the editor broadcasts on every keystroke); the facts themselves are read from that same store on demand
   ), [capabilityPreferenceIdentity, currentModel, customFragmentSettingsVersion, provider]);
+  /**
+   * Composer web-search chip: whether it lights up reads only chipLit from the combined entry (null = the previous liveness). Recomputed when the source, service list, model, session,
+   * or session web search changes; source and service-list changes arrive via a one-shot event, no polling. Read-only.
+   */
+  const [searchStateRevision, setSearchStateRevision] = useState(0);
+  useEffect(() => {
+    const refresh = () => setSearchStateRevision((revision) => revision + 1);
+    window.addEventListener(SEARCH_SERVICES_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(SEARCH_SERVICES_CHANGED_EVENT, refresh);
+  }, []);
+  const [webChipLit, setWebChipLit] = useState<boolean | null>(null);
+  useEffect(() => {
+    setWebChipLit(null);
+    if (!provider || !currentModel) return;
+    let cancelled = false;
+    void loadExternalSearchSendState({
+      provider, model: currentModel, conversationId: effectiveId ?? undefined, draftSessionId: generationParameterDraftSessionId,
+      reasoningMode, webOn: webPreference !== 'off',
+      connections: searchConnectionsFromProviders(providers),
+    }).then((state) => {
+      if (!cancelled) setWebChipLit(state?.chipLit ?? null);
+    }, () => {});
+    return () => { cancelled = true; };
+  }, [currentModel, effectiveId, generationParameterDraftSessionId, metadataVersion, provider, providers, reasoningMode, searchStateRevision, webPreference]);
+
   const capabilityOutboundDecision = resolveChatCapabilityOutboundDecision({
     webRequested: webSearchEnabled && !effectiveLibraryResearchEnabled,
     webControl,
@@ -858,6 +885,11 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
       void retry(messageId, options);
     });
   }, [effectiveId, retry, provider, currentModel]);
+
+  // External web search: "regenerate and search again" (menu item, error-card retry / switch service) does not reuse the previous result.
+  const handleRegenerateWithSearch = useCallback((messageId: string) => {
+    void retry(messageId, { searchRegenerateAction: 're_search' });
+  }, [retry]);
 
   const handleLibraryContextOpen = useCallback(() => {
     if (!libraryFeatureEnabled) return;
@@ -1417,6 +1449,7 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
             />
           )}
         onRetry={retry}
+        onRegenerateWithSearch={handleRegenerateWithSearch}
         onRetryWithoutCustom={handleRetryWithoutCustom}
         onEditAndResend={handleEditAndResend}
         editReopen={editReopen}
@@ -1498,7 +1531,9 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
         webPreference={webPreference}
         onWebPreferenceChange={handleWebPreferenceChange}
         webOutboundActive={capabilityOutboundDecision.hasWebSelection}
+        webChipLit={effectiveLibraryResearchEnabled ? null : webChipLit}
         webRuntimeRejected={webRuntimeRejected}
+        searchDraftSessionId={generationParameterDraftSessionId}
         libraryResearchEnabled={libraryFeatureEnabled ? libraryResearchEnabled : undefined}
         onLibraryResearchToggle={libraryFeatureEnabled ? handleLibraryResearchToggle : undefined}
         currentModel={currentModel}

@@ -233,6 +233,8 @@ export interface ToolLoopResult {
  */
 export interface ToolLoopErrorDiagnostics {
   status?: number;
+  /** HTTP error status code (used for overflow detection; same meaning as StreamEvent.httpStatus). */
+  httpStatus?: number;
   streamErrorFrame?: true;
   upstreamErrorType?: string;
   networkDetail?: ChatNetworkDetail;
@@ -246,6 +248,7 @@ export interface ToolLoopErrorDiagnostics {
 export function toolLoopErrorDiagnostics(event: Extract<StreamEvent, { type: 'error' }>): ToolLoopErrorDiagnostics {
   return {
     ...(event.status !== undefined ? { status: event.status } : {}),
+    ...(event.httpStatus !== undefined ? { httpStatus: event.httpStatus } : {}),
     ...(event.streamErrorFrame ? { streamErrorFrame: true as const } : {}),
     ...(event.upstreamErrorType ? { upstreamErrorType: event.upstreamErrorType } : {}),
     ...(event.networkDetail ? { networkDetail: event.networkDetail } : {}),
@@ -267,6 +270,7 @@ export class ToolLoopError extends Error implements ToolLoopErrorDiagnostics {
   /** Attribution fields passed at construction (also spread onto the own properties below), for callers that wrap once more. */
   readonly diagnostics: ToolLoopErrorDiagnostics;
   declare readonly status?: number;
+  declare readonly httpStatus?: number;
   declare readonly streamErrorFrame?: true;
   declare readonly upstreamErrorType?: string;
   declare readonly networkDetail?: ChatNetworkDetail;

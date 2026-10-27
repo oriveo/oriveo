@@ -61,6 +61,11 @@ export type TelemetryEventName =
   | 'mcp_confirm_choice'
   | 'mcp_tools_changed'
   | 'mcp_server_removed'
+  // External web search
+  | 'search_service_added'
+  | 'search_service_removed'
+  | 'search_executed'
+  | 'search_fallback_presearch'
   // Local content
   | 'skill_used'
   | 'skill_created'
@@ -119,6 +124,10 @@ export const TELEMETRY_EVENTS: readonly TelemetryEventName[] = [
   'mcp_confirm_choice',
   'mcp_tools_changed',
   'mcp_server_removed',
+  'search_service_added',
+  'search_service_removed',
+  'search_executed',
+  'search_fallback_presearch',
   'skill_used',
   'skill_created',
   'skill_forked',

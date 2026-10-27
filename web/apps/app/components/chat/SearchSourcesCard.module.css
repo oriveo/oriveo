@@ -1,0 +1,64 @@
+.card {
+  gap: 4px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--o-text-secondary);
+  font: inherit;
+  font-size: var(--o-text-sm);
+  text-align: start;
+  cursor: default;
+}
+
+button.header {
+  cursor: pointer;
+}
+
+.globe {
+  flex-shrink: 0;
+  margin-top: 3px;
+  color: var(--o-text-tertiary);
+}
+
+.titleText {
+  flex: 1;
+  min-width: 0;
+  /* Wraps on narrow widths: the source count must stay visible (no ellipsis). */
+  overflow-wrap: anywhere;
+}
+
+.badge {
+  margin-inline-start: 6px;
+  padding: 0 6px;
+  border-radius: var(--o-radius-sm, 4px);
+  background: var(--o-surface-raised);
+  border: 1px solid var(--o-border);
+  color: var(--o-text-tertiary);
+  font-size: 11px;
+}
+
+.chevron,
+.chevronOpen {
+  flex-shrink: 0;
+  margin-top: 3px;
+  color: var(--o-text-tertiary);
+  transition: transform 160ms ease;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron,
+  .chevronOpen {
+    transition: none;
+  }
+}

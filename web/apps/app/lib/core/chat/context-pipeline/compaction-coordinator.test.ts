@@ -132,6 +132,19 @@ describe('compaction coordinator', () => {
     expect(await listContextCheckpoints('c1')).toEqual([expected]);
   });
 
+  it('coordinator_pre_send_reuses_row_landed_after_assembly_without_waiting', async () => {
+    // Send arrives a step late: pre-compaction already finished and persisted its row, but send assembly has not used it yet → hand it back directly instead of summarizing the same span again.
+    const summarize = vi.fn(async (_req: SummaryRequest) => VALID);
+    const landed = await coordinator(summarize).compact('c1', 'preSend');
+    expect(landed.row?.kind).toBe('summary');
+
+    const late = await coordinator(summarize).compact('c1', 'preSend', { assembledCheckpointId: null });
+
+    expect(summarize).toHaveBeenCalledTimes(1);
+    expect(late.row?.checkpointId).toBe(landed.row?.checkpointId);
+    expect(await listContextCheckpoints('c1')).toHaveLength(1);
+  });
+
   it('coordinator_ai_mode_saves_summary_row', async () => {
     const summarize = vi.fn(async (_req: SummaryRequest) => VALID);
     const result = await coordinator(summarize).compact('c1', 'preSend');

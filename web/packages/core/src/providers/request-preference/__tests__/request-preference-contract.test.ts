@@ -20,7 +20,7 @@ import {
   resolveLayers, resolveSelection, validateAssignments,
   type ConflictRejectReason, type SelectionRejectReason,
 } from '../preference-resolution';
-import { classifyResult } from '../result-facts';
+import { classifyResult, EXTERNAL_SEARCH_RESULT_FACTS } from '../result-facts';
 import { resolveRetry } from '../retry';
 import { validateOverlay, type OverlayRejectReason } from '../safe-overlay';
 import { composeContributions } from '../tool-contributions';
@@ -206,6 +206,24 @@ describe('request_preference_contract.v2 consumption (resolver.ts)', () => {
       + toolContributionCases.length + resultCases.length + continuationCases.length + retryCases.length;
     expect(total).toBe(62);
   });
+
+  it('resultFacts.externalSearch: matches the result-facts.v1 constants, is not recipe evidence, local constants are equal', () => {
+    const raw = contract as unknown as {
+      vocabulary: { resultSources: string[]; localExecutionEvidenceKinds: string[]; observationEvidenceKinds: string[] };
+      resultFacts: { externalSearch: { source: string; evidenceKind: string; states: string[] } };
+    };
+    const shared = JSON.parse(readFileSync(findSharedContract('result-facts.v1.json', 'search-contracts'), 'utf8')) as {
+      constants: { states: string[]; source: string; evidenceKind: string };
+    };
+    const external = raw.resultFacts.externalSearch;
+    expect({ source: external.source, evidenceKind: external.evidenceKind, states: external.states }).toEqual(shared.constants);
+    expect(raw.vocabulary.resultSources).toContain(external.source);
+    expect(raw.vocabulary.localExecutionEvidenceKinds).toContain(external.evidenceKind);
+    expect(raw.vocabulary.observationEvidenceKinds).not.toContain('external_search_result');
+    expect({ ...EXTERNAL_SEARCH_RESULT_FACTS, states: [...EXTERNAL_SEARCH_RESULT_FACTS.states] }).toEqual(shared.constants);
+    // Local execution evidence does not upgrade the recipe: observationEvidenceKinds cannot judge observed.
+    expect(classifyResult({ wireApplied: true, providerAccepted: true, evidenceKinds: ['external_search_result'] }).state).toBe('unconfirmed');
+  });
 });
 
 describe('request_shape_contract.v2 consumption, client-relevant groups (capability-runtime.ts)', () => {
@@ -317,10 +335,10 @@ function loadShapeContract(): ShapeContract {
   ) as ShapeContract;
 }
 
-function findSharedContract(fileName: string): string {
+function findSharedContract(fileName: string, dir = 'model-contracts'): string {
   let current = process.cwd();
   while (true) {
-    const candidate = path.join(current, 'shared', 'model-contracts', fileName);
+    const candidate = path.join(current, 'shared', dir, fileName);
     if (existsSync(candidate)) return candidate;
     const parent = path.dirname(current);
     if (parent === current) throw new Error(`${fileName} not found`);

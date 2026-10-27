@@ -184,6 +184,8 @@ export function createMcpSendSession(input: {
   onActivity?: (activity: 'mcp_tool' | null) => void;
   /** A step reached a terminal state (done / failed / denied / needsAuth / interrupted). */
   onStepSettled?: (update: McpToolStepUpdate) => void;
+  /** When this turn's context contains web results, write tools are forced to "this time only" confirmation; omitted = as before. */
+  webResultsPresent?: () => boolean;
 }): McpSendSession {
   const runtimeConfig = input.runtimeConfig ?? currentMcpRuntimeConfig();
   let steps: McpToolStep[] = [...(input.initialSteps ?? [])];
@@ -243,6 +245,7 @@ export function createMcpSendSession(input: {
     // off, or a tool set to "do not use" or quarantined is no longer called.
     revalidate: (serverId) => currentMcpServerInput(input.uid, input.conversationId, serverId),
     onStep,
+    ...(input.webResultsPresent ? { webResultsPresent: input.webResultsPresent } : {}),
   });
   return { entries: createMcpToolEntries(input.plan, executor), steps: () => [...steps] };
 }

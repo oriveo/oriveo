@@ -116,6 +116,11 @@ export interface AssembleDynamic {
   recall?: RecallEntry[];
   /** Absent: no library envelope. Empty array: sources searched, nothing found (libraryEmptyEntry). */
   library?: LibraryEntry[];
+  /**
+   * Content from external web search pre-search / resend reuse: applySearchEvent's deliver.content verbatim
+   * (the <oriveo-web> envelope or fixed sentence), already escaped and truncated to budget; placed in [D] right after <oriveo-library>. Absent / empty string is not placed.
+   */
+  web?: string;
   attachmentGuide?: string;
   /** 'voice': append the <oriveo-delivery> envelope last in [D] (chat / toolLoopLeg / continue only). Absent / null: unchanged. */
   delivery?: 'voice' | null;
@@ -520,6 +525,8 @@ function assemble(input: AssembleInput): ContextPlan {
     const libraryInput = input.dynamic?.library;
     const library = libraryInput ? envelope('oriveo-library', libraryEnvelopeEntries(libraryInput)) : null;
     if (library) parts.push(library.text);
+    const web = input.dynamic?.web ?? '';
+    if (web.length > 0) parts.push(web);
     const guide = trimWhiteSpace(input.dynamic?.attachmentGuide ?? '');
     if (guide.length > 0) parts.push(`<oriveo-attachment-guide>\n${guide}\n</oriveo-attachment-guide>`);
 

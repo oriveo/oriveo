@@ -11,6 +11,7 @@ import type { StreamOptions } from '@oriveo/core/providers/types';
 import { CONTEXT_ASSEMBLE_CONSTANTS, ContextAssembler } from '@oriveo/core/context/assemble';
 import { UNANSWERED_ENVELOPE_NOTE } from '@oriveo/core/context/sanitize';
 import { MemoryItems, type MemoryItem, type MemoryItemInput } from '@oriveo/core/context/memory-items';
+import { searchedRecordLine } from '@oriveo/core/search/search-turn';
 
 const mocks = vi.hoisted(() => ({
   sendStream: vi.fn(),
@@ -374,6 +375,23 @@ describe('context pipeline send path', () => {
       `<oriveo-unanswered>\n<note>${UNANSWERED_ENVELOPE_NOTE}</note>\nfirst question\n</oriveo-unanswered>\n\nsecond question`,
     );
     expectSystemFromPlan(body);
+  });
+
+  it('history_search_record_without_body_has_no_leading_blank', async () => {
+    const citations = [
+      { url: 'https://a.example/', title: 'A', snippet: 'a', source: 'external_search', query: 'q1', index: 1 },
+    ] as ChatMessage['citations'];
+    const history: ChatMessage[] = [
+      { id: 'u1', role: 'user', text: 'first question', state: 'delivered', createdAt: '2026-10-15T00:00:01.000Z' } as ChatMessage,
+      { id: 'a1', role: 'assistant', text: '', state: 'delivered', citations, createdAt: '2026-10-15T00:00:02.000Z' } as ChatMessage,
+      { id: 'u2', role: 'user', text: 'second question', state: 'delivered', createdAt: '2026-10-15T00:00:03.000Z' } as ChatMessage,
+      { id: 'a2', role: 'assistant', text: 'answer two', state: 'delivered', citations, createdAt: '2026-10-15T00:00:04.000Z' } as ChatMessage,
+    ];
+    const store = newStore({ messages: history });
+    await send(store, 'third question', { prevMessages: history });
+    const record = searchedRecordLine([{ source: 'external_search', query: 'q1', title: 'A', url: 'https://a.example/' }]);
+    const assistants = lastBody().messages.filter((m) => m.role === 'assistant').map(textOf);
+    expect(assistants).toEqual([record, `answer two\n\n${record}`]);
   });
 
   it('retry_body_from_plan', async () => {

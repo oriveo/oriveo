@@ -27,6 +27,15 @@ import { resolveStreamActivityPresentation } from "../../lib/core/chat/stream-ac
 import { UserAvatar } from "../common/UserAvatar";
 import { useAppStore } from "../../providers/StoreProvider";
 import { CitationsBlock } from "./CitationsBlock";
+import { SearchSourcesCard } from "./SearchSourcesCard";
+import { SearchErrorCard } from "./SearchErrorCard";
+import { ExternalSearchActivity, useExternalSearchActivityView } from "./ExternalSearchActivity";
+import {
+  offersRegenerateWithSearch,
+  searchActivityPresentation,
+  searchNoticeKey,
+  searchSourcesRecord,
+} from "../../lib/search/search-chat-presentation";
 import { ResearchProgressBlock } from "./ResearchProgressBlock";
 import { McpToolStepsBlock } from "../mcp/McpToolStepsBlock";
 import { mcpToolStepDisplayTitle } from "../../lib/core/mcp/mcp-tool-steps";
@@ -116,6 +125,8 @@ interface MessageBubbleProps {
   interactionLocked?: boolean;
   sameSpeaker?: boolean;
   onRetry?: () => void;
+  /** External web search: regenerate and search again (menu item, error card retry / answer with). */
+  onRegenerateWithSearch?: () => void;
   onRetryWithoutCustom?: () => void;
   onEditAndResend?: (newText: string) => void;
   /** Reopen the edit box with this text (edit-and-resend cancelled at the pre-send confirm). */
@@ -133,6 +144,8 @@ interface MessageBubbleProps {
   savedNoteRefs?: SavedNoteRef[];
   /** Last message of the conversation: recovery cards (continue / retry) only render here, so middle messages cannot be continued or retried */
   isLastMessage?: boolean;
+  /** Dev shots only: open the external search sources card. */
+  searchSourcesExpanded?: boolean;
 }
 
 export const MessageBubble = memo(function MessageBubble({
@@ -142,6 +155,7 @@ export const MessageBubble = memo(function MessageBubble({
   interactionLocked = false,
   sameSpeaker,
   onRetry,
+  onRegenerateWithSearch,
   onRetryWithoutCustom,
   onEditAndResend,
   editReopen,
@@ -152,6 +166,7 @@ export const MessageBubble = memo(function MessageBubble({
   sourcePrompt,
   savedNoteRefs = [],
   isLastMessage = false,
+  searchSourcesExpanded = false,
 }: MessageBubbleProps) {
   const router = useRouter();
   const isStreaming =
@@ -208,6 +223,16 @@ export const MessageBubble = memo(function MessageBubble({
     quiet: streamQuiet,
   });
 
+  // Activity row of external web search: the streaming activity external_search plus this reply's search queries; replaces the generic waiting feedback when present.
+  const externalSearchView = useExternalSearchActivityView(streamingConvId);
+  const externalSearchActivity = searchActivityPresentation({
+    isGenerating: isStreaming && message.role === "assistant",
+    hasBodyText: Boolean(displayText),
+    hasReasoningText: Boolean(streamingReasoningText),
+    activity: streamingActivity,
+    view: externalSearchView,
+  });
+
   // The server name and tool title for the `mcp_tool` activity are read from the step that is currently running.
   const runningMcpStep = isStreaming
     ? [...(message.toolSteps ?? [])].reverse().find((step) => step.status === "running")
@@ -228,15 +253,18 @@ export const MessageBubble = memo(function MessageBubble({
   const tCtx = useTranslations("contextMenu");
   const tErrors = useTranslations("errors");
   const tInput = useTranslations("capability.input");
+  const tWebSearch = useTranslations("webSearch");
   // Reply notice for relay web search: kept in session memory only, not a message field.
   const relayWebNotice = useRelayWebReplyNotice(message.id);
   const libraryFeatureEnabled = isLibraryFeatureEnabled();
   // The Library switch only hides Library documents; web search sources stay visible even when the server leaves library.enabled=false.
+  // External search sources go into their own sources card (titles are read from the stored facts) and no longer mix into the generic citation block.
+  const searchRecord = message.role === "assistant" ? searchSourcesRecord(message) : null;
   const visibleCitations = useMemo(
-    () => (libraryFeatureEnabled
-      ? message.citations ?? []
-      : (message.citations ?? []).filter((citation) => !LIBRARY_CITATION_SOURCES.has(citation.source ?? ""))),
-    [libraryFeatureEnabled, message.citations],
+    () => (message.citations ?? []).filter((citation) =>
+      (libraryFeatureEnabled || !LIBRARY_CITATION_SOURCES.has(citation.source ?? ""))
+      && !(searchRecord && citation.source === "external_search")),
+    [libraryFeatureEnabled, message.citations, searchRecord],
   );
   const {
     editing,
@@ -415,6 +443,8 @@ export const MessageBubble = memo(function MessageBubble({
   const hasFailureCopy = Boolean(message.errorTitle || message.errorKind);
 
   const deliveredRetryAction = interactionLocked ? undefined : onRetry;
+  // Same gate as regenerate (locked while streaming), independent of onRetry.
+  const regenerateWithSearch = interactionLocked ? undefined : onRegenerateWithSearch;
   // Incomplete / filtered answer notice (stop-reason.v1 ui); hidden while a recovery card is shown.
   const replyNotice = replyNoticeOf({
     role: message.role,
@@ -532,10 +562,14 @@ export const MessageBubble = memo(function MessageBubble({
     ];
     if (deliveredRetryAction)
       items.push({ label: tCtx("regenerate"), onAction: deliveredRetryAction });
+    if (regenerateWithSearch && offersRegenerateWithSearch(message))
+      items.push({ label: tWebSearch("chat.regenerateWithSearch"), onAction: regenerateWithSearch });
     return items;
   }, [
     message,
     tCtx,
+    tWebSearch,
+    regenerateWithSearch,
     onEditAndResend,
     deliveredRetryAction,
     handleStartEdit,
@@ -665,7 +699,9 @@ export const MessageBubble = memo(function MessageBubble({
                   onPreview={handleFilePreview}
                 />
               )}
-              {isWaitingForResponse ? (
+              {isWaitingForResponse && externalSearchActivity ? (
+                <ExternalSearchActivity presentation={externalSearchActivity} />
+              ) : isWaitingForResponse ? (
                 <TypingIndicator
                   activity={
                     activityPresentation.kind === "typingLabel"
@@ -703,7 +739,9 @@ export const MessageBubble = memo(function MessageBubble({
               ) : (
                 <span data-quote-block="prose">{displayText}</span>
               )}
-              {activityPresentation.kind === "line" ? (
+              {!isWaitingForResponse && externalSearchActivity ? (
+                <ExternalSearchActivity presentation={externalSearchActivity} />
+              ) : activityPresentation.kind === "line" ? (
                 <StreamActivityLine label={activityPresentation.label} mcp={mcpActivityContext} />
               ) : null}
               {message.role === "assistant" && (message.unhandledToolCalls?.length || message.toolFallbackNotice) ? (
@@ -729,6 +767,22 @@ export const MessageBubble = memo(function MessageBubble({
                   isStreaming={isStreaming}
                 />
               )}
+            {searchRecord && !isStreaming && (
+              <SearchSourcesCard
+                record={searchRecord}
+                citations={message.citations}
+                defaultExpanded={searchSourcesExpanded}
+              />
+            )}
+            {message.role === "assistant" && message.searchErrorCard && !isStreaming && (
+              <SearchErrorCard
+                card={message.searchErrorCard}
+                isLastMessage={isLastMessage}
+                conversation={conversation}
+                disabled={interactionLocked}
+                onRegenerateWithSearch={regenerateWithSearch}
+              />
+            )}
             {message.role === "assistant" &&
               libraryFeatureEnabled &&
               message.researchSteps &&
@@ -842,6 +896,9 @@ export const MessageBubble = memo(function MessageBubble({
               )}
             {relayWebNotice === 'web_not_used' && message.role === "assistant" && !isStreaming && !isFailed && (
               <p className={styles.relayWebReplyNotice}>{tCommon("relayWebReplyNotUsed")}</p>
+            )}
+            {message.role === "assistant" && !isStreaming && searchNoticeKey(message) && (
+              <p className={styles.relayWebReplyNotice}>{tWebSearch("chat.toolsRejectedNotice")}</p>
             )}
             {replyNotice && (
               <ReplyNotice notice={replyNotice} onContinue={onContinue} />

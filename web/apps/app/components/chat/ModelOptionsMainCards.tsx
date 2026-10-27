@@ -6,7 +6,8 @@ import { Check, ChevronRight } from 'lucide-react';
 import { BrainIcon, CheckIcon, EyeIcon, GlobeIcon, PaperclipIcon, QuestionIcon, SlidersHorizontalIcon, ThermometerSimpleIcon, XIcon } from '@phosphor-icons/react';
 import { useCopy } from '../generation/useCopy';
 import type { ModelControlFooterEntry } from '../../lib/core/chat/model-control-capability-layout';
-import type { ModelOptionLinkAction } from '../../lib/core/chat/model-option-capability-shape';
+import { WEB_ROUTE_LINK_ACTIONS, type ModelOptionLinkAction } from '../../lib/core/chat/model-option-capability-shape';
+import type { WebSearchCardActionText } from '@oriveo/core/search/search-route';
 import type { ModelOptionsPanelModel, ModelOptionsPanelRow, ModelOptionsTile } from '../../lib/core/chat/model-options-panel-model';
 import {
   GENERATION_PARAMETER_UNSET_LABEL_KEYS,
@@ -22,9 +23,11 @@ import {
   modelOptionsReasoningLevelCountCopy,
   modelOptionsSummaryItemCopy,
   modelOptionsTileBodyCopy,
+  modelOptionsTileNotesCopy,
   modelOptionsTileStatusCopy,
   reasoningTierLabelCopy,
   reasoningTierNoteCopy,
+  webSearchCardCopy,
 } from '../../lib/core/chat/model-options-copy';
 import styles from './InputComposer.module.css';
 import main from './ModelOptionsMainCards.module.css';
@@ -38,7 +41,7 @@ export type ModelOptionsCardActions = {
   /** Returns false when there is no destination, and the exit is not drawn. */
   canFollow: (link: ModelOptionLinkAction) => boolean;
   follow: (link: ModelOptionLinkAction, capability: 'web' | 'reasoning') => void;
-  onToggle: (row: Extract<ModelOptionsPanelRow, { kind: 'toggle' | 'toggleWithTiming' }>, isOn: boolean) => void;
+  onToggle: (row: Extract<ModelOptionsPanelRow, { kind: 'toggle' | 'toggleWithTiming' | 'toggleWithSource' }>, isOn: boolean) => void;
   onWebTiming: (timing: 'automatic' | 'force') => void;
   onTier: (tapped: string, options: readonly string[], current: string | undefined) => void;
   onAdvancedSettingsLink: () => void;
@@ -94,9 +97,48 @@ export function ModelOptionsCapabilityCard({ model, actions, notes }: {
     );
   }
 
+  /** External search actions on the web card (source sub-row / turn on in one tap / add a search service): not drawn when the destination is missing. */
+  const searchAction = (text: WebSearchCardActionText | null, variant: 'link' | 'primary') => {
+    if (!text) return null;
+    const target = WEB_ROUTE_LINK_ACTIONS[text.action];
+    if (!actions.canFollow(target)) return null;
+    return (
+      <button
+        type="button"
+        className={variant === 'primary' ? main.primaryAction : styles.modelControlInlineAction}
+        data-variant={variant === 'link' ? 'link' : undefined}
+        data-search-action={text.action}
+        onClick={() => actions.follow(target, 'web')}
+      >
+        {copy(webSearchCardCopy(text))}
+      </button>
+    );
+  };
+
   /** In-card controls: the switch sits top right; the timing segments and tier segments go below the status line. */
-  const tileControl = (tile: Extract<ModelOptionsTile, { kind: 'capability' }>, title: string) => {
+  const tileControl = (tile: Extract<ModelOptionsTile, { kind: 'capability' }>, title: string): React.ReactNode => {
     const row = tile.row;
+    if (row.kind === 'toggleWithSource') {
+      return (
+        <>
+          {row.native && tileControl({ ...tile, row: row.native }, title)}
+          {searchAction(row.card.link, 'link')}
+          {searchAction(row.card.cta, 'primary')}
+        </>
+      );
+    }
+    if ('searchCard' in row && row.searchCard) {
+      const card = row.searchCard;
+      return (
+        <>
+          {tileControl({ ...tile, row: { ...row, searchCard: undefined } as typeof row }, title)}
+          {searchAction(card.link, 'link')}
+          {searchAction(card.cta, 'primary')}
+          {/* When the pre-existing way out (existing_with_actions) is still present, the secondary action is that one; do not draw it twice. */}
+          {!('link' in row && row.link) && searchAction(card.secondary, 'link')}
+        </>
+      );
+    }
     if (row.kind === 'toggleWithTiming') {
       return (
         <Segments
@@ -127,7 +169,7 @@ export function ModelOptionsCapabilityCard({ model, actions, notes }: {
   const corner = (tile: ModelOptionsTile, title: string) => {
     switch (tile.corner) {
       case 'switch': {
-        const row = tile.kind === 'capability' && (tile.row.kind === 'toggle' || tile.row.kind === 'toggleWithTiming') ? tile.row : undefined;
+        const row = tile.kind === 'capability' && (tile.row.kind === 'toggle' || tile.row.kind === 'toggleWithTiming' || tile.row.kind === 'toggleWithSource') ? tile.row : undefined;
         return row ? (
           <Switch
             label={title}
@@ -159,6 +201,7 @@ export function ModelOptionsCapabilityCard({ model, actions, notes }: {
     const title = copy({ key: tile.kind === 'capability' ? MODEL_OPTION_CAPABILITY_TITLE_KEYS[tile.capability] : MODEL_OPTIONS_INFO_TILE_TITLE_KEYS[tile.kind] });
     const status = modelOptionsTileStatusCopy(tile);
     const body = modelOptionsTileBodyCopy(tile);
+    const notes = modelOptionsTileNotesCopy(tile);
     const action = tile.kind === 'capability' && tile.action && actions.canFollow(tile.action) ? tile.action : undefined;
     const content = (
       <>
@@ -168,7 +211,9 @@ export function ModelOptionsCapabilityCard({ model, actions, notes }: {
         </span>
         <span className={styles.modelControlCardTitle}>{title}</span>
         {status && <span className={main.tileStatus}>{copy(status)}</span>}
-        {body && <span className={main.tileBody}>{copy(body)}</span>}
+        {notes
+          ? notes.map((note, index) => <span key={index} className={main.tileBody} data-search-note>{copy(note)}</span>)
+          : body && <span className={main.tileBody}>{copy(body)}</span>}
       </>
     );
     return (

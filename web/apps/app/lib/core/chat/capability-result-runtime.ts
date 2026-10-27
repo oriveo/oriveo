@@ -6,7 +6,9 @@
  * citation is never enough on its own to claim an observed capability.
  */
 import type { StreamEvent } from '../providers/types';
-import { classifyResult } from '@oriveo/core/providers/request-preference/result-facts';
+import { classifyResult, EXTERNAL_SEARCH_RESULT_FACTS } from '@oriveo/core/providers/request-preference/result-facts';
+import type { SearchFacts } from '@oriveo/core/search/search-inject';
+import type { ChatMessage } from '@oriveo/shared';
 
 export type CapabilityResultOwner = 'web' | 'reasoning' | 'generation';
 export type CapabilityResultSource = 'provider_recipe' | 'custom';
@@ -149,6 +151,32 @@ export function collectCapabilityResults(
     });
     return { owner: entry.owner, state: facts.state, source: entry.source, revision: context.revision };
   });
+}
+
+/** Revision of external search facts: the vocabulary version (not the recipe envelope revision). */
+export const EXTERNAL_SEARCH_RESULT_REVISION = 'oriveo.search.result-facts/v1';
+
+/**
+ * Message facts for external web search: finishSearchReply.facts go verbatim into this message's capability result,
+ * owner web, source external_search. Not written when external search was not used (not_requested). Sits alongside recipe facts; neither upgrades the other.
+ */
+export function externalSearchCapabilityResult(
+  facts: SearchFacts,
+  { reused = false, custom = false }: { reused?: boolean; custom?: boolean } = {},
+): NonNullable<ChatMessage['capabilityResults']>[number] | null {
+  if (facts.state === 'not_requested' || facts.source !== EXTERNAL_SEARCH_RESULT_FACTS.source) return null;
+  return {
+    owner: 'web',
+    state: facts.state,
+    source: 'external_search',
+    revision: EXTERNAL_SEARCH_RESULT_REVISION,
+    searchCount: facts.searchCount,
+    sourceCount: facts.sourceCount,
+    ...(facts.serviceName ? { serviceName: facts.serviceName } : {}),
+    ...(facts.evidenceKind ? { evidenceKind: facts.evidenceKind } : {}),
+    ...(reused ? { reused: true } : {}),
+    ...(custom ? { custom: true } : {}),
+  };
 }
 
 /** Final proxy dispatch facts, shown only while its corresponding request is in flight. */

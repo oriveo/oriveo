@@ -1,4 +1,5 @@
 import type { StoreApi } from 'zustand';
+import { deleteConversationSearchSource } from '../../search/search-service-store';
 import type { Conversation } from '@oriveo/shared';
 import type { AppStore } from './app-store';
 import {
@@ -98,6 +99,8 @@ export function subscribeConversations(store: StoreApi<AppStore>): () => void {
         // with its local copy. This layer, not the delete entry points, is the one place every way
         // a conversation can leave the store passes through.
         forgetMcpConversation(c.id);
+        // The conversation's external search source (conversationSource:<id>) is likewise local-only and is deleted in the same place.
+        void deleteConversationSearchSource(getActiveUIDSync(), c.id).catch(() => {});
       }
       prev = prev.filter((c) => current.has(c.id));
     }

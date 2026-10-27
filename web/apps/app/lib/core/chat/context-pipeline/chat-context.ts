@@ -27,6 +27,7 @@ import type { StopFamily, StopReason } from '@oriveo/core/context/stop-reason';
 import { ContextCheckpoint } from '@oriveo/core/context/checkpoint';
 import type { ContextPlanReject } from '@oriveo/core/context/plan';
 import type { ContextMessage } from '@oriveo/core/context/message';
+import { searchedRecordLine } from '@oriveo/core/search/search-turn';
 import { RhoCalibration } from '@oriveo/core/context/calibration';
 import type { ContinuationFingerprint } from '@oriveo/core/providers/request-builders/types';
 import type { AppStore } from '../../store/app-store';
@@ -133,12 +134,18 @@ export function displayRhoHiOf(provider: Provider | undefined, modelId: string |
   return rhoHiOf(provider, modelId);
 }
 
-function toContextMessage(message: ChatMessage): ContextMessage | null {
+function toContextMessage(message: ChatMessage, keepAssistantId: string | undefined): ContextMessage | null {
   if (message.role !== 'user' && message.role !== 'assistant') return null;
+  // Compact external-search record of a past assistant message: only query, titles and URLs, appended after the body with a blank line; if the body is empty only the record line is used.
+  // The answer being continued / retried (keepAssistantId) is not appended: it is the body to continue this turn, not history.
+  const searched = message.role === 'assistant' && message.id !== keepAssistantId
+    ? searchedRecordLine(message.citations?.map((c) => ({ source: c.source ?? '', query: c.query, title: c.title ?? c.url, url: c.url })))
+    : null;
+  const body = message.text ?? '';
   return {
     id: message.id,
     role: message.role,
-    text: message.text ?? '',
+    text: searched ? (body ? `${body}\n\n${searched}` : searched) : body,
     state: message.state,
     attachments: message.attachments ?? [],
   };
@@ -162,7 +169,7 @@ export async function prepareChatContextAssembly(input: {
     rhoHiOf(input.provider, input.model.id),
   ]);
   const history = input.messages
-    .map(toContextMessage)
+    .map((message) => toContextMessage(message, input.keepAssistantId))
     .filter((message): message is ContextMessage => message !== null);
   const expandedUserTexts: Record<string, string> = {};
   for (const message of input.messages) {

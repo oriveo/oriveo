@@ -8,12 +8,12 @@ import type { MessageEditReopen } from '../../lib/hooks/useMessageEdit';
 /** Middle layer that stabilizes the callback references for each message so the memo on MessageBubble actually holds */
 export const MessageListItem = memo(function MessageListItem({
   messageId, message, provider, streamingText, prevRole,
-  interactionLocked, onRetry, onRetryWithoutCustom, onEditAndResend, editReopen, onContinueAnswering, onSwitchModel, conversationId, conversation, sourcePrompt,
+  interactionLocked, onRetry, onRegenerateWithSearch, onRetryWithoutCustom, onEditAndResend, editReopen, onContinueAnswering, onSwitchModel, conversationId, conversation, sourcePrompt,
   savedNoteRefs, isLastMessage,
 }: {
   messageId: string; message: ChatMessage; provider: Provider | undefined; streamingText?: string; prevRole?: string;
   interactionLocked?: boolean;
-  onRetry?: (id: string) => void; onRetryWithoutCustom?: (id: string) => void; onEditAndResend?: (id: string, text: string) => void;
+  onRetry?: (id: string) => void; onRegenerateWithSearch?: (id: string) => void; onRetryWithoutCustom?: (id: string) => void; onEditAndResend?: (id: string, text: string) => void;
   editReopen?: MessageEditReopen;
   onContinueAnswering?: (id: string) => void; onSwitchModel?: () => void;
   conversationId?: string | null;
@@ -23,6 +23,7 @@ export const MessageListItem = memo(function MessageListItem({
   isLastMessage?: boolean;
 }) {
   const handleRetry = useCallback(() => onRetry?.(message.id), [onRetry, message.id]);
+  const handleRegenerateWithSearch = useCallback(() => onRegenerateWithSearch?.(message.id), [onRegenerateWithSearch, message.id]);
   const handleRetryWithoutCustom = useCallback(() => onRetryWithoutCustom?.(message.id), [onRetryWithoutCustom, message.id]);
   const handleEdit = useCallback((newText: string) => onEditAndResend?.(message.id, newText), [onEditAndResend, message.id]);
   const handleContinue = useCallback(() => onContinueAnswering?.(message.id), [onContinueAnswering, message.id]);
@@ -36,6 +37,7 @@ export const MessageListItem = memo(function MessageListItem({
         interactionLocked={interactionLocked}
         sameSpeaker={prevRole === message.role}
         onRetry={onRetry ? handleRetry : undefined}
+        onRegenerateWithSearch={onRegenerateWithSearch ? handleRegenerateWithSearch : undefined}
         onRetryWithoutCustom={onRetryWithoutCustom ? handleRetryWithoutCustom : undefined}
         onEditAndResend={onEditAndResend ? handleEdit : undefined}
         editReopen={editReopen}

@@ -513,6 +513,8 @@ export function useStreamChat({
             ).sendLibraryMessage(ctx, {
               ...commonParams,
               ...libraryMessagePresentation(tLibrary),
+              // The external search "Search via" row reads the conversation's web setting; the library agent itself sends no native web field.
+              webSearchEnabled,
             })
           : sendMessage(ctx, {
               ...commonParams,
@@ -604,6 +606,7 @@ export function useStreamChat({
       capabilityRecipeOmissions?: Array<{ recipeRef: string; locatedPointers: string[] }>;
       capabilityRecipeResendOwners?: Array<'web' | 'reasoning' | 'generation'>;
       excludeCapabilityOwners?: Array<'web' | 'reasoning' | 'generation'>;
+      searchRegenerateAction?: 're_search';
     }) => {
       if (!conversation || !provider || !currentModel) return;
       const resendUser = resendUserMessage(messages, messageId);
@@ -641,6 +644,7 @@ export function useStreamChat({
         onFailed: onSendFailed,
         libraryContextCancelledText: tLibrary("contextReadCancelled"),
         libraryFailurePresentation: libraryFailurePresentation(tLibrary),
+        ...(options?.searchRegenerateAction ? { searchRegenerateAction: options.searchRegenerateAction } : {}),
       };
       const handle = libraryRecovery
         ? (

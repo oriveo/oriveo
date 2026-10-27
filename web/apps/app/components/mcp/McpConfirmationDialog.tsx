@@ -27,6 +27,7 @@ import styles from './Mcp.module.css';
  */
 export function McpConfirmationDialog() {
   const t = useTranslations('mcp.chat.confirm');
+  const tWebSearch = useTranslations('webSearch');
   const pending = useMcpConfirmationStore((state) => state.pending[0] ?? null);
   const iconServer = useMcpStore((state) => (pending ? state.servers.find((server) => server.id === pending.request.serverId) ?? null : null));
   const [showFull, setShowFull] = useState(false);
@@ -132,9 +133,13 @@ export function McpConfirmationDialog() {
             ) : null}
           </dl>
 
+          {/* Web results are in this reply's context: write tools can only be allowed once. */}
+          {request.onceOnly ? <p className={styles.dialogSubtitle} data-mcp-once-only>{tWebSearch('chat.mcpOnceOnly')}</p> : null}
           <div className={styles.confirmActions}>
             <button type="button" className={styles.quietButton} data-mcp-confirm="deny" onClick={() => choose('deny')}>{t('decline')}</button>
-            <Button tone="secondary" data-mcp-confirm="conversation" onClick={() => choose('conversation')}>{t('allowConversation')}</Button>
+            {request.onceOnly ? null : (
+              <Button tone="secondary" data-mcp-confirm="conversation" onClick={() => choose('conversation')}>{t('allowConversation')}</Button>
+            )}
             <Button data-mcp-primary data-mcp-confirm="once" onClick={() => choose('once')}>{t('allowOnce')}</Button>
           </div>
         </div>
