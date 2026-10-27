@@ -530,7 +530,7 @@
   padding: 6px 12px;
   border-radius: 999px;
   border: none;
-  background: var(--o-primary);
+  background: var(--o-primary-fill-text);
   color: var(--o-primary-text);
   font-size: 12px;
   font-weight: 600;

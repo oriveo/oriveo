@@ -83,7 +83,7 @@ export function CreateFolderDialog({ open, onClose }: CreateFolderDialogProps) {
           }} onClick={handleClose}>{t('cancel')}</button>
           <button type="button" style={{
             flex: 1, padding: '8px 12px', border: 'none', borderRadius: 'var(--o-radius-md)',
-            background: 'var(--o-primary)', color: 'var(--o-primary-text)', fontSize: 'var(--o-text-sm)',
+            background: 'var(--o-primary-fill-text)', color: 'var(--o-primary-text)', fontSize: 'var(--o-text-sm)',
             fontWeight: 600, cursor: 'pointer', opacity: name.trim() ? 1 : 0.5,
           }} onClick={handleCreate} disabled={!name.trim()}>{t('create')}</button>
         </div>

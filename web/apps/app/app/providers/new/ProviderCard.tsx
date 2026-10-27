@@ -41,8 +41,8 @@ const CARD_COLORS: Record<string, { bg: string; darkBg: string; accent: string; 
   siliconFlow: { bg: '#F3ECFF', darkBg: '#1E1245', accent: '#7C3AED', darkAccent: '#A78BFA' },
 };
 
-// Unregistered brands: dark mode follows the current palette (surface background + primary accent); light mode keeps the original values
-const FALLBACK_COLORS = { bg: '#F4F4F5', darkBg: 'var(--o-surface)', accent: '#8B5CF6', darkAccent: 'var(--o-primary)' };
+// Unregistered brands: the accent follows the current palette's primary in both appearances (light = that palette's ink); the light background stays neutral grey
+const FALLBACK_COLORS = { bg: '#F4F4F5', darkBg: 'var(--o-surface)', accent: 'var(--o-primary)', darkAccent: 'var(--o-primary)' };
 
 // Checkmark icon on the accent fill: unregistered brands use the palette's primary in dark mode, so the glyph uses on-primary;
 // registered brands and light mode keep a white glyph.

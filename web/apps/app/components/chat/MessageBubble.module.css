@@ -12,7 +12,8 @@
 .row[data-role='user'] {
   flex-direction: row-reverse;
   align-items: center;
-  animation: userMsgIn 250ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  /* backwards rather than both: the transform is not kept after the animation ends, otherwise the bubble's background-attachment: fixed (viewport-anchored gradient) stops working */
+  animation: userMsgIn 250ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 
 .row[data-role='assistant'] {
@@ -86,9 +87,12 @@
   word-break: break-word;
 }
 
-/* User messages - brand gradient, inner highlight and drop shadow; light and dark values both live in the --o-user-bubble-* tokens */
+/* User messages - viewport-anchored vertical gradient + top inner highlight + tight shadow; light and dark values both live in the --o-user-bubble-* tokens.
+ * background-attachment: fixed spreads the gradient over the viewport height so each bubble shows only its own slice of it, with scrolling handled by the compositor (zero JS, no layout);
+ * browsers without fixed support (iOS Safari) fall back to a vertical gradient inside the bubble. */
 .row[data-role='user'] .bubble {
   background: var(--o-user-bubble-bg);
+  background-attachment: fixed;
   color: var(--o-user-bubble-fg);
   border-radius: 20px;
   padding: 11px 17px;
@@ -108,8 +112,8 @@
 }
 
 /* Folded long user message: the prefix is capped at 320px and fades out over the bottom 44px. The
- * mask only changes opacity, so what shows through is the bubble's own diagonal gradient; a solid
- * overlay could not match both ends of the gradient. */
+ * mask only changes opacity, so what shows through is the vertical gradient under the bubble; a solid
+ * overlay could not match the gradient's colors. */
 .foldedText {
   display: block;
   max-height: 320px;
@@ -617,7 +621,7 @@
 }
 
 .editSubmit {
-  background: var(--o-primary);
+  background: var(--o-primary-fill-text);
   color: var(--o-primary-text);
 }
 

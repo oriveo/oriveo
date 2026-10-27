@@ -41,10 +41,11 @@ export interface BackupData {
    * they have a value -- memoryText / memoryAntiForgetText are omitted when empty, memoryAntiForgetEnabled
    * is written only when true, and memoryUpdatedAt is an ISO 8601 string.
    * darkPalette is omitted when unset; an old backup without this key clears it to unset after restore (rendered as the default dark).
+   * darkPaletteCustom (the custom palette's seed color) follows darkPalette: omitted when unset, and an old backup without this key = cleared to unset after restore.
    */
   preferences?: Partial<Pick<
     AppPreference,
-    'theme' | 'darkPalette' | 'language' | 'memoryText' | 'memoryAntiForgetEnabled' | 'memoryAntiForgetText' | 'memoryUpdatedAt'
+    'theme' | 'darkPalette' | 'darkPaletteCustom' | 'language' | 'memoryText' | 'memoryAntiForgetEnabled' | 'memoryAntiForgetText' | 'memoryUpdatedAt'
   >>;
   lastUsedModelRef?: LastUsedModelRef | null;
   /** Full context checkpoint table; older backups lack this key. createdAt is in milliseconds, nullable fields are null. */

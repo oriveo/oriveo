@@ -81,7 +81,7 @@
 }
 
 .chip[data-active='true'] {
-  background: var(--o-primary);
+  background: var(--o-primary-fill-text);
   color: var(--o-primary-text);
-  border-color: var(--o-primary);
+  border-color: var(--o-primary-fill-text);
 }

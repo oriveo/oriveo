@@ -929,6 +929,10 @@ export interface AppPreference {
   darkPalette?: string;
   /** Whether darkPalette came from an explicit user choice (tapping a swatch on the theme page, or a backup that carries the field). */
   darkPaletteSetByUser?: boolean;
+  /** Raw seed color of the custom palette (darkPalette = 'custom'); a valid value is uppercase #RRGGBB, and an invalid remote value is kept as-is and never written back.
+   *  Present = the user picked a color in the color picker; it is kept when switching back to a preset palette. When missing / invalid, custom renders with the default seed.
+   *  Sync contract: only a valid value is pushed to the cloud darkPaletteCustom field (same semantics as darkPalette, no timestamp). */
+  darkPaletteCustom?: string;
   language: LanguageOption;
   sendShortcut: SendShortcut;
   memoryText?: string;                  // Up to 2000 grapheme clusters

@@ -1,83 +1,127 @@
-import { resolveDarkPaletteId } from '@oriveo/shared';
-import type { DarkPaletteId, ThemeOption } from '@oriveo/shared';
+import {
+  CUSTOM_PALETTE_ID,
+  CUSTOM_PRESETS,
+  DARK_PALETTE_IDS,
+  DEFAULT_CUSTOM_SEED,
+  parseSeed,
+  resolvePaletteChoice,
+} from '@oriveo/shared';
+import type { CustomPaletteId, DarkPaletteId, PaletteChoice, ThemeOption } from '@oriveo/shared';
 
 /**
- * Theme page rules. Pure functions only; the
- * cases live in shared/theme-contracts/dark-palettes.v1.json `themePageCases`.
+ * Theme page rules. Pure functions only; the cases live in
+ * shared/theme-contracts/dark-palettes.v1.json `appearancePageCases`.
+ * Appearance (light / dark / system) and palette are independent: the segment only writes `theme`,
+ * a card only writes `darkPalette` (+ `darkPaletteCustom` for the custom card).
  */
 
-/** A swatch on the theme page: the light base swatch or one of the dark palettes ("dark" included). */
-export type ThemeSwatchId = 'light' | DarkPaletteId;
+/** A palette card: the 7 presets ("dark" = the default card) and the custom card. */
+export type PaletteCardId = DarkPaletteId | CustomPaletteId;
 
-export type SystemAppearance = 'light' | 'dark';
+/** Card order: Default, Purple, Graphite, Black, Ocean, Forest, Sunset, Custom. */
+export const PALETTE_CARDS: readonly PaletteCardId[] = [...DARK_PALETTE_IDS, CUSTOM_PALETTE_ID];
 
-export type ThemePageAction =
-  | { kind: 'tap'; swatch: ThemeSwatchId }
-  | { kind: 'toggleFollow'; on: boolean };
+/** Appearance segments in display order. */
+export const APPEARANCE_SEGMENTS: readonly ThemeOption[] = ['light', 'dark', 'system'];
 
-export interface ThemePageState {
+export type AppearancePageAction =
+  | { kind: 'setAppearance'; theme: ThemeOption }
+  | { kind: 'tap'; card: PaletteCardId }
+  /** A preset dot or a released hue slider. */
+  | { kind: 'pickSeed'; seed: string };
+
+export interface AppearancePageState {
   theme: ThemeOption;
-  /** Raw stored value; may be unset or an unknown id. */
+  /** Raw stored values; may be unset or invalid. */
   darkPalette: unknown;
+  seed: unknown;
 }
 
-/** Fields the page writes back; absent field = untouched. */
-export interface ThemePageWrites {
+/** Fields the page writes back; absent field = untouched. `palette` goes through updateDarkPalette. */
+export interface AppearancePageWrites {
   theme?: ThemeOption;
-  darkPalette?: DarkPaletteId;
+  palette?: PaletteChoice;
 }
 
 /** Applies one user action and returns the preference fields to write. */
-export function themePageWrites(
-  state: ThemePageState,
-  action: ThemePageAction,
-  systemAppearance: SystemAppearance,
-): ThemePageWrites {
-  const writes: ThemePageWrites = {};
-  const setTheme = (theme: ThemeOption) => {
-    if (theme !== state.theme) writes.theme = theme;
-  };
-  if (action.kind === 'toggleFollow') {
-    setTheme(action.on ? 'system' : systemAppearance);
-    return writes;
+export function appearancePageWrites(state: AppearancePageState, action: AppearancePageAction): AppearancePageWrites {
+  if (action.kind === 'setAppearance') return action.theme === state.theme ? {} : { theme: action.theme };
+  if (action.kind === 'pickSeed') {
+    const seed = parseSeed(action.seed);
+    return seed ? { palette: { kind: 'custom', seed } } : {};
   }
-  if (action.swatch === 'light') {
-    setTheme('light');
-    return writes;
+  if (action.card === CUSTOM_PALETTE_ID) {
+    // A seed picked earlier survives other palettes; never picked → the contract default seed.
+    return { palette: { kind: 'custom', seed: parseSeed(state.seed) ?? DEFAULT_CUSTOM_SEED } };
   }
-  // Tapping a dark swatch always records the explicit choice (also for the default "dark").
-  writes.darkPalette = action.swatch;
-  if (state.theme !== 'system') setTheme('dark');
-  return writes;
+  return { palette: { kind: 'preset', id: action.card } };
 }
 
-/** Which swatch shows the selection ring (and drives the preview). */
-export function selectedSwatch(theme: ThemeOption, darkPalette: unknown): ThemeSwatchId {
-  if (theme === 'light') return 'light';
-  return resolveDarkPaletteId(darkPalette);
+/** Card carrying the selection ring in every appearance: resolve(darkPalette). */
+export function selectedCard(darkPalette: unknown, seed: unknown): PaletteCardId {
+  const choice = resolvePaletteChoice(darkPalette, seed);
+  return choice.kind === 'custom' ? CUSTOM_PALETTE_ID : choice.id;
 }
 
-const PALETTE_LABEL_KEYS: Record<DarkPaletteId, string> = {
-  dark: 'themeDark',
+const CARD_LABEL_KEYS: Record<PaletteCardId, string> = {
+  dark: 'themePaletteDefault',
   'dark-purple': 'themePalettePurple',
   'dark-graphite': 'themePaletteGraphite',
   'dark-black': 'themePaletteBlack',
   'dark-ocean': 'themePaletteOcean',
   'dark-forest': 'themePaletteForest',
   'dark-sunset': 'themePaletteSunset',
+  custom: 'themePaletteCustom',
 };
 
-/** `pages.settings` key of a swatch name. */
-export function swatchLabelKey(swatch: ThemeSwatchId): string {
-  return swatch === 'light' ? 'themeLight' : PALETTE_LABEL_KEYS[swatch];
+/** `pages.settings` key of a card name. */
+export function cardLabelKey(card: PaletteCardId): string {
+  return CARD_LABEL_KEYS[card];
 }
+
+const APPEARANCE_LABEL_KEYS: Record<ThemeOption, string> = {
+  light: 'themeLight',
+  dark: 'themeDark',
+  system: 'themeSystem',
+};
+
+/** `pages.settings` key of an appearance segment. */
+export function appearanceLabelKey(theme: ThemeOption): string {
+  return APPEARANCE_LABEL_KEYS[theme];
+}
+
+const PRESET_COLOR_KEYS = [
+  'themeColorCoral',
+  'themeColorOrange',
+  'themeColorAmber',
+  'themeColorLime',
+  'themeColorGreen',
+  'themeColorTeal',
+  'themeColorCyan',
+  'themeColorBlue',
+  'themeColorIndigo',
+  'themeColorViolet',
+  'themeColorPink',
+  'themeColorRose',
+] as const;
+
+/** Custom palette preset dots in contract order, each with its accessible name key. */
+export const CUSTOM_PRESET_DOTS: ReadonlyArray<{ seed: string; labelKey: string }> = CUSTOM_PRESETS.map((seed, index) => ({
+  seed,
+  labelKey: PRESET_COLOR_KEYS[index]!,
+}));
+
+const SUMMARY_KEYS: Record<ThemeOption, string> = {
+  light: 'themeSummaryLight',
+  dark: 'themeSummaryDark',
+  system: 'themeSummaryFollowSystem',
+};
 
 type Translate = (key: string, values?: Record<string, string>) => string;
 
-/** Trailing summary of the Settings › Appearance › Theme row. */
+/** Trailing summary of the Settings › Theme row: default palette → appearance only; others → "<appearance> · <palette>". */
 export function themeRowSummary(theme: ThemeOption, darkPalette: unknown, t: Translate): string {
-  if (theme === 'light') return t('themeLight');
-  const palette = t(PALETTE_LABEL_KEYS[resolveDarkPaletteId(darkPalette)]);
-  if (theme === 'dark') return palette;
-  return t('themeSummaryFollowSystem', { palette });
+  const card = selectedCard(darkPalette, undefined);
+  if (card === 'dark') return t(appearanceLabelKey(theme));
+  return t(SUMMARY_KEYS[theme], { palette: t(cardLabelKey(card)) });
 }

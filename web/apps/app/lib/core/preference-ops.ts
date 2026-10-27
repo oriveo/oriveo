@@ -4,7 +4,8 @@
  */
 
 import type { StoreApi } from 'zustand';
-import type { DarkPaletteId, ThemeOption, LanguageOption } from '@oriveo/shared';
+import { CUSTOM_PALETTE_ID, parseSeed } from '@oriveo/shared';
+import type { AppPreference, PaletteChoice, ThemeOption, LanguageOption } from '@oriveo/shared';
 import type { AppStore } from './store/app-store';
 import { getSyncAdapter } from './sync-port';
 import { setLocaleCookie } from '../i18n/locale-utils';
@@ -17,9 +18,15 @@ export function updateTheme(store: StoreApi<AppStore>, theme: ThemeOption) {
   trackEvent('settings_changed', { key: 'theme', value: theme });
 }
 
-export function updateDarkPalette(store: StoreApi<AppStore>, darkPalette: DarkPaletteId) {
-  store.getState().setPreferences({ darkPalette, darkPaletteSetByUser: true });
-  getSyncAdapter()?.didUpdatePreferences({ darkPalette });
+/** Choose a palette: a preset writes only darkPalette (an existing darkPaletteCustom is kept); custom also writes the seed color (uppercase). */
+export function updateDarkPalette(store: StoreApi<AppStore>, choice: PaletteChoice) {
+  const seed = choice.kind === 'custom' ? parseSeed(choice.seed) : null;
+  if (choice.kind === 'custom' && !seed) return;
+  const darkPalette = choice.kind === 'custom' ? CUSTOM_PALETTE_ID : choice.id;
+  const patch: Partial<AppPreference> = { darkPalette, darkPaletteSetByUser: true };
+  if (seed) patch.darkPaletteCustom = seed;
+  store.getState().setPreferences(patch);
+  getSyncAdapter()?.didUpdatePreferences(seed ? { darkPalette, darkPaletteCustom: seed } : { darkPalette });
   trackEvent('settings_changed', { key: 'darkPalette', value: darkPalette });
 }
 

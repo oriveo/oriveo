@@ -183,7 +183,7 @@
   padding: 4px 12px;
   border: none;
   border-radius: var(--o-radius-md);
-  background: var(--o-primary);
+  background: var(--o-primary-fill-text);
   color: var(--o-primary-text);
   font-size: 12px;
   font-weight: 520;
@@ -193,7 +193,7 @@
 }
 
 .editToolbarDone:hover {
-  background: color-mix(in srgb, var(--o-primary) 85%, white);
+  background: color-mix(in srgb, var(--o-primary-fill-text) 85%, white);
 }
 
 /* ── Conversation List ── */

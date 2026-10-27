@@ -88,7 +88,7 @@ export function FolderDetailView({ folderId }: FolderDetailViewProps) {
           style={{
             display: 'flex', alignItems: 'center', gap: 6,
             padding: '6px 14px', borderRadius: 'var(--o-radius-md)',
-            background: 'var(--o-primary)', color: 'var(--o-primary-text)',
+            background: 'var(--o-primary-fill-text)', color: 'var(--o-primary-text)',
             border: 'none', cursor: 'pointer', fontSize: 'var(--o-text-sm)', fontWeight: 600,
           }}
         >

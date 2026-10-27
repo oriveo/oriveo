@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { useStore } from 'zustand';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { DEFAULT_CUSTOM_SEED, deriveCustom, deriveCustomLight, hueSliderSeed } from '@oriveo/shared';
 import { createAppStore, type AppStore } from '../../../lib/core/store/app-store';
 import { useDarkPalette, useTheme } from '../../../lib/hooks/useTheme';
 import { ThemeSettings } from './ThemeSettings';
@@ -23,12 +24,13 @@ vi.mock('../../../providers/StoreProvider', () => ({
   getVanillaStore: () => holder.store,
 }));
 
-/** Same as StoreProvider's ThemeSyncer: preferences to <html data-theme / data-palette>. */
+/** Same as StoreProvider's ThemeSyncer: preferences -> <html data-theme / data-palette>. */
 function ThemeSyncerHarness() {
   const theme = useStore(holder.store, (s) => s.preferences.theme);
   const darkPalette = useStore(holder.store, (s) => s.preferences.darkPalette);
+  const darkPaletteCustom = useStore(holder.store, (s) => s.preferences.darkPaletteCustom);
   useTheme(theme);
-  useDarkPalette(darkPalette);
+  useDarkPalette(darkPalette, darkPaletteCustom);
   return null;
 }
 
@@ -46,6 +48,9 @@ function setPrefs(patch: Partial<AppStore['preferences']>) {
 }
 
 const swatch = (name: string) => screen.getByRole('button', { name });
+const segment = (name: string) => screen.getByRole('radio', { name });
+const prefs = () => holder.store.getState().preferences;
+const cardOrder = () => Array.from(document.querySelectorAll('[data-swatch]')).map((b) => b.getAttribute('data-swatch'));
 const html = () => document.documentElement.dataset;
 
 beforeEach(() => {
@@ -67,84 +72,133 @@ afterEach(() => {
 });
 
 describe('ThemeSettings (Settings > Theme)', () => {
-  it('swatches: Light, Dark + 6 palettes, aria-label is the name, aria-pressed marks the selection', () => {
+  it('8 palette cards: default first in a fixed order, aria-pressed marks the selection, cascading in place by the current appearance', () => {
     setPrefs({ theme: 'dark', darkPalette: 'dark-ocean' });
     renderPage();
-    const names = screen.getAllByRole('button', { pressed: false }).map((b) => b.getAttribute('aria-label'));
-    expect(names).toEqual(expect.arrayContaining([
-      'themeLight', 'themeDark', 'themePalettePurple', 'themePaletteGraphite',
-      'themePaletteBlack', 'themePaletteForest', 'themePaletteSunset',
-    ]));
+    expect(cardOrder()).toEqual([
+      'dark', 'dark-purple', 'dark-graphite', 'dark-black', 'dark-ocean', 'dark-forest', 'dark-sunset', 'custom',
+    ]);
+    expect(document.querySelector('[data-swatch]')!.getAttribute('aria-label')).toBe('themePaletteDefault');
     expect(swatch('themePaletteOcean').getAttribute('aria-pressed')).toBe('true');
     expect(screen.getAllByRole('button', { pressed: true })).toHaveLength(1);
-    // Each swatch and preview carries its own data-theme / data-palette, and all colors come from tokens
     expect(swatch('themePaletteOcean').querySelector('[data-palette="dark-ocean"][data-theme="dark"]')).not.toBeNull();
-    expect(swatch('themeLight').querySelector('[data-theme="light"]')).not.toBeNull();
     const preview = screen.getByTestId('theme-preview');
     expect(preview.dataset.theme).toBe('dark');
     expect(preview.dataset.palette).toBe('dark-ocean');
-    // One horizontally scrolling row of 8 cards: Light, Dark, Purple ... Sunset
-    expect(screen.getByText('themeSectionPalettes')).not.toBeNull();
-    expect(Array.from(document.querySelectorAll('[data-swatch]')).map((b) => b.getAttribute('data-swatch'))).toEqual([
-      'light', 'dark', 'dark-purple', 'dark-graphite', 'dark-black', 'dark-ocean', 'dark-forest', 'dark-sunset',
-    ]);
+    // The light card, the follow-system switch and its hint are gone
+    expect(screen.queryByRole('switch')).toBeNull();
+    expect(screen.queryByText('themeFollowSystemHint')).toBeNull();
+    // The custom area only appears when custom is selected
+    expect(screen.queryByTestId('theme-custom-color')).toBeNull();
+
+    act(() => setPrefs({ theme: 'light' }));
+    // Light appearance: cards and preview draw the light version, and the selection ring stays on resolve(darkPalette)
+    expect(swatch('themePaletteOcean').querySelector('[data-palette="dark-ocean"][data-theme="light"]')).not.toBeNull();
+    expect(swatch('themePaletteOcean').getAttribute('aria-pressed')).toBe('true');
+    expect(preview.dataset.theme).toBe('light');
   });
 
-  it('tapping a palette with follow off: writes theme=dark + darkPalette immediately and <html> follows', () => {
+  it('tapping a palette card writes only darkPalette and leaves the appearance alone', () => {
     setPrefs({ theme: 'light' });
     renderPage();
-    expect(html().theme).toBe('light');
-
     fireEvent.click(swatch('themePaletteForest'));
-
-    const prefs = holder.store.getState().preferences;
-    expect(prefs.theme).toBe('dark');
-    expect(prefs.darkPalette).toBe('dark-forest');
-    expect(prefs.darkPaletteSetByUser).toBe(true);
-    expect(html().theme).toBe('dark');
+    expect(prefs().theme).toBe('light');
+    expect(prefs().darkPalette).toBe('dark-forest');
+    expect(prefs().darkPaletteSetByUser).toBe(true);
+    expect(html().theme).toBe('light');
     expect(html().palette).toBe('dark-forest');
     expect(swatch('themePaletteForest').getAttribute('aria-pressed')).toBe('true');
 
-    fireEvent.click(swatch('themeLight'));
-    expect(holder.store.getState().preferences.darkPalette).toBe('dark-forest');
-    expect(html().theme).toBe('light');
-    expect(swatch('themeLight').getAttribute('aria-pressed')).toBe('true');
-    expect(screen.getByTestId('theme-preview').dataset.theme).toBe('light');
+    fireEvent.click(swatch('themePaletteDefault'));
+    expect(prefs()).toMatchObject({ theme: 'light', darkPalette: 'dark' });
   });
 
-  it('follow system: while on, tapping a palette writes only darkPalette and theme stays system; turning it off takes the current system appearance', () => {
-    setPrefs({ theme: 'system', darkPalette: 'dark' });
-    holder.systemDark = true;
+  it('three appearance segments: radiogroup, writes only theme; follow-system draws by the system appearance', () => {
+    setPrefs({ theme: 'dark', darkPalette: 'dark-sunset' });
+    holder.systemDark = false;
     renderPage();
-    const toggle = screen.getByRole('switch');
-    // The switch is a styled button, not a checkbox
-    expect(toggle.tagName).toBe('BUTTON');
-    expect(toggle.getAttribute('aria-checked')).toBe('true');
-    expect(swatch('themeDark').getAttribute('aria-pressed')).toBe('true');
-    expect(swatch('themeLight').getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByRole('radiogroup')).not.toBeNull();
+    expect(screen.getAllByRole('radio').map((r) => r.textContent)).toEqual(['themeLight', 'themeDark', 'themeSystem']);
+    expect(segment('themeDark').getAttribute('aria-checked')).toBe('true');
 
-    fireEvent.click(swatch('themePaletteSunset'));
-    expect(holder.store.getState().preferences.theme).toBe('system');
-    expect(holder.store.getState().preferences.darkPalette).toBe('dark-sunset');
-    expect(html().palette).toBe('dark-sunset');
+    fireEvent.click(segment('themeSystem'));
+    expect(prefs()).toMatchObject({ theme: 'system', darkPalette: 'dark-sunset' });
+    expect(segment('themeSystem').getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByTestId('theme-preview').dataset.theme).toBe('light');
 
-    fireEvent.click(toggle);
-    expect(holder.store.getState().preferences.theme).toBe('dark');
-    expect(toggle.getAttribute('aria-checked')).toBe('false');
-
-    fireEvent.click(toggle);
-    expect(holder.store.getState().preferences.theme).toBe('system');
-    expect(toggle.getAttribute('aria-checked')).toBe('true');
+    fireEvent.keyDown(screen.getByRole('radiogroup'), { key: 'ArrowLeft' });
+    expect(prefs().theme).toBe('dark');
+    expect(prefs().darkPalette).toBe('dark-sunset');
   });
 
-  it('switching theme and palette does not remount the page (same DOM node)', () => {
+  it('tapping custom: writes the default seed when there is none and shows the color picker; tapping a preset dot writes the seed', () => {
+    setPrefs({ theme: 'dark', darkPalette: 'dark-black' });
+    renderPage();
+    fireEvent.click(swatch('themePaletteCustom'));
+    expect(prefs()).toMatchObject({ theme: 'dark', darkPalette: 'custom', darkPaletteCustom: DEFAULT_CUSTOM_SEED });
+    expect(html().palette).toBe('custom');
+    const area = screen.getByTestId('theme-custom-color');
+    expect(area.querySelectorAll('[data-seed]')).toHaveLength(12);
+    expect(swatch('themeColorBlue').getAttribute('aria-pressed')).toBe('true');
+    // Primary / secondary colors are shown from the dark derivation
+    const derived = deriveCustom(DEFAULT_CUSTOM_SEED).palette;
+    expect(area.textContent).toContain(derived.primary);
+    expect(area.textContent).toContain(derived.accent);
+
+    fireEvent.click(swatch('themeColorPink'));
+    expect(prefs()).toMatchObject({ theme: 'dark', darkPalette: 'custom', darkPaletteCustom: '#F472B6' });
+    expect(swatch('themeColorPink').getAttribute('aria-pressed')).toBe('true');
+
+    // Switching back to a preset keeps the seed, and tapping custom again restores it
+    fireEvent.click(swatch('themePaletteOcean'));
+    expect(prefs()).toMatchObject({ darkPalette: 'dark-ocean', darkPaletteCustom: '#F472B6' });
+    expect(screen.queryByTestId('theme-custom-color')).toBeNull();
+    fireEvent.click(swatch('themePaletteCustom'));
+    expect(prefs()).toMatchObject({ darkPalette: 'custom', darkPaletteCustom: '#F472B6' });
+  });
+
+  it('dragging the hue slider only changes the preview on this page; preferences are written on release', () => {
+    setPrefs({ theme: 'dark', darkPalette: 'custom', darkPaletteCustom: '#4ADE80' });
+    renderPage();
+    const slider = screen.getByRole('slider', { name: 'themeHue' });
+    const draft = hueSliderSeed(200);
+
+    fireEvent.input(slider, { target: { value: '200' } });
+    expect(prefs().darkPaletteCustom).toBe('#4ADE80');
+    const preview = screen.getByTestId('theme-preview');
+    expect(preview.dataset.palette).toBe('custom');
+    expect(preview.style.getPropertyValue('--o-primary')).toBe(deriveCustom(draft).palette.primary);
+    expect(swatch('themePaletteCustom').querySelector('[data-palette="custom"]')!.getAttribute('style'))
+      .toContain(deriveCustom(draft).palette.primary);
+
+    fireEvent.change(slider);
+    expect(prefs()).toMatchObject({ darkPalette: 'custom', darkPaletteCustom: draft, theme: 'dark' });
+    expect((slider as HTMLInputElement).value).toBe('200');
+  });
+
+  it('light appearance: hex shows the light brand ink / secondary color; the lightening hint appears only when the derivation adjusted', () => {
+    setPrefs({ theme: 'light', darkPalette: 'custom', darkPaletteCustom: '#1E3A8A' });
+    renderPage();
+    const brand = deriveCustomLight('#1E3A8A');
+    const area = screen.getByTestId('theme-custom-color');
+    expect(area.textContent).toContain(brand.ink);
+    expect(area.textContent).toContain(brand.accent);
+    expect(deriveCustom('#1E3A8A').adjusted).toBe('lightened');
+    expect(screen.getByTestId('theme-custom-adjusted').textContent).toBe('themeCustomLightened');
+
+    act(() => setPrefs({ darkPaletteCustom: '#A3E635' }));
+    expect(deriveCustom('#A3E635').adjusted).toBeNull();
+    expect(screen.queryByTestId('theme-custom-adjusted')).toBeNull();
+  });
+
+  it('switching appearance and palette does not remount the page (same DOM node)', () => {
     setPrefs({ theme: 'dark', darkPalette: 'dark-black' });
     renderPage();
     const preview = screen.getByTestId('theme-preview');
     const oceanButton = swatch('themePaletteOcean');
 
     fireEvent.click(oceanButton);
-    fireEvent.click(swatch('themeLight'));
+    fireEvent.click(segment('themeLight'));
     act(() => setPrefs({ darkPalette: 'dark-graphite' }));
 
     expect(screen.getByTestId('theme-preview')).toBe(preview);
@@ -157,7 +211,7 @@ describe('ThemeSettings (Settings > Theme)', () => {
     expect(preview.querySelector('strong')?.textContent).toBe('themePreviewOwner');
     expect(preview.querySelector('code')?.textContent).toBe('&T');
     expect(preview.textContent).toContain('themePreviewQuestion');
-    // To screen readers the whole card is a single "preview"; its internals are not exposed
+    // To a screen reader the whole card is a single "preview"; its internals are not exposed
     expect(preview.getAttribute('role')).toBe('img');
     expect(preview.getAttribute('aria-label')).toBe('backup.preview');
     expect(preview.textContent).toContain('thinkingBlock.thoughtFor(4s)');
@@ -173,7 +227,7 @@ describe('ThemeSettings (Settings > Theme)', () => {
     const css = readFileSync(join(process.cwd(), 'app/settings/theme/ThemeSettings.module.css'), 'utf8');
     const wide = /@container palette-group \(min-width: (\d+)px\) \{([\s\S]*?)\n\}/.exec(css);
     expect(wide).not.toBeNull();
-    // Each card is itself a container (the name scales with the card width), so the wide-screen rule must look up the palette group by name; without a name, elements inside the card would query the 67px card itself, stretching the card face back to 76px in the grid and eating the gaps
+    // Each card is also a container (its name scales with card width), so the wide-screen rule must query the palette group by name; without a name the elements inside a card would query the 67px card itself, stretching the card face back to 76px in the grid and eating the gaps
     expect(css).toMatch(/\n\.group \{[^}]*container: palette-group \/ inline-size/);
     expect(css).not.toMatch(/@container \(min-width/);
     const [, minWidth, body] = wide!;

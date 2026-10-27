@@ -19,7 +19,8 @@
 
 .primary {
   color: var(--o-primary-text);
-  background: linear-gradient(135deg, var(--o-primary) 0%, var(--o-primary-active) 100%);
+  /* Non-default light palettes use this palette's brand gradient (paired with --o-primary-text to meet contrast); default light and dark fall back to the original value */
+  background: linear-gradient(135deg, var(--o-brand-grad-start, var(--o-primary)) 0%, var(--o-brand-grad-end, var(--o-primary-active)) 100%);
   box-shadow: 0 8px 24px color-mix(in srgb, var(--o-primary) 30%, transparent);
 }
 

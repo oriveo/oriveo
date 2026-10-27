@@ -52,6 +52,7 @@ hljs.registerLanguage('yml', yaml);
 hljs.registerLanguage('markdown', markdown);
 hljs.registerLanguage('md', markdown);
 hljs.registerLanguage('diff', diff);
+hljs.registerLanguage('patch', diff);
 
 function escapeHtml(str: string): string {
   return str

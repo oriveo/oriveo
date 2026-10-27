@@ -245,22 +245,20 @@ describe('Settings', () => {
       expect(mocks.routerPush).toHaveBeenCalledTimes(2);
     });
 
-    it('trailing summary: Light / palette name / Follow System · palette name', () => {
-      mockState.preferences.theme = 'light';
-      mockState.preferences.darkPalette = 'dark-ocean';
-      const { unmount } = render(<Settings />);
-      expect(themeRow().textContent).toContain('themeLight');
-      unmount();
-
-      mockState.preferences.theme = 'dark';
-      const second = render(<Settings />);
-      expect(themeRow().textContent).toContain('themePaletteOcean');
-      second.unmount();
-
-      mockState.preferences.theme = 'system';
-      mockState.preferences.darkPalette = undefined;
+    it.each([
+      ['light', 'dark', 'themeLight'],
+      ['dark', 'dark', 'themeDark'],
+      ['system', undefined, 'themeSystem'],
+      ['light', 'dark-ocean', 'themeSummaryLight'],
+      ['dark', 'custom', 'themeSummaryDark'],
+      ['system', 'dark-forest', 'themeSummaryFollowSystem'],
+    ] as const)('trailing summary: theme=%s darkPalette=%s -> %s', (theme, darkPalette, summary) => {
+      mockState.preferences.theme = theme;
+      mockState.preferences.darkPalette = darkPalette;
       render(<Settings />);
-      expect(themeRow().textContent).toContain('themeSummaryFollowSystem');
+      expect(themeRow().textContent).toContain(summary);
+      // The default palette shows only the appearance, without the " · palette name" template
+      if (darkPalette === 'dark' || darkPalette === undefined) expect(themeRow().textContent).not.toContain('themeSummary');
     });
 
     it('has no palette debug section', () => {

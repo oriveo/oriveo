@@ -212,4 +212,33 @@ describe('backup memory preferences', () => {
     expect(prefs.darkPaletteSetByUser).toBeUndefined();
     expect(resolveDarkPaletteId(prefs.darkPalette)).toBe(missing.renders);
   });
+
+  it('backup_restores_dark_palette_custom_seed', async () => {
+    setPreference('preferences', { ...DEFAULT_PREFS, darkPalette: 'custom', darkPaletteSetByUser: true, darkPaletteCustom: '#C084FC' });
+
+    const blob = await exportBackup({ includeApiKeys: false });
+    const exported = await readDataJson(blob);
+    expect(exported.data.preferences?.darkPalette).toBe('custom');
+    expect(exported.data.preferences?.darkPaletteCustom).toBe('#C084FC');
+
+    await resetDB();
+    setPreference('preferences', DEFAULT_PREFS);
+    const { backupFile, imageEntries } = await parseBackupFile(new File([blob], 'custom.oriveo'));
+    await executeImport(await generateImportPreview(backupFile, imageEntries), 'importNew');
+
+    expect(localPrefs().darkPalette).toBe('custom');
+    expect(localPrefs().darkPaletteCustom).toBe('#C084FC');
+  });
+
+  it('backup_without_dark_palette_custom_clears_seed', async () => {
+    expect((await readDataJson(await exportBackup({ includeApiKeys: false }))).data.preferences)
+      .not.toHaveProperty('darkPaletteCustom');
+    setPreference('preferences', { ...DEFAULT_PREFS, darkPalette: 'custom', darkPaletteSetByUser: true, darkPaletteCustom: '#C084FC' });
+
+    // An old backup without the field = unset; a lowercase seed is uppercased
+    await importHandWritten({ theme: 'dark', language: 'system' });
+    expect(localPrefs().darkPaletteCustom).toBeUndefined();
+    await importHandWritten({ theme: 'dark', darkPalette: 'custom', darkPaletteCustom: '#c084fc', language: 'system' });
+    expect(localPrefs().darkPaletteCustom).toBe('#C084FC');
+  });
 });

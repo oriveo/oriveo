@@ -63,7 +63,8 @@
   flex: 0 0 auto;
   border: 1px solid color-mix(in srgb, var(--o-primary) 18%, var(--o-border));
   border-radius: 15px;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--o-primary) 92%, white), var(--o-primary-active));
+  /* Non-default light palettes use this palette's brand gradient (gradStart to gradEnd, paired with --o-primary-text to meet contrast); default light and dark fall back to the original value */
+  background: linear-gradient(135deg, var(--o-brand-grad-start, color-mix(in srgb, var(--o-primary-fill) 92%, white)), var(--o-brand-grad-end, var(--o-primary-active)));
   color: var(--o-primary-text);
   box-shadow:
     0 10px 22px color-mix(in srgb, var(--o-primary) 24%, transparent),
@@ -108,7 +109,7 @@
   justify-content: center;
   flex: 0 0 auto;
   border-radius: var(--o-radius-full);
-  background: var(--o-primary);
+  background: var(--o-primary-fill);
   color: var(--o-primary-text);
   box-shadow: 0 8px 20px color-mix(in srgb, var(--o-primary) 26%, transparent);
 }

@@ -47,6 +47,12 @@
   --tp-glow-k: 0.55;
 }
 
+/* Light non-default palettes carry their own second brand color. */
+.preview[data-theme='light'][data-palette]:not([data-palette='dark']),
+.cardFace[data-theme='light'][data-palette]:not([data-palette='dark']) {
+  --tp-accent: var(--o-brand-accent);
+}
+
 .previewGlow {
   position: absolute;
   inset: 0;
@@ -121,12 +127,16 @@
   max-width: 78%;
   padding: 9px 13px 7px;
   border-radius: 18px 18px 6px 18px;
-  background: var(--o-gradient-brand);
+  /* Same vertical stops as the chat bubble, anchored on the preview card instead of the
+     viewport: ThemeSettings sets background-size / background-position from the measured card height and
+     bubble top (anchoredBubbleGradient). Without them the gradient spans the bubble itself. */
+  background: var(--o-user-bubble-bg);
+  background-repeat: no-repeat;
   color: var(--tp-on-primary);
   font-size: 13.5px;
   font-weight: 500;
   line-height: 1.4;
-  box-shadow: 0 8px 20px color-mix(in srgb, var(--o-primary) calc(35% * max(var(--tp-glow-k), 0.6)), transparent);
+  box-shadow: var(--o-user-bubble-shadow);
   transition: color 0.25s, box-shadow 0.25s;
 }
 
@@ -204,19 +214,6 @@
   line-height: 1.5;
   color: var(--o-code-text);
   white-space: pre;
-}
-
-/* Syntax colors are palette-invariant Catppuccin tokens (dark: #CBA6F7 / #89B4FA / #A6E3A1). */
-.previewKeyword {
-  color: var(--o-code-keyword);
-}
-
-.previewType {
-  color: var(--o-code-function);
-}
-
-.previewString {
-  color: var(--o-code-string);
 }
 
 .previewTags {
@@ -377,6 +374,8 @@
   overflow: hidden;
   border-radius: 16px;
   background-color: var(--o-bg);
+  /* Size container so .cardMine can anchor its gradient on the card face (100cqh = content-box height). */
+  container-type: size;
 }
 
 .cardFace[data-theme='light'] {
@@ -418,7 +417,13 @@
   width: 44px;
   height: 16px;
   border-radius: 8px 8px 3px 8px;
-  background: var(--o-gradient-brand);
+  /* User bubble stops anchored on the card face: the gradient is the face's full height
+     (content box 100cqh + 2 × 10px padding) and this bubble, last in a flex-end column, sits at
+     top = face height − 10px padding − 16px = 100cqh − 6px, so it shows that slice. */
+  background: var(--o-user-bubble-bg);
+  background-repeat: no-repeat;
+  background-size: 100% calc(100cqh + 20px);
+  background-position: 0 calc(6px - 100cqh);
 }
 
 .swatchName {
@@ -436,69 +441,162 @@
   color: var(--o-text);
 }
 
-/* ── Follow system ── */
+/* ── Appearance: three-way segmented control (only writes theme) ── */
 
-.followCard {
+.segmented {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 22px;
-  padding: 12px 12px 12px 16px;
-  border-radius: 14px;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 12px;
   background-color: var(--o-surface);
 }
 
-.followText {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+.segment {
+  flex: 1;
   min-width: 0;
-}
-
-.followTitle {
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--o-text);
-}
-
-.followHint {
-  font-size: 12px;
-  line-height: 1.4;
-  color: var(--o-text-tertiary);
-}
-
-.followSwitch {
-  display: flex;
-  flex: none;
-  justify-content: flex-start;
-  width: 51px;
-  height: 31px;
-  padding: 2px;
-  box-sizing: border-box;
+  height: 36px;
+  padding: 0 8px;
   border: 0;
-  border-radius: 16px;
-  background: var(--o-pd-toggle-off-bg);
+  border-radius: 9px;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--o-text-secondary);
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background-color 0.25s, color 0.25s, box-shadow 0.25s;
 }
 
-.followSwitch[aria-checked='true'] {
-  justify-content: flex-end;
-  background: var(--o-primary);
+.segmentOn {
+  font-weight: 600;
+  color: var(--o-text);
+  background-color: var(--o-surface-raised);
+  box-shadow: var(--o-elevation-control);
 }
 
-.followSwitch:focus-visible {
+.segment:focus-visible {
+  outline: 2px solid var(--o-primary);
+  outline-offset: 1px;
+}
+
+/* ── Custom color: 12 preset dots, hue slider, primary / accent readout ── */
+
+.customGroup {
+  gap: 14px;
+}
+
+/* 2 rows × 6; each dot is 32px inside a 44px hit area. */
+.dotGrid {
+  display: grid;
+  grid-template-columns: repeat(6, 44px);
+  justify-content: space-between;
+  row-gap: 4px;
+}
+
+.dotButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.dotButton:focus-visible {
+  outline: 2px solid var(--o-primary);
+  outline-offset: 0;
+  border-radius: var(--o-radius-full);
+}
+
+.dot {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--o-radius-full);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--o-text) 10%, transparent);
+  transition: box-shadow 0.25s;
+}
+
+.dotOn {
+  box-shadow: 0 0 0 2px var(--o-bg), 0 0 0 4px var(--o-text);
+}
+
+/* Track gradient comes inline from the slider's own seeds (hueSliderSeed every 30°). */
+.hueSlider {
+  width: 100%;
+  height: 28px;
+  margin: 0;
+  border-radius: 14px;
+  appearance: none;
+  background-color: transparent;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.hueSlider:focus-visible {
   outline: 2px solid var(--o-primary);
   outline-offset: 2px;
 }
 
-.followThumb {
-  width: 27px;
-  height: 27px;
+.hueSlider::-webkit-slider-thumb {
+  width: 24px;
+  height: 24px;
   border-radius: var(--o-radius-full);
-  background: var(--o-switch-thumb);
-  box-shadow: var(--o-elevation-control);
+  appearance: none;
+  background-color: var(--o-primary);
+  box-shadow: 0 0 0 3px var(--o-switch-thumb), var(--o-elevation-control);
+}
+
+.hueSlider::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: var(--o-radius-full);
+  background-color: var(--o-primary);
+  box-shadow: 0 0 0 3px var(--o-switch-thumb), var(--o-elevation-control);
+}
+
+.customColors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+
+.customColor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--o-text-secondary);
+}
+
+.customChip {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--o-text) 10%, transparent);
+}
+
+.customColorName {
+  font-weight: 500;
+  color: var(--o-text);
+}
+
+.customHex {
+  font-family: var(--o-font-mono);
+  font-size: 12px;
+}
+
+.customNotice {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--o-text-tertiary);
 }
 
 /* Must come after the base card rules: same specificity, so source order decides.
@@ -562,7 +660,8 @@
   .previewComposer,
   .cardRing,
   .swatchName,
-  .followSwitch {
+  .segment,
+  .dot {
     transition: none;
   }
 }

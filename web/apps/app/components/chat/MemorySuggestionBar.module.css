@@ -50,7 +50,7 @@
 }
 
 .primary {
-  background: var(--o-primary);
+  background: var(--o-primary-fill-text);
   color: var(--o-primary-text);
 }
 

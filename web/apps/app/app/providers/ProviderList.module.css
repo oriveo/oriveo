@@ -93,7 +93,7 @@
   height: 36px;
   border-radius: 50%;
   border: 0.5px solid color-mix(in srgb, white 18%, transparent);
-  background: var(--o-primary);
+  background: var(--o-primary-fill);
   color: var(--o-primary-text);
   cursor: pointer;
   flex-shrink: 0;

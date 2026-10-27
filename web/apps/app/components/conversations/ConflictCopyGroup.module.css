@@ -160,7 +160,7 @@
   border: none;
   padding: 8px 16px;
   border-radius: var(--o-radius-control);
-  background: var(--o-primary);
+  background: var(--o-primary-fill-text);
   color: var(--o-primary-text);
   font-weight: var(--o-weight-semibold);
   cursor: pointer;

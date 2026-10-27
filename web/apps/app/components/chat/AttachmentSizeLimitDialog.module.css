@@ -53,7 +53,7 @@
   height: 42px;
   border: 0;
   border-radius: 12px;
-  background: var(--o-primary);
+  background: var(--o-primary-fill-text);
   color: var(--o-primary-text);
   font: inherit;
   font-weight: 700;
