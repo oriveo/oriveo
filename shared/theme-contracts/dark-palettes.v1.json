@@ -1,0 +1,358 @@
+{
+  "$comment": "Dark palette presets shared by every client. Each client asserts its palette instances equal `palettes`, derives tokens with `derived`, and resolves the stored preference with `resolveCases`. Light mode is out of scope and unchanged.",
+  "schema": "oriveo.theme.dark-palettes/v1",
+  "defaultId": "dark",
+  "order": [
+    "dark",
+    "dark-purple",
+    "dark-graphite",
+    "dark-black",
+    "dark-ocean",
+    "dark-forest",
+    "dark-sunset"
+  ],
+  "palettes": {
+    "dark": {
+      "name": "Dark",
+      "bg": "#111113",
+      "bgSubtle": "#151517",
+      "bgInset": "#19191C",
+      "surface": "#1C1C1F",
+      "surfaceRaised": "#27272B",
+      "text": "#EDEDEF",
+      "textSecondary": "#B3B3BA",
+      "textTertiary": "#8E8E96",
+      "primary": "#A78BFA",
+      "primaryHover": "#C4B5FD",
+      "primaryActive": "#9370F7",
+      "accent": "#C4B5FD",
+      "onPrimary": "#160B2E",
+      "codeBg": "#0B0B0D",
+      "codeHeaderBg": "#17171A",
+      "glowK": 0.4
+    },
+    "dark-purple": {
+      "name": "Purple",
+      "bg": "#130F1D",
+      "bgSubtle": "#171224",
+      "bgInset": "#1B152A",
+      "surface": "#1E1830",
+      "surfaceRaised": "#29213F",
+      "text": "#EEEAF6",
+      "textSecondary": "#BDB4D0",
+      "textTertiary": "#9A92AE",
+      "primary": "#A78BFA",
+      "primaryHover": "#C4B5FD",
+      "primaryActive": "#9370F7",
+      "accent": "#F0ABFC",
+      "onPrimary": "#160B2E",
+      "codeBg": "#0E0B17",
+      "codeHeaderBg": "#1A1528",
+      "glowK": 1
+    },
+    "dark-graphite": {
+      "name": "Graphite",
+      "bg": "#1B1D21",
+      "bgSubtle": "#1F2125",
+      "bgInset": "#22252A",
+      "surface": "#25282D",
+      "surfaceRaised": "#30343B",
+      "text": "#ECEEF1",
+      "textSecondary": "#BAC0C8",
+      "textTertiary": "#9CA2AC",
+      "primary": "#6AA6FF",
+      "primaryHover": "#94C0FF",
+      "primaryActive": "#3B82F6",
+      "accent": "#7DE3FF",
+      "onPrimary": "#04132A",
+      "codeBg": "#131519",
+      "codeHeaderBg": "#212328",
+      "glowK": 1
+    },
+    "dark-black": {
+      "name": "Black",
+      "bg": "#000000",
+      "bgSubtle": "#060607",
+      "bgInset": "#09090B",
+      "surface": "#0C0C0E",
+      "surfaceRaised": "#18181B",
+      "text": "#E8E8EB",
+      "textSecondary": "#ABABB3",
+      "textTertiary": "#87878F",
+      "primary": "#FF6B9D",
+      "primaryHover": "#FF94B8",
+      "primaryActive": "#F43F7E",
+      "accent": "#7DD3FC",
+      "onPrimary": "#1F0410",
+      "codeBg": "#0A0A0B",
+      "codeHeaderBg": "#141416",
+      "glowK": 1
+    },
+    "dark-ocean": {
+      "name": "Ocean",
+      "bg": "#061418",
+      "bgSubtle": "#09191E",
+      "bgInset": "#0B1D22",
+      "surface": "#0D2127",
+      "surfaceRaised": "#142D35",
+      "text": "#E6F3F4",
+      "textSecondary": "#A6C2C6",
+      "textTertiary": "#7F9DA2",
+      "primary": "#2DD4BF",
+      "primaryHover": "#5EEAD4",
+      "primaryActive": "#14B8A6",
+      "accent": "#67B7FF",
+      "onPrimary": "#021614",
+      "codeBg": "#041013",
+      "codeHeaderBg": "#0A1B20",
+      "glowK": 1
+    },
+    "dark-forest": {
+      "name": "Forest",
+      "bg": "#0B140F",
+      "bgSubtle": "#0E1813",
+      "bgInset": "#111C16",
+      "surface": "#132019",
+      "surfaceRaised": "#1B2B22",
+      "text": "#E8F1EB",
+      "textSecondary": "#AEC0B4",
+      "textTertiary": "#86998D",
+      "primary": "#34D399",
+      "primaryHover": "#6EE7B7",
+      "primaryActive": "#10B981",
+      "accent": "#D9F99D",
+      "onPrimary": "#03160C",
+      "codeBg": "#08100C",
+      "codeHeaderBg": "#101B15",
+      "glowK": 1
+    },
+    "dark-sunset": {
+      "name": "Sunset",
+      "bg": "#16100D",
+      "bgSubtle": "#1A1310",
+      "bgInset": "#1E1713",
+      "surface": "#221915",
+      "surfaceRaised": "#2E221C",
+      "text": "#F4ECE6",
+      "textSecondary": "#C9B8AB",
+      "textTertiary": "#A08F82",
+      "primary": "#FDBA4D",
+      "primaryHover": "#FDCF7F",
+      "primaryActive": "#F59E0B",
+      "accent": "#FF7E79",
+      "onPrimary": "#241005",
+      "codeBg": "#100B09",
+      "codeHeaderBg": "#1C1511",
+      "glowK": 1
+    }
+  },
+  "shared": {
+    "border": "rgba(255,255,255,0.10)",
+    "borderStrong": "rgba(255,255,255,0.18)",
+    "hairline": "rgba(255,255,255,0.06)",
+    "overlay": "rgba(0,0,0,0.72)",
+    "codeText": "#E4E4E7",
+    "syntax": "catppuccin-mocha",
+    "status": {
+      "success": "#6EE7A1",
+      "warning": "#FCD34D",
+      "error": "#F8978F",
+      "info": "#8DB6FF"
+    }
+  },
+  "derived": {
+    "primarySubtle": {
+      "from": "primary",
+      "alpha": 0.15
+    },
+    "accentSubtle": {
+      "from": "accent",
+      "alpha": 0.14
+    },
+    "primaryGlow": {
+      "from": "primary",
+      "alpha": 0.35
+    },
+    "focusRing": {
+      "from": "primary",
+      "alpha": 0.5
+    },
+    "composerBorder": {
+      "from": "primary",
+      "alpha": 0.22
+    },
+    "surfaceOverlay": {
+      "from": "bg",
+      "alpha": 0.88
+    },
+    "gradientBrand": {
+      "angleDeg": 135,
+      "stops": [
+        "primary",
+        "accent"
+      ]
+    },
+    "aurora": {
+      "bottom": {
+        "from": "primary",
+        "alpha": 0.26
+      },
+      "bottomLeft": {
+        "from": "accent",
+        "alpha": 0.18
+      },
+      "bottomRight": {
+        "from": "primary",
+        "alpha": 0.16
+      },
+      "top": {
+        "from": "accent",
+        "alpha": 0.09
+      },
+      "scaleBy": "glowK"
+    },
+    "userBubble": {
+      "fill": "gradientBrand",
+      "text": "onPrimary",
+      "shadow": "primaryGlow"
+    }
+  },
+  "contrastRules": {
+    "minTextOnBg": 7,
+    "minSecondaryOnSurfaces": 4.5,
+    "minOnPrimary": 4.5,
+    "minRaisedOverSurfaceDeltaLstar": 3,
+    "minPrimaryOnSubtle": 4.5,
+    "minStatusOnSurfaces": 4.5,
+    "surfaces": [
+      "bg",
+      "surface",
+      "surfaceRaised"
+    ],
+    "secondaryTokens": [
+      "textSecondary",
+      "textTertiary",
+      "primary",
+      "accent"
+    ],
+    "onPrimaryOver": [
+      "primary",
+      "accent",
+      "primaryHover",
+      "primaryActive"
+    ],
+    "chipSurfaces": [
+      "bg",
+      "surface"
+    ],
+    "statusSurfaces": [
+      "surface"
+    ]
+  },
+  "resolveCases": [
+    {
+      "name": "missing_is_default_and_not_pushed",
+      "stored": null,
+      "renders": "dark",
+      "setByUser": false,
+      "pushToCloud": false
+    },
+    {
+      "name": "known_id_applies",
+      "stored": "dark-ocean",
+      "renders": "dark-ocean",
+      "setByUser": true,
+      "pushToCloud": true
+    },
+    {
+      "name": "explicit_default_is_pushed",
+      "stored": "dark",
+      "renders": "dark",
+      "setByUser": true,
+      "pushToCloud": true
+    },
+    {
+      "name": "unknown_id_falls_back_without_write_back",
+      "stored": "dark-aurora-future",
+      "renders": "dark",
+      "setByUser": true,
+      "pushToCloud": false,
+      "keepStoredValue": true
+    },
+    {
+      "name": "non_string_is_ignored",
+      "stored": 42,
+      "renders": "dark",
+      "setByUser": false,
+      "pushToCloud": false
+    }
+  ],
+  "themePageCases": [
+    {
+      "name": "tap_light",
+      "before": {
+        "theme": "dark",
+        "follow": false,
+        "darkPalette": "dark-ocean"
+      },
+      "tap": "light",
+      "after": {
+        "theme": "light",
+        "darkPalette": "dark-ocean"
+      }
+    },
+    {
+      "name": "tap_palette_follow_off",
+      "before": {
+        "theme": "light",
+        "follow": false,
+        "darkPalette": "dark"
+      },
+      "tap": "dark-forest",
+      "after": {
+        "theme": "dark",
+        "darkPalette": "dark-forest"
+      }
+    },
+    {
+      "name": "tap_palette_follow_on",
+      "before": {
+        "theme": "system",
+        "follow": true,
+        "darkPalette": "dark"
+      },
+      "tap": "dark-sunset",
+      "after": {
+        "theme": "system",
+        "darkPalette": "dark-sunset"
+      }
+    },
+    {
+      "name": "turn_follow_on",
+      "before": {
+        "theme": "dark",
+        "follow": false,
+        "darkPalette": "dark-black"
+      },
+      "toggleFollow": true,
+      "after": {
+        "theme": "system",
+        "darkPalette": "dark-black"
+      }
+    },
+    {
+      "name": "turn_follow_off_uses_current_system_appearance",
+      "before": {
+        "theme": "system",
+        "follow": true,
+        "darkPalette": "dark-black",
+        "systemAppearance": "dark"
+      },
+      "toggleFollow": false,
+      "after": {
+        "theme": "dark",
+        "darkPalette": "dark-black"
+      }
+    }
+  ]
+}
