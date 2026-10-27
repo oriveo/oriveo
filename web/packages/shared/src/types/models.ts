@@ -924,6 +924,11 @@ export interface AppPreference {
    *  Sync contract: only an explicit choice writes the cloud theme field (including 'system'); this flag is not synced as a field of its own.
    *  Legacy records: when missing, infer from theme !== 'system', since older data only persisted an explicit non-system choice. */
   themeSetByUser?: boolean;
+  /** Raw dark palette id (may be a future id this client does not recognize; kept as is and never written back); missing = never set, rendered as the default dark.
+   *  Rendering always goes through resolveDarkPaletteId. */
+  darkPalette?: string;
+  /** Whether darkPalette came from an explicit user choice (tapping a swatch on the theme page, or a backup that carries the field). */
+  darkPaletteSetByUser?: boolean;
   language: LanguageOption;
   sendShortcut: SendShortcut;
   memoryText?: string;                  // Up to 2000 grapheme clusters

@@ -1,0 +1,136 @@
+/* Settings home grid. Line color: rgba(0,0,0,0.10) in light mode; primary @ (0.18 + 0.16 x glowK) in dark mode. */
+
+.grid {
+  /* Column count and vertical-line inset are overridden inline by SettingsGrid.tsx based on the item count; these are the 2x2 defaults */
+  --sg-columns: 2;
+  --sg-v-inset: 10px;
+  --sg-line: rgba(0, 0, 0, 0.1);
+  --sg-cell-height: 104px;
+  --sg-cell-padding: 14px;
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--sg-columns), minmax(0, 1fr));
+}
+
+.grid[data-columns='3'] {
+  --sg-cell-padding: 8px;
+}
+
+.grid[data-variant='compact'] {
+  --sg-cell-height: 76px;
+}
+
+:global(html[data-theme='dark']) .grid {
+  --sg-line: color-mix(in srgb, var(--o-primary) calc((18% + 16% * var(--o-glow-k))), transparent);
+}
+
+/* Cross-shaped fading lines: transparent at both ends, solid in the middle (0% / 50% / 100%) */
+.lineVertical {
+  position: absolute;
+  top: var(--sg-v-inset);
+  bottom: var(--sg-v-inset);
+  width: 1px;
+  transform: translateX(-0.5px);
+  background: linear-gradient(to bottom, transparent 0%, var(--sg-line) 50%, transparent 100%);
+  pointer-events: none;
+}
+
+.lineHorizontal {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  height: 1px;
+  transform: translateY(-0.5px);
+  background: linear-gradient(to right, transparent 0%, var(--sg-line) 50%, transparent 100%);
+  pointer-events: none;
+}
+
+.cell {
+  position: relative;
+  min-width: 0;
+  height: var(--sg-cell-height);
+  padding: 0 var(--sg-cell-padding);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--o-radius-md);
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 200ms ease;
+}
+
+.cell:hover {
+  background-color: color-mix(in srgb, var(--o-surface-raised) 60%, transparent);
+  text-decoration: none;
+}
+
+.cell:focus-visible {
+  outline: none;
+  box-shadow: var(--o-focus-ring);
+}
+
+.icon {
+  display: inline-flex;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+}
+
+.icon > svg {
+  width: 100%;
+  height: 100%;
+}
+
+.title {
+  max-width: 100%;
+  margin-top: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--o-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  /* Names that do not fit wrap and stay centered (long ja / ru names are not truncated) */
+  white-space: normal;
+  text-align: center;
+  /* Break at phrase boundaries and balance line widths (no single-character orphan lines in ja) */
+  word-break: auto-phrase;
+  text-wrap: balance;
+}
+
+.value {
+  max-width: 100%;
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--o-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.grid[data-variant='compact'] .icon {
+  width: 23px;
+  height: 23px;
+}
+
+.grid[data-variant='compact'] .title {
+  margin-top: 9px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--o-text-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cell {
+    transition: none;
+  }
+}

@@ -296,14 +296,20 @@ export async function executeImport(
   const store = tryGetVanillaStore();
   if (backupFile.data.preferences) {
     const { theme, language } = backupFile.data.preferences;
+    const backupDarkPalette = (backupFile.data.preferences as { darkPalette?: unknown }).darkPalette;
+    const darkPalette = typeof backupDarkPalette === 'string' ? backupDarkPalette : undefined;
     const memoryPatch = memoryPreferencesFromBackup(backupFile.data.preferences);
     const hasMemory = Object.keys(memoryPatch).length > 0;
-    if (theme || language || hasMemory) {
+    if (theme || darkPalette || language || hasMemory) {
       const currentPreferences = currentImportPreferences(store, expectedUID);
       // Only known fields are taken: other keys in the backup never reach preferences. theme in the
       // backup is user data, so treat it as an explicit choice once restored.
       const restoredPatch: Partial<AppPreference> = {
         ...(theme ? { theme, themeSetByUser: true } : {}),
+        // darkPalette is overwritten by the backup the same way theme is: a value is written; a missing field (old backup) clears it to unset
+        ...(darkPalette
+          ? { darkPalette, darkPaletteSetByUser: true }
+          : { darkPalette: undefined, darkPaletteSetByUser: undefined }),
         ...(language ? { language } : {}),
         ...memoryPatch,
       };

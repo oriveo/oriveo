@@ -257,7 +257,7 @@
   height: 18px;
   border-radius: 50%;
   background: var(--card-accent);
-  color: #ffffff;
+  color: var(--card-on-accent);
   flex-shrink: 0;
   box-shadow: 0 1px 3px color-mix(in srgb, var(--card-accent) 35%, transparent);
   animation: cardCheckPop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);

@@ -1,0 +1,568 @@
+/* Settings › Theme. Every color comes from palette tokens scoped by data-theme / data-palette. */
+
+.page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: var(--o-space-lg) var(--o-space-lg) calc(96px + env(safe-area-inset-bottom, 0px));
+}
+
+.backLink {
+  margin-bottom: var(--o-space-md);
+  margin-inline-start: -9px;
+}
+
+.title {
+  margin: 0 0 var(--o-space-xl);
+  font-family: var(--o-font-display);
+  font-size: var(--o-text-2xl);
+  font-weight: 700;
+  letter-spacing: -0.012em;
+  color: var(--o-text);
+}
+
+/* ── Preview: a mini chat in the selected swatch's scope ── */
+
+.preview {
+  /* Light tokens have no accent / glow-k / on-primary; set the light values below so a light
+     preview inside a dark page never inherits the page's dark values. */
+  --tp-accent: var(--o-accent);
+  --tp-glow-k: var(--o-glow-k);
+  --tp-on-primary: var(--o-user-bubble-fg);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  /* Grows with content (long locales, narrow widths); never scrolls or clips inside. */
+  min-height: 352px;
+  overflow: hidden;
+  border-radius: 24px;
+  border: 1px solid var(--o-border);
+  background-color: var(--o-bg);
+  box-shadow: var(--o-elevation-card);
+  color: var(--o-text);
+  transition: background-color 0.25s, color 0.25s, box-shadow 0.25s, border-color 0.25s;
+}
+
+.preview[data-theme='light'] {
+  --tp-accent: var(--o-primary);
+  --tp-glow-k: 0.55;
+}
+
+.previewGlow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* Dark: primary@26%·k bottom, accent@18%·k bottom-left, primary@16%·k bottom-right, accent@9%·k top.
+     Light: the existing light chat empty-state aurora. Both come from the same token. */
+  background: var(--o-chat-aurora-glow-bg);
+}
+
+.previewBody {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
+.previewTopBar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  height: 46px;
+  padding: 0 14px;
+  box-sizing: border-box;
+  border-bottom: 1px solid color-mix(in srgb, var(--o-text) 6%, transparent);
+  transition: border-color 0.25s;
+}
+
+.previewBack {
+  width: 14px;
+  height: 14px;
+  color: var(--o-text-secondary);
+}
+
+.previewModel {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.previewModelDot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--o-radius-full);
+  background: var(--o-gradient-brand);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--o-primary) 35%, transparent);
+}
+
+.previewCost {
+  font-family: var(--o-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--o-primary-text-on-surface);
+  transition: color 0.25s;
+}
+
+.previewChat {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 9px;
+  padding: 12px 14px 0;
+}
+
+.previewBubble {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-self: flex-end;
+  max-width: 78%;
+  padding: 9px 13px 7px;
+  border-radius: 18px 18px 6px 18px;
+  background: var(--o-gradient-brand);
+  color: var(--tp-on-primary);
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.4;
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--o-primary) calc(35% * max(var(--tp-glow-k), 0.6)), transparent);
+  transition: color 0.25s, box-shadow 0.25s;
+}
+
+.previewTime {
+  align-self: flex-end;
+  font-size: 10px;
+  font-weight: 400;
+  opacity: 0.7;
+}
+
+.previewThought {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--o-text-tertiary);
+  transition: color 0.25s;
+}
+
+.previewThought svg {
+  width: 11px;
+  height: 11px;
+  flex: none;
+}
+
+.previewReply {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--o-text);
+  transition: color 0.25s;
+}
+
+.previewStrong {
+  font-weight: 600;
+  color: var(--o-primary);
+  transition: color 0.25s;
+}
+
+.previewCode {
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-family: var(--o-font-mono);
+  font-size: 12px;
+  color: var(--tp-accent);
+  background-color: var(--o-code-inline-bg);
+  transition: background-color 0.25s, color 0.25s;
+}
+
+.previewCodeBlock {
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid var(--o-border);
+  background-color: var(--o-code-bg);
+  transition: background-color 0.25s;
+}
+
+.previewCodeHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 24px;
+  padding: 0 10px;
+  background-color: var(--o-code-header-bg);
+  color: var(--o-text-tertiary);
+  font-size: 10.5px;
+  transition: background-color 0.25s, color 0.25s;
+}
+
+.previewCodeBody {
+  margin: 0;
+  padding: 7px 10px;
+  font-family: var(--o-font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--o-code-text);
+  white-space: pre;
+}
+
+/* Syntax colors are palette-invariant Catppuccin tokens (dark: #CBA6F7 / #89B4FA / #A6E3A1). */
+.previewKeyword {
+  color: var(--o-code-keyword);
+}
+
+.previewType {
+  color: var(--o-code-function);
+}
+
+.previewString {
+  color: var(--o-code-string);
+}
+
+.previewTags {
+  display: flex;
+  gap: 6px;
+}
+
+.previewTagReasoning,
+.previewTagWeb {
+  padding: 3px 8px;
+  border-radius: 7px;
+  font-size: 10.5px;
+  font-weight: 500;
+  transition: background-color 0.25s, color 0.25s;
+}
+
+.previewTagReasoning {
+  background-color: color-mix(in srgb, var(--o-primary) 15%, transparent);
+  color: var(--o-primary);
+}
+
+.previewTagWeb {
+  background-color: color-mix(in srgb, var(--tp-accent) 14%, transparent);
+  color: var(--tp-accent);
+}
+
+.previewComposerWrap {
+  flex: none;
+  padding: 8px 10px 10px;
+}
+
+.previewComposer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 4px 0 14px;
+  box-sizing: border-box;
+  border-radius: 19px;
+  background-color: var(--o-composer-bg);
+  border: 1px solid color-mix(in srgb, var(--o-primary) 22%, transparent);
+  transition: background-color 0.25s, border-color 0.25s;
+}
+
+.previewPlaceholder {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--o-text-tertiary);
+}
+
+.previewSend {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--o-radius-full);
+  background: var(--o-gradient-brand);
+  color: var(--tp-on-primary);
+}
+
+.previewSend svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ── Palette cards ── */
+
+.group {
+  container: palette-group / inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.groupTitle {
+  margin: 0;
+  padding: 0 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--o-text-tertiary);
+}
+
+/* One horizontally scrolling row; no scrollbar when all 8 cards fit. */
+.cardRow {
+  display: flex;
+  gap: 12px;
+  margin: 0 calc(-1 * var(--o-space-lg));
+  padding: 4px var(--o-space-lg) 6px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.swatch {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 76px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.swatch:focus-visible {
+  outline: 2px solid var(--o-primary);
+  outline-offset: 4px;
+  border-radius: var(--o-radius-md);
+}
+
+/* The ring sits outside the scoped face so the gap uses the page bg and the stroke the current primary. */
+.cardRing {
+  position: relative;
+  display: flex;
+  border-radius: 16px;
+  transition: box-shadow 0.25s;
+}
+
+.cardRing::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px var(--o-border);
+  pointer-events: none;
+}
+
+.cardRingOn {
+  box-shadow: 0 0 0 2px var(--o-bg), 0 0 0 4px var(--o-primary);
+}
+
+.cardRingOn::after {
+  box-shadow: none;
+}
+
+.cardFace {
+  --tp-accent: var(--o-accent);
+  --tp-glow-k: var(--o-glow-k);
+  --tp-other: var(--o-surface);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 6px;
+  width: 76px;
+  height: 104px;
+  padding: 10px 8px;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-radius: 16px;
+  background-color: var(--o-bg);
+}
+
+.cardFace[data-theme='light'] {
+  --tp-accent: var(--o-primary);
+  --tp-glow-k: 0.55;
+  /* Light surface is white on a near-white bg; the other side's bars use a light gray instead. */
+  --tp-other: color-mix(in srgb, var(--o-text) 9%, var(--o-bg));
+}
+
+.cardGlow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 120% 70% at 50% 110%,
+    color-mix(in srgb, var(--o-primary) calc(30% * var(--tp-glow-k)), transparent) 0%,
+    transparent 70%
+  );
+}
+
+.cardBar {
+  position: relative;
+  align-self: flex-start;
+  height: 14px;
+  border-radius: 7px 7px 7px 3px;
+  background-color: var(--tp-other);
+}
+
+.cardBarWide {
+  width: 40px;
+}
+
+.cardBarShort {
+  width: 28px;
+}
+
+.cardMine {
+  position: relative;
+  align-self: flex-end;
+  width: 44px;
+  height: 16px;
+  border-radius: 8px 8px 3px 8px;
+  background: var(--o-gradient-brand);
+}
+
+.swatchName {
+  /* 12px / 500 on one line; long names (ja / ru) may widen the column instead of truncating. */
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  white-space: nowrap;
+  color: var(--o-text-tertiary);
+  transition: color 0.25s;
+}
+
+.swatchNameOn {
+  font-weight: 600;
+  color: var(--o-text);
+}
+
+/* ── Follow system ── */
+
+.followCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 22px;
+  padding: 12px 12px 12px 16px;
+  border-radius: 14px;
+  background-color: var(--o-surface);
+}
+
+.followText {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.followTitle {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--o-text);
+}
+
+.followHint {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--o-text-tertiary);
+}
+
+.followSwitch {
+  display: flex;
+  flex: none;
+  justify-content: flex-start;
+  width: 51px;
+  height: 31px;
+  padding: 2px;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 16px;
+  background: var(--o-pd-toggle-off-bg);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.followSwitch[aria-checked='true'] {
+  justify-content: flex-end;
+  background: var(--o-primary);
+}
+
+.followSwitch:focus-visible {
+  outline: 2px solid var(--o-primary);
+  outline-offset: 2px;
+}
+
+.followThumb {
+  width: 27px;
+  height: 27px;
+  border-radius: var(--o-radius-full);
+  background: var(--o-switch-thumb);
+  box-shadow: var(--o-elevation-control);
+}
+
+/* Must come after the base card rules: same specificity, so source order decides.
+   Named query: each .swatch is itself a container (for name scaling), so an unnamed query
+   from inside a card would test the 67px card instead of the palette group. */
+/* Wide enough for 8 cards of at least 64px (8 × 64 + 7 × 8 gap = 568px): an 8-column grid,
+   cards scale at 76:104, no horizontal scroll. Narrower containers keep the scrolling row. */
+@container palette-group (min-width: 568px) {
+  .cardRow {
+    display: grid;
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    align-items: start;
+    column-gap: 8px;
+    row-gap: 0;
+    margin: 0;
+    padding: 4px 0 6px;
+    overflow-x: visible;
+  }
+
+  /* Each card fills exactly its column (column width = (container − 7 × 8) / 8). */
+  .swatch {
+    justify-self: stretch;
+    width: 100%;
+    min-width: 0;
+    container-type: inline-size;
+  }
+
+  .cardRing {
+    flex: none;
+    align-self: stretch;
+    width: 100%;
+  }
+
+  .cardFace {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 76 / 104;
+  }
+
+  .swatchName {
+    /* Narrow columns (ja / ru names near 72px) shrink down to 0.85 instead of truncating. */
+    font-size: clamp(10.2px, 17.5cqi, 12px);
+    max-width: 100%;
+    overflow: visible;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preview,
+  .previewTopBar,
+  .previewCost,
+  .previewBubble,
+  .previewThought,
+  .previewReply,
+  .previewStrong,
+  .previewCode,
+  .previewCodeBlock,
+  .previewCodeHead,
+  .previewTagReasoning,
+  .previewTagWeb,
+  .previewComposer,
+  .cardRing,
+  .swatchName,
+  .followSwitch {
+    transition: none;
+  }
+}

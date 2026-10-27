@@ -7,6 +7,16 @@ import { resetDBConnection } from '../../infra/storage/idb';
 import { resetImageDBConnection } from '../../infra/storage/image-store';
 import { setActiveUID } from '../../infra/storage/partition';
 import { getPreference, setPreference } from '../../infra/storage/preferences';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { resolveDarkPaletteId } from '@oriveo/shared';
+
+// Source of truth for the dark palette fixture: shared/theme-contracts/dark-palettes.v1.json
+const darkPaletteCases = (JSON.parse(readFileSync(
+  join(process.cwd(), '../../..', 'shared/theme-contracts/dark-palettes.v1.json'),
+  'utf8',
+)) as { resolveCases: Array<{ name: string; stored: unknown; renders: string }> }).resolveCases;
+const darkPaletteCase = (name: string) => darkPaletteCases.find((c) => c.name === name)!;
 
 // Backup memory fields: exported in the same shape as iOS / Android; on import each field is restored only when present and goes through the preference sync path.
 
@@ -166,5 +176,40 @@ describe('backup memory preferences', () => {
       memoryUpdatedAt: '2026-10-10T00:00:00.000Z',
     });
     expect(didUpdatePreferences).not.toHaveBeenCalled();
+  });
+
+  it('backup_restores_dark_palette', async () => {
+    const known = darkPaletteCase('known_id_applies');
+    setPreference('preferences', { ...DEFAULT_PREFS, darkPalette: known.stored as string, darkPaletteSetByUser: true });
+
+    const blob = await exportBackup({ includeApiKeys: false });
+    const exported = await readDataJson(blob);
+    expect(exported.data.preferences?.darkPalette).toBe(known.stored);
+
+    await resetDB();
+    setPreference('preferences', DEFAULT_PREFS);
+    const { backupFile, imageEntries } = await parseBackupFile(new File([blob], 'palette.oriveo'));
+    const result = await executeImport(await generateImportPreview(backupFile, imageEntries), 'importNew');
+
+    expect(result.restoredPreferences).toBe(true);
+    expect(localPrefs().darkPalette).toBe(known.stored);
+    expect(localPrefs().darkPaletteSetByUser).toBe(true);
+    expect(resolveDarkPaletteId(localPrefs().darkPalette)).toBe(known.renders);
+  });
+
+  it('backup_without_dark_palette_restores_default_dark', async () => {
+    const missing = darkPaletteCase('missing_is_default_and_not_pushed');
+    // When unset, the export omits the key
+    expect((await readDataJson(await exportBackup({ includeApiKeys: false }))).data.preferences)
+      .not.toHaveProperty('darkPalette');
+    setPreference('preferences', { ...DEFAULT_PREFS, darkPalette: 'dark-forest', darkPaletteSetByUser: true });
+
+    // An old backup without the field clears it to unset, the same rule as theme being overwritten by a backup
+    await importHandWritten({ theme: 'dark', language: 'system' });
+
+    const prefs = localPrefs();
+    expect(prefs.darkPalette).toBeUndefined();
+    expect(prefs.darkPaletteSetByUser).toBeUndefined();
+    expect(resolveDarkPaletteId(prefs.darkPalette)).toBe(missing.renders);
   });
 });

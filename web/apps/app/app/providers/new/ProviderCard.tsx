@@ -37,10 +37,17 @@ const CARD_COLORS: Record<string, { bg: string; darkBg: string; accent: string; 
   zhipu:       { bg: '#F0F0F2', darkBg: '#1A1B20', accent: '#333333', darkAccent: '#A0A0A8' },
   qwen:        { bg: '#EEEDFC', darkBg: '#1C1A38', accent: '#615CED', darkAccent: '#8B88F5' },
   moonshot:    { bg: '#EEF4FF', darkBg: '#142033', accent: '#2563EB', darkAccent: '#7DD3FC' },
+  // Provider brand colors
   siliconFlow: { bg: '#F3ECFF', darkBg: '#1E1245', accent: '#7C3AED', darkAccent: '#A78BFA' },
 };
 
-const FALLBACK_COLORS = { bg: '#F4F4F5', darkBg: '#1E2028', accent: '#8B5CF6', darkAccent: '#A78BFA' };
+// Unregistered brands: dark mode follows the current palette (surface background + primary accent); light mode keeps the original values
+const FALLBACK_COLORS = { bg: '#F4F4F5', darkBg: 'var(--o-surface)', accent: '#8B5CF6', darkAccent: 'var(--o-primary)' };
+
+// Checkmark icon on the accent fill: unregistered brands use the palette's primary in dark mode, so the glyph uses on-primary;
+// registered brands and light mode keep a white glyph.
+const ON_ACCENT = '#ffffff';
+const FALLBACK_DARK_ON_ACCENT = 'var(--o-on-primary)';
 
 // ProviderKind → tagline i18n key (pages.providerSetup.taglines.*)
 const TAGLINE_KEY: Record<string, string> = {
@@ -159,6 +166,7 @@ export function ProviderShowcaseCard({ kind, displayName, selected, isDark, onSe
       style={{
         '--card-bg': isDark ? colors.darkBg : colors.bg,
         '--card-accent': isDark ? colors.darkAccent : colors.accent,
+        '--card-on-accent': isDark && colors === FALLBACK_COLORS ? FALLBACK_DARK_ON_ACCENT : ON_ACCENT,
       } as React.CSSProperties}
     >
       {/* Brand watermark: a brand-coloured silhouette bleeding off the bottom-right corner, carrying the identity instead of a flat colour fill */}

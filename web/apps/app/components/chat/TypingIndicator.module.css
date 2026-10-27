@@ -24,7 +24,7 @@
   background: var(--o-primary);
   opacity: 0.8;
   animation: pulse 1.6s ease-in-out infinite both;
-  box-shadow: 0 0 6px rgba(139, 92, 246, 0.35);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--o-primary) 35%, transparent);
 }
 
 .dot:nth-child(1) { animation-delay: 0s; }
@@ -39,7 +39,7 @@
   50% {
     transform: scale(1.1);
     opacity: 1;
-    box-shadow: 0 0 8px rgba(139, 92, 246, 0.5);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--o-primary) 50%, transparent);
   }
 }
 

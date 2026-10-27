@@ -128,12 +128,23 @@ function collectDeclarations(source: string): Map<string, string> {
  * `[data-theme='dark']`, with no `prefers-color-scheme` fallback. The dark block redefines only
  * part of the tokens and inherits the rest from the light block.
  */
-export function readThemeTokens(): ThemeTokens {
+export function readThemeTokens(palette?: string): ThemeTokens {
   const source = stripComments(readFileSync(join(WEB_ROOT, TOKENS_FILE), 'utf8'));
   const darkStart = source.indexOf("[data-theme='dark']");
-  if (darkStart < 0) throw new Error(`${TOKENS_FILE}   [data-theme='dark']  `);
+  if (darkStart < 0) throw new Error(`${TOKENS_FILE} has no [data-theme='dark'] block`);
+  // The default dark section ends at the first closing brace; the [data-palette] sections after it must not leak into the default dark.
+  const darkEnd = source.indexOf('}', darkStart);
   const light = collectDeclarations(source.slice(0, darkStart));
-  return { light, dark: new Map([...light, ...collectDeclarations(source.slice(darkStart))]) };
+  const dark = new Map([...light, ...collectDeclarations(source.slice(darkStart, darkEnd))]);
+  if (palette !== undefined && palette !== 'dark') {
+    const selector = `[data-theme='dark'][data-palette='${palette}']`;
+    const paletteStart = source.indexOf(selector);
+    if (paletteStart < 0) throw new Error(`${TOKENS_FILE} has no ${selector} block`);
+    for (const [name, value] of collectDeclarations(source.slice(paletteStart, source.indexOf('}', paletteStart)))) {
+      dark.set(name, value);
+    }
+  }
+  return { light, dark };
 }
 
 /** Evaluates a CSS color expression to RGBA. Supports hex, rgb(a), `var()` chains and `color-mix(in srgb ...)`. */
@@ -456,7 +467,7 @@ export const KNOWN_GAPS: readonly KnownGap[] = [
     id: 'primary-fill-with-primary-text',
     foreground: 'var(--o-primary-text)',
     layers: ['var(--o-surface)', 'var(--o-primary)'],
-    measured: { light: 4.2344, dark: 6.8896 },
+    measured: { light: 4.2344, dark: 6.9305 },
     reason:
       'Primary fill with primary text on .btnPrimary and similar CTAs. Contrast is accepted as a known gap.',
   },
@@ -469,7 +480,7 @@ export const KNOWN_GAPS: readonly KnownGap[] = [
       'color-mix(in srgb, var(--o-primary) 14%, transparent)',
       'color-mix(in srgb, var(--o-primary) 22%, transparent)',
     ],
-    measured: { light: 4.0233, dark: 2.7284 },
+    measured: { light: 4.0233, dark: 2.7889 },
     reason:
       'Primary text on a card with a glow overlay. Contrast is accepted as a known gap.',
   },
@@ -491,7 +502,6 @@ export const LEGACY_UNTRIAGED: readonly string[] = [
   'apps/app/app/providers/new/ProviderSetup.module.css {.progress}',
   'apps/app/app/providers/relay/new/RelaySetup.module.css {.fieldError}',
   'apps/app/app/providers/relay/new/RelaySetup.module.css {.statusCard > strong}',
-  'apps/app/app/settings/Settings.module.css {.signInLink}',
   'apps/app/app/skills/edit/SkillEditPage.module.css {.addStarterBtn}',
   'apps/app/app/skills/edit/SkillEditPage.module.css {.inlineActionBtn}',
   'apps/app/app/welcome/Welcome.module.css {.errorMsg}',

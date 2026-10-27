@@ -69,8 +69,8 @@
   max-width: 320px;
   padding: 7px 12px;
   border-radius: 12px;
-  /* Fixed dark chip in both themes: avoids a washed-out white-on-white chip in light mode and matches the dark tooltips on the mobile clients */
-  background: #1f212b;
+  /* Dark chip: light mode keeps a fixed dark background (avoids a washed-out white-on-white chip and matches the dark tooltips on the mobile clients); dark mode follows the current palette */
+  background: var(--o-chat-outline-tooltip-bg);
   border: 0.5px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
   color: #fff;

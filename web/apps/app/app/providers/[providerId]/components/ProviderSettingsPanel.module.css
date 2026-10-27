@@ -114,7 +114,7 @@
 }
 
 :global(html[data-theme='dark']) .row:hover {
-  background: rgba(167, 139, 250, 0.06);
+  background: color-mix(in srgb, var(--o-primary) 6%, transparent);
 }
 
 :global(html[data-theme='dark']) .iconTile {

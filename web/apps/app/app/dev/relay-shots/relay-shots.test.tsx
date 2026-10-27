@@ -16,7 +16,7 @@ vi.mock('../../../lib/core/bootstrap', () => ({
   bootstrapApp: mocks.bootstrapApp,
 }));
 vi.mock('../../../lib/core/store/persistence', () => ({ subscribeToChanges: mocks.subscribeToChanges }));
-vi.mock('../../../lib/hooks/useTheme', () => ({ useTheme: vi.fn() }));
+vi.mock('../../../lib/hooks/useTheme', () => ({ useTheme: vi.fn(), useDarkPalette: vi.fn() }));
 vi.mock('../../../lib/core/telemetry', () => ({ trackEvent: vi.fn() }));
 
 /** Shared screenshot manifest (walk up from this directory to the repository root). */

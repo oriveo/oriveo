@@ -65,6 +65,7 @@
 }
 
 .favicon[data-library-source="notion"] {
+  /* Notion brand-black favicon */
   background: #111111;
   color: #ffffff;
   font-size: 10px;

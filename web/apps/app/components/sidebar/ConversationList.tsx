@@ -37,6 +37,7 @@ interface ConversationListProps {
 export function ConversationList({ variant = 'sidebar' }: ConversationListProps) {
   const router = useRouter();
   const t = useTranslations('sidebar');
+  const tCommon = useTranslations('common');
 
   const conversations = useAppStore((s) => s.conversations);
   const activeId = useAppStore((s) => s.activeConversationId);
@@ -132,7 +133,7 @@ export function ConversationList({ variant = 'sidebar' }: ConversationListProps)
         open={showBatchConfirm}
         title={t('batchDeleteConfirm', { count: selectedIds.size })}
         confirmLabel={t('batchDelete')}
-        cancelLabel={t('exitEditMode')}
+        cancelLabel={tCommon('cancel')}
         destructive
         onConfirm={handleBatchDelete}
         onCancel={() => setShowBatchConfirm(false)}

@@ -86,32 +86,25 @@
   word-break: break-word;
 }
 
-/* User messages - brand gradient, inner highlight and drop shadow */
+/* User messages - brand gradient, inner highlight and drop shadow; light and dark values both live in the --o-user-bubble-* tokens */
 .row[data-role='user'] .bubble {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--o-primary) 96%, white) 0%,
-    var(--o-primary-active) 100%
-  );
-  color: #fff;
+  background: var(--o-user-bubble-bg);
+  color: var(--o-user-bubble-fg);
   border-radius: 20px;
   padding: 11px 17px;
   white-space: pre-wrap;
   line-height: 1.6;
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.05),
-    0 6px 16px color-mix(in srgb, var(--o-primary) 22%, transparent),
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.18);
+  box-shadow: var(--o-user-bubble-shadow);
   letter-spacing: -0.005em;
 }
 
-/* User bubble selection - the bubble is white on purple, so the global purple selection colour is
- * almost invisible; a light highlight with dark purple text reads clearly in both themes (the
- * bubble itself is white on purple in both) */
+/* User bubble selection - the bubble has a brand-colored background, so the global purple selection colour is
+ * almost invisible; a white highlight with dark purple text reads clearly in light mode (white on purple)
+ * and in dark mode (bright gradient with dark text) */
 .row[data-role='user'] .bubble::selection,
 .row[data-role='user'] .bubble ::selection {
-  background: rgba(255, 255, 255, 0.92);
-  color: color-mix(in srgb, var(--o-primary-active) 75%, #000);
+  background: color-mix(in srgb, white 92%, transparent);
+  color: color-mix(in srgb, var(--o-primary-active) 75%, black);
 }
 
 /* Folded long user message: the prefix is capped at 320px and fades out over the bottom 44px. The
@@ -121,8 +114,8 @@
   display: block;
   max-height: 320px;
   overflow: hidden;
-  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 44px), transparent);
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 44px), transparent);
+  -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 44px), transparent);
+  mask-image: linear-gradient(to bottom, black calc(100% - 44px), transparent);
 }
 
 .showFullTextRow {
@@ -139,8 +132,8 @@
   border: 0;
   border-radius: 999px;
   padding: 6px 12px 6px 11px;
-  background: rgba(255, 255, 255, 0.18);
-  color: #fff;
+  background: color-mix(in srgb, var(--o-user-bubble-fg) 18%, transparent);
+  color: var(--o-user-bubble-fg);
   font-size: 12px;
   font-weight: 600;
   line-height: 16px;
@@ -149,11 +142,11 @@
 }
 
 .showFullText:hover {
-  background: rgba(255, 255, 255, 0.26);
+  background: color-mix(in srgb, var(--o-user-bubble-fg) 26%, transparent);
 }
 
 .showFullText:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.9);
+  outline: 2px solid color-mix(in srgb, var(--o-user-bubble-fg) 90%, transparent);
   outline-offset: 2px;
 }
 
@@ -224,7 +217,7 @@
   padding: 6px 12px;
   border: none;
   border-radius: var(--o-radius-md);
-  background: rgba(255, 255, 255, 0.18);
+  background: color-mix(in srgb, white 18%, transparent);
   color: var(--o-primary-text);
   font-size: var(--o-text-xs);
   max-width: 200px;
@@ -234,7 +227,7 @@
 }
 
 .fileChip:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: color-mix(in srgb, white 30%, transparent);
 }
 
 .fileChipRemoteOnly {

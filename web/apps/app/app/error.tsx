@@ -74,7 +74,7 @@ export default function ErrorPage({ error, reset }: ErrorProps) {
               padding: '10px 24px',
               borderRadius: 'var(--o-radius-md, 8px)',
               border: 'none',
-              background: 'var(--o-primary, #8B5CF6)',
+              background: 'var(--o-primary)',
               color: '#fff',
               fontSize: 'var(--o-text-sm, 14px)',
               fontWeight: 600,

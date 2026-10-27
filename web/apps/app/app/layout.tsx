@@ -8,6 +8,7 @@ import { StoreProvider } from '../providers/StoreProvider';
 import { SRLiveRegion } from '../components/SRLiveRegion';
 import { RouteTitleSync } from '../components/RouteTitleSync';
 import { ThemeInitScript } from '../components/ThemeInitScript';
+import { THEME_COLOR_DARK_DEFAULT } from '../lib/theme/theme-color';
 import { PersistentShellLayout } from '../components/PersistentShellLayout';
 import { McpGlobalPrompts } from '../components/mcp/McpGlobalPrompts';
 import { ClientIntlProvider } from '../components/i18n/ClientIntlProvider';
@@ -91,8 +92,9 @@ export default async function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang={locale} dir={dir} suppressHydrationWarning className={`${inter.variable} ${jetbrainsMono.variable} ${brandFont.variable}`}>
       <head>
+        {/* theme-color must come before ThemeInitScript: the first-frame script rewrites it for the known theme, and after hydration useTheme follows the current --o-bg */}
+        <meta name="theme-color" content={THEME_COLOR_DARK_DEFAULT} suppressHydrationWarning />
         <ThemeInitScript />
-        <meta name="theme-color" content="#8B5CF6" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />

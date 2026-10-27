@@ -42,7 +42,7 @@
 [data-theme='dark'] .page::before {
   background:
     radial-gradient(64% 52% at 50% 40%, color-mix(in srgb, var(--o-primary) 34%, transparent) 0%, transparent 72%),
-    radial-gradient(46% 38% at 20% 16%, color-mix(in srgb, #818CF8 22%, transparent) 0%, transparent 72%),
+    radial-gradient(46% 38% at 20% 16%, color-mix(in srgb, var(--o-accent) 22%, transparent) 0%, transparent 72%),
     radial-gradient(48% 40% at 82% 22%, color-mix(in srgb, #F472B6 15%, transparent) 0%, transparent 74%);
 }
 
@@ -295,8 +295,8 @@
 .spinner {
   width: 32px;
   height: 32px;
-  border: 3px solid rgba(139, 92, 246, 0.15);
-  border-top-color: rgba(139, 92, 246, 0.8);
+  border: 3px solid color-mix(in srgb, var(--o-primary) 15%, transparent);
+  border-top-color: color-mix(in srgb, var(--o-primary) 80%, transparent);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
   margin-top: var(--o-space-lg);
