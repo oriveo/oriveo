@@ -239,4 +239,40 @@ struct AppPreferencesStoreTests {
         #expect(AppPreferencesStore.savedMemoryText == "guest-memory")
         #expect(AppPreferencesStore.memoryHasSeen)
     }
+
+    @Test("darkPalette: unset writes no key; a set value reads back (including an unknown id, stored as is)")
+    func darkPaletteUnsetHasNoKeyAndSetReadsBack() {
+        let key = "oriveo.preferences.darkPalette"
+        defer {
+            UserDefaults.standard.removeObject(forKey: key)
+            clearLegacyPreferenceKeys()
+            resetPreferenceCaches()
+        }
+        UserDefaults.standard.removeObject(forKey: key)
+
+        AppPreferencesStore.save(AppPreference(theme: .dark, language: .system))
+        #expect(UserDefaults.standard.object(forKey: key) == nil)
+        #expect(AppPreferencesStore.load().darkPalette == nil)
+        #expect(AppPreferencesStore.load().resolvedDarkPalette == .dark)
+
+        var preference = AppPreference(theme: .dark, language: .system)
+        preference.darkPalette = OriveoDarkPaletteID.darkOcean.rawValue
+        AppPreferencesStore.save(preference)
+        #expect(UserDefaults.standard.string(forKey: key) == "dark-ocean")
+        #expect(AppPreferencesStore.load().darkPalette == "dark-ocean")
+        #expect(AppPreferencesStore.load().resolvedDarkPalette == .darkOcean)
+
+        preference.darkPalette = "dark-aurora-future"
+        AppPreferencesStore.save(preference)
+        #expect(AppPreferencesStore.load().darkPalette == "dark-aurora-future")
+        #expect(AppPreferencesStore.load().resolvedDarkPalette == .dark)
+
+        // A non-string value counts as unset
+        UserDefaults.standard.set(42, forKey: key)
+        #expect(AppPreferencesStore.load().darkPalette == nil)
+
+        preference.darkPalette = nil
+        AppPreferencesStore.save(preference)
+        #expect(UserDefaults.standard.object(forKey: key) == nil)
+    }
 }

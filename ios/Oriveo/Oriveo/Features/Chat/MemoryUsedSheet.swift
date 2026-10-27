@@ -105,7 +105,7 @@ struct MemoryUsedSheet: View {
                     .frame(width: 40, height: 40)
                 Image(systemName: "brain")
                     .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(OriveoTheme.Palette.onPrimary)
             }
             .accessibilityHidden(true)
 

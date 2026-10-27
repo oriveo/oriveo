@@ -9,11 +9,11 @@ enum AuroraTheme {
     // MARK: - Palette
 
     enum Colors {
-        /// Primary violet. Same family as the V2 brand `#8C5FF8`, a touch brighter.
-        static let accent = Color.dynamic(light: 0x8B5CF6, dark: 0xA78BFA)
+        /// Primary violet. Same family as the V2 brand `#8C5FF8`, a touch brighter in light mode; dark mode takes the current palette primary.
+        static let accent = Color.dynamic(light: 0x8B5CF6, dark: \.primary)
 
         /// Primary violet used for glows and gradient highlights.
-        static let accentGlow = Color.dynamic(light: 0x8B5CF6, dark: 0xC4B5FD)
+        static let accentGlow = Color.dynamic(light: 0x8B5CF6, dark: \.accent)
 
         /// Secondary accent: aurora blue, a subtle complement to the violet.
         static let auroraBlue = Color.dynamic(light: 0x60A5FA, dark: 0x93C5FD)
@@ -36,7 +36,7 @@ enum AuroraTheme {
         static let heroTextTertiary = Color.dynamic(light: 0x9C95AA, dark: 0x9493A8)
 
         /// Card fill beneath the liquid glass.
-        static let cardFill = Color.dynamic(light: 0xFFFFFF, dark: 0x1A1530, lightAlpha: 0.72, darkAlpha: 0.55)
+        static let cardFill = Color.dynamic(light: 0xFFFFFF, dark: \.surface, lightAlpha: 0.72, darkAlpha: 0.55)
 
         /// Highlight stroke on card edges.
         static let cardEdgeHighlight = Color.dynamic(light: 0xFFFFFF, dark: 0xFFFFFF, lightAlpha: 0.85, darkAlpha: 0.10)
@@ -54,18 +54,21 @@ enum AuroraTheme {
         /// The 1×16 vertical divider inside the capsule.
         static let chromeDivider = Color.dynamic(light: 0x000000, dark: 0xFFFFFF, lightAlpha: 0.09, darkAlpha: 0.11)
 
-        /// Conversation group card fill (dark #221F35 / light pure white).
-        static let groupCardFill = Color.dynamic(light: 0xFFFFFF, dark: 0x221F35)
+        /// Conversation group card fill (dark: the current palette surface / light: pure white).
+        static let groupCardFill = Color.dynamic(light: 0xFFFFFF, dark: \.surface)
 
         /// Conversation group card border (dark 5.5% white / light 5% black).
         static let groupCardBorder = Color.dynamic(light: 0x000000, dark: 0xFFFFFF, lightAlpha: 0.05, darkAlpha: 0.055)
 
         /// Model pill fill: a tonal surface without a stroke (light #F3F0FA). Dark mode uses an opaque
         /// tone from the same family; translucent white on the card surface washed out into a grey patch.
-        static let pillFill = Color.dynamic(light: 0xF3F0FA, dark: 0x2F2D3F)
+        static let pillFill = Color.dynamic(light: 0xF3F0FA, dark: \.surfaceRaised)
 
-        /// Send button: one solid violet in both schemes, no gradient, no shadow.
-        static let sendFill = Color(hex: 0x8B5CF6)
+        /// Send button: one solid violet, no gradient, no shadow. Fixed violet in light mode, the current palette primary in dark mode.
+        static let sendFill = Color.dynamic(light: 0x8B5CF6, dark: \.primary)
+
+        /// Arrow on the send button: white in light mode, the current palette onPrimary in dark mode (primary is bright, so white text lacks contrast).
+        static let onSendFill = Color.dynamic(light: 0xFFFFFF, dark: \.onPrimary)
     }
 
     // MARK: - Typography
@@ -117,7 +120,7 @@ struct AuroraScreenBackground: View {
     private var baseFill: LinearGradient {
         if isDark {
             return LinearGradient(
-                colors: [Color(hex: 0x1B1A2A), Color(hex: 0x131019)],
+                colors: [Color.darkPalette(\.bgSubtle), Color.darkPalette(\.bg)],
                 startPoint: .top,
                 endPoint: .bottom
             )
@@ -188,7 +191,7 @@ struct AuroraHeroSurface: View {
     private func fill(size: CGSize) -> some View {
         if isDark {
             LinearGradient(
-                colors: [Color(hex: 0x242235), Self.darkBaseBottom],
+                colors: [Color.darkPalette(\.surfaceRaised), Self.darkBaseBottom],
                 startPoint: .top,
                 endPoint: .bottom
             )
@@ -213,9 +216,9 @@ struct AuroraHeroSurface: View {
             .frame(height: min(70, size.height))
             .frame(maxHeight: .infinity, alignment: .top)
 
-            blob(AuroraCrown.lavender.opacity(0.16 * scale), block: CGSize(width: size.width * 0.72, height: 32), center: CGPoint(x: size.width * 0.22, y: 0))
-            blob(AuroraCrown.pink.opacity(0.12 * scale), block: CGSize(width: size.width * 0.60, height: 28), center: CGPoint(x: size.width * 0.52, y: 0))
-            blob(AuroraCrown.sky.opacity(0.14 * scale), block: CGSize(width: size.width * 0.72, height: 32), center: CGPoint(x: size.width * 0.80, y: 0))
+            blob(AuroraCrown.left.opacity(0.16 * scale), block: CGSize(width: size.width * 0.72, height: 32), center: CGPoint(x: size.width * 0.22, y: 0))
+            blob(AuroraCrown.middle.opacity(0.12 * scale), block: CGSize(width: size.width * 0.60, height: 28), center: CGPoint(x: size.width * 0.52, y: 0))
+            blob(AuroraCrown.right.opacity(0.14 * scale), block: CGSize(width: size.width * 0.72, height: 32), center: CGPoint(x: size.width * 0.80, y: 0))
         }
     }
 
@@ -236,7 +239,7 @@ struct AuroraHeroSurface: View {
     private var tintB: Color { Color(hex: 0xEC8FEA, alpha: 0.08) }
 
     /// Bottom colour of the dark card gradient; also the fill of the shadow shape.
-    static let darkBaseBottom = Color(hex: 0x201F31)
+    static let darkBaseBottom = Color.darkPalette(\.surface)
 
     /// The 1pt inner rim: a uniform cardBorder in light mode. Dark mode draws it with [AuroraCrownRim].
     static func rim(isDark: Bool) -> AnyShapeStyle {
@@ -248,13 +251,15 @@ struct AuroraHeroSurface: View {
 
 /// Colours and strengths of the aurora crown. The three hues match the Notes glyph; the near-white
 /// hot core is reserved for the hero, and Notes always runs one step weaker.
+/// Drawn in dark mode only: the three hues are the current palette accent / primary / accent, and the strength is multiplied by the palette glowK.
 enum AuroraCrown {
-    static let lavender = Color(hex: 0xC4B5FD)
-    static let pink = Color(hex: 0xEC8FEA)
-    static let sky = Color(hex: 0x8DB4FF)
+    /// Crown left / right = the current palette accent, crown middle = primary (same convention as Android crownLeft/Middle/Right)
+    static let left = Color.darkPalette(\.accent, glowScaled: true)
+    static let middle = Color.darkPalette(\.primary, glowScaled: true)
+    static let right = Color.darkPalette(\.accent, glowScaled: true)
     static let hot = Color(hex: 0xECE6FF)
     /// Haze colour of the afterglow inside the card.
-    static let wash = Color(hex: 0xC8BCFF)
+    static let wash = Color.darkPalette(\.accent, glowScaled: true)
     /// Strength on the Notes card: the same light one step weaker, so both cards read as one material.
     static let notesRimScale: Double = 0.55
     static let notesWashScale: Double = 0.6
@@ -272,7 +277,7 @@ enum AuroraCrown {
 }
 
 /// The aurora crown: a ring of light along the card's 1pt inner rim. Along the top edge it runs
-/// lavender → pink → sky from left to right (the hero adds a near-white hot core), fades out quickly
+/// palette accent → primary → accent from left to right (the hero adds a near-white hot core), fades out quickly
 /// past the top corners, and the remaining edges keep the white rim that is brighter at the top.
 struct AuroraCrownRim: View {
     let cornerRadius: CGFloat
@@ -289,9 +294,9 @@ struct AuroraCrownRim: View {
                     startPoint: .top,
                     endPoint: .bottom
                 )
-                glow(AuroraCrown.sky, 0.95 * scale, radii: CGSize(width: size.width * 0.40, height: 64), x: size.width * 0.86)
-                glow(AuroraCrown.pink, 0.80 * scale, radii: CGSize(width: size.width * 0.32, height: 44), x: size.width * 0.52)
-                glow(AuroraCrown.lavender, 1.0 * scale, radii: CGSize(width: size.width * 0.40, height: 64), x: size.width * 0.16)
+                glow(AuroraCrown.right, 0.95 * scale, radii: CGSize(width: size.width * 0.40, height: 64), x: size.width * 0.86)
+                glow(AuroraCrown.middle, 0.80 * scale, radii: CGSize(width: size.width * 0.32, height: 44), x: size.width * 0.52)
+                glow(AuroraCrown.left, 1.0 * scale, radii: CGSize(width: size.width * 0.40, height: 64), x: size.width * 0.16)
                 if hotCore {
                     glow(AuroraCrown.hot, 0.95, radii: CGSize(width: size.width * 0.30, height: 22), x: size.width * 0.50)
                 }
@@ -346,11 +351,11 @@ struct AuroraCrownHalo: View {
             .fill(
                 LinearGradient(
                     stops: [
-                        .init(color: AuroraCrown.lavender.opacity(0.20), location: 0),
-                        .init(color: AuroraCrown.lavender.opacity(0.95), location: 0.2),
-                        .init(color: AuroraCrown.pink.opacity(0.85), location: 0.5),
-                        .init(color: AuroraCrown.sky.opacity(0.95), location: 0.8),
-                        .init(color: AuroraCrown.sky.opacity(0.20), location: 1),
+                        .init(color: AuroraCrown.left.opacity(0.20), location: 0),
+                        .init(color: AuroraCrown.left.opacity(0.95), location: 0.2),
+                        .init(color: AuroraCrown.middle.opacity(0.85), location: 0.5),
+                        .init(color: AuroraCrown.right.opacity(0.95), location: 0.8),
+                        .init(color: AuroraCrown.right.opacity(0.20), location: 1),
                     ],
                     startPoint: .leading,
                     endPoint: .trailing
@@ -484,10 +489,14 @@ struct AuroraGlassCardModifier: ViewModifier {
 /// The ring is violet-led: violet → lavender → pink → blue → soft teal (an accent) → lavender → violet.
 /// The teal is 0x86D2E6, a bluer tone than the earlier fluorescent mint 0x67E8C9, which keeps the
 /// cool aurora accent without the candy glow.
+/// In dark mode the violet and lavender stops take the current palette primary / accent; pink, blue and teal are aurora accents that do not follow the palette.
 private let auroraGlowColors: [Color] = [
-    Color(hex: 0x8B5CF6), Color(hex: 0xA78BFA), Color(hex: 0xEC8FEA),
-    Color(hex: 0x8DB4FF), Color(hex: 0x86D2E6), Color(hex: 0xC4B5FD),
-    Color(hex: 0x8B5CF6)
+    Color.dynamic(light: 0x8B5CF6, dark: \.primary),
+    Color.dynamic(light: 0xA78BFA, dark: \.accent),
+    Color(hex: 0xEC8FEA),
+    Color(hex: 0x8DB4FF), Color(hex: 0x86D2E6),
+    Color.dynamic(light: 0xC4B5FD, dark: \.accent),
+    Color.dynamic(light: 0x8B5CF6, dark: \.primary)
 ]
 
 /// The aurora stroke: `shape.stroke(AngularGradient)` gives a crisp rainbow edge (deterministic, so it
@@ -555,8 +564,8 @@ extension View {
 
 // MARK: - Aurora Section Rule
 
-/// The glowing violet bar to the left of section titles: 3×18, #C4B5FD → #8B5CF6, with an outer glow
-/// of 8px at 55% in dark mode and 6px at 35% in light mode.
+/// The glowing violet bar to the left of section titles: 3×18, light lavender → primary violet in light mode and
+/// the current palette accent → primary in dark mode, with an outer glow of 8px at 55% in dark mode and 6px at 35% in light mode.
 struct AuroraSectionRule: View {
     @Environment(\.colorScheme) private var colorScheme
 
@@ -565,14 +574,17 @@ struct AuroraSectionRule: View {
         Capsule(style: .continuous)
             .fill(
                 LinearGradient(
-                    colors: [Color(hex: 0xC4B5FD), Color(hex: 0x8B5CF6)],
+                    colors: [
+                        Color.dynamic(light: 0xC4B5FD, dark: \.accent),
+                        Color.dynamic(light: 0x8B5CF6, dark: \.primary)
+                    ],
                     startPoint: .top,
                     endPoint: .bottom
                 )
             )
             .frame(width: 3, height: 18)
             .shadow(
-                color: isDark ? Color(hex: 0xA78BFA, alpha: 0.55) : Color(hex: 0x8B5CF6, alpha: 0.35),
+                color: Color.dynamic(light: 0x8B5CF6, dark: \.primary, lightAlpha: 0.35, darkAlpha: 0.55),
                 radius: isDark ? 4 : 3,
                 y: 0
             )
@@ -610,7 +622,7 @@ struct AuroraTitleCount: View {
 // MARK: - Aurora Grouped Card
 
 /// The conversation group card on Home: one card per group, no separators inside, rows kept apart by
-/// padding alone. Corner radius 20. Dark: #221F35 + 5.5% white border + a 1px 3% white inner highlight
+/// padding alone. Corner radius 20. Dark: the current palette surface + 5.5% white border + a 1px 3% white inner highlight
 /// at the top. Light: pure white + 5% black border + two very faint shadows.
 /// Used only by the Home family (Pinned / date groups / search results / folders); the shared
 /// GroupedCard still serves the skill editor and other V2 screens.

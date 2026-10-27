@@ -199,6 +199,8 @@ extension LanguageOption {
 struct AppPreference: Hashable {
     var theme: ThemeOption
     var themeSetByUser: Bool = false
+    /// Raw dark palette string (may be an id this client does not know; it is kept as is and not written back); nil = unset, rendered as the default dark.
+    var darkPalette: String? = nil
     var language: LanguageOption
     var memoryText: String = ""
     var memoryAntiForgetEnabled: Bool = false
@@ -215,4 +217,9 @@ struct AppPreference: Hashable {
     var contextDefaultCap: ContextBudgetCap = .auto
     /// Remind when the price line is crossed. Stored locally only.
     var contextPriceLineReminderEnabled: Bool = true
+
+    /// The palette actually rendered: a known id is used, otherwise the default dark.
+    var resolvedDarkPalette: OriveoDarkPaletteID {
+        OriveoDarkPaletteID.resolve(darkPalette)
+    }
 }

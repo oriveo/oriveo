@@ -277,7 +277,14 @@ struct ChatOutlineRail: View {
             .shadow(color: Color.black.opacity(0.28), radius: 12, y: 4)
     }
 
-    private static let tooltipFill = Color(red: 0.12, green: 0.13, blue: 0.17)
+    /// Dark tooltip chip fill: avoids a white-on-white blur in light mode, modeled on the iOS system dark tooltip; light mode leans slightly blue-violet to echo the brand,
+    /// dark mode uses the current palette surfaceRaised. White text, a thin highlight stroke and a soft shadow separate it from the chat background.
+    private static let tooltipFill = Color(uiColor: UIColor { trait in
+        if trait.userInterfaceStyle == .dark {
+            return UIColor(oriveoHex: trait.oriveoDarkPalette.palette.surfaceRaised)
+        }
+        return UIColor(red: 0.12, green: 0.13, blue: 0.17, alpha: 1)
+    })
 
     private func tooltipOffsetY(index: Int, rowH: CGFloat, count: Int) -> CGFloat {
         CGFloat(index) * rowH + rowH / 2 - CGFloat(count) * rowH / 2

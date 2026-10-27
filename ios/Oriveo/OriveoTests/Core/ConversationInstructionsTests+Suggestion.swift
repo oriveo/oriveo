@@ -48,14 +48,15 @@ extension ConversationInstructionsTests {
     /// The lexical bar only appears when the detector's lang is in suggestionLanguages: use a zh-Hans sentence.
     private static let directive = "\u{4EE5}\u{540E}\u{6BCF}\u{6B21}\u{56DE}\u{7B54}\u{90FD}\u{5148}\u{7ED9}\u{7ED3}\u{8BBA}"
 
-    /// The primary "Set as instruction" button uses the brand color with white text, not the system blue (AccentColor is empty).
+    /// The primary "Set as instruction" button uses the brand color with the on-primary text color, not the system blue (AccentColor is empty).
+    /// It reads primaryUIColor / onPrimaryUIColor (light mode keeps the original violet and white; dark mode follows the current palette).
     @MainActor
     @Test("directive bar accept button uses the brand primary color", .sharedProcessState)
     func directiveAcceptButtonUsesPrimary() throws {
         let bar = DirectiveSuggestionBarView()
         let config = try #require(bar.acceptButtonConfigurationForTesting)
-        #expect(sameResolvedColor(config.baseBackgroundColor, UIColor(OriveoTheme.Palette.primary)))
-        #expect(sameResolvedColor(config.baseForegroundColor, .white))
+        #expect(sameResolvedColor(config.baseBackgroundColor, OriveoTheme.Palette.primaryUIColor))
+        #expect(sameResolvedColor(config.baseForegroundColor, OriveoTheme.Palette.onPrimaryUIColor))
     }
 
     @MainActor

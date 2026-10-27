@@ -1018,7 +1018,7 @@ private struct CrosscheckHeroButtonStyle: ButtonStyle {
             .font(OriveoTheme.Typography.caption.weight(.bold))
             .lineLimit(1)
             .minimumScaleFactor(0.80)
-            .foregroundStyle(isEnabled ? Color.white : OriveoTheme.Palette.textTertiary)
+            .foregroundStyle(isEnabled ? OriveoTheme.Palette.onPrimary : OriveoTheme.Palette.textTertiary)
             .padding(.horizontal, 18)
             .frame(maxWidth: .infinity)
             .frame(height: 54)

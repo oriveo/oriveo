@@ -349,6 +349,7 @@ struct NotesView: View {
                            filter: .all,
                            icon: "square.grid.2x2.fill",
                            tint: OriveoTheme.Palette.primary,
+                           activeForeground: OriveoTheme.Palette.onPrimary,
                            showCount: false)
                 ForEach(appState.noteFolders) { folder in
                     folderChip(title: folder.name,
@@ -374,7 +375,9 @@ struct NotesView: View {
                     folderChip(title: L10n.tr("Uncategorized", table: .notes),
                                count: unc, filter: .uncategorized,
                                icon: "tray.fill",
-                               tint: OriveoTheme.Palette.textSecondary)
+                               tint: OriveoTheme.Palette.textSecondary,
+                               // Neutral grey fill (the light-grey palette textSecondary in dark mode): the selected text is inverted, white in light mode and the palette bg in dark mode
+                               activeForeground: Color.dynamic(light: 0xFFFFFF, dark: \.bg))
                 }
             }
             .padding(.vertical, 2)
@@ -382,19 +385,28 @@ struct NotesView: View {
     }
 
     @ViewBuilder
-    private func folderChip(title: String, count: Int, filter: NoteFolderFilter, icon: String, tint: Color, showCount: Bool = true) -> some View {
+    /// `activeForeground`: the text color on the selected solid fill. Folder / category colored fills keep white; a primary fill ("All") passes onPrimary.
+    private func folderChip(
+        title: String,
+        count: Int,
+        filter: NoteFolderFilter,
+        icon: String,
+        tint: Color,
+        activeForeground: Color = .white,
+        showCount: Bool = true
+    ) -> some View {
         let active = folderFilter == filter
         HStack(spacing: 6) {
             Image(systemName: icon)
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(active ? Color.white : tint)
+                .foregroundStyle(active ? activeForeground : tint)
             Text(title)
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(active ? Color.white : OriveoTheme.Palette.textPrimary)
+                .foregroundStyle(active ? activeForeground : OriveoTheme.Palette.textPrimary)
             if showCount {
                 Text("\(count)")
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(active ? Color.white.opacity(0.75) : OriveoTheme.Palette.textTertiary)
+                    .foregroundStyle(active ? activeForeground.opacity(0.75) : OriveoTheme.Palette.textTertiary)
             }
         }
         .padding(.horizontal, 14)
@@ -644,11 +656,12 @@ struct NotesView: View {
 }
 
 enum NotesChrome {
+    /// Lavender gradient background: lavender in light mode, the current palette bgSubtle to bg in dark mode.
     static var background: LinearGradient {
         LinearGradient(
             colors: [
-                Color.dynamic(light: 0xF7F5FB, dark: 0x171520),
-                Color.dynamic(light: 0xF1ECF8, dark: 0x131019)
+                Color.dynamic(light: 0xF7F5FB, dark: \.bgSubtle),
+                Color.dynamic(light: 0xF1ECF8, dark: \.bg)
             ],
             startPoint: .top,
             endPoint: .bottom

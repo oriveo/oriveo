@@ -414,7 +414,7 @@ struct SkillsListView: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
-            .foregroundStyle(isActive ? .white : Colors.textSecondary)
+            .foregroundStyle(isActive ? OriveoTheme.Palette.onPrimary : Colors.textSecondary)
             .background(
                 Capsule(style: .continuous)
                     .fill(isActive

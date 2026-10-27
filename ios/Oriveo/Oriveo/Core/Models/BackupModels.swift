@@ -392,6 +392,8 @@ nonisolated struct BackupPreferences: Codable {
     var memoryAntiForgetEnabled: Bool?
     var memoryAntiForgetText: String?
     var memoryUpdatedAt: String?
+    /// Raw dark palette string; nil = unset (an old backup has no such field and renders as the default dark after restore).
+    var darkPalette: String? = nil
 }
 
 

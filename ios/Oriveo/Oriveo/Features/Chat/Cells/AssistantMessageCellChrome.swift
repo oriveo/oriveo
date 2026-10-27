@@ -412,7 +412,8 @@ extension AssistantMessageCell {
 
         statusPillLabel.text = L10n.tr("Generating")
         statusPillLabel.font = .systemFont(ofSize: 11, weight: .semibold)
-        statusPillLabel.textColor = UIColor(OriveoTheme.Palette.onPrimary)
+        // In dark mode primary is lightened and pure white text only reaches about 2.7:1, so follow onPrimary with the theme
+        statusPillLabel.textColor = OriveoTheme.Palette.onPrimaryUIColor
         statusPillLabel.translatesAutoresizingMaskIntoConstraints = false
 
         statusPillContainer.backgroundColor = UIColor(OriveoTheme.Palette.primary)

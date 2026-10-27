@@ -201,8 +201,8 @@ final class UIKitRecoveryCard: UIView {
     private func configurePrimaryButton(_ button: UIButton, title: String) {
         var config = UIButton.Configuration.filled()
         config.title = title
-        config.baseForegroundColor = .white
-        config.baseBackgroundColor = UIColor(OriveoTheme.Palette.primary)
+        config.baseForegroundColor = OriveoTheme.Palette.onPrimaryUIColor
+        config.baseBackgroundColor = OriveoTheme.Palette.primaryUIColor
         config.cornerStyle = .medium
         config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
             var outgoing = incoming

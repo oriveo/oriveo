@@ -19,7 +19,8 @@ struct ChatAuroraPerformanceRegressionTests {
         let chatViewSource = try source(named: "ChatView.swift")
 
         #expect(auroraSource.contains("Canvas"))
-        #expect(auroraSource.components(separatedBy: "RadialGradient(").count - 1 == 3)
+        // Bottom main glow + bottom-left secondary glow + bottom-right glow (dark mode only, the fourth blob of the dark palette aurora formula) + top micro glow
+        #expect(auroraSource.components(separatedBy: "RadialGradient(").count - 1 == 4)
         #expect(auroraSource.contains(".animation(reduceMotion ? nil : .easeInOut(duration: 0.55), value: prominent)"))
         #expect(auroraSource.contains(".animation(reduceMotion ? nil : .easeInOut(duration: 0.7), value: appeared)"))
         #expect(chatViewSource.contains(".background(ChatEmptyStateAurora(prominent: projection.messages.isEmpty))"))

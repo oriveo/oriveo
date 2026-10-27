@@ -93,7 +93,7 @@ struct DictationPromptCardView: View {
         } label: {
             Text(action.localizedTitle)
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(Color.white)
+                .foregroundStyle(OriveoTheme.Palette.onPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .padding(.horizontal, 16)

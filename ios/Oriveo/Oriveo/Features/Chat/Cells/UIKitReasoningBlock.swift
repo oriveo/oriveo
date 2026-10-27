@@ -576,7 +576,7 @@ final class UIKitReasoningBlock: UIView {
     }
 
 
-    private static func formatDuration(ms: Int64) -> String {
+    static func formatDuration(ms: Int64) -> String {
         let seconds = Int(ms / 1000)
         if seconds < 1 { return "<1s" }
         if seconds < 60 { return "\(seconds)s" }

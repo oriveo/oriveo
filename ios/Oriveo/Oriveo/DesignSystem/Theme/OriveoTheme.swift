@@ -3,16 +3,17 @@ import UIKit
 
 enum OriveoTheme {
     enum Palette {
-        static let backgroundBase = Color.dynamic(light: 0xFFFFFF, dark: 0x0F1218)
-        static let background = Color.dynamic(light: 0xF8FAFC, dark: 0x14181F)
-        static let backgroundSecondary = Color.dynamic(light: 0xEEF2FF, dark: 0x181C24, lightAlpha: 0.72, darkAlpha: 1)
-        static let surface = Color.dynamic(light: 0xFFFFFF, dark: 0x1B1F2A, lightAlpha: 0.94, darkAlpha: 1)
-        static let surfaceElevated = Color.dynamic(light: 0xFFFFFF, dark: 0x252937, lightAlpha: 0.98, darkAlpha: 1)
-        static let surfaceInset = Color.dynamic(light: 0xF8FAFC, dark: 0x181C24, lightAlpha: 1, darkAlpha: 1)
-        static let surfaceChrome = Color.dynamic(light: 0xFFFFFF, dark: 0x14181F, lightAlpha: 0.96, darkAlpha: 0.92)
-        static let textPrimary = Color.dynamic(light: 0x18181B, dark: 0xECEEF2)
-        static let textSecondary = Color.dynamic(light: 0x52525B, dark: 0xB4BAC6)
-        static let textTertiary = Color.dynamic(light: 0x71717A, dark: 0x8B919E)
+        // Dark-mode token source: entries written as `\.field` in the dark slot take the current dark palette (see OriveoDarkPalettes.swift).
+        static let backgroundBase = Color.dynamic(light: 0xFFFFFF, dark: \.bg)
+        static let background = Color.dynamic(light: 0xF8FAFC, dark: \.bgSubtle)
+        static let backgroundSecondary = Color.dynamic(light: 0xEEF2FF, dark: \.bgInset, lightAlpha: 0.72, darkAlpha: 1)
+        static let surface = Color.dynamic(light: 0xFFFFFF, dark: \.surface, lightAlpha: 0.94, darkAlpha: 1)
+        static let surfaceElevated = Color.dynamic(light: 0xFFFFFF, dark: \.surfaceRaised, lightAlpha: 0.98, darkAlpha: 1)
+        static let surfaceInset = Color.dynamic(light: 0xF8FAFC, dark: \.bgInset, lightAlpha: 1, darkAlpha: 1)
+        static let surfaceChrome = Color.dynamic(light: 0xFFFFFF, dark: \.bgSubtle, lightAlpha: 0.96, darkAlpha: 0.92)
+        static let textPrimary = Color.dynamic(light: 0x18181B, dark: \.text)
+        static let textSecondary = Color.dynamic(light: 0x52525B, dark: \.textSecondary)
+        static let textTertiary = Color.dynamic(light: 0x71717A, dark: \.textTertiary)
         static let textDisabledOnControl = Color.dynamic(light: 0x6A6A73, dark: 0x9AA0AC)
         static let border = Color.dynamic(light: 0x000000, dark: 0xFFFFFF, lightAlpha: 0.08, darkAlpha: 0.10)
         static let borderStrong = Color.dynamic(light: 0x000000, dark: 0xFFFFFF, lightAlpha: 0.16, darkAlpha: 0.18)
@@ -20,22 +21,35 @@ enum OriveoTheme {
         static let hairline = Color.dynamic(light: 0xFFFFFF, dark: 0xFFFFFF, lightAlpha: 0.70, darkAlpha: 0.06)
         static let glassHighlight = Color.dynamic(light: 0xFFFFFF, dark: 0xFFFFFF, lightAlpha: 0.34, darkAlpha: 0.08)
         static let scrim = Color.dynamic(light: 0x000000, dark: 0x000000, lightAlpha: 0.45, darkAlpha: 0.72)
-        static let primary = Color.dynamic(light: 0x8C5FF8, dark: 0xA78BFA)
-        static let primaryPressed = Color.dynamic(light: 0x7B3DEF, dark: 0xC4B5FD)
-        static let primaryTextSafe = Color.dynamic(light: 0x6D28D9, dark: 0xA78BFA)
-        static let primarySoft = Color.dynamic(light: 0xEDE9FE, dark: 0xA78BFA, lightAlpha: 1, darkAlpha: 0.12)
-        static let primaryGlow = Color.dynamic(light: 0x8C5FF8, dark: 0x8C5FF8, lightAlpha: 0.10, darkAlpha: 0.22)
+        // Brand primary: violet; the dark variant is desaturated and brightened (OKLCH L≈0.69 C≈0.14)
+        /// On the UIKit side take the UIColor directly instead of round-tripping through `UIColor(Color)`.
+        static let primaryUIColor = UIColor.oriveoDynamic(light: 0x8C5FF8, dark: \.primary)
+        static let primary = Color(uiColor: primaryUIColor)
+        static let primaryPressed = Color.dynamic(light: 0x7B3DEF, dark: \.primaryHover)
+        /// The text-safe fill variant of `primary`: only for accent fills that carry text on top of them
+        /// (a selected segmented pill, etc.). `onPrimary` is already at the white / near-black extreme, so the
+        /// only lever is the fill, which is pressed one step darker in light mode. Contrast of `onPrimary` on it:
+        /// light 7.10:1 / dark 6.89:1 (the original `primary` gives only 4.11 in light mode, below AA).
+        /// `primary` itself does not change: fills, icons and strokes that carry no text keep the vivid value.
+        /// The dark slot points at the same value as `primary`, which already passes.
+        static let primaryTextSafe = Color.dynamic(light: 0x6D28D9, dark: \.primary)
+        static let primarySoft = Color.dynamic(light: 0xEDE9FE, dark: \.primary, lightAlpha: 1, darkAlpha: 0.12)
+        /// Dark mode takes the current palette primary-glow (primary at 35%).
+        /// The UIKit side (CALayer shadows) takes the UIColor directly instead of round-tripping through `UIColor(Color)`, which loses dynamic resolution on some systems.
+        static let primaryGlowUIColor = UIColor.oriveoDynamic(light: 0x8C5FF8, lightAlpha: 0.10, dark: \.primaryGlow)
+        static let primaryGlow = Color(uiColor: primaryGlowUIColor)
+        // Per-tab selected colors in the tab bar: Home uses primary (violet), Providers teal, Settings orange
         static let tabAccentProviders = Color.dynamic(light: 0x0D9488, dark: 0x2DD4BF)
         static let tabAccentSettings = Color.dynamic(light: 0xEA580C, dark: 0xFB923C)
-        static let success = Color.dynamic(light: 0x10B981, dark: 0x6EE7A1)
-        static let successSoft = Color.dynamic(light: 0x10B981, dark: 0x6EE7A1, lightAlpha: 0.10, darkAlpha: 0.14)
-        static let warning = Color.dynamic(light: 0xF59E0B, dark: 0xFCD34D)
-        static let warningText = Color.dynamic(light: 0x92400E, dark: 0xFCD34D)
-        static let warningSoft = Color.dynamic(light: 0xF59E0B, dark: 0xFCD34D, lightAlpha: 0.10, darkAlpha: 0.14)
+        static let success = Color.dynamic(light: 0x10B981, dark: \.success)
+        static let successSoft = Color.dynamic(light: 0x10B981, dark: \.success, lightAlpha: 0.10, darkAlpha: 0.14)
+        static let warning = Color.dynamic(light: 0xF59E0B, dark: \.warning)
+        static let warningText = Color.dynamic(light: 0x92400E, dark: \.warning)
+        static let warningSoft = Color.dynamic(light: 0xF59E0B, dark: \.warning, lightAlpha: 0.10, darkAlpha: 0.14)
         /// Outline for cards that need a look but are not errors (e.g. conflict cards); a line only, never text
-        static let warningLine = Color.dynamic(light: 0xF59E0B, dark: 0xFCD34D, lightAlpha: 0.40, darkAlpha: 0.32)
+        static let warningLine = Color.dynamic(light: 0xF59E0B, dark: \.warning, lightAlpha: 0.40, darkAlpha: 0.32)
         /// Grouped page background (memory page): one step darker than background so cards float
-        static let backgroundGrouped = Color.dynamic(light: 0xF4F4F6, dark: 0x0F1218)
+        static let backgroundGrouped = Color.dynamic(light: 0xF4F4F6, dark: \.bg)
         /// Dot-grid background of the memory atlas
         static let memoryAtlasDot = Color.dynamic(light: 0x18181B, dark: 0xFFFFFF, lightAlpha: 0.10, darkAlpha: 0.08)
         /// Hues of the five memory groups: only for graphics such as star points, the spectrum and group glyphs; text always uses the body color (not part of contrast tests)
@@ -49,16 +63,21 @@ enum OriveoTheme {
         static let memoryHue = MemoryHue()
         /// Semantic yellow for the quoted-selection preview; keeps clear contrast with body text in light and dark.
         static let quoteSelectionHighlight = Color.dynamic(light: 0xFDE68A, dark: 0x854D0E, lightAlpha: 0.82, darkAlpha: 0.92)
-        static let danger = Color.dynamic(light: 0xEF4444, dark: 0xF8978F)
-        static let dangerSoft = Color.dynamic(light: 0xEF4444, dark: 0xF8978F, lightAlpha: 0.10, darkAlpha: 0.14)
-        static let info = Color.dynamic(light: 0x3B82F6, dark: 0x8DB6FF)
-        static let infoSoft = Color.dynamic(light: 0x3B82F6, dark: 0x8DB6FF, lightAlpha: 0.10, darkAlpha: 0.14)
-        static let userBubble = Color.dynamic(light: 0x8C5FF8, dark: 0x7C5BEE, lightAlpha: 1, darkAlpha: 1)
-        static let assistantBubble = Color.dynamic(light: 0xF3F4F6, dark: 0x1B1F2A, lightAlpha: 1, darkAlpha: 1)
-        static let codeBlockBg = Color.dynamic(light: 0xF4F4F5, dark: 0x0C0F16)
+        static let danger = Color.dynamic(light: 0xEF4444, dark: \.error)
+        static let dangerSoft = Color.dynamic(light: 0xEF4444, dark: \.error, lightAlpha: 0.10, darkAlpha: 0.14)
+        static let info = Color.dynamic(light: 0x3B82F6, dark: \.info)
+        static let infoSoft = Color.dynamic(light: 0x3B82F6, dark: \.info, lightAlpha: 0.10, darkAlpha: 0.14)
+        static let assistantBubble = Color.dynamic(light: 0xF3F4F6, dark: \.surface, lightAlpha: 1, darkAlpha: 1)
+        static let codeBlockBg = Color.dynamic(light: 0xF4F4F5, dark: \.codeBg)
+        /// Code block header bar: light mode keeps the original value (the surface of the editor-style dark panel); dark mode takes the current palette codeHeaderBg.
+        static let codeBlockHeaderBgUIColor = UIColor.oriveoDynamic(light: 0x111A2E, dark: \.codeHeaderBg)
+        static let codeBlockHeaderBg = Color(uiColor: codeBlockHeaderBgUIColor)
         static let codeBlockFg = Color.dynamic(light: 0x18181B, dark: 0xE4E4E7)
         static let codeInlineBg = Color.dynamic(light: 0x000000, dark: 0xFFFFFF, lightAlpha: 0.05, darkAlpha: 0.06)
-        static let onPrimary = Color.dynamic(light: 0xFFFFFF, dark: 0x0F1218)
+        // On-* foreground: text color on saturated fills (buttons, chips).
+        // In light mode it is white; in dark mode the status colors are brightened (e.g. success #6EE7A1) and white text lacks contrast, so dark text is used.
+        static let onPrimaryUIColor = UIColor.oriveoDynamic(light: 0xFFFFFF, dark: \.onPrimary)
+        static let onPrimary = Color(uiColor: onPrimaryUIColor)
         static let onSuccess = Color.dynamic(light: 0xFFFFFF, dark: 0x062A13)
         static let onWarning = Color.dynamic(light: 0x18181B, dark: 0x18181B)
         static let onDanger = Color.dynamic(light: 0xFFFFFF, dark: 0x1F0A09)
@@ -68,12 +87,14 @@ enum OriveoTheme {
         static let shadow = Color.dynamic(light: 0x0F172A, dark: 0x000000, lightAlpha: 0.08, darkAlpha: 0.34)
         static let shadowStrong = Color.dynamic(light: 0x0F172A, dark: 0x000000, lightAlpha: 0.16, darkAlpha: 0.56)
         /// Solid fill of the system tab bar on iOS 18–25 (from iOS 26 the tab bar is liquid glass and this is unused)
-        static let tabBar = Color.dynamic(light: 0xFFFFFF, dark: 0x14181F, lightAlpha: 0.94, darkAlpha: 0.88)
+        static let tabBar = Color.dynamic(light: 0xFFFFFF, dark: \.bgSubtle, lightAlpha: 0.94, darkAlpha: 0.88)
+        // The light gradient has a subtle hue rotation, bluer violet at the start and warmer violet at the end; dark mode uses gradient-brand (primary → accent, 135°)
         /// Color stops of primaryGradient, used directly on the UIKit side (CAGradientLayer)
-        static let primaryGradientColors: [Color] = [
-            Color.dynamic(light: 0x8347F5, dark: 0x8347F5),
-            Color.dynamic(light: 0x6B3BC7, dark: 0x6B3BC7)
+        static let primaryGradientUIColors: [UIColor] = [
+            UIColor.oriveoDynamic(light: 0x8347F5, dark: \.primary),
+            UIColor.oriveoDynamic(light: 0x6B3BC7, dark: \.accent)
         ]
+        static let primaryGradientColors: [Color] = primaryGradientUIColors.map { Color(uiColor: $0) }
         static let primaryGradient = LinearGradient(
             colors: primaryGradientColors,
             startPoint: .topLeading,
@@ -81,8 +102,8 @@ enum OriveoTheme {
         )
         static let primaryGradientPressed = LinearGradient(
             colors: [
-                Color.dynamic(light: 0x7238E5, dark: 0x7238E5),
-                Color.dynamic(light: 0x5A2BB0, dark: 0x5A2BB0)
+                Color.dynamic(light: 0x7238E5, dark: \.primaryActive),
+                Color.dynamic(light: 0x5A2BB0, dark: \.accent)
             ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
@@ -292,10 +313,39 @@ extension Color {
     }
 }
 
+extension Color {
+    /// Converts a palette derived color (`OriveoDarkPalette.Tint`) to a SwiftUI Color.
+    init(oriveoTint tint: OriveoDarkPalette.Tint) {
+        self.init(hex: tint.hex, alpha: tint.alpha)
+    }
+
+}
+
+nonisolated extension UIColor {
+    /// Light mode takes a fixed value; dark mode takes a derived color of the current palette (with a fixed alpha).
+    static func oriveoDynamic(
+        light: UInt,
+        lightAlpha: CGFloat = 1,
+        dark: KeyPath<OriveoDarkPalette, OriveoDarkPalette.Tint>
+    ) -> UIColor {
+        UIColor { trait in
+            if trait.userInterfaceStyle == .dark {
+                let tint = trait.oriveoDarkPalette.palette[keyPath: dark]
+                return UIColor(oriveoHex: tint.hex, alpha: tint.alpha)
+            }
+            return UIColor(oriveoHex: light, alpha: lightAlpha)
+        }
+    }
+}
+
 struct OriveoScreenBackground: View {
-    var glowTint: UInt = 0x8C5FF8
+    /// Glow hue: nil = brand color (brand violet in light mode, the current palette primary in dark mode); a gold sub-brand page can pass its own hue to avoid a violet-gold clash.
+    var glowTint: UInt? = nil
+    /// false = draw only the base color without the brand glow (the settings home has its own top glow).
+    var showsGlow: Bool = true
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.oriveoDarkPalette) private var darkPalette
 
     var body: some View {
         Rectangle()
@@ -305,7 +355,7 @@ struct OriveoScreenBackground: View {
             // the side safe areas. On the Duo cover screen the content area is 382pt and the fill reached only
             // (382 + 460) / 2 = 421pt, leaving the host's white showing under the status bar column on the right.
             // An overlay takes no part in sizing.
-            .overlay { glow }
+            .overlay { if showsGlow { glow } }
             .ignoresSafeArea()
     }
 
@@ -317,12 +367,13 @@ struct OriveoScreenBackground: View {
                 .fill(
                     RadialGradient(
                         colors: [
-                            Color(hex: glowTint, alpha: 0.14),
+                            Color(hex: glowTint ?? darkPalette.palette.primary, alpha: 0.14),
                             Color.clear
                         ],
                         center: .center,
                         startRadius: 0,
-                        endRadius: 300
+                        // The gradient radius must equal the circle radius: a larger one leaves about 2% opacity at the circle edge and cuts a visible edge
+                        endRadius: 250
                     )
                 )
                 .frame(width: 500, height: 500)
@@ -332,12 +383,12 @@ struct OriveoScreenBackground: View {
                 .fill(
                     RadialGradient(
                         colors: [
-                            Color(hex: glowTint, alpha: 0.07),
+                            Color(hex: glowTint ?? 0x8C5FF8, alpha: 0.07),
                             Color.clear
                         ],
                         center: .center,
                         startRadius: 0,
-                        endRadius: 280
+                        endRadius: 230
                     )
                 )
                 .frame(width: 460, height: 460)
@@ -352,7 +403,7 @@ struct OriveoScreenBackground: View {
                     colors: [
                         OriveoTheme.Palette.backgroundBase,
                         OriveoTheme.Palette.background,
-                        Color(hex: 0x10141C)
+                        Color(hex: darkPalette.palette.bgSubtle)
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
@@ -508,8 +559,8 @@ extension View {
         )
     }
 
-    func oriveoScreenBackground(glowTint: UInt = 0x8C5FF8) -> some View {
-        background(OriveoScreenBackground(glowTint: glowTint))
+    func oriveoScreenBackground(glowTint: UInt? = nil, showsGlow: Bool = true) -> some View {
+        background(OriveoScreenBackground(glowTint: glowTint, showsGlow: showsGlow))
     }
 }
 
@@ -518,23 +569,24 @@ extension View {
 extension OriveoTheme {
     enum V2 {
         enum Colors {
-            static let bgDefault = Color.dynamic(light: 0xFAFAFA, dark: 0x0F1218)
-            static let bgSubtle = Color.dynamic(light: 0xF4F4F5, dark: 0x14181F)
-            static let bgInset = Color.dynamic(light: 0xF0F0F2, dark: 0x181C24)
-            static let surfaceDefault = Color.dynamic(light: 0xFFFFFF, dark: 0x1B1F2A)
-            static let surfaceElevated = Color.dynamic(light: 0xFFFFFF, dark: 0x252937)
-            static let textPrimary = Color.dynamic(light: 0x18181B, dark: 0xECEEF2)
-            static let textSecondary = Color.dynamic(light: 0x52525B, dark: 0xB4BAC6)
-            static let textTertiary = Color.dynamic(light: 0x71717A, dark: 0x8B919E)
+            // V2 tokens share one authoritative palette with V1
+            static let bgDefault = Color.dynamic(light: 0xFAFAFA, dark: \.bg)
+            static let bgSubtle = Color.dynamic(light: 0xF4F4F5, dark: \.bgSubtle)
+            static let bgInset = Color.dynamic(light: 0xF0F0F2, dark: \.bgInset)
+            static let surfaceDefault = Color.dynamic(light: 0xFFFFFF, dark: \.surface)
+            static let surfaceElevated = Color.dynamic(light: 0xFFFFFF, dark: \.surfaceRaised)
+            static let textPrimary = Color.dynamic(light: 0x18181B, dark: \.text)
+            static let textSecondary = Color.dynamic(light: 0x52525B, dark: \.textSecondary)
+            static let textTertiary = Color.dynamic(light: 0x71717A, dark: \.textTertiary)
             static let borderDefault = Color.dynamic(light: 0x000000, dark: 0xFFFFFF, lightAlpha: 0.08, darkAlpha: 0.10)
             static let borderSubtle = Color.dynamic(light: 0x000000, dark: 0xFFFFFF, lightAlpha: 0.04, darkAlpha: 0.06)
             static let borderEmphasis = Color.dynamic(light: 0x000000, dark: 0xFFFFFF, lightAlpha: 0.16, darkAlpha: 0.18)
-            static let primary = Color.dynamic(light: 0x8C5FF8, dark: 0xA78BFA)
-            static let primaryHover = Color.dynamic(light: 0x7C3AED, dark: 0xC4B5FD)
-            static let primarySubtle = Color.dynamic(light: 0x8C5FF8, dark: 0xA78BFA, lightAlpha: 0.08, darkAlpha: 0.12)
-            static let warning = Color.dynamic(light: 0xF59E0B, dark: 0xFCD34D)
-            static let warningSubtle = Color.dynamic(light: 0xF59E0B, dark: 0xFCD34D, lightAlpha: 0.10, darkAlpha: 0.14)
-            static let danger = Color.dynamic(light: 0xEF4444, dark: 0xF8978F)
+            static let primary = Color.dynamic(light: 0x8C5FF8, dark: \.primary)
+            static let primaryHover = Color.dynamic(light: 0x7C3AED, dark: \.primaryHover)
+            static let primarySubtle = Color.dynamic(light: 0x8C5FF8, dark: \.primary, lightAlpha: 0.08, darkAlpha: 0.15)
+            static let warning = Color.dynamic(light: 0xF59E0B, dark: \.warning)
+            static let warningSubtle = Color.dynamic(light: 0xF59E0B, dark: \.warning, lightAlpha: 0.10, darkAlpha: 0.14)
+            static let danger = Color.dynamic(light: 0xEF4444, dark: \.error)
             static let shadowSm = Color.dynamic(light: 0x000000, dark: 0x000000, lightAlpha: 0.04, darkAlpha: 0.20)
         }
 

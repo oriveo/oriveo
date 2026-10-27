@@ -433,6 +433,8 @@ private struct ProviderBreakdownOverflowRow: View {
 // MARK: - Chart color resolution
 
 private enum ChartColorResolver {
+    /// Light-mode brand hue (matches the light value of OriveoTheme.Palette.primary, about 257 degrees).
+    /// The largest provider (index 0) is anchored to the primary color so the card ties in with the brand; dark mode takes the current palette primary directly.
     private static let brandHue: Double = 257.0
 
     static func color(forIndex index: Int) -> Color {
@@ -446,6 +448,9 @@ private enum ChartColorResolver {
 
         return Color(uiColor: UIColor { trait in
             let isDark = trait.userInterfaceStyle == .dark
+            if isDark, index == 0 {
+                return UIColor(oriveoHex: trait.oriveoDarkPalette.palette.primary)
+            }
             return UIColor(
                 hue: CGFloat(hue),
                 saturation: isDark ? 0.50 : 0.55,

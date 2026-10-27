@@ -94,7 +94,7 @@ struct GrokSubscriptionAuthorizationSheet: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
                         .background(OriveoTheme.Palette.primary)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(OriveoTheme.Palette.onPrimary)
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
 
@@ -125,7 +125,7 @@ struct GrokSubscriptionAuthorizationSheet: View {
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
                             .background(OriveoTheme.Palette.primary)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(OriveoTheme.Palette.onPrimary)
                             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     }
                 }

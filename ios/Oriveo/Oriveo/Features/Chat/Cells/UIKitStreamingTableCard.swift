@@ -3,12 +3,11 @@ import UIKit
 
 final class UIKitStreamingTableCard: UIView {
 
-    private static let borderColor = UIColor(Color.dynamic(light: 0xCBD5E1, dark: 0x334155))
-    private static let headerBg = UIColor(Color.dynamic(light: 0xF1F5F9, dark: 0x1E293B))
+    static let headerBg = UIColor.oriveoDynamic(light: 0xF1F5F9, dark: \.surfaceRaised)
     private static let headerText = UIColor(OriveoTheme.Palette.textPrimary)
     private static let cellText = UIColor(OriveoTheme.Palette.textPrimary)
-    private static let cellBg = UIColor(Color.dynamic(light: 0xFFFFFF, dark: 0x0F172A))
-    private static let altRowBg = UIColor(Color.dynamic(light: 0xF8FAFC, dark: 0x131C2E))
+    private static let cellBg = UIKitTableCard.cellBg
+    private static let altRowBg = UIKitTableCard.altRowBg
 
     private let cellPaddingH: CGFloat = 12
     private let cellPaddingV: CGFloat = 8
@@ -76,7 +75,7 @@ final class UIKitStreamingTableCard: UIView {
         layer.cornerRadius = cornerRadius
         layer.cornerCurve = .continuous
         layer.borderWidth = gridLineWidth
-        layer.borderColor = Self.borderColor.withAlphaComponent(0.5).cgColor
+        layer.borderColor = UIKitTableCard.gridLineColor(lightAlpha: 0.5).resolvedColor(with: traitCollection).cgColor
         clipsToBounds = true
         backgroundColor = Self.cellBg
 
@@ -252,14 +251,14 @@ final class UIKitStreamingTableCard: UIView {
 
             if j < headers.count - 1 {
                 let colLine = UIView()
-                colLine.backgroundColor = Self.borderColor.withAlphaComponent(0.25)
+                colLine.backgroundColor = UIKitTableCard.gridLineColor(lightAlpha: 0.25)
                 colLine.tag = Self.colSeparatorTag
                 row.addSubview(colLine)
             }
         }
 
         let sep = UIView()
-        sep.backgroundColor = Self.borderColor
+        sep.backgroundColor = UIKitTableCard.gridLineColor()
         sep.tag = Self.headerSepTag
         row.addSubview(sep)
         headerSepLine = sep
@@ -291,7 +290,7 @@ final class UIKitStreamingTableCard: UIView {
 
             if j < headers.count - 1 {
                 let colLine = UIView()
-                colLine.backgroundColor = Self.borderColor.withAlphaComponent(0.25)
+                colLine.backgroundColor = UIKitTableCard.gridLineColor(lightAlpha: 0.25)
                 colLine.tag = Self.colSeparatorTag
                 row.addSubview(colLine)
             }
@@ -299,7 +298,7 @@ final class UIKitStreamingTableCard: UIView {
 
         if rowIndex >= 1 {
             let line = UIView()
-            line.backgroundColor = Self.borderColor.withAlphaComponent(0.3)
+            line.backgroundColor = UIKitTableCard.gridLineColor(lightAlpha: 0.3)
             line.tag = Self.rowSeparatorTag
             row.addSubview(line)
         }
@@ -493,8 +492,8 @@ final class UIKitStreamingTableCard: UIView {
 
 
     private func registerForTraitChanges() {
-        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: UIKitStreamingTableCard, _: UITraitCollection) in
-            view.layer.borderColor = Self.borderColor.withAlphaComponent(0.5).cgColor
+        registerForTraitChanges(OriveoDarkPaletteTrait.colorAppearanceTraits) { (view: UIKitStreamingTableCard, _: UITraitCollection) in
+            view.layer.borderColor = UIKitTableCard.gridLineColor(lightAlpha: 0.5).resolvedColor(with: view.traitCollection).cgColor
         }
     }
 

@@ -105,6 +105,10 @@ struct MarkdownMessageView: View {
         MarkdownStreamingTextSplitter.split(text, keepsCurrentTail: keepsCurrentTail)
     }
 
+    /// Table border: dark mode uses the palette border (white at 10%); zebra rows: dark mode uses the palette bgInset; light mode is unchanged (same as UIKitTableCard).
+    static let tableBorder = Color.dynamic(light: 0xD1D5DB, dark: 0xFFFFFF, darkAlpha: 0.10)
+    static let tableAltRowBg = Color.dynamic(light: 0xF3F4F6, dark: \.bgInset, lightAlpha: 0.5)
+
     static let cachedTheme: MarkdownUI.Theme = makeTheme(.chat)
     static let notesTheme: MarkdownUI.Theme = makeTheme(.notes)
 
@@ -114,8 +118,8 @@ struct MarkdownMessageView: View {
 
     static func makeTheme(_ typography: MarkdownTypography) -> MarkdownUI.Theme {
         let textColor = OriveoTheme.Palette.textPrimary
-        let inlineFg = Color.dynamic(light: 0x0F172A, dark: 0xE2E8F0)
-        let inlineBg = Color.dynamic(light: 0xE2E8F0, dark: 0x1E293B)
+        let inlineFg = Color(uiColor: MarkdownAttributedStringRenderer.codeFg)
+        let inlineBg = Color(uiColor: MarkdownAttributedStringRenderer.codeBg)
         let para = typography.paragraphSpacing
 
         return MarkdownUI.Theme()
@@ -200,12 +204,12 @@ struct MarkdownMessageView: View {
                 configuration.label
                     .fixedSize(horizontal: false, vertical: true)
                     .markdownTableBorderStyle(
-                        .init(.allBorders, color: Color.dynamic(light: 0xD1D5DB, dark: 0x475569), strokeStyle: .init(lineWidth: 0.5))
+                        .init(.allBorders, color: Self.tableBorder, strokeStyle: .init(lineWidth: 0.5))
                     )
                     .markdownTableBackgroundStyle(
                         .alternatingRows(
-                            Color.dynamic(light: 0xFFFFFF, dark: 0x1E293B).opacity(0),
-                            Color.dynamic(light: 0xF3F4F6, dark: 0x334155).opacity(0.5)
+                            Color.dynamic(light: 0xFFFFFF, dark: \.surfaceRaised).opacity(0),
+                            Self.tableAltRowBg
                         )
                     )
                     .markdownMargin(top: 8, bottom: 8)
@@ -510,7 +514,7 @@ private struct StaticMarkdownContent: View {
                 SelectableTextLabel(
                     text: text,
                     fontSize: typography.baseFontSize,
-                    textColor: foregroundColor
+                    textColor: UIColor(foregroundColor)
                 )
             case .blockMarkdown:
                 if Self.containsTable(text) || Self.containsHorizontalRule(text) {
@@ -876,8 +880,8 @@ struct CachedMarkdownView: UIViewRepresentable {
         )
         let textColor = UIColor(OriveoTheme.Palette.textPrimary)
         let secondaryColor = UIColor(OriveoTheme.Palette.textSecondary)
-        let inlineFg = UIColor(Color.dynamic(light: 0x0F172A, dark: 0xE2E8F0))
-        let inlineBg = UIColor(Color.dynamic(light: 0xE2E8F0, dark: 0x1E293B))
+        let inlineFg = MarkdownAttributedStringRenderer.codeFg
+        let inlineBg = MarkdownAttributedStringRenderer.codeBg
         let linkColor = UIColor(OriveoTheme.Palette.primary)
 
         do {
@@ -911,8 +915,9 @@ struct CachedMarkdownView: UIViewRepresentable {
                 guard let intent else { continue }
                 if intent.contains(.code) {
                     attrStr[range].font = .monospacedSystemFont(ofSize: 14, weight: .regular)
-                    attrStr[range].foregroundColor = Color(uiColor: inlineFg)
-                    attrStr[range].backgroundColor = Color(uiColor: inlineBg)
+                    // Use the UIKit scope: a SwiftUI-scope Color does not land as .foregroundColor after conversion to NSAttributedString, and the fallback below would repaint it in the body text color
+                    attrStr[range].uiKit.foregroundColor = inlineFg
+                    attrStr[range].uiKit.backgroundColor = inlineBg
                 }
                 if intent.contains(.stronglyEmphasized) && !intent.contains(.code) {
                     let size = fontSize(for: attrStr, range: range, typography: typography)

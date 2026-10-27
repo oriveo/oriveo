@@ -299,7 +299,7 @@ private struct HeaderBar: View {
             Button(action: onAdd) {
                 Image(systemName: "plus")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(OriveoTheme.Palette.onPrimary)
                     .frame(width: 36, height: 36)
                     .background(
                         Circle()

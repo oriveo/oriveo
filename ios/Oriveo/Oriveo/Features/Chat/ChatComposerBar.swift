@@ -1647,7 +1647,7 @@ struct ChatComposerBar: View {
                     fill: isLit
                         ? AnyShapeStyle(OriveoTheme.Palette.primaryGradient)
                         : AnyShapeStyle(Color.dynamic(light: 0x8C5FF8, dark: 0xFFFFFF, lightAlpha: 0.12, darkAlpha: 0.10)),
-                    foreground: isLit ? .white : OriveoTheme.Palette.textTertiary,
+                    foreground: isLit ? OriveoTheme.Palette.onPrimary : OriveoTheme.Palette.textTertiary,
                     border: isLit ? OriveoTheme.Palette.hairline : .clear,
                     shadowColor: isLit ? OriveoTheme.Palette.primaryGlow : .clear,
                     size: 40,
@@ -1787,8 +1787,8 @@ struct ChatComposerBar: View {
     private var attachmentAccent: ComposerCapabilityAccent {
         .init(
             tint: Color.dynamic(light: 0x52607A, dark: 0xCBD5E1),
-            iconStart: Color.dynamic(light: 0xA5B4FC, dark: 0x818CF8),
-            iconEnd: Color.dynamic(light: 0x6366F1, dark: 0x6366F1),
+            iconStart: Color.dynamic(light: 0xA5B4FC, dark: \.accent),
+            iconEnd: Color.dynamic(light: 0x6366F1, dark: \.primary),
             softFill: Color.dynamic(light: 0xF8FAFC, dark: 0x172136, lightAlpha: 1, darkAlpha: 0.94),
             softBorder: Color.dynamic(light: 0xD5DBE7, dark: 0x94A3B8, lightAlpha: 1, darkAlpha: 0.26),
             shadow: OriveoTheme.Palette.shadow
@@ -1797,11 +1797,11 @@ struct ChatComposerBar: View {
 
     private var modelBehaviorAccent: ComposerCapabilityAccent {
         .init(
-            tint: Color.dynamic(light: 0x5B4AB8, dark: 0xC4B5FD),
-            iconStart: Color.dynamic(light: 0xA78BFA, dark: 0xC4B5FD),
-            iconEnd: Color.dynamic(light: 0x6D5BD0, dark: 0x8B5CF6),
+            tint: Color.dynamic(light: 0x5B4AB8, dark: \.accent),
+            iconStart: Color.dynamic(light: 0xA78BFA, dark: \.accent),
+            iconEnd: Color.dynamic(light: 0x6D5BD0, dark: \.primary),
             softFill: Color.dynamic(light: 0xF5F3FF, dark: 0x211B36, lightAlpha: 1, darkAlpha: 0.94),
-            softBorder: Color.dynamic(light: 0xC4B5FD, dark: 0xA78BFA, lightAlpha: 0.7, darkAlpha: 0.3),
+            softBorder: Color.dynamic(light: 0xC4B5FD, dark: \.primary, lightAlpha: 0.7, darkAlpha: 0.3),
             shadow: Color.dynamic(light: 0x6D5BD0, dark: 0x000000, lightAlpha: 0.15, darkAlpha: 0.22)
         )
     }

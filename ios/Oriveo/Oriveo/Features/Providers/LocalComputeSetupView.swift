@@ -418,7 +418,7 @@ struct LocalComputeSetupView: View {
         }
     }
 
-    private static let bottomFade = Color.dynamic(light: 0xF6F5FA, dark: 0x10141C)
+    private static let bottomFade = Color.dynamic(light: 0xF6F5FA, dark: \.bg)
 
     private var canConnect: Bool {
         let hasCredential = !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

@@ -188,7 +188,7 @@ struct RelaySetupView: View {
     }
 
     /// The actual background color at the bottom of the page (the end of the `OriveoScreenBackground` diagonal gradient); the fade mask must match it to be seamless.
-    private static let bottomFade = Color.dynamic(light: 0xF6F5FA, dark: 0x10141C)
+    private static let bottomFade = Color.dynamic(light: 0xF6F5FA, dark: \.bg)
 
     /// The local conditional fields own their only primary action. This guard prevents the
     /// relay save bar from surviving a method switch and rendering a second primary button.
@@ -552,8 +552,8 @@ struct RelaySetupOrbIcon: View {
         case .primary:
             return LinearGradient(
                 colors: [
-                    Color.dynamic(light: 0xA78BFA, dark: 0xC4B5FD),
-                    Color.dynamic(light: 0x7C3AED, dark: 0x8B5CF6)
+                    Color.dynamic(light: 0xA78BFA, dark: \.accent),
+                    Color.dynamic(light: 0x7C3AED, dark: \.primaryActive)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -604,7 +604,7 @@ func relaySetupFeatureItems() -> [HeroIconTextItem] {
             id: "endpoint",
             title: L10n.tr("Request URL", table: .providers),
             systemImage: "point.bottomleft.forward.to.point.topright.scurvepath",
-            gradientColors: [Color.dynamic(light: 0x818CF8, dark: 0xA78BFA), Color.dynamic(light: 0x5B21B6, dark: 0x7C3AED)],
+            gradientColors: [Color.dynamic(light: 0x818CF8, dark: \.primary), Color.dynamic(light: 0x5B21B6, dark: \.primaryActive)],
             shadowColor: Color.dynamic(light: 0x4338CA, dark: 0x000000, lightAlpha: 0.10, darkAlpha: 0.12)
         ),
         HeroIconTextItem(

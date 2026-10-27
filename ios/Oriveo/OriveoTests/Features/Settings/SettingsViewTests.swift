@@ -21,41 +21,85 @@ struct SettingsViewTests {
         #expect(!source.contains("Picker(L10n.tr(\"Language\""))
     }
 
-    @Test("Appearance theme and language share SettingsRow caption values")
-    func appearanceRowsShareSettingsRowValueTypography() throws {
+    @Test("the General group uses list rows: Theme opens the theme page with a palette dot; Language and Backup share the group; the old Data and Appearance headers are gone")
+    func generalGroupUsesListRows() throws {
         let source = try String(contentsOf: settingsViewSourceURL, encoding: .utf8)
-        let appearance = try source.requiredSlice(
-            from: "flatSectionHeader(L10n.tr(\"Appearance\"",
-            to: "flatSectionHeader(L10n.tr(\"Help & Feedback\""
+        let general = try source.requiredSlice(
+            from: "// MARK: - General",
+            to: "// MARK: - Help & About"
         )
         let settingsRowSource = try String(contentsOf: settingsRowSourceURL, encoding: .utf8)
         let flatStyleSource = try String(contentsOf: flatSettingsStyleSourceURL, encoding: .utf8)
 
-        #expect(appearance.contains("value: appState.preferences.theme.displayName"))
-        #expect(appearance.contains("value: displayedLanguage.displayName"))
-        #expect(appearance.contains("flatMenuRow"))
-        #expect(appearance.contains(".pickerStyle(.inline)"))
-        #expect(!appearance.contains("preferenceRow"))
-        #expect(!appearance.contains(".pickerStyle(.menu)"))
-        #expect(!appearance.contains(".tint(OriveoTheme.Palette.textSecondary)"))
+        #expect(general.contains("L10n.tr(\"General\", table: .settings)"))
+        #expect(general.contains("value: themeRowSummary("))
+        #expect(general.contains("showsPaletteDot: true"))
+        #expect(general.contains("navigation.attemptNavigate(to: .themeSettings)"))
+        #expect(general.contains("value: displayedLanguage.displayName"))
+        #expect(general.contains("appState.openBackup()"))
+        let theme = try #require(general.range(of: "key: \"theme\""))
+        let language = try #require(general.range(of: "key: \"language\""))
+        let backup = try #require(general.range(of: "key: \"backup\""))
+        #expect(theme.upperBound < language.lowerBound && language.upperBound < backup.lowerBound)
+        #expect(!general.contains("flatMenuRow"))
+        #expect(!general.contains("Picker("))
+        #expect(!general.contains("preferenceRow"))
+        #expect(!source.contains("L10n.tr(\"Data\", table: .settings)"))
+        #expect(!source.contains("L10n.tr(\"Appearance\", table: .settings)"))
+        #expect(!source.contains("L10n.tr(\"About\", table: .settings)"))
+        #expect(!source.contains("L10n.tr(\"Help & Feedback\", table: .settings)"))
 
+        // The developer menu still uses SettingsRow and the flat style.
         #expect(settingsRowSource.contains(".font(OriveoTheme.Typography.caption)"))
         #expect(settingsRowSource.contains(".font(OriveoTheme.Typography.body)"))
-
         #expect(flatStyleSource.contains(".menuIndicator(.hidden)"))
         #expect(flatStyleSource.contains("func flatMenuRow"))
     }
 
-    @Test("the AI group has a Voice row after Skills that opens the voice settings page")
+    @Test("the AI group is a 2x2 grid: Memory, Context, Skills, Voice; the Voice tile opens the voice settings page and keeps the old row identifier")
     func aiGroupHasVoiceRowNavigatingToVoiceSettings() throws {
         let source = try String(contentsOf: settingsViewSourceURL, encoding: .utf8)
         let aiGroup = try source.requiredSlice(
-            from: "appState.openSkillsList()",
-            to: ".accessibilityIdentifier(\"settings_voice_row\")"
+            from: "// MARK: - AI",
+            to: "// MARK: - Tools & connections"
         )
+        let memory = try #require(aiGroup.range(of: "key: \"memory\""))
+        let context = try #require(aiGroup.range(of: "key: \"context\""))
+        let skills = try #require(aiGroup.range(of: "key: \"skills\""))
+        let voice = try #require(aiGroup.range(of: "key: \"voice\""))
 
+        #expect(memory.upperBound < context.lowerBound)
+        #expect(context.upperBound < skills.lowerBound)
+        #expect(skills.upperBound < voice.lowerBound)
+        #expect(aiGroup.contains("SettingsHomeGrid(items:"))
+        #expect(aiGroup.contains("legacyIdentifier: \"settings_voice_row\""))
+        #expect(aiGroup.contains("legacyIdentifier: \"settings_context_row\""))
+        #expect(aiGroup.contains("value: voiceEngineName"))
         #expect(aiGroup.contains("navigation.attemptNavigate(to: .voiceSettings)"))
         #expect(aiGroup.contains("title: L10n.tr(\"Voice\", table: .voice)"))
+        #expect(source.contains("VoiceSettingsModel.engineDisplayName(for: VoiceEngineSettings().selection(for: .tts))"))
+        #expect(NavigationManager.columnTab(for: .voiceSettings) == .settings)
+    }
+
+    @Test("Help & About is a 1x2 compact grid; the footer keeps the logo taps and the changelog")
+    func helpGridAndFooterKeepExistingDestinations() throws {
+        let source = try String(contentsOf: settingsViewSourceURL, encoding: .utf8)
+        let help = try source.requiredSlice(
+            from: "// MARK: - Help & About",
+            to: "// MARK: - Footer"
+        )
+        #expect(help.contains("L10n.tr(\"Help & About\", table: .settings)"))
+        #expect(help.contains("presentedWebDestination = .sourceCode"))
+        #expect(help.contains("presentedWebDestination = .issues"))
+        #expect(help.contains("style: .compact"))
+
+        let footer = try source.requiredSlice(
+            from: "private var settingsFooter: some View",
+            to: "// MARK: - Helpers"
+        )
+        #expect(footer.contains("Button(action: handleAboutTap)"))
+        #expect(footer.contains("presentedWebDestination = .releases"))
+        #expect(source.contains(".background(alignment: .top) { SettingsHomeTopGlow() }"))
     }
 
     @Test("the About logo reveals the developer menu on the tenth tap and resets the count")

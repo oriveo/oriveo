@@ -34,9 +34,8 @@ struct McpAddServerSnapshotTests {
 
     @Test("Settings entry: the MCP servers row sits in the Tools & connections group, and its subtitle follows the server summary")
     func settingsEntry() throws {
-        let color = Color.dynamic(light: 0x8C5FF8, dark: 0xA78BFA)
         func section(_ summary: McpSettingsEntrySummary?) -> some View {
-            McpSettingsSection(iconColor: color, mcpSummary: summary, onOpenMcpServers: {})
+            McpSettingsSection(mcpSummary: summary, onOpenMcpServers: {})
                 .padding(16)
                 .frame(maxHeight: .infinity, alignment: .top)
         }
