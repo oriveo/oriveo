@@ -8,8 +8,6 @@ describe('shouldCreateSpanForBrowserRequest', () => {
       'https://firestore.googleapis.com/google.firestore.v1.Firestore/Write/channel?VER=8',
       '/api/chat/stream',
       'https://app.oriveoai.com/api/chat/stream?x=1',
-      'https://api.oriveoai.com/api/managed/chat/stream',
-      'https://api.oriveoai.com/api/free/chat/stream',
       '/api/relay/forward',
       '/cdn-cgi/rum',
       'https://oriveoai.com/cdn-cgi/rum?',
@@ -22,7 +20,6 @@ describe('shouldCreateSpanForBrowserRequest', () => {
     for (const url of [
       'https://api.oriveoai.com/api/metadata',
       'https://api.oriveoai.com/api/metadata?view=index',
-      'https://api.oriveoai.com/api/managed/models',
       'https://securetoken.googleapis.com/v1/token',
       'https://firestore.googleapis.com/v1/projects/p/databases/(default)/documents/users/u',
       '/api/mcp/forward',

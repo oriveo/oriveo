@@ -11,8 +11,8 @@
 const LONG_LIVED_REQUEST_PATTERNS: readonly RegExp[] = [
   // Firestore WebChannel: Listen is a long poll, Write is a persistent write channel.
   /firestore\.googleapis\.com\/google\.firestore\.v1\.Firestore\/(?:Listen|Write)\/channel/,
-  // Streaming model output: /api/chat/stream, /api/managed/chat/stream, /api/free/chat/stream.
-  /\/api\/(?:managed\/|free\/)?chat\/stream(?:[/?#]|$)/,
+  // Streaming model output.
+  /\/api\/chat\/stream(?:[/?#]|$)/,
   /\/api\/relay\/forward(?:[/?#]|$)/,
   // Cloudflare Web Analytics beacon, sent after the load event.
   /\/cdn-cgi\/rum(?:[/?#]|$)/,
