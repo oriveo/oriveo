@@ -87,6 +87,16 @@ describe('processImageAttachments', () => {
     expect(processedAttachments[0].localImageID).toBeDefined();
   });
 
+  it('extracts inline images whose base64 is wrapped across lines into attachments and leaves no data URI in the text', async () => {
+    const text = 'before\n![g](data:image/png;base64,iVBO\nRw0K\r\nGgo= )\nafter';
+    const { finalText, processedAttachments } = await processImageAttachments(text, []);
+
+    expect(finalText).not.toContain('data:image');
+    expect(finalText).toBe('before\n\nafter');
+    expect(processedAttachments).toHaveLength(1);
+    expect(processedAttachments[0].localImageID).toBeDefined();
+  });
+
   it('should process existing image attachments', async () => {
     const attachments = [{
       id: 'att-1',

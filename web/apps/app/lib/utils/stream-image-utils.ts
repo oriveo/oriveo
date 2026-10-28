@@ -23,12 +23,13 @@ export async function processImageAttachments(
   // Extract inline base64 images from fullText; while streaming the base64 is split across chunks, so
   // it cannot be matched chunk by chunk.
   let finalText = fullText;
-  const inlineImgRe = /!\[.*?\]\((data:image\/[^;]+;base64,[A-Za-z0-9+/=]+)\)/g;
+  // Allow line breaks / whitespace inside base64 (upstreams that wrap at 76 columns); otherwise the whole data URI stays in the persisted text and renders as garbage
+  const inlineImgRe = /!\[.*?\]\((data:image\/[^;]+;base64,[A-Za-z0-9+/=\s]+)\)/g;
   let inlineMatch: RegExpExecArray | null;
   while ((inlineMatch = inlineImgRe.exec(fullText)) !== null) {
     const dataUrl = inlineMatch[1];
     const mime = dataUrl.split(';')[0].split(':')[1] || 'image/png';
-    const b64 = dataUrl.split(',')[1] || '';
+    const b64 = (dataUrl.split(',')[1] || '').replace(/\s+/g, '');
     imageAttachments.push({
       id: createCanonicalUUID(),
       kind: 'image',
