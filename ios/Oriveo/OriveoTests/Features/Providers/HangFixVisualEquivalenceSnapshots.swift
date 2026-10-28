@@ -280,17 +280,12 @@ struct HangFixVisualEquivalenceSnapshots {
                 }
             }
         }
-        let scheduler = TableCardCellUpgradeScheduler.shared
-        defer {
-            scheduler.isPausedForTesting = false
-        }
         for dark in [false, true] {
             for (name, tableLines) in [("wide", lines), ("narrow", narrow), ("math", math)] {
                 for width in [350.0, 240.0] {
                     // chat-table: the final state with every cell upgraded to a UITextView; chat-table-placeholder: no cell upgraded,
-                    // only the first-frame placeholder. Both must be pixel-identical to the whole-table UITextView before the change.
+                    // only the resident placeholder. Both must be pixel-identical to the whole-table UITextView before the change.
                     for placeholdersOnly in [false, true] {
-                        scheduler.isPausedForTesting = placeholdersOnly
                         let prefix = placeholdersOnly ? "chat-table-placeholder" : "chat-table"
                         try capture("\(prefix)-\(name)", width: width + 32, height: 900, dark: dark, settle: 1.2) {
                             ChatTableCardSnapshotHost(lines: tableLines, width: width, placeholdersOnly: placeholdersOnly)
@@ -303,7 +298,6 @@ struct HangFixVisualEquivalenceSnapshots {
             }
         }
         // The formula image colors are baked into the image at render time: build the card under the opposite appearance, mount it in a window to commit, return it to the pool, then take it back under this appearance; it must be pixel-identical to chat-table-math.
-        scheduler.isPausedForTesting = false
         for dark in [false, true] {
             for width in [350.0, 240.0] {
                 try capture("chat-table-other-style-recycle-math", width: width + 32, height: 900, dark: dark, settle: 1.2) {
@@ -529,7 +523,7 @@ struct HangFixVisualEquivalenceSnapshots {
 private struct ChatTableCardSnapshotHost: UIViewRepresentable {
     let lines: [String]
     let width: CGFloat
-    /// true: lay out only without upgrading, capture the first-frame placeholder (the caller pauses the scheduler).
+    /// true: lay out only without upgrading, capture the resident placeholder.
     var placeholdersOnly = false
     /// non-nil: first build the card via make under the opposite appearance, mount it in a window to lay out and commit, return it to the pool, then take it back under this appearance (true = dark).
     var otherStyleRecycleDark: Bool?

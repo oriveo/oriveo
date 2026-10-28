@@ -458,14 +458,12 @@ struct TableCardRecyclingTests {
     }
 }
 
-/// Table cards show pixel-identical placeholders in the first frame, and the shared scheduler upgrades
-/// them to UITextViews in later frames. These tests use a real window and spin the real main run loop
-/// (CADisplayLink and RunLoop.perform both run), driving the production upgrade path rather than
-/// capturing the final state directly.
-@Suite("Table card placeholders and deferred upgrades", .serialized)
+/// Table card cells stay as pixel-identical placeholders, and a UITextView is built only for the row a
+/// finger lands on. These tests use a real window and spin the real main run loop (RunLoop.perform runs),
+/// driving the production path rather than capturing the final state directly.
+@Suite("Table card placeholders and on-demand upgrades", .serialized)
 @MainActor
 struct TableCardDeferredBuildTests {
-    private var scheduler: TableCardCellUpgradeScheduler { .shared }
 
     private func withWindow(_ body: (UIView) throws -> Void) throws {
         let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
@@ -475,12 +473,28 @@ struct TableCardDeferredBuildTests {
         window.rootViewController = root
         window.isHidden = false
         defer {
-            scheduler.frameBudgetOverrideForTesting = nil
-            scheduler.isPausedForTesting = false
             window.isHidden = true
             window.rootViewController = nil
         }
         try body(root.view)
+    }
+
+    /// The "live text view count does not depend on table size" assertions below rely on this counter: it
+    /// must grow on upgrade and be given back when the card is released.
+    @Test("the process-wide count of upgraded cells is given back when the card is released")
+    func liveUpgradedCellCountTracksCardLifetime() {
+        let baseline = UIKitTableCard.liveUpgradedCellCountForTesting
+        autoreleasepool {
+            let card = UIKitTableCard(tableData: tableData(rows: 3, tag: "count-\(UUID().uuidString.prefix(6))"))
+            card.frame = CGRect(x: 0, y: 0, width: 360, height: 10)
+            card.layoutIfNeeded()
+            card.frame.size.height = card.intrinsicContentSize.height
+            card.completeDeferredRows()
+            #expect(card._testCellCoverage.placeholders == 0)
+            let cells = card._testCellCoverage.rows * 5  // tableData always has 5 columns (header row included)
+            #expect(UIKitTableCard.liveUpgradedCellCountForTesting == baseline + cells)
+        }
+        #expect(UIKitTableCard.liveUpgradedCellCountForTesting == baseline)
     }
 
     /// A cell text view has to be a fully initialized `ChatPassiveTextView`: declared property
@@ -576,48 +590,139 @@ struct TableCardDeferredBuildTests {
         return found
     }
 
-    @Test("every row has content in the first frame (placeholder or UITextView), and the scheduler upgrades the rest in the real run loop")
-    func firstFrameCoversEveryRowAndSchedulerFinishes() throws {
+    private func attach(_ card: UIKitTableCard, to root: UIView) {
+        root.addSubview(card)
+        card.frame = CGRect(x: 24, y: 0, width: 342, height: 10)
+        card.layoutIfNeeded()
+        card.frame.size.height = card.intrinsicContentSize.height
+        card.layoutIfNeeded()
+    }
+
+    private func touch(_ card: UIKitTableCard, row: Int) throws {
+        let rowFrame = try #require(card._testRowFrame(row: row))
+        _ = card.hitTest(CGPoint(x: 20, y: rowFrame.midY), with: nil)
+    }
+
+    /// Upgrading the whole table in idle frames made the live UITextView count grow linearly with table
+    /// size, and releasing a large table became quadratic (notification center unregistration). Pinned
+    /// here: an idle card in a window builds none, for 30 rows and 300 rows alike.
+    @Test("the whole table is drawn in the first frame; idling in a window builds no UITextView, whatever the table size", arguments: [30, 300])
+    func idleCardKeepsNoTextViewsRegardlessOfSize(rows: Int) throws {
         try withWindow { root in
-            let card = UIKitTableCard(tableData: tableData(rows: 30, tag: "first-frame-\(UUID().uuidString.prefix(6))"))
-            root.addSubview(card)
-            card.frame = CGRect(x: 24, y: 0, width: 342, height: 10)
-            card.layoutIfNeeded()
+            let baseline = UIKitTableCard.liveUpgradedCellCountForTesting
+            let card = UIKitTableCard(tableData: tableData(rows: rows, tag: "idle-\(rows)-\(UUID().uuidString.prefix(6))"))
+            attach(card, to: root)
 
             let first = card._testCellCoverage
-            #expect(first.rows == 31)
-            #expect(first.rowsWithContent == 31, "Only \(first.rowsWithContent)/31 rows have content in the first frame; the rest show a blank background")
-            #expect(first.placeholders == 31 * 5, "Layout builds no UITextView, only placeholders")
-            let placeholder = try #require(card._testCell(row: 30, column: 4))
+            #expect(first.rows == rows + 1)
+            #expect(first.rowsWithContent == rows + 1, "Only \(first.rowsWithContent)/\(rows + 1) rows have content in the first frame; the rest show a blank background")
+            let placeholder = try #require(card._testCell(row: rows, column: 4))
             #expect(placeholder.view is UIKitTableCard.CellPlaceholderView)
-            #expect(placeholder.attributedText?.string == "notes 29 with a longer tail")
+            #expect(placeholder.attributedText?.string == "notes \(rows - 1) with a longer tail")
 
-            let finished = pump(timeout: 15) { card._testCellCoverage.placeholders == 0 }
-            #expect(finished, "The scheduler did not finish upgrading placeholders, \(card._testCellCoverage.placeholders) cells left")
-            #expect(card._testCellCoverage.rowsWithTextViews == 31)
-            #expect(card._testCell(row: 30, column: 4)?.view is ChatPassiveTextView)
-        }
-    }
-
-    @Test("upgrades pause off screen (removed from the window or pooled) and resume back on screen")
-    func upgradesPauseOffscreenAndResumeOnScreen() throws {
-        try withWindow { root in
-            let card = UIKitTableCard(tableData: tableData(rows: 30, tag: "offscreen-\(UUID().uuidString.prefix(6))"))
-            root.addSubview(card)
-            card.frame = CGRect(x: 24, y: 0, width: 342, height: 10)
-            card.layoutIfNeeded()
+            pump(timeout: 0.5)
+            #expect(card._testCellCoverage.placeholders == (rows + 1) * 5, "UITextViews were built while idle")
+            #expect(UIKitTableCard.liveUpgradedCellCountForTesting == baseline)
             card.removeFromSuperview()
-
-            pump(timeout: 0.3)
-            #expect(card._testCellCoverage.placeholders == 31 * 5, "UITextViews were still built outside a window")
-
-            root.addSubview(card)
-            let finished = pump(timeout: 15) { card._testCellCoverage.placeholders == 0 }
-            #expect(finished, "Upgrades did not resume back in the window, \(card._testCellCoverage.placeholders) cells left")
         }
     }
 
-    @Test("a formula image landing mid-upgrade refreshes upgraded UITextViews and remaining placeholders alike, none stay on $...$")
+    @Test("after touching many rows in turn, a card has at most the touched row as UITextViews; a row with a selection is kept")
+    func touchingRowsKeepsAtMostTheTouchedRowUpgraded() throws {
+        try withWindow { root in
+            let baseline = UIKitTableCard.liveUpgradedCellCountForTesting
+            let card = UIKitTableCard(tableData: tableData(rows: 60, tag: "touch-many-\(UUID().uuidString.prefix(6))"))
+            attach(card, to: root)
+
+            for row in stride(from: 1, through: 60, by: 3) {
+                try touch(card, row: row)
+                #expect(card._testCellCoverage.rowsWithTextViews == 1, "After touching row \(row), \(card._testCellCoverage.rowsWithTextViews) rows are text views")
+                #expect(card._testCell(row: row, column: 0)?.view is ChatPassiveTextView)
+            }
+            #expect(UIKitTableCard.liveUpgradedCellCountForTesting == baseline + 5)
+
+            // The row being selected must not be swapped out because a finger landed elsewhere.
+            try touch(card, row: 10)
+            let selecting = try #require(card._testCell(row: 10, column: 4)?.view as? ChatPassiveTextView)
+            selecting.selectedRange = NSRange(location: 0, length: 5)
+            try touch(card, row: 20)
+            #expect(card._testCell(row: 10, column: 4)?.view === selecting, "A row with a selection was swapped back to a placeholder")
+            #expect(card._testCellCoverage.rowsWithTextViews == 2)
+
+            // The placeholder swapped back has the same frame and content as before.
+            selecting.selectedRange = NSRange(location: 0, length: 0)
+            let before = selecting.frame
+            try touch(card, row: 30)
+            let back = try #require(card._testCell(row: 10, column: 4))
+            #expect(back.view is UIKitTableCard.CellPlaceholderView)
+            #expect(back.view.frame == before)
+            #expect(back.attributedText?.string == "notes 9 with a longer tail")
+            card.removeFromSuperview()
+        }
+    }
+
+    @Test("leaving the window (cell reuse, reuse pool, release) swaps every text view back to a placeholder; content is unchanged on return")
+    func leavingWindowReleasesAllTextViews() throws {
+        try withWindow { root in
+            let baseline = UIKitTableCard.liveUpgradedCellCountForTesting
+            let card = UIKitTableCard(tableData: tableData(rows: 30, tag: "offscreen-\(UUID().uuidString.prefix(6))"))
+            attach(card, to: root)
+            try touch(card, row: 3)
+            #expect(card._testCellCoverage.rowsWithTextViews == 1)
+
+            card.removeFromSuperview()
+            #expect(card._testCellCoverage.rowsWithTextViews == 0, "The card still holds a UITextView outside a window")
+            #expect(card._testCellCoverage.placeholders == 31 * 5)
+            #expect(UIKitTableCard.liveUpgradedCellCountForTesting == baseline)
+
+            root.addSubview(card)
+            card.layoutIfNeeded()
+            #expect(card._testCellCoverage.rowsWithContent == 31)
+            #expect(card._testCell(row: 3, column: 0)?.attributedText?.string.isEmpty == false)
+            card.removeFromSuperview()
+        }
+    }
+
+    /// A size-dependent performance ceiling: several large tables in the window, each touched on one row,
+    /// then released together. Whole-table upgrades made this take seconds; placeholders are plain
+    /// UIViews, so teardown does not depend on how many tables are alive.
+    @Test("six 150-row tables released together after being touched finish within a time bound and leave no live text views")
+    func largeTablesTearDownWithinBudget() throws {
+        try withWindow { root in
+            let baseline = UIKitTableCard.liveUpgradedCellCountForTesting
+            var elapsed: CFTimeInterval = 0
+            autoreleasepool {
+                var cards: [UIKitTableCard] = (0..<6).map { index in
+                    UIKitTableCard(tableData: tableData(rows: 150, tag: "teardown-\(index)-\(UUID().uuidString.prefix(6))"))
+                }
+                for card in cards {
+                    attach(card, to: root)
+                    try? touch(card, row: 75)
+                }
+                // Measure at steady state: idle until the live text view count stops changing for 0.5s (cap 30s),
+                // so any background upgrade would have finished and the teardown cost matches a table that
+                // has sat on screen for a while before being released.
+                var lastCount = UIKitTableCard.liveUpgradedCellCountForTesting
+                var stableSince = Date()
+                let settleDeadline = Date().addingTimeInterval(30)
+                while Date() < settleDeadline, Date().timeIntervalSince(stableSince) < 0.5 {
+                    RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+                    let count = UIKitTableCard.liveUpgradedCellCountForTesting
+                    if count != lastCount { lastCount = count; stableSince = Date() }
+                }
+                let upgradedBeforeTeardown = UIKitTableCard.liveUpgradedCellCountForTesting - baseline
+                #expect(upgradedBeforeTeardown == 6 * 5, "\(upgradedBeforeTeardown) UITextViews alive at steady state")
+                let start = CACurrentMediaTime()
+                for card in cards { card.removeFromSuperview() }
+                cards.removeAll()
+                elapsed = CACurrentMediaTime() - start
+            }
+            #expect(UIKitTableCard.liveUpgradedCellCountForTesting == baseline)
+            #expect(elapsed < 1.0, "Releasing 6 tables of 151x5 cells took \(Int(elapsed * 1000))ms")
+        }
+    }
+
+    @Test("a formula image landing refreshes upgraded UITextViews and placeholders alike, and the formula survives swapping back and forth")
     func latexRenderedMidUpgradeRefreshesEveryCell() throws {
         try withWindow { root in
             let latex = "x_{\(Int.random(in: 100_000...999_999))}"
@@ -628,8 +733,7 @@ struct TableCardDeferredBuildTests {
             card.frame.size.height = card.intrinsicContentSize.height
             card.layoutIfNeeded()
 
-            // Touch the first data row: that row upgrades to UITextViews while the others stay
-            // placeholders, which sets up an upgrade in progress.
+            // Touch the first data row: that row upgrades to UITextViews while the others stay placeholders.
             let rowFrame = try #require(card._testRowFrame(row: 1))
             _ = card.hitTest(CGPoint(x: 20, y: rowFrame.midY), with: nil)
             #expect(card._testCell(row: 1, column: 1)?.view is ChatPassiveTextView)
@@ -657,10 +761,13 @@ struct TableCardDeferredBuildTests {
             #expect(hasLatexAttachment(card._testCell(row: 1, column: 1)?.attributedText), "An upgraded cell stayed on the source text")
             #expect(hasLatexAttachment(card._testCell(row: 30, column: 1)?.attributedText), "A placeholder cell stayed on the source text")
 
-            #expect(pump(timeout: 15) { card._testCellCoverage.placeholders == 0 })
+            try touch(card, row: 30)
             let last = try #require(card._testCell(row: 30, column: 1))
             #expect(last.view is ChatPassiveTextView)
             #expect(hasLatexAttachment(last.attributedText), "Upgrading the placeholder to a UITextView lost the formula")
+            let downgraded = try #require(card._testCell(row: 1, column: 1))
+            #expect(downgraded.view is UIKitTableCard.CellPlaceholderView)
+            #expect(hasLatexAttachment(downgraded.attributedText), "Swapping the UITextView back to a placeholder lost the formula")
             #expect(last.attributedText?.string.contains("$") == false)
         }
     }
@@ -714,34 +821,6 @@ struct TableCardDeferredBuildTests {
         }
     }
 
-    @Test("the per-frame budget is shared across cards: with two tables pending, the first uses the frame's budget and the second waits")
-    func frameBudgetIsSharedAcrossCards() throws {
-        try withWindow { root in
-            // Run only the frame driven by hand below (same implementation as the display link callback),
-            // so callbacks from the run loop do not mix in.
-            scheduler.isPausedForTesting = true
-            scheduler.frameBudgetOverrideForTesting = 0.03
-            let cards = (0..<2).map { index in
-                UIKitTableCard(tableData: tableData(rows: 60, tag: "budget-\(index)-\(UUID().uuidString.prefix(6))"))
-            }
-            for card in cards {
-                root.addSubview(card)
-                card.frame = CGRect(x: 24, y: 0, width: 342, height: 10)
-                card.layoutIfNeeded()
-                #expect(card._testCellCoverage.placeholders == 61 * 5, "Layout builds no UITextView")
-                #expect(card._testCellCoverage.rowsWithContent == 61)
-            }
-
-            scheduler.runFrameForTesting()
-            let upgraded = cards.map { 61 * 5 - $0._testCellCoverage.placeholders }
-            // One UITextView takes at least 0.3ms on a simulator, so 305 cells do not fit in a 30ms frame:
-            // with a shared budget only one table advances.
-            #expect(upgraded.filter { $0 > 0 }.count == 1, "Both tables got their own budget in one frame: \(upgraded)")
-            #expect(upgraded.reduce(0, +) < 61 * 5)
-            for card in cards { card.removeFromSuperview() }
-        }
-    }
-
     private func streamingModel(id: UUID, text: String, generating: Bool) -> ChatCollectionProjectionBuilder.MessageRenderModel {
         let message = ChatMessage(
             id: id, role: .assistant, text: text, reasoningText: nil,
@@ -769,7 +848,7 @@ struct TableCardDeferredBuildTests {
         cell.layoutIfNeeded()
     }
 
-    @Test("finalizing a stream that ends with a table shows the whole table in the frame that swaps in the static card, and upgrades finish in the window")
+    @Test("finalizing a stream that ends with a table shows the whole table in the frame that swaps in the static card")
     func finalizeHandoffShowsWholeTableInFirstFrame() throws {
         try withWindow { root in
             let id = UUID()
@@ -795,7 +874,6 @@ struct TableCardDeferredBuildTests {
             let coverage = card._testCellCoverage
             #expect(coverage.rowsWithContent == 21, "Only \(coverage.rowsWithContent)/21 rows have content in the finalize frame")
 
-            #expect(pump(timeout: 15) { card._testCellCoverage.placeholders == 0 })
             cell.removeFromSuperview()
         }
     }
