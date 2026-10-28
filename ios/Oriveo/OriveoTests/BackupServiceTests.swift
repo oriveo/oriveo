@@ -1282,10 +1282,9 @@ struct BackupServiceTests {
         defer { cleanupAppState(appState, removing: [uid]) }
 
         DatabaseManager.shared.close()
-        try Data("not-a-valid-sqlite".utf8).write(
-            to: AppSessionStore.databasePath(for: uid),
-            options: .atomic
-        )
+        // Overwrite in place (no .atomic): an atomic write swaps in a new file, and the old connection AppState still holds hits the
+        // unlinked vnode with a disk I/O error; writing in place keeps one inode, so every connection reads "not a SQLite database".
+        try Data("not-a-valid-sqlite".utf8).write(to: AppSessionStore.databasePath(for: uid))
 
         await #expect(throws: (any Error).self) {
             _ = try await BackupService.executeImport(

@@ -96,7 +96,14 @@ struct MemoryInboxPresentationTests {
             try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
             defaults.removePersistentDomain(forName: suiteName)
         }
-        try await body(state, conversation)
+        // Wait for the send tasks before the partition is deleted: failure wrap-up still writes (cost refresh) after the session is removed.
+        do {
+            try await body(state, conversation)
+        } catch {
+            await state.chatManager.waitForSendTasksForTesting()
+            throw error
+        }
+        await state.chatManager.waitForSendTasksForTesting()
     }
 
     /// Sends one sentence and waits for background candidate generation to finish.

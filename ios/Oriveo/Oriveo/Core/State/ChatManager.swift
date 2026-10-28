@@ -2379,6 +2379,21 @@ final class ChatManager {
         }
     }
 
+    #if DEBUG
+    /// Send tasks that were started and have not finished: the session is removed during failure wrap-up, yet the tail of the
+    /// task still writes (cost refresh), so `isAnyStreaming == false` does not mean writes have stopped. Tests wait here
+    /// until it is empty before deleting a partition.
+    private var sendTasksForTesting: [UUID: Task<Void, Never>] = [:]
+
+    /// Waits for all send tasks (failure wrap-up and downgraded resends included) to finish, before a test deletes a partition.
+    func waitForSendTasksForTesting() async {
+        while let (id, task) = sendTasksForTesting.first {
+            await task.value
+            sendTasksForTesting.removeValue(forKey: id)
+        }
+    }
+    #endif
+
     /// Wait for queued Ledger settle writes to land (before test assertions).
     func waitForContextLedgerWrites() async {
         while let task = contextLedgerWriteTail {
@@ -5303,6 +5318,13 @@ final class ChatManager {
 
         // Fill the sendTask reference back into the matching session (serialized on the @MainActor)
         sessions[conversationID]?.sendTask = sendTask
+        #if DEBUG
+        sendTasksForTesting[sendTaskID] = sendTask
+        Task { @MainActor [weak self] in
+            await sendTask.value
+            self?.sendTasksForTesting.removeValue(forKey: sendTaskID)
+        }
+        #endif
     }
 
     // MARK: - Remote MCP

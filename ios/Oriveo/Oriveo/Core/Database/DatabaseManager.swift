@@ -39,7 +39,11 @@ nonisolated final class DatabaseManager: @unchecked Sendable {
     nonisolated(unsafe) static var migrationDelayForTesting: TimeInterval = 0
     #endif
 
-    private init() {}
+    private init() {
+        #if DEBUG
+        DatabaseIOErrorDiagnostics.install()
+        #endif
+    }
 
     func openCurrent() throws -> DatabasePool {
         try openIfNeeded(for: AppSessionStore.activeUID)
@@ -48,6 +52,9 @@ nonisolated final class DatabaseManager: @unchecked Sendable {
     /// Returns the database if it is already open (no write). If not: a background thread opens it as before; the main
     /// thread (production) does not open it and throws `NotPreparedOnMainThread`.
     func openIfNeeded(for uid: String) throws -> DatabasePool {
+        #if DEBUG
+        DatabaseIOErrorDiagnostics.noteRequestedUID(uid)
+        #endif
         if let pool = openedPool(for: uid) { return pool }
         if Thread.isMainThread {
             guard Self.allowsMainThreadFirstOpen else {
