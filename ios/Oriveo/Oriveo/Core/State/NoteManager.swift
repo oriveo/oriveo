@@ -16,6 +16,12 @@ final class NoteManager {
     }
 
     private var uid: String { appState.sessionPartitionUID }
+    #if DEBUG
+    /// Makes queued writes fail (tests lock the rollback of the mirror).
+    var _testingFailWrites = false
+    #endif
+    /// In-place mirror write generation: bumped on every in-place mirror edit. If the background read of
+    /// `reloadFromStore` spans one, its snapshot is stale and is retried instead of overwriting the mirror.
     private var mirrorGeneration: UInt = 0
 
     private func makeStore() throws -> NoteStore {
@@ -23,16 +29,23 @@ final class NoteManager {
     }
 
 
-    func reloadFromStore() {
-        guard isBound else { return }
+    /// The background read queues behind the writes already enqueued: reading before they land would put stale
+    /// rows into the mirror.
+    @discardableResult
+    func reloadFromStore() -> Task<Void, Never>? {
+        guard isBound else { return nil }
         let targetUID = uid
-        let bridge = self.bridge
+        // The store instance is fixed on the main thread (as in `enqueueWrite`): the background read does not
+        // reopen by uid through the shared manager.
+        let capturedStore = try? makeStore()
         let startGeneration = mirrorGeneration
-        Task { @MainActor [weak self, weak state = appState] in
+        let tail = writeTail
+        return Task { @MainActor [weak self, weak state = appState] in
             guard let self else { return }
             let snapshot: NoteMirrorSnapshot? = await Task.detached(priority: .userInitiated) {
+                await tail?.value
                 do {
-                    let store = try bridge.makeStore(for: targetUID)
+                    guard let store = capturedStore else { return nil }
                     return NoteMirrorSnapshot(
                         active: try store.fetchNoteSummaries(includeDeleted: false),
                         trashed: try store.fetchNoteSummaries(includeDeleted: true),
@@ -43,8 +56,10 @@ final class NoteManager {
                 }
             }.value
             guard let snapshot, let state, self.isBound, state.sessionPartitionUID == targetUID else { return }
+            // An in-place mirror write happened during the read: the snapshot may miss it, so retry instead of
+            // overwriting with it (a note that was just created must not be wiped).
             if self.mirrorGeneration != startGeneration {
-                self.reloadFromStore()
+                await self.reloadFromStore()?.value
                 return
             }
             state.noteSummaries = snapshot.active
@@ -53,16 +68,19 @@ final class NoteManager {
         }
     }
 
-    func reloadMirrorSync() {
-        guard isBound, let store = try? makeStore() else { return }
-        appState.noteSummaries = (try? store.fetchNoteSummaries(includeDeleted: false)) ?? []
-        appState.trashedNoteSummaries = (try? store.fetchNoteSummaries(includeDeleted: true)) ?? []
-        appState.noteFolders = (try? store.fetchNoteFolders(includeDeleted: false)) ?? []
+    /// Waits until every queued write has landed (and its main-thread follow-up has run). For tests and callers
+    /// that must read the database directly.
+    func waitForPendingWrites() async {
+        while let tail = writeTail {
+            await tail.value
+            if writeTail == tail { return }
+        }
     }
 
-
+    /// The stored row with the writes still in flight applied on top = the latest local state.
     func note(id: UUID) -> Note? {
-        (try? makeStore().fetchNote(id: id)) ?? nil
+        let stored = (try? makeStore().fetchNote(id: id)) ?? nil
+        return Self.applying(currentNoteOps(), to: stored, id: id)
     }
 
     /// Read-only resolver for pinned note content snapshots: the main thread only grabs the store handle and
@@ -72,9 +90,11 @@ final class NoteManager {
     func pinnedNoteSnapshotReader(ids: [UUID]) -> @Sendable () -> [ChatRequestPinnedNoteSnapshot] {
         guard !ids.isEmpty, let store = try? makeStore() else { return { [] } }
         let untitled = L10n.tr("Untitled note", table: .notes)
+        let ops = currentNoteOps()
         return {
             ids.compactMap { id in
-                guard let note = (try? store.fetchNote(id: id)) ?? nil, note.deletedAt == nil else { return nil }
+                let stored = (try? store.fetchNote(id: id)) ?? nil
+                guard let note = NoteManager.applying(ops, to: stored, id: id), note.deletedAt == nil else { return nil }
                 return ChatRequestPinnedNoteSnapshot(
                     id: id, title: NoteText.displayTitle(note.title, untitled: untitled), body: note.body
                 )
@@ -84,7 +104,10 @@ final class NoteManager {
 
     func noteDetail(id: UUID) async -> Note? {
         guard let store = try? makeStore() else { return nil }
-        return (try? await store.fetchNoteAsync(id: id)) ?? nil
+        let targetUID = uid
+        let stored = (try? await store.fetchNoteAsync(id: id)) ?? nil
+        // Do not read appState after the await (it may be gone): take the in-flight writes of the partition at entry.
+        return Self.applying(noteOps(forUID: targetUID), to: stored, id: id)
     }
 
     func referenceCount(conversationID: UUID) -> Int {
@@ -98,17 +121,20 @@ final class NoteManager {
 
     func searchActiveNotes(query: String) async -> [NoteSummary] {
         guard let store = try? makeStore() else { return [] }
+        await waitForPendingWrites()
         return (try? await store.searchNotes(query: query, includeDeleted: false)) ?? []
     }
 
     func searchTrashedNotes(query: String) async -> [NoteSummary] {
         guard let store = try? makeStore() else { return [] }
+        await waitForPendingWrites()
         return (try? await store.searchNotes(query: query, includeDeleted: true)) ?? []
     }
 
     func recallCandidates(terms: [String]) async -> [NoteRecallCandidate] {
         guard !terms.isEmpty else { return [] }
         guard let store = try? makeStore() else { return [] }
+        await waitForPendingWrites()
         return (try? await store.fetchRecallCandidates(
             terms: terms,
             recentLimit: NoteRecallEngine.recentCandidateNotes,
@@ -150,8 +176,10 @@ final class NoteManager {
             deletedAt: nil
         )
 
-        guard persist(note) else { return nil }
         applyToMirror(note)
+        enqueueWrite(phase: "create_note", noteOps: [.upsert(note)]) { store in
+            try store.upsertNote(note)
+        }
         return note
     }
 
@@ -162,13 +190,13 @@ final class NoteManager {
 
     @discardableResult
     func discardEmptyBlankNoteIfNeeded(id: UUID) -> Bool {
-        guard let note = note(id: id), Self.isDiscardableEmptyBlankNote(note),
-              let store = try? makeStore()
-        else { return false }
-        do { try store.deleteNoteHard(id: id) } catch { return false }
+        guard let note = note(id: id), Self.isDiscardableEmptyBlankNote(note) else { return false }
         mirrorGeneration &+= 1
         appState.noteSummaries.removeAll { $0.id == id }
         appState.trashedNoteSummaries.removeAll { $0.id == id }
+        enqueueWrite(phase: "discard_blank_note", noteOps: [.remove([id])]) { store in
+            try store.deleteNoteHard(id: id)
+        }
         return true
     }
 
@@ -337,8 +365,6 @@ final class NoteManager {
 
     func deleteNote(id: UUID) {
         let now = Date()
-        guard let store = try? makeStore() else { return }
-        do { try store.softDeleteNote(id: id, deletedAt: now, updatedAt: now) } catch { return }
         mirrorGeneration &+= 1
         if var summary = appState.noteSummaries.first(where: { $0.id == id }) {
             summary.deletedAt = now
@@ -346,31 +372,39 @@ final class NoteManager {
             appState.noteSummaries.removeAll { $0.id == id }
             insertSorted(summary, into: &appState.trashedNoteSummaries)
         }
+        enqueueWrite(phase: "trash_note", noteOps: [.trash(id: id, deletedAt: now, updatedAt: now)]) { store in
+            try store.softDeleteNote(id: id, deletedAt: now, updatedAt: now)
+        }
     }
 
     func restoreNote(id: UUID) {
         let now = Date()
-        guard let store = try? makeStore() else { return }
-        do { try store.restoreNote(id: id, updatedAt: now) } catch { return }
-        if let restored = note(id: id) {
-            appState.trashedNoteSummaries.removeAll { $0.id == id }
-            applyToMirror(restored)
+        guard var restored = note(id: id) else { return }
+        restored.deletedAt = nil
+        restored.updatedAt = now
+        appState.trashedNoteSummaries.removeAll { $0.id == id }
+        applyToMirror(restored)
+        enqueueWrite(phase: "restore_note", noteOps: [.restore(id: id, updatedAt: now)]) { store in
+            try store.restoreNote(id: id, updatedAt: now)
         }
     }
 
     func permanentlyDeleteNote(id: UUID) {
-        guard let store = try? makeStore() else { return }
-        do { try store.deleteNoteHard(id: id) } catch { return }
         mirrorGeneration &+= 1
         appState.trashedNoteSummaries.removeAll { $0.id == id }
+        enqueueWrite(phase: "delete_note", noteOps: [.remove([id])]) { store in
+            try store.deleteNoteHard(id: id)
+        }
     }
 
     func emptyTrash() {
         let ids = appState.trashedNoteSummaries.map(\.id)
-        guard !ids.isEmpty, let store = try? makeStore() else { return }
-        do { try store.emptyTrash(noteIDs: ids) } catch { return }
+        guard !ids.isEmpty else { return }
         mirrorGeneration &+= 1
         appState.trashedNoteSummaries = []
+        enqueueWrite(phase: "empty_trash", noteOps: [.remove(Set(ids))]) { store in
+            try store.emptyTrash(noteIDs: ids)
+        }
     }
 
 
@@ -379,7 +413,13 @@ final class NoteManager {
         let trimmed = String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(Note.folderNameMaxLength))
         guard !trimmed.isEmpty, let store = try? makeStore() else { return nil }
         let now = Date()
-        let maxOrder = (try? store.fetchMaxFolderSortOrder()) ?? nil
+        // The largest stored value (tombstones included) on top of creations / reorders that have not landed yet.
+        let storedMax = (try? store.fetchMaxFolderSortOrder()) ?? nil
+        let pendingMax = currentFolderOps().compactMap { op -> Int? in
+            if case .upsert(let folder) = op { return folder.sortOrder }
+            return nil
+        }.max()
+        let maxOrder = [storedMax, pendingMax, appState.noteFolders.map(\.sortOrder).max()].compactMap { $0 }.max()
         let sortOrder = (maxOrder ?? 0) + Note.folderSortStep
         let folder = NoteFolder(
             id: UUID(),
@@ -390,8 +430,10 @@ final class NoteManager {
             updatedAt: now,
             deletedAt: nil
         )
-        do { try store.upsertNoteFolder(folder) } catch { return nil }
         insertFolderSorted(folder)
+        enqueueWrite(phase: "create_folder", folderOps: [.upsert(folder)]) { store in
+            try store.upsertNoteFolder(folder)
+        }
         return folder
     }
 
@@ -409,26 +451,22 @@ final class NoteManager {
 
     func deleteNoteFolder(id: UUID) {
         let now = Date()
-        let affected: [UUID]
-        do {
-            affected = try bridge.softDeleteNoteFolder(for: uid, id: id, deletedAt: now, updatedAt: now)
-        } catch {
-            AppLog.error(
-                error,
-                module: "notes-folder",
-                context: ["phase": "delete-local"]
-            )
-            return
-        }
         mirrorGeneration &+= 1
         appState.noteFolders.removeAll { $0.id == id }
-        for noteID in affected {
-            if let updated = note(id: noteID) { applyToMirror(updated) }
+        // Cascade: notes that point at it move back to unfiled in the mirror first; a failed write reloads the mirror.
+        clearFolderInMirror(folderID: id, updatedAt: now)
+        let bridge = self.bridge
+        let targetUID = uid
+        enqueueWrite(
+            phase: "delete_folder",
+            noteOps: [.clearFolder(folderID: id, updatedAt: now)],
+            folderOps: [.trash(id: id, deletedAt: now, updatedAt: now)]
+        ) { store in
+            _ = try bridge.softDeleteNoteFolder(in: store, uid: targetUID, id: id, deletedAt: now, updatedAt: now)
         }
     }
 
     func reorderNoteFolders(_ ordered: [NoteFolder]) {
-        guard let store = try? makeStore() else { return }
         let now = Date()
         var rewritten: [NoteFolder] = []
         for (index, folder) in ordered.enumerated() {
@@ -437,9 +475,12 @@ final class NoteManager {
             f.updatedAt = now
             rewritten.append(f)
         }
-        do { try store.upsertNoteFolders(rewritten) } catch { return }
         mirrorGeneration &+= 1
         appState.noteFolders = rewritten.sorted { $0.sortOrder < $1.sortOrder }
+        let rows = rewritten
+        enqueueWrite(phase: "reorder_folders", folderOps: rows.map { .upsert($0) }) { store in
+            try store.upsertNoteFolders(rows)
+        }
     }
 
     func noteFolderName(for id: UUID?) -> String? {
@@ -449,15 +490,49 @@ final class NoteManager {
 
 
     func allNotesForSync() -> [Note] {
-        (try? makeStore().fetchAllNotes()) ?? []
+        Self.overlaying(currentNoteOps(), on: (try? makeStore().fetchAllNotes()) ?? [])
     }
 
     func allNoteFoldersForSync() -> [NoteFolder] {
-        (try? makeStore().fetchAllNoteFolders()) ?? []
+        Self.overlaying(currentFolderOps(), on: (try? makeStore().fetchAllNoteFolders()) ?? [])
     }
 
-    func importNotes(_ notes: [Note], folders: [NoteFolder], mode: ImportMode) {
-        guard isBound, let store = try? makeStore() else { return }
+    /// The whole import (reads that decide + writes) runs on the serial write chain; the returned task completes
+    /// once it has landed and the mirror has been reloaded, for callers that continue only afterwards.
+    @discardableResult
+    func importNotes(_ notes: [Note], folders: [NoteFolder], mode: ImportMode) -> Task<Void, Never> {
+        guard isBound else { return Task {} }
+        var noteOps: [PendingNoteOp] = []
+        var folderOps: [PendingFolderOp] = []
+        if mode == .importNewOnly {
+            // Append-only: compute it from the mirror first so it is visible at once; the write still recomputes
+            // from the database and the mirror is reloaded after it lands.
+            let localNoteIDs = Set((appState.noteSummaries + appState.trashedNoteSummaries).map(\.id))
+            let localFolderIDs = Set(appState.noteFolders.map(\.id))
+            let newFolders = folders.filter { $0.deletedAt == nil && !localFolderIDs.contains($0.id) }
+            let activeFolderIDs = localFolderIDs.union(newFolders.map(\.id))
+            let newNotes = notes
+                .filter { !localNoteIDs.contains($0.id) }
+                .map { Self.withValidNoteFolder($0, activeFolderIDs: activeFolderIDs) }
+            folderOps = newFolders.map { .upsert($0) }
+            noteOps = newNotes.map { .upsert($0) }
+            appendToMirror(notes: newNotes, folders: newFolders)
+        }
+        enqueueWrite(phase: "import_notes", userInitiated: false, noteOps: noteOps, folderOps: folderOps) { store in
+            Self.performImport(notes, folders: folders, mode: mode, store: store)
+        }
+        return Task { @MainActor [weak self, weak state = appState] in
+            guard let self, state != nil else { return }
+            await self.reloadFromStore()?.value
+        }
+    }
+
+    nonisolated private static func performImport(
+        _ notes: [Note],
+        folders: [NoteFolder],
+        mode: ImportMode,
+        store: NoteStore
+    ) {
         switch mode {
         case .importNewOnly:
             let localFolders = (try? store.fetchAllNoteFolders()) ?? []
@@ -509,10 +584,9 @@ final class NoteManager {
             try? store.replaceAllNoteFolders(activeFolders)
             try? store.replaceAllNotes(normalizedNotes)
         }
-        reloadMirrorSync()
     }
 
-    private static func withValidNoteFolder(_ note: Note, activeFolderIDs: Set<UUID>) -> Note {
+    nonisolated private static func withValidNoteFolder(_ note: Note, activeFolderIDs: Set<UUID>) -> Note {
         guard let folderID = note.noteFolderID, !activeFolderIDs.contains(folderID) else { return note }
         var fixed = note
         fixed.noteFolderID = nil
@@ -520,18 +594,131 @@ final class NoteManager {
     }
 
 
-    private func persist(_ note: Note) -> Bool {
-        guard let store = try? makeStore() else { return false }
-        do { try store.upsertNote(note); return true } catch { return false }
+    // MARK: - Serial background writes and the in-flight overlay
+
+    /// Serial tail of all note database writes: each write waits for the previous one to land (and for its
+    /// main-thread follow-up) before it runs, so commit order equals enqueue order.
+    private var writeTail: Task<Void, Never>?
+    /// Overlay of in-flight writes: registered at enqueue, removed by token once the write has landed or failed.
+    /// Database reads are overlaid with them in enqueue order = the latest local state. Tagged with the partition
+    /// uid so a write of the previous partition never overlays a read of the new one.
+    private var pendingNoteOps: [(token: UInt64, uid: String, op: PendingNoteOp)] = []
+    private var pendingFolderOps: [(token: UInt64, uid: String, op: PendingFolderOp)] = []
+    private var lastWriteToken: UInt64 = 0
+
+    private func currentNoteOps() -> [PendingNoteOp] {
+        guard !pendingNoteOps.isEmpty else { return [] }
+        return noteOps(forUID: uid)
     }
 
+    private func noteOps(forUID targetUID: String) -> [PendingNoteOp] {
+        pendingNoteOps.filter { $0.uid == targetUID }.map(\.op)
+    }
+
+    private func currentFolderOps() -> [PendingFolderOp] {
+        guard !pendingFolderOps.isEmpty else { return [] }
+        let current = uid
+        return pendingFolderOps.filter { $0.uid == current }.map(\.op)
+    }
+
+    /// Queues one background write: register the overlay, write on the serial tail, then drop the overlay on the
+    /// main thread. On failure the mirror is reloaded from the database (rollback) and, for user actions, a
+    /// warning toast is shown. The returned task is for callers that must wait for the write.
+    @discardableResult
+    private func enqueueWrite(
+        phase: String,
+        userInitiated: Bool = true,
+        noteOps: [PendingNoteOp] = [],
+        folderOps: [PendingFolderOp] = [],
+        write: @escaping @Sendable (NoteStore) throws -> Void
+    ) -> Task<Bool, Never> {
+        let targetUID = uid
+        // The store instance is fixed at enqueue time: the background write only touches this instance and does
+        // not reopen by uid through the shared manager, so after a partition switch an in-flight write still lands
+        // in the partition it was enqueued for and never swaps the shared manager back to the old database.
+        let capturedStore = try? makeStore()
+        lastWriteToken &+= 1
+        let token = lastWriteToken
+        pendingNoteOps += noteOps.map { (token, targetUID, $0) }
+        pendingFolderOps += folderOps.map { (token, targetUID, $0) }
+        var forceFailure = false
+        #if DEBUG
+        forceFailure = _testingFailWrites
+        #endif
+        let fail = forceFailure
+        let previous = writeTail
+        // AppState is captured weakly on its own: the manager may outlive it, so check it is alive before reading the partition.
+        let task = Task.detached(priority: .userInitiated) { [weak self, weak state = appState] () -> Bool in
+            await previous?.value
+            let failure: Error?
+            do {
+                if fail { throw NoteWriteError.forcedFailure }
+                guard let capturedStore else { throw NoteWriteError.storeUnavailable }
+                try write(capturedStore)
+                failure = nil
+            } catch {
+                failure = error
+            }
+            await MainActor.run {
+                guard let self else { return }
+                self.pendingNoteOps.removeAll { $0.token == token }
+                self.pendingFolderOps.removeAll { $0.token == token }
+                guard let failure, let state, self.isBound, state.sessionPartitionUID == targetUID else { return }
+                self.reloadFromStore()
+                AppLog.error(failure, module: "notes", context: ["phase": phase])
+                if userInitiated {
+                    ToastManager.shared.show(
+                        L10n.tr("Couldn’t apply this change. Please try again.", table: .providers),
+                        style: .warning
+                    )
+                }
+            }
+            return failure == nil
+        }
+        writeTail = Task.detached { _ = await task.value }
+        return task
+    }
+
+    /// Stored row overlaid with the in-flight writes (in enqueue order).
+    nonisolated static func applying(_ ops: [PendingNoteOp], to stored: Note?, id: UUID) -> Note? {
+        ops.reduce(stored) { $1.apply(to: $0, id: id) }
+    }
+
+    nonisolated static func applying(_ ops: [PendingFolderOp], to stored: NoteFolder?, id: UUID) -> NoteFolder? {
+        ops.reduce(stored) { $1.apply(to: $0, id: id) }
+    }
+
+    /// A whole-table read overlaid with the in-flight writes: rows created in flight that are not in the database yet are appended.
+    nonisolated private static func overlaying(_ ops: [PendingNoteOp], on rows: [Note]) -> [Note] {
+        guard !ops.isEmpty else { return rows }
+        let known = Set(rows.map(\.id))
+        var ids = rows.map(\.id)
+        for case .upsert(let note) in ops where !known.contains(note.id) && !ids.contains(note.id) { ids.append(note.id) }
+        let byID = Dictionary(rows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return ids.compactMap { applying(ops, to: byID[$0], id: $0) }
+    }
+
+    nonisolated private static func overlaying(_ ops: [PendingFolderOp], on rows: [NoteFolder]) -> [NoteFolder] {
+        guard !ops.isEmpty else { return rows }
+        let known = Set(rows.map(\.id))
+        var ids = rows.map(\.id)
+        for case .upsert(let folder) in ops where !known.contains(folder.id) && !ids.contains(folder.id) { ids.append(folder.id) }
+        let byID = Dictionary(rows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return ids.compactMap { applying(ops, to: byID[$0], id: $0) }
+    }
+
+    /// Read-modify-write of one note: take the latest local state, apply the change, refresh updatedAt, update the
+    /// mirror, then write in the background.
     @discardableResult
     private func mutate(id: UUID, _ transform: (inout Note) -> Void) -> Note? {
         guard var note = note(id: id) else { return nil }
         transform(&note)
         note.updatedAt = Date()
-        guard persist(note) else { return nil }
         applyToMirror(note)
+        let row = note
+        enqueueWrite(phase: "update_note", noteOps: [.upsert(row)]) { store in
+            try store.upsertNote(row)
+        }
         return note
     }
 
@@ -540,14 +727,64 @@ final class NoteManager {
         guard var folder = appState.noteFolders.first(where: { $0.id == id }) else { return nil }
         transform(&folder)
         folder.updatedAt = Date()
-        guard let store = try? makeStore() else { return nil }
-        do { try store.upsertNoteFolder(folder) } catch { return nil }
         mirrorGeneration &+= 1
         if let idx = appState.noteFolders.firstIndex(where: { $0.id == id }) {
             appState.noteFolders[idx] = folder
             appState.noteFolders.sort { $0.sortOrder < $1.sortOrder }
         }
+        let row = folder
+        enqueueWrite(phase: "update_folder", folderOps: [.upsert(row)]) { store in
+            try store.upsertNoteFolder(row)
+        }
         return folder
+    }
+
+    /// Notes (active and trashed) that point at a folder move back to unfiled in the mirror.
+    private func clearFolderInMirror(folderID: UUID, updatedAt: Date) {
+        let affected = (appState.noteSummaries + appState.trashedNoteSummaries).filter { $0.noteFolderID == folderID }
+        for var summary in affected {
+            summary.noteFolderID = nil
+            summary.updatedAt = updatedAt
+            applySummaryToMirror(summary)
+        }
+    }
+
+    /// Appends to the mirror in one go (sorted once for the whole batch).
+    private func appendToMirror(notes: [Note], folders: [NoteFolder]) {
+        guard !notes.isEmpty || !folders.isEmpty else { return }
+        mirrorGeneration &+= 1
+        if !folders.isEmpty {
+            let ids = Set(folders.map(\.id))
+            appState.noteFolders = (appState.noteFolders.filter { !ids.contains($0.id) } + folders)
+                .sorted { $0.sortOrder < $1.sortOrder }
+        }
+        guard !notes.isEmpty else { return }
+        let ids = Set(notes.map(\.id))
+        var active = appState.noteSummaries.filter { !ids.contains($0.id) }
+        var trashed = appState.trashedNoteSummaries.filter { !ids.contains($0.id) }
+        for note in notes {
+            if note.deletedAt == nil { active.append(NoteSummary(note)) } else { trashed.append(NoteSummary(note)) }
+        }
+        appState.noteSummaries = active.sorted(by: Self.summaryOrder)
+        appState.trashedNoteSummaries = trashed.sorted(by: Self.summaryOrder)
+    }
+
+    nonisolated private static func summaryOrder(_ lhs: NoteSummary, _ rhs: NoteSummary) -> Bool {
+        if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt > rhs.updatedAt }
+        if lhs.createdAt != rhs.createdAt { return lhs.createdAt > rhs.createdAt }
+        return lhs.id.uuidString > rhs.id.uuidString
+    }
+
+    /// Writes a summary alone (a note whose noteFolderID the cascade changed) into the right mirror array.
+    private func applySummaryToMirror(_ summary: NoteSummary) {
+        mirrorGeneration &+= 1
+        appState.noteSummaries.removeAll { $0.id == summary.id }
+        appState.trashedNoteSummaries.removeAll { $0.id == summary.id }
+        if summary.deletedAt == nil {
+            insertSorted(summary, into: &appState.noteSummaries)
+        } else {
+            insertSorted(summary, into: &appState.trashedNoteSummaries)
+        }
     }
 
     private func applyToMirror(_ note: Note) {
@@ -565,11 +802,7 @@ final class NoteManager {
     private func insertSorted(_ summary: NoteSummary, into array: inout [NoteSummary]) {
         array.removeAll { $0.id == summary.id }
         array.append(summary)
-        array.sort { lhs, rhs in
-            if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt > rhs.updatedAt }
-            if lhs.createdAt != rhs.createdAt { return lhs.createdAt > rhs.createdAt }
-            return lhs.id.uuidString > rhs.id.uuidString
-        }
+        array.sort(by: Self.summaryOrder)
     }
 
     private func insertFolderSorted(_ folder: NoteFolder) {
@@ -613,4 +846,73 @@ private struct NoteMirrorSnapshot: Sendable {
     let active: [NoteSummary]
     let trashed: [NoteSummary]
     let folders: [NoteFolder]
+}
+
+private nonisolated enum NoteWriteError: Error {
+    /// Failure injected by tests.
+    case forcedFailure
+    /// The database could not be opened at enqueue time.
+    case storeUnavailable
+}
+
+/// What one in-flight note write does to a row (same semantics as the matching NoteStore SQL), overlaid on database reads.
+nonisolated enum PendingNoteOp: Sendable {
+    /// Whole-row write (create / edit).
+    case upsert(Note)
+    case trash(id: UUID, deletedAt: Date, updatedAt: Date)
+    case restore(id: UUID, updatedAt: Date)
+    /// Hard delete.
+    case remove(Set<UUID>)
+    /// Cascade: notes (trashed included) pointing at the folder move back to unfiled.
+    case clearFolder(folderID: UUID, updatedAt: Date)
+
+    func apply(to note: Note?, id: UUID) -> Note? {
+        switch self {
+        case .upsert(let row):
+            return row.id == id ? row : note
+        case .trash(let target, let deletedAt, let updatedAt):
+            guard target == id, var note else { return note }
+            note.deletedAt = deletedAt
+            note.updatedAt = updatedAt
+            return note
+        case .restore(let target, let updatedAt):
+            guard target == id, var note else { return note }
+            note.deletedAt = nil
+            note.updatedAt = updatedAt
+            return note
+        case .remove(let ids):
+            return ids.contains(id) ? nil : note
+        case .clearFolder(let folderID, let updatedAt):
+            guard var note, note.noteFolderID == folderID else { return note }
+            note.noteFolderID = nil
+            note.updatedAt = updatedAt
+            return note
+        }
+    }
+}
+
+/// Folder counterpart of `PendingNoteOp`.
+nonisolated enum PendingFolderOp: Sendable {
+    case upsert(NoteFolder)
+    case trash(id: UUID, deletedAt: Date, updatedAt: Date)
+
+    var folderID: UUID {
+        switch self {
+        case .upsert(let folder): folder.id
+        case .trash(let id, _, _): id
+        }
+    }
+
+    func apply(to folder: NoteFolder?, id: UUID) -> NoteFolder? {
+        guard folderID == id else { return folder }
+        switch self {
+        case .upsert(let row):
+            return row
+        case .trash(_, let deletedAt, let updatedAt):
+            guard var folder else { return nil }
+            folder.deletedAt = deletedAt
+            folder.updatedAt = updatedAt
+            return folder
+        }
+    }
 }

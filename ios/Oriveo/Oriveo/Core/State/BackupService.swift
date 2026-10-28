@@ -822,9 +822,12 @@ enum BackupService {
         if backupFile.data.notes != nil || backupFile.data.noteFolders != nil {
             let importedNotes = (backupFile.data.notes ?? []).map { $0.toNote() }
             let importedNoteFolders = (backupFile.data.noteFolders ?? []).map { $0.toNoteFolder() }
-            await MainActor.run {
+            // The write runs on the notes' serial write chain (not on the main thread); wait for it to land and
+            // for the mirror to reload before continuing.
+            let notesImport = await MainActor.run {
                 appState.noteManager.importNotes(importedNotes, folders: importedNoteFolders, mode: .importNewOnly)
             }
+            await notesImport.value
         }
 
         for backupSkill in backupFile.data.skills ?? [] {
@@ -989,9 +992,10 @@ enum BackupService {
         if backupFile.data.notes != nil || backupFile.data.noteFolders != nil {
             let importedNotes = (backupFile.data.notes ?? []).map { $0.toNote() }
             let importedNoteFolders = (backupFile.data.noteFolders ?? []).map { $0.toNoteFolder() }
-            await MainActor.run {
+            let notesImport = await MainActor.run {
                 appState.noteManager.importNotes(importedNotes, folders: importedNoteFolders, mode: .merge)
             }
+            await notesImport.value
         }
 
         for backupSkill in backupFile.data.skills ?? [] {
@@ -1106,7 +1110,7 @@ enum BackupService {
                 persistedUID: partitionUID
             )
             conversationsCommitted = true
-            try await MainActor.run {
+            let notesImport = try await MainActor.run {
                 try ensureSessionStillBound(appState, partitionUID: partitionUID)
                 try commitReplaceAllProviders(
                     importedProviders,
@@ -1114,10 +1118,14 @@ enum BackupService {
                     appState: appState
                 )
                 appState.folders = importedFolders
-                appState.noteManager.importNotes(importedNotes, folders: importedNoteFolders, mode: .replaceAll)
+                let notesImport = appState.noteManager.importNotes(
+                    importedNotes, folders: importedNoteFolders, mode: .replaceAll
+                )
                 appState.skillManager.replaceUserSkills(importedSkills)
                 appState.persistSessionNow(for: partitionUID)
+                return notesImport
             }
+            await notesImport.value
         } catch {
             if conversationsCommitted {
                 // The conversations are committed and the session was rebound afterwards: the images match
