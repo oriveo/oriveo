@@ -34,7 +34,7 @@ extension AppState {
 
         reassignConversationProviderIDs(remap: outcome.idRemap)
 
-        persistSessionNow(for: uid)
+        enqueueSessionPersist(for: uid)
     }
 
     private func reassignConversationProviderIDs(remap: [UUID: UUID]) {

@@ -367,26 +367,41 @@ final class ConversationStore: @unchecked Sendable {
         }
     }
 
-    /// Mark leftover `.generating` assistants as `.interrupted`. Cold-start memory no longer
-    /// carries message bodies, so this has to be SQL rather than a scan of `Conversation.messages`.
-    nonisolated func sanitizeStaleGeneratingMessages() throws {
-        try write { db in
-            // Being killed mid-generation is not a user stop: record stopReason in the same pass — incomplete when there is text, error otherwise.
-            try db.execute(
-                sql: """
-                    UPDATE message
-                    SET state = ?,
-                        stopReason = CASE WHEN trim(text, ' ' || char(9) || char(10) || char(13)) <> '' THEN ? ELSE ? END
-                    WHERE role = ? AND state = ?
-                    """,
-                arguments: [
-                    ChatMessageState.interrupted.rawValue,
-                    StopReason.incomplete.rawValue,
-                    StopReason.error.rawValue,
-                    ChatRole.assistant.rawValue,
-                    ChatMessageState.generating.rawValue
-                ]
+    /// Cold-start recovery (read only): ids of `.generating` assistant messages left over from the last run.
+    /// Cold-start memory no longer carries message bodies, so this has to be SQL rather than a scan of `Conversation.messages`.
+    nonisolated func staleGeneratingMessageIDs() throws -> [String] {
+        try dbPool.read { db in
+            try String.fetchAll(
+                db,
+                sql: "SELECT id FROM message WHERE role = ? AND state = ?",
+                arguments: [ChatRole.assistant.rawValue, ChatMessageState.generating.rawValue]
             )
+        }
+    }
+
+    /// Marks the leftovers read by `staleGeneratingMessageIDs()` as `.interrupted` (only rows that are still `.generating`).
+    /// Being killed mid-generation is not a user stop: stopReason is recorded in the same pass — incomplete when there is text, error otherwise.
+    nonisolated func sanitizeStaleGeneratingMessages(messageIDs: [String]) throws {
+        guard !messageIDs.isEmpty else { return }
+        try write { db in
+            for start in stride(from: 0, to: messageIDs.count, by: 500) {
+                let chunk = Array(messageIDs[start..<min(start + 500, messageIDs.count)])
+                try db.execute(
+                    sql: """
+                        UPDATE message
+                        SET state = ?,
+                            stopReason = CASE WHEN trim(text, ' ' || char(9) || char(10) || char(13)) <> '' THEN ? ELSE ? END
+                        WHERE role = ? AND state = ? AND id IN (\(chunk.map { _ in "?" }.joined(separator: ",")))
+                        """,
+                    arguments: StatementArguments([
+                        ChatMessageState.interrupted.rawValue,
+                        StopReason.incomplete.rawValue,
+                        StopReason.error.rawValue,
+                        ChatRole.assistant.rawValue,
+                        ChatMessageState.generating.rawValue
+                    ] + chunk)
+                )
+            }
         }
     }
 

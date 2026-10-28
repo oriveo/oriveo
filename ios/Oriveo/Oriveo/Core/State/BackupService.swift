@@ -1122,9 +1122,11 @@ enum BackupService {
                     importedNotes, folders: importedNoteFolders, mode: .replaceAll
                 )
                 appState.skillManager.replaceUserSkills(importedSkills)
-                appState.persistSessionNow(for: partitionUID)
                 return notesImport
             }
+            // Continue after the write lands, without the main thread waiting on the persist queue.
+            try await MainActor.run { try ensureSessionStillBound(appState, partitionUID: partitionUID) }
+            await appState.persistSessionNowOffMainThread(for: partitionUID)
             await notesImport.value
         } catch {
             if conversationsCommitted {
@@ -1140,7 +1142,7 @@ enum BackupService {
         }
 
         finalizeImageStoreReplacement(replacement)
-        // persistSessionNow above has already drained the conversation write queue synchronously, so the replaced conversations are persisted.
+        // persistSessionNowOffMainThread above has already drained the conversation write queue, so the replaced conversations are persisted.
         await importCheckpointsAfterConversations(
             backupFile, partitionUID: partitionUID, appState: appState, drainPersistQueue: false
         )

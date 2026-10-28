@@ -736,7 +736,17 @@ final class AppState {
     /// Mark leftover `.generating` assistants as interrupted after a cold start.
     /// Cold-start memory is a summary projection, so this has to be SQL.
     private func sanitizeStaleGeneratingMessages() {
-        try? conversationRuntimeBridge.sanitizeStaleGeneratingMessages(uid: boundPartitionUID)
+        // Only the leftover ids are read here (a read does not wait for the write lock); the UPDATE for exactly those
+        // ids is queued on the persist queue so the main thread never writes synchronously.
+        let uid = boundPartitionUID
+        let bridge = conversationRuntimeBridge
+        if let staleIDs = try? bridge.staleGeneratingMessageIDs(uid: uid), !staleIDs.isEmpty {
+            conversationPersistQueue.async(qos: .userInitiated) {
+                Self.runConversationPersistWrite(op: "sanitize_stale_generating") {
+                    try bridge.sanitizeStaleGeneratingMessages(messageIDs: staleIDs, uid: uid)
+                }
+            }
+        }
         // When the database cannot be opened, memory comes from the recovery snapshot (full threads)
         // and the SQL above fails, so memory is the only copy. Without settling it here a leftover
         // .generating message keeps spinning forever.
@@ -2565,10 +2575,16 @@ final class AppState {
                 merged: mergedProjection,
                 authoritative: authoritativeProjection
             ) {
-                conversations = (try? conversationRuntimeBridge.replaceAllConversations(
-                    mergedProjection,
-                    uid: activeUID
-                )) ?? mergedProjection
+                // The whole-table write is queued on the persist queue (the main thread never waits for the write lock) and
+                // every write queued afterwards lands behind it; memory uses the summary form of the merge result
+                // (the cold-start mirror holds summaries only, the same shape as reading them back from the database).
+                let bridge = conversationRuntimeBridge
+                conversationPersistQueue.async(qos: .userInitiated) {
+                    Self.runConversationPersistWrite(op: "load_session_recovery_replace") {
+                        _ = try bridge.replaceAllConversations(mergedProjection, uid: activeUID)
+                    }
+                }
+                conversations = mergedProjection.map(\.coldStartSummary)
             } else {
                 conversations = authoritativeProjection
             }
@@ -2694,10 +2710,22 @@ final class AppState {
         }
     }
 
-    func persistSessionNow(for persistedUID: String? = nil) {
+    /// Saves the current data to the partition (no debounce, so nothing is lost before a switch) without waiting: the
+    /// snapshot is fixed on the main thread now and the write is queued on the persist queue. The main thread never
+    /// waits on a queue that may be busy with a whole-table write. Callers that must continue only after the write use
+    /// `persistSessionNowOffMainThread()`.
+    func enqueueSessionPersist(for persistedUID: String? = nil) {
         guard let work = makeImmediateSessionPersistWork(for: persistedUID) else { return }
-        conversationPersistQueue.sync(execute: work)
+        conversationPersistQueue.async(qos: .userInitiated, execute: work)
     }
+
+    #if DEBUG
+    /// Tests only: persist synchronously (the main thread waits for the persist queue; forbidden in production).
+    func persistSessionNow(for persistedUID: String? = nil) {
+        enqueueSessionPersist(for: persistedUID)
+        flushConversationPersistQueue()
+    }
+    #endif
 
     func persistSessionNowOffMainThread(for persistedUID: String? = nil) async {
         guard let work = makeImmediateSessionPersistWork(for: persistedUID) else { return }
@@ -2743,6 +2771,7 @@ final class AppState {
             folders: folders
         )
         let bridge = conversationRuntimeBridge
+        let checkpointPool = checkpoint ? bridge.openedPool() : nil
 
         pendingSessionPersistWorkItem?.cancel()
 
@@ -2756,9 +2785,9 @@ final class AppState {
                 try bridge.persistRecoveryProjectionFromDatabase(uid: persistedUID, skipIfUnchanged: true)
             }
             AppSessionStore.save(snapshot, for: persistedUID)
-            if checkpoint {
+            if let checkpointPool {
                 Self.runConversationPersistWrite(op: "persist_lifecycle_checkpoint") {
-                    try bridge.checkpoint()
+                    try DatabaseManager.checkpoint(checkpointPool)
                 }
             }
             holder.endOnMain()
@@ -3063,5 +3092,17 @@ final class ProposeFallbackOnce {
     func markSettled() -> Bool {
         settled = true
         return !ran
+    }
+}
+
+private extension Conversation {
+    /// Summary form of the cold-start mirror (the shape `fetchConversationSummaryProjection` reads back): no bodies, the count is the override.
+    var coldStartSummary: Conversation {
+        guard messagesAreLoaded else { return self }
+        var summary = self
+        summary.messageCountOverride = displayMessageCount
+        summary.messages = []
+        summary.messagesAreLoaded = false
+        return summary
     }
 }

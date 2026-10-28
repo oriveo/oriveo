@@ -1,3 +1,4 @@
+import GRDB
 import Foundation
 
 struct ConversationModelUpdate {
@@ -331,8 +332,12 @@ final class ConversationRuntimeBridge {
         )
     }
 
-    func sanitizeStaleGeneratingMessages(uid: String) throws {
-        try makeStore(for: uid).sanitizeStaleGeneratingMessages()
+    func staleGeneratingMessageIDs(uid: String) throws -> [String] {
+        try makeStore(for: uid).staleGeneratingMessageIDs()
+    }
+
+    func sanitizeStaleGeneratingMessages(messageIDs: [String], uid: String) throws {
+        try makeStore(for: uid).sanitizeStaleGeneratingMessages(messageIDs: messageIDs)
     }
 
     func loadRecoveryProjection(snapshot: AppSessionSnapshot?, uid: String) -> [Conversation] {
@@ -348,8 +353,9 @@ final class ConversationRuntimeBridge {
         return []
     }
 
-    func checkpoint() throws {
-        try databaseManager.checkpoint()
+    /// The currently open partition database (does not open it); the checkpoint takes it where it is queued.
+    func openedPool() -> DatabasePool? {
+        databaseManager.openedPool()
     }
 
     func close() {

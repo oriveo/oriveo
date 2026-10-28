@@ -40,8 +40,16 @@ nonisolated final class DatabaseManager: @unchecked Sendable {
         return pool
     }
 
-    func checkpoint() throws {
-        let pool = try openCurrent()
+    /// The currently open partition database (no open, no migration); nil when none is open.
+    func openedPool() -> DatabasePool? {
+        lock.lock()
+        defer { lock.unlock() }
+        return currentPool
+    }
+
+    /// WAL checkpoint on the given instance (fixed by the caller where the work is queued): it never reopens by the
+    /// active uid, so a checkpoint queued before a partition change still lands in the partition it was queued for.
+    static func checkpoint(_ pool: DatabasePool) throws {
         try pool.writeWithoutTransaction { db in
             try db.execute(sql: "PRAGMA wal_checkpoint(TRUNCATE)")
         }

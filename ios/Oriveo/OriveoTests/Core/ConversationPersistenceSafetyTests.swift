@@ -150,6 +150,8 @@ struct ConversationPersistenceSafetyTests {
         #expect(restored.updatedAt == freshUpdatedAt)
         // Cold-start memory stays a summary; the recovered bodies must actually be written back to the database.
         #expect(!restored.messagesAreLoaded)
+        // The recovery write is queued on the persist queue (the main thread never waits for the write lock): wait for it before reading the database directly.
+        recovered.flushConversationPersistQueue()
         let stored = try #require(try bridge.fetchConversationProjection(id: conversationID, uid: uid))
         #expect(stored.messages.map(\.text) == ["stale", "fresh user", "fresh assistant"])
     }
