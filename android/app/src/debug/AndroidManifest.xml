@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <application android:usesCleartextTraffic="true" />
+    <application android:usesCleartextTraffic="true">
+        <!-- Empty host for instrumented tests that set Compose content (createAndroidComposeRule<ComponentActivity>).
+             It must live in the app manifest: an androidTest manifest lands in the test APK's own process,
+             where ActivityScenario cannot start it. -->
+        <activity
+            android:name="androidx.activity.ComponentActivity"
+            android:exported="false" />
+    </application>
 </manifest>
