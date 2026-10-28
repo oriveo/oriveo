@@ -295,15 +295,20 @@ extension AssistantMessageCell {
 
     override func preferredLayoutAttributesFitting(_ layoutAttributes: UICollectionViewLayoutAttributes) -> UICollectionViewLayoutAttributes {
         let preferred = layoutAttributes.copy() as! UICollectionViewLayoutAttributes
-        let targetWidth = layoutAttributes.size.width > 0
-            ? layoutAttributes.size.width
-            : max(contentView.bounds.width, bounds.width, 1)
+        // A non-finite or non-positive width in a required width constraint writes inf into the layout engine; normalize it to a finite positive value at the entry.
+        let targetWidth = AssistantMessageCell.sanitizedFittingWidth(
+            proposed: layoutAttributes.size.width,
+            fallbacks: [contentView.bounds.width, bounds.width]
+        )
         let fittedSize = contentView.systemLayoutSizeFitting(
             CGSize(width: targetWidth, height: UIView.layoutFittingCompressedSize.height),
             withHorizontalFittingPriority: .required,
             verticalFittingPriority: .fittingSizeLevel
         )
-        let naturalHeight = max(ceil(fittedSize.height), 1)
+        let naturalHeight = AssistantMessageCell.sanitizedFittedHeight(
+            fittedSize.height,
+            fallback: layoutAttributes.size.height
+        )
         preferred.size.width = targetWidth
         preferred.size.height = naturalHeight
         streamingHeightFloor = AssistantMessageCell.nextStreamingHeightFloor(

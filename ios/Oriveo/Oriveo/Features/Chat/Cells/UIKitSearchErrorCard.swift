@@ -49,6 +49,8 @@ final class UIKitSearchErrorCard: UIView {
         guard let model else { return }
         var config = primary ? UIButton.Configuration.filled() : UIButton.Configuration.gray()
         config.title = model.title
+        // Single-line title: a wrapping title makes cell self-sizing rebuild temporary constraints for the target width.
+        config.titleLineBreakMode = .byTruncatingTail
         config.cornerStyle = .capsule
         config.buttonSize = .small
         config.baseForegroundColor = primary ? OriveoTheme.Palette.onPrimaryUIColor : UIColor(OriveoTheme.Palette.textPrimary)

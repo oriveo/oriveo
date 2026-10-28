@@ -178,6 +178,24 @@ final class AssistantMessageCell: UICollectionViewCell {
         streaming ? max(current, natural) : 0
     }
 
+    /// The self-size target width: only finite positive values pass (clamped to `maxFittingWidth`);
+    /// otherwise the first usable fallback from the same sources, and 1pt as a last resort.
+    nonisolated static func sanitizedFittingWidth(proposed: CGFloat, fallbacks: [CGFloat]) -> CGFloat {
+        let usable = ([proposed] + fallbacks).first { $0.isFinite && $0 > 0 } ?? 1
+        return min(max(usable, 1), maxFittingWidth)
+    }
+
+    /// A width no screen or split view can reach; an astronomical width in a required constraint also
+    /// drives the layout engine to inf.
+    nonisolated static let maxFittingWidth: CGFloat = 100_000
+
+    /// When the measured height is not finite, fall back to the previous height (1pt at worst) instead
+    /// of reporting inf/NaN to the layout.
+    nonisolated static func sanitizedFittedHeight(_ fitted: CGFloat, fallback: CGFloat) -> CGFloat {
+        if fitted.isFinite { return max(ceil(fitted), 1) }
+        return fallback.isFinite ? max(ceil(fallback), 1) : 1
+    }
+
     let streamingCodeRenderer = AssistantStreamingCodeRenderer()
 
     var streamingTableRenderer: AssistantStreamingTableRenderer?

@@ -275,11 +275,13 @@ final class UIKitCodeBlockCard: UIView {
     }
 
     private func applyCodeHeight(forWidth width: CGFloat, notifyHost: Bool) {
-        guard width > 0 else { return }
+        guard width.isFinite, width > 0 else { return }
         let natural = codeTextView.sizeThatFits(
             CGSize(width: width, height: .greatestFiniteMagnitude)
         ).height
-        let target = min(natural, Self.maxPreviewHeight)
+        // Swift.min(NaN, x) returns NaN, so a non-finite measurement must not reach the height constraint.
+        guard natural.isFinite else { return }
+        let target = min(max(natural, 0), Self.maxPreviewHeight)
         let heightChanged = abs(codeHeightConstraint.constant - target) > 0.5
         if heightChanged {
             #if DEBUG
@@ -413,6 +415,8 @@ final class UIKitCodeBlockCard: UIView {
         config.image = UIImage(systemName: icon)?
             .withConfiguration(UIImage.SymbolConfiguration(pointSize: 11, weight: .semibold))
         config.title = title
+        // Single-line title: a wrapping title makes cell self-sizing rebuild temporary constraints for the target width.
+        config.titleLineBreakMode = .byTruncatingTail
         config.baseForegroundColor = Self.secondaryFg
         config.imagePadding = 4
         let descriptor = UIFontDescriptor.preferredFontDescriptor(withTextStyle: .footnote)

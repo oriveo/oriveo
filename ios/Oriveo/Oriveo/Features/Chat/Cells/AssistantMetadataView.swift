@@ -321,6 +321,8 @@ final class AssistantMetadataView: UIStackView {
         var configuration = UIButton.Configuration.plain()
         configuration.contentInsets = .zero
         configuration.title = L10n.tr("memory_used_chip", table: .chat)
+        // Single-line title: a wrapping title makes cell self-sizing rebuild temporary constraints for the target width.
+        configuration.titleLineBreakMode = .byTruncatingTail
         configuration.baseForegroundColor = color
         let font = metaFont
         configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in

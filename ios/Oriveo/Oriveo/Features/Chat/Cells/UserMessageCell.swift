@@ -705,6 +705,8 @@ final class UserMessageCell: UICollectionViewCell {
             weight: .semibold
         )
         fullTextConfig.attributedTitle = fullTextTitle
+        // Single-line title: a wrapping title makes cell self-sizing rebuild temporary constraints for the target width.
+        fullTextConfig.titleLineBreakMode = .byTruncatingTail
         fullTextButton.configuration = fullTextConfig
         fullTextButton.accessibilityIdentifier = "user_message_show_full_text"
         fullTextButton.addTarget(self, action: #selector(fullTextTapped), for: .touchUpInside)
@@ -730,6 +732,8 @@ final class UserMessageCell: UICollectionViewCell {
         var savedNoteTitle = AttributedString(L10n.tr("Saved as note", table: .notes))
         savedNoteTitle.font = UIFont(descriptor: UIFontDescriptor.preferredFontDescriptor(withTextStyle: .caption2), size: 0)
         savedNoteConfig.attributedTitle = savedNoteTitle
+        // Single-line title: a wrapping title makes cell self-sizing rebuild temporary constraints for the target width.
+        savedNoteConfig.titleLineBreakMode = .byTruncatingTail
         savedNoteReferenceButton.configuration = savedNoteConfig
         savedNoteReferenceButton.contentHorizontalAlignment = .trailing
         savedNoteReferenceButton.accessibilityLabel = L10n.tr("Saved as note", table: .notes)
@@ -1043,6 +1047,10 @@ final class DirectiveSuggestionBarView: UIView {
         var config = prominent ? UIButton.Configuration.filled() : UIButton.Configuration.gray()
         config.cornerStyle = .capsule
         config.contentInsets = NSDirectionalEdgeInsets(top: 5, leading: 12, bottom: 5, trailing: 12)
+        // Single-line truncation: a configuration button title may wrap by default, and a width-dependent title
+        // sends cell self-sizing into a second round that rebuilds temporary constraints for the target
+        // width; on iOS 27.0.1 that path throws NSISEngine "reciprocal (inf)" on this button row.
+        config.titleLineBreakMode = .byTruncatingTail
         var attributed = AttributedString(title)
         attributed.font = UIFont.systemFont(
             ofSize: UIFont.preferredFont(forTextStyle: .footnote).pointSize,
@@ -1164,6 +1172,10 @@ final class MemorySuggestionBarView: UIView {
         var config = prominent ? UIButton.Configuration.filled() : UIButton.Configuration.gray()
         config.cornerStyle = .capsule
         config.contentInsets = NSDirectionalEdgeInsets(top: 5, leading: 12, bottom: 5, trailing: 12)
+        // Single-line truncation: a configuration button title may wrap by default, and a width-dependent title
+        // sends cell self-sizing into a second round that rebuilds temporary constraints for the target
+        // width; on iOS 27.0.1 that path throws NSISEngine "reciprocal (inf)" on this button row.
+        config.titleLineBreakMode = .byTruncatingTail
         var attributed = AttributedString(title)
         attributed.font = UIFont.systemFont(
             ofSize: UIFont.preferredFont(forTextStyle: .footnote).pointSize,
