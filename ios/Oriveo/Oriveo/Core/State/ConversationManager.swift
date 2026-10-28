@@ -182,7 +182,9 @@ final class ConversationManager {
     func bind(to appState: AppState) {
         self.appState = appState
         isBound = true
-        let source = appState.conversations.isEmpty ? authoritativeConversations() : appState.conversations
+        // While the partition database is still being prepared in the background the main thread does not read it: the caches are rebuilt once the session is loaded.
+        let source = appState.conversations.isEmpty && appState.sessionStoreReady
+            ? authoritativeConversations() : appState.conversations
         rebuildCaches(from: source, now: nowProvider())
     }
 
@@ -683,7 +685,8 @@ final class ConversationManager {
         let hydrated = conversations.filter { $0.messagesAreLoaded && !$0.messages.isEmpty }
         let hydratedIDs = Set(hydrated.map(\.id))
         let fromMemory = CostSummaryCalculator.aggregates(from: hydrated, now: now)
-        let fromStore = (try? appState.conversationRuntimeBridge.fetchMonthlyCostAggregates(
+        // Not read while the partition database is being prepared; loading the session triggers another rebuild.
+        let fromStore = !appState.sessionStoreReady ? [] : (try? appState.conversationRuntimeBridge.fetchMonthlyCostAggregates(
             uid: appState.sessionPartitionUID,
             now: now,
             excludingConversationIDs: hydratedIDs

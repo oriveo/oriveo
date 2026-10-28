@@ -34,6 +34,13 @@ final class NoteManager {
     @discardableResult
     func reloadFromStore() -> Task<Void, Never>? {
         guard isBound else { return nil }
+        // The partition database is still being prepared in the background (cold start): the main thread does not open it, read once it is ready.
+        guard appState.sessionStoreReady else {
+            return Task { @MainActor [weak self, weak state = appState] in
+                await state?.waitForSessionStore()
+                await self?.reloadFromStore()?.value
+            }
+        }
         let targetUID = uid
         // The store instance is fixed on the main thread (as in `enqueueWrite`): the background read does not
         // reopen by uid through the shared manager.

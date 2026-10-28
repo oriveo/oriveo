@@ -140,6 +140,10 @@ struct AppRootView: View {
                 StorageBlockedView(reason: blockedReason) {
                     appState.loadSession()
                 }
+            } else if !appState.sessionStoreReady {
+                // The partition database is still being prepared in the background (cold start, usually tens of milliseconds): show only
+                // the background color and no entry point, so no screen can reach the database on the main thread before it is ready.
+                Color.clear.oriveoScreenBackground()
             } else {
                 mainContent
             }

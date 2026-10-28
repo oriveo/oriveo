@@ -289,7 +289,7 @@ struct MemoryItemRepositoryTests {
         #expect(fresh.map(\.text) == ["Picked Venice for the epilogue"])
     }
 
-    /// The database connection observed by the item cache is replaced (DatabaseManager keeps the connection of only one partition: if another partition is opened elsewhere first, opening this one again yields a new connection),
+    /// The database connection observed by the item cache is replaced (DatabaseManager keeps the connections of only two partitions: if other partitions is opened elsewhere first, opening this one again yields a new connection),
     /// and GRDB's observation cannot see writes made through the new connection; the cache must follow the writer's connection and refresh, rather than staying on the old value.
     @Test func cacheFollowsWriterAfterPoolReopened() async throws {
         let uid = "memory-cache-reopen-\(UUID().uuidString)"
@@ -297,12 +297,14 @@ struct MemoryItemRepositoryTests {
         defer {
             try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
             try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: other))
+            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: other + "-2"))
         }
         let cache = MemoryItemsCache()
         cache.bind(uid: uid)
         let observedPool = try DatabaseManager.shared.openIfNeeded(for: uid)
-        // Another partition takes DatabaseManager's connection slot, so reopening this partition yields a different DatabasePool.
+        // Two other partitions take DatabaseManager's connection slots (current + secondary), so reopening this partition yields a different DatabasePool.
         _ = try DatabaseManager.shared.openIfNeeded(for: other)
+        _ = try DatabaseManager.shared.openIfNeeded(for: other + "-2")
         let store = try #require(MemoryItemStore.forPartition(uid))
         #expect(try DatabaseManager.shared.openIfNeeded(for: uid) !== observedPool)
 

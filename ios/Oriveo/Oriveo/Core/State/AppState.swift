@@ -2515,14 +2515,17 @@ final class AppState {
 
     /// Loads the current partition's data into memory.
     /// - Parameter startsAttachmentCleanup: whether to start this partition's attachment sweep here (sidecar files plus orphan images).
+    ///
+    /// When the partition database is not open yet (cold start) the main thread does not open it: the non-database data of the
+    /// session snapshot is installed first, the database is prepared in the background (connection + migrations) while
+    /// `sessionStoreReady == false` and the root view shows nothing that could reach the database, and then the conversations
+    /// are read on the main thread (`loadSessionStore`).
     func loadSession(boundTo uid: String? = nil, startsAttachmentCleanup: Bool = true) {
         resetTransientNoteContext()
         preferences = AppPreferencesStore.load()
         let activeUID = uid ?? AppSessionStore.activeUID
         boundPartitionUID = activeUID
-        // Partition activation: migrate legacy fields into memory items / reflow edits from old clients
-        reconcileMemoryItems()
-        memoryItemsCache.bind(uid: activeUID)
+        sessionLoadGeneration &+= 1
 
         let snapshot = AppSessionStore.load(for: activeUID)
 
@@ -2537,6 +2540,45 @@ final class AppState {
             folders = []
             lastUsedModelRef = nil
         }
+
+        if DatabaseManager.shared.openedPool(for: activeUID) != nil || DatabaseManager.allowsMainThreadFirstOpen {
+            sessionStoreReady = true
+            sessionStoreReadyTask = nil
+            loadSessionStore(uid: activeUID, snapshot: snapshot, startsAttachmentCleanup: startsAttachmentCleanup)
+            return
+        }
+        sessionStoreReady = false
+        conversations = []
+        let generation = sessionLoadGeneration
+        sessionStoreReadyTask = Task { @MainActor [weak self] in
+            var openError: Error?
+            do {
+                _ = try await DatabaseManager.shared.prepare(for: activeUID)
+            } catch {
+                openError = error
+            }
+            guard let self, self.sessionLoadGeneration == generation, self.partitionIsStillBound(activeUID) else { return }
+            // Mark ready first: the cache rebuilds triggered by installing the conversations below must be able to read the database.
+            self.sessionStoreReady = true
+            if let openError {
+                // It cannot be opened: same as a failed read, fall back to the recovery snapshot and enter the blocked state.
+                self.databaseHealthProbe.recordFailure(openError)
+                self.conversations = self.conversationRuntimeBridge.loadRecoveryProjection(snapshot: snapshot, uid: activeUID)
+            } else {
+                self.loadSessionStore(uid: activeUID, snapshot: snapshot, startsAttachmentCleanup: startsAttachmentCleanup)
+            }
+        }
+    }
+
+    /// The partition database is open: read the conversations, memory items, startup recovery and so on (the main thread only reads; every write is queued).
+    private func loadSessionStore(
+        uid activeUID: String,
+        snapshot: AppSessionSnapshot?,
+        startsAttachmentCleanup: Bool
+    ) {
+        // Partition activation: migrate legacy fields into memory items / reflow edits from old clients
+        reconcileMemoryItems()
+        memoryItemsCache.bind(uid: activeUID)
 
         do {
             let recoveredProjection = conversationRuntimeBridge.loadRecoveryProjection(
@@ -2795,6 +2837,22 @@ final class AppState {
     }
 
     private var persistableProviders: [Provider] { providers }
+
+    /// The partition database is open and the session loaded (the database phase of `loadSession` has run). While false the
+    /// root view shows nothing and database-related entry points wait for `sessionStoreReadyTask`.
+    private(set) var sessionStoreReady = true
+    /// The task that prepares the partition database in the background and loads the session; nil when already ready.
+    @ObservationIgnored private(set) var sessionStoreReadyTask: Task<Void, Never>?
+    @ObservationIgnored private var sessionLoadGeneration: UInt = 0
+
+    /// Waits until the partition database is open and the session loaded (returns at once when already ready).
+    func waitForSessionStore() async {
+        while !sessionStoreReady, let task = sessionStoreReadyTask {
+            await task.value
+            // This load was superseded by a newer `loadSession` with no new task (or invalidated): do not spin.
+            if sessionStoreReadyTask == task, !sessionStoreReady { return }
+        }
+    }
 
     func updateTheme(_ theme: ThemeOption) {
         preferences.theme = theme
