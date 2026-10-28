@@ -26,6 +26,8 @@ nonisolated final class ToolCallMemoryStore: @unchecked Sendable {
     private let poolProvider: @Sendable () throws -> DatabasePool
     private let cacheLock = NSLock()
     private var cache: [String: ToolCallMemoryRecord?] = [:]
+    /// Connections whose delete is still queued on the writer: until it lands, reading the database would return the stale rows, so lookups treat them as having no memory (key: connection id, value: in-flight count).
+    private var pendingClears: [String: Int] = [:]
 
     init(poolProvider: @escaping @Sendable () throws -> DatabasePool = { try DatabaseManager.shared.openCurrent() }) {
         self.poolProvider = poolProvider
@@ -54,7 +56,9 @@ nonisolated final class ToolCallMemoryStore: @unchecked Sendable {
     private func cachedOrFetched(connectionID: UUID, modelID: String) -> ToolCallMemoryRecord? {
         let (connection, model) = Self.key(connectionID: connectionID, modelID: modelID)
         let key = Self.cacheKey(connection, model)
-        if let cached = cacheLock.withLock({ cache[key] }) { return cached }
+        let (cached, clearing) = cacheLock.withLock { (cache[key], pendingClears[connection] != nil) }
+        if let cached { return cached }
+        if clearing { return nil }
         let fetched: ToolCallMemoryRecord?
         do {
             fetched = try poolProvider().read { db in
@@ -85,30 +89,49 @@ nonisolated final class ToolCallMemoryStore: @unchecked Sendable {
             observedAt: now, reason: reason.rawValue,
             factsRevision: factsRevision, handEnteredDeclaration: handEnteredDeclaration
         )
-        do {
-            try poolProvider().write { db in try record.save(db) }
-            cacheLock.withLock { cache[Self.cacheKey(connection, model)] = .some(record) }
-            return true
-        } catch {
-            return false
-        }
+        let pool: DatabasePool
+        do { pool = try poolProvider() } catch { return false }
+        // The cache takes effect first (later lookups see it at once); the write is queued on the GRDB writer
+        // (FIFO keeps order) instead of waiting for the write lock on the calling thread: stream completion calls
+        // this on the main thread, and a whole-table write holding the lock would stall it.
+        cacheLock.withLock { cache[Self.cacheKey(connection, model)] = .some(record) }
+        pool.asyncWrite({ db in try record.save(db) }, completion: { _, _ in })
+        return true
     }
 
     func clear(connectionID: UUID) {
         let connection = connectionID.uuidString
+        guard let pool = try? poolProvider() else {
+            cacheLock.withLock { cache = cache.filter { !$0.key.hasPrefix(connection + "\u{1F}") } }
+            return
+        }
         cacheLock.withLock {
             cache = cache.filter { !$0.key.hasPrefix(connection + "\u{1F}") }
+            pendingClears[connection, default: 0] += 1
         }
-        _ = try? poolProvider().write { db in
+        pool.asyncWrite({ db in
             try ToolCallMemoryRecord
                 .filter(Column("connectionId") == connection)
                 .deleteAll(db)
-        }
+        }, completion: { [weak self] _, _ in
+            guard let self else { return }
+            self.cacheLock.withLock {
+                let remaining = (self.pendingClears[connection] ?? 1) - 1
+                self.pendingClears[connection] = remaining > 0 ? remaining : nil
+            }
+        })
+    }
+
+    /// For tests: wait until queued record / clear writes have landed.
+    func waitForPendingWritesForTesting() throws {
+        try poolProvider().writeWithoutTransaction { _ in }
     }
 
     var poolProviderForTesting: @Sendable () throws -> DatabasePool { poolProvider }
 
     func count() -> Int {
-        (try? poolProvider().read { db in try ToolCallMemoryRecord.fetchCount(db) }) ?? 0
+        // Queued writes are not visible to a concurrent reader yet; let them land first so the count is deterministic.
+        try? waitForPendingWritesForTesting()
+        return (try? poolProvider().read { db in try ToolCallMemoryRecord.fetchCount(db) }) ?? 0
     }
 }
