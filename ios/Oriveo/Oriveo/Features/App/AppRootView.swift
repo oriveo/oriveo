@@ -341,6 +341,9 @@ final class SwipeBackCoordinator: NSObject, UIGestureRecognizerDelegate {
     private final class WindowBinding {
         weak var navController: UINavigationController?
         weak var gesture: UIPanGestureRecognizer?
+        /// The native pop transition started by this recognizer has not finished (tracking the
+        /// finger, or the completion / cancellation animation after release).
+        var isDrivingPop = false
     }
 
     /// With several windows (iPad, Duo) each window has its own outer nav, so each gets its own
@@ -415,12 +418,47 @@ final class SwipeBackCoordinator: NSObject, UIGestureRecognizerDelegate {
         )
         panGesture.maximumNumberOfTouches = 1
         panGesture.delegate = self
+        // Added after the system target: by `.began` the system has started the pop and the
+        // transitionCoordinator is in place.
+        panGesture.addTarget(self, action: #selector(trackSwipeTransition(_:)))
         panGesture.shouldTrack = { [weak self, weak binding] touch, startsAtEdge in
             guard let self, let nav = binding?.navController else { return false }
             return self.shouldTrack(touch, startsAtEdge: startsAtEdge, nav: nav)
         }
         window.addGestureRecognizer(panGesture)
         binding.gesture = panGesture
+    }
+
+    // MARK: - Swipe transition in progress
+
+    /// Whether a swipe-driven native pop transition is still running (in any window).
+    ///
+    /// UIKit drives this transition directly and SwiftUI's `path` is only written back once it
+    /// ends. Changing `path` meanwhile (back button, `pop()` / `popToRoot()`) makes SwiftUI call
+    /// `setViewControllers(_:animated:)` to preempt the interactive transition, and UIKit throws
+    /// `Failed to preempt running transition`. This happens when the back button sits against the
+    /// left edge and one tap with a slight rightward drift starts the swipe and also fires the
+    /// button on release.
+    var isSwipeBackTransitionRunning: Bool {
+        guard let all = bindings.objectEnumerator()?.allObjects as? [WindowBinding] else { return false }
+        // Also confirm the transitionCoordinator is still alive, so a missed completion callback
+        // cannot leave the flag stuck and block navigation forever.
+        return all.contains { $0.isDrivingPop && $0.navController?.transitionCoordinator != nil }
+    }
+
+    @objc private func trackSwipeTransition(_ gesture: UIPanGestureRecognizer) {
+        guard gesture.state == .began,
+              let window = gesture.view as? UIWindow,
+              let binding = bindings.object(forKey: window) else { return }
+        beginTrackingPop(binding)
+    }
+
+    private func beginTrackingPop(_ binding: WindowBinding) {
+        guard let coordinator = binding.navController?.transitionCoordinator else { return }
+        binding.isDrivingPop = true
+        coordinator.animate(alongsideTransition: nil) { [weak binding] _ in
+            binding?.isDrivingPop = false
+        }
     }
 
     /// The outer nav of the window the recognizer is attached to.
@@ -432,6 +470,12 @@ final class SwipeBackCoordinator: NSObject, UIGestureRecognizerDelegate {
     #if DEBUG
     /// Testing hook: run a binding against a given window, bypassing the setup delay.
     func bindForTesting(window: UIWindow) { bind(to: window) }
+
+    /// Testing hook: go through the same registration path as `.began`, as if this window's swipe had just started a pop.
+    func beginSwipeTransitionForTesting(window: UIWindow) {
+        guard let binding = bindings.object(forKey: window) else { return }
+        beginTrackingPop(binding)
+    }
 
     /// Testing hook: the back swipe recognizer currently attached to a window.
     func attachedGestureForTesting(window: UIWindow) -> UIGestureRecognizer? {

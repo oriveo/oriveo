@@ -32,6 +32,21 @@ struct NavigationManagerTests {
         #expect(nav.path.count == 1)
     }
 
+    @Test("Pop and popToRoot are dropped while a swipe-back transition is running")
+    func popIgnoredWhileSwipeBackTransitionRuns() {
+        let nav = NavigationManager()
+        var running = true
+        nav.isSwipeBackTransitionRunning = { running }
+        nav.attemptNavigate(to: .memory)
+        nav.attemptNavigate(to: .backup)
+        nav.pop()
+        nav.popToRoot()
+        #expect(nav.path == [.memory, .backup])
+        running = false
+        nav.pop()
+        #expect(nav.path == [.memory])
+    }
+
     @Test("Pop To Root Clears Stack")
     func popToRootClearsStack() {
         let nav = NavigationManager()

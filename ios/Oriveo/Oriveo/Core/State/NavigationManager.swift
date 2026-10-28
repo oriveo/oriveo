@@ -244,7 +244,16 @@ final class NavigationManager {
         path.append(route)
     }
 
+    /// Whether the native swipe-back transition is still running. A programmatic pop meanwhile makes
+    /// SwiftUI preempt that interactive transition and crash (see
+    /// `SwipeBackCoordinator.isSwipeBackTransitionRunning`); the swipe is already popping, so back
+    /// requests in this window are dropped. Injectable for tests.
+    @ObservationIgnored var isSwipeBackTransitionRunning: () -> Bool = {
+        SwipeBackCoordinator.shared.isSwipeBackTransitionRunning
+    }
+
     func pop() {
+        guard !isSwipeBackTransitionRunning() else { return }
         if isRegularWidth, path.isEmpty {
             // At a wide tab root there is no stack to pop; "back" means closing the tab's right-column detail.
             setColumnDetail(nil, for: selectedTab)
@@ -255,6 +264,7 @@ final class NavigationManager {
     }
 
     func popToRoot() {
+        guard !isSwipeBackTransitionRunning() else { return }
         path = []
     }
 
