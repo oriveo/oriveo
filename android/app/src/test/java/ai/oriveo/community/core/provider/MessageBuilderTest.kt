@@ -308,4 +308,14 @@ class MessageBuilderTest {
         val (_, images) = MessageBuilder.extractInlineImages(md)
         assertEquals(2, images.size)
     }
+
+    // Column-wrapped base64 that is not extracted leaves the whole data URI in the persisted text and the row exceeds the CursorWindow limit
+    @Test
+    fun `extractInlineImages - line wrapped base64 is extracted and whitespace removed`() {
+        val md = "before\n![g](data:image/png;base64,iVBO\nRw0K\r\nGgo= )\nafter"
+        val (text, images) = MessageBuilder.extractInlineImages(md)
+        assertEquals(listOf("image/png" to "iVBORw0KGgo="), images)
+        assertFalse(text.contains("data:image"))
+        assertTrue(text.contains("before") && text.contains("after"))
+    }
 }
