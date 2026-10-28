@@ -11,10 +11,6 @@ struct DatabasePrepareOffMainTests {
     @Test("The main thread does not open an unprepared partition; after prepare it returns the open database")
     func mainThreadDoesNotOpen() async throws {
         let uid = "prepare-offmain-\(UUID().uuidString)"
-        defer {
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
         let previousAllows = DatabaseManager.allowsMainThreadFirstOpen
         let previousHandler = DatabaseManager.mainThreadMissHandler
         var misses: [String] = []
@@ -35,15 +31,12 @@ struct DatabasePrepareOffMainTests {
         let pool = try await DatabaseManager.shared.prepare(for: uid)
         #expect(try DatabaseManager.shared.openIfNeeded(for: uid) === pool)
         #expect(misses == [uid], "an open database is returned without another miss")
+        await TestPartitionCleanup.remove(uid)
     }
 
     @Test("A cold-start AppState prepares the database in the background: not ready at first, no main-thread open, ready after waiting")
     func coldStartPreparesInBackground() async throws {
         let uid = "prepare-offmain-cold-\(UUID().uuidString)"
-        defer {
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
         let previousAllows = DatabaseManager.allowsMainThreadFirstOpen
         let previousHandler = DatabaseManager.mainThreadMissHandler
         var misses: [String] = []
@@ -61,22 +54,19 @@ struct DatabasePrepareOffMainTests {
         #expect(state.sessionStoreReady)
         #expect(DatabaseManager.shared.openedPool(for: uid) != nil)
         #expect(misses.isEmpty, "\(misses)")
+        await TestPartitionCleanup.remove(uid)
     }
 
     @Test("A partition reopened by uid in the background goes to the secondary slot and does not replace the current database")
     func backgroundReopenKeepsCurrent() async throws {
         let current = "prepare-offmain-current-\(UUID().uuidString)"
         let other = "prepare-offmain-other-\(UUID().uuidString)"
-        defer {
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: current))
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: other))
-        }
         DatabaseManager.shared.close()
         let currentPool = try await DatabaseManager.shared.prepare(for: current)
         let otherPool = try await Task.detached { try DatabaseManager.shared.openIfNeeded(for: other) }.value
 
         #expect(DatabaseManager.shared.openedPool() === currentPool, "the current database is unchanged")
         #expect(DatabaseManager.shared.openedPool(for: other) === otherPool)
+        await TestPartitionCleanup.remove(current, other)
     }
 }

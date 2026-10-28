@@ -534,7 +534,36 @@ final class AppState {
                 CapabilityPreferenceRuntimeIdentity.registerRelayLegacyAliases(for: self.providers)
             }
         }
+        #if DEBUG
+        Self.liveInstancesForTesting.setObject(boundPartitionUID as NSString, forKey: self)
+        #endif
     }
+
+    #if DEBUG
+    /// Test seam: the AppStates still alive in the process (weak references) -> the partition they were built for. Before a test
+    /// deletes a partition it finds them by partition and waits for their in-flight reads and writes to drain (see
+    /// OriveoTests/Support/TestPartitionCleanup), so cases do not have to pass instances around.
+    private static let liveInstancesForTesting = NSMapTable<AppState, NSString>.weakToStrongObjects()
+
+    /// Live instances built for, or currently bound to, one of the given partitions.
+    static func liveInstancesForTesting(boundTo uids: Set<String>) -> [AppState] {
+        guard let states = liveInstancesForTesting.keyEnumerator().allObjects as? [AppState] else { return [] }
+        return states.filter { state in
+            let initial = liveInstancesForTesting.object(forKey: state) as String?
+            return uids.contains(state.boundPartitionUID) || initial.map(uids.contains) == true
+        }
+    }
+
+    /// Test seam: waits until every queued background read / write tail of this AppState has drained.
+    func drainPendingWrites() async {
+        await memoryReconcileTail?.value
+        await memoryItemUndoTail?.value
+        await waitForCheckpointInvalidations()
+        await chatManager.waitForContextLedgerWrites()
+        await noteManager.waitForPendingWrites()
+        await drainConversationPersistQueue()
+    }
+    #endif
 
     static let preview: AppState = {
         AppState(seedDemoData: true)
@@ -1205,6 +1234,13 @@ final class AppState {
 
     func resetConversationProjectionMirror() {
         conversations = []
+    }
+
+    /// Waits for the writes already queued on the persist queue (without occupying the main thread).
+    func drainConversationPersistQueue() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            conversationPersistQueue.async { continuation.resume() }
+        }
     }
 
     func flushConversationPersistQueue() {
