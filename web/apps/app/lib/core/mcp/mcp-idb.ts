@@ -12,7 +12,8 @@
  * still in flight when the partition changes cannot land in another partition's database.
  */
 
-import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import { type DBSchema, type IDBPDatabase } from 'idb';
+import { openDB } from '../../infra/storage/idb-open';
 import {
   McpServerLimitError,
   MCP_SERVER_SCHEMA_VERSION,

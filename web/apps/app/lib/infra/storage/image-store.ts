@@ -1,4 +1,5 @@
-import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import { type DBSchema, type IDBPDatabase } from 'idb';
+import { openDB } from './idb-open';
 import { getActiveUID, getImageDBName } from './partition';
 import { openWithStaleSchemaRecovery, reportIDBUpgradeBlocked } from './idb-lifecycle';
 

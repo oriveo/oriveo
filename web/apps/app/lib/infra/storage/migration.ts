@@ -1,4 +1,5 @@
-import { openDB, type IDBPDatabase } from 'idb';
+import { type IDBPDatabase } from 'idb';
+import { openDB } from './idb-open';
 import { setActiveUID, getDBName, getImageDBName, legacyDBExists } from './partition';
 import { openWithStaleSchemaRecovery, reportIDBUpgradeBlocked } from './idb-lifecycle';
 import { safeLocalStorage } from './web-storage';

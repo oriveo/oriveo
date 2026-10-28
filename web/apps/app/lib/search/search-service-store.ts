@@ -11,7 +11,8 @@
  * Every function takes `uid` explicitly and never reads the "current partition": a write for account A can never land in B's store at the moment of an account switch.
  */
 
-import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import { type DBSchema, type IDBPDatabase } from 'idb';
+import { openDB } from '../infra/storage/idb-open';
 import {
   addressChangeClearsKey,
   keyBindingOrigin,
