@@ -77,61 +77,99 @@ final class ContextLedgerStore: @unchecked Sendable {
     }
 
     nonisolated func loadRhoTable() throws -> RhoCalibrationTable {
-        try dbPool.read { db in
-            let rows = try Row.fetchAll(
-                db, sql: "SELECT transportInstanceId, modelId, n, rho, seeds FROM \(Self.rhoTable)"
-            )
-            var entries: [RhoCalibrationKey: RhoCalibration] = [:]
-            for row in rows {
-                let key = RhoCalibrationKey(transportInstanceId: row["transportInstanceId"], modelId: row["modelId"])
-                let seedsJSON: String = row["seeds"]
-                // Corrupt seeds only make this one row fall back to the default calibration; they do not block reading the whole table.
-                guard let seeds = try? JSONDecoder().decode([Double].self, from: Data(seedsJSON.utf8)) else { continue }
-                entries[key] = RhoCalibration(n: row["n"], rho: row["rho"], seeds: seeds)
-            }
-            return RhoCalibrationTable(entries: entries)
+        try dbPool.read { db in try Self.loadRhoTable(db: db) }
+    }
+
+    private nonisolated static func loadRhoTable(db: Database) throws -> RhoCalibrationTable {
+        let rows = try Row.fetchAll(
+            db, sql: "SELECT transportInstanceId, modelId, n, rho, seeds FROM \(rhoTable)"
+        )
+        var entries: [RhoCalibrationKey: RhoCalibration] = [:]
+        for row in rows {
+            let key = RhoCalibrationKey(transportInstanceId: row["transportInstanceId"], modelId: row["modelId"])
+            let seedsJSON: String = row["seeds"]
+            // Corrupt seeds only make this one row fall back to the default calibration; they do not block reading the whole table.
+            guard let seeds = try? JSONDecoder().decode([Double].self, from: Data(seedsJSON.utf8)) else { continue }
+            entries[key] = RhoCalibration(n: row["n"], rho: row["rho"], seeds: seeds)
         }
+        return RhoCalibrationTable(entries: entries)
     }
 
     nonisolated func saveRho(_ key: RhoCalibrationKey, _ calibration: RhoCalibration) throws {
+        try dbPool.write { db in try Self.saveRho(key, calibration, db: db) }
+    }
+
+    private nonisolated static func saveRho(_ key: RhoCalibrationKey, _ calibration: RhoCalibration, db: Database) throws {
         let seeds = String(decoding: try JSONEncoder().encode(calibration.seeds), as: UTF8.self)
-        try dbPool.write { db in
-            try db.execute(
-                sql: """
-                    INSERT INTO \(Self.rhoTable) (transportInstanceId, modelId, n, rho, seeds)
-                    VALUES (?, ?, ?, ?, ?)
-                    ON CONFLICT(transportInstanceId, modelId) DO UPDATE SET
-                        n = excluded.n, rho = excluded.rho, seeds = excluded.seeds
-                    """,
-                arguments: [key.transportInstanceId, key.modelId, calibration.n, calibration.rho, seeds]
-            )
+        try db.execute(
+            sql: """
+                INSERT INTO \(Self.rhoTable) (transportInstanceId, modelId, n, rho, seeds)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(transportInstanceId, modelId) DO UPDATE SET
+                    n = excluded.n, rho = excluded.rho, seeds = excluded.seeds
+                """,
+            arguments: [key.transportInstanceId, key.modelId, calibration.n, calibration.rho, seeds]
+        )
+    }
+
+    /// Async variant of `recordRhoOverflowMiss` (read-modify-write in one write transaction).
+    nonisolated func recordRhoOverflowMissAsync(_ key: RhoCalibrationKey) async throws {
+        try await dbPool.write { db in
+            try Self.saveRho(key, try Self.loadRhoTable(db: db).calibration(for: key).recordingOverflowMiss(), db: db)
+        }
+    }
+
+    /// Async variant used when a stream settles (manifest append plus an optional rho sample, one write
+    /// transaction): the write is queued on the GRDB writer and awaited, so the main thread never blocks on
+    /// the write lock while a whole-table write holds it.
+    nonisolated func settleAsync(
+        manifest: ContextManifest,
+        rhoSample: (key: RhoCalibrationKey, observedInput: Int, textBytes: Int)?
+    ) async throws {
+        let json = try Self.encodeManifest(manifest)
+        let sampleKey = rhoSample?.key
+        let observedInput = rhoSample?.observedInput ?? 0
+        let textBytes = rhoSample?.textBytes ?? 0
+        try await dbPool.write { db in
+            try Self.appendManifest(manifest, json: json, db: db)
+            guard let sampleKey else { return }
+            let current = try Self.loadRhoTable(db: db).calibration(for: sampleKey)
+            let next = current.recordingSample(observedInput: observedInput, mediaTokens: 0, textBytes: textBytes)
+            guard next != current else { return }
+            try Self.saveRho(sampleKey, next, db: db)
         }
     }
 
     nonisolated func appendManifest(_ manifest: ContextManifest) throws {
+        let json = try Self.encodeManifest(manifest)
+        try dbPool.write { db in try Self.appendManifest(manifest, json: json, db: db) }
+    }
+
+    private nonisolated static func encodeManifest(_ manifest: ContextManifest) throws -> String {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
-        let json = String(decoding: try encoder.encode(manifest), as: UTF8.self)
-        try dbPool.write { db in
-            try db.execute(
-                sql: "INSERT INTO \(Self.manifestTable) (conversationId, requestId, createdAt, json) VALUES (?, ?, ?, ?)",
-                arguments: [manifest.conversationId, manifest.requestId, manifest.createdAt, json]
-            )
-            try db.execute(
-                sql: """
-                    DELETE FROM \(Self.manifestTable)
-                    WHERE conversationId = ? AND rowid NOT IN (
-                        SELECT rowid FROM \(Self.manifestTable)
-                        WHERE conversationId = ?
-                        ORDER BY createdAt DESC, rowid DESC
-                        LIMIT ?
-                    )
-                    """,
-                arguments: [
-                    manifest.conversationId, manifest.conversationId, ContextManifestLog.capacityPerConversation,
-                ]
-            )
-        }
+        return String(decoding: try encoder.encode(manifest), as: UTF8.self)
+    }
+
+    private nonisolated static func appendManifest(_ manifest: ContextManifest, json: String, db: Database) throws {
+        try db.execute(
+            sql: "INSERT INTO \(manifestTable) (conversationId, requestId, createdAt, json) VALUES (?, ?, ?, ?)",
+            arguments: [manifest.conversationId, manifest.requestId, manifest.createdAt, json]
+        )
+        try db.execute(
+            sql: """
+                DELETE FROM \(manifestTable)
+                WHERE conversationId = ? AND rowid NOT IN (
+                    SELECT rowid FROM \(manifestTable)
+                    WHERE conversationId = ?
+                    ORDER BY createdAt DESC, rowid DESC
+                    LIMIT ?
+                )
+                """,
+            arguments: [
+                manifest.conversationId, manifest.conversationId, ContextManifestLog.capacityPerConversation,
+            ]
+        )
     }
 
     /// Oldest to newest, consistent with `ContextManifestLog.manifests(conversationId:)`.

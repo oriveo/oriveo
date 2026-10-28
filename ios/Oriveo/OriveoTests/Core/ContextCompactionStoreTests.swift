@@ -267,7 +267,7 @@ struct ContextCompactionStoreTests {
 
     /// Edit-and-resend takes the pre-edit history before truncating: checkpoints covering the truncated part are deleted and earlier ones are kept.
     @MainActor
-    @Test func edit_resend_invalidates_covering_checkpoints() throws {
+    @Test func edit_resend_invalidates_covering_checkpoints() async throws {
         let ids = (0..<4).map { _ in UUID() }
         let roles: [ChatRole] = [.user, .assistant, .user, .assistant]
         let state = AppState(seedDemoData: false, sessionUID: "context-checkpoint-\(UUID().uuidString)")
@@ -285,15 +285,18 @@ struct ContextCompactionStoreTests {
         try store.save(dropped)
 
         _ = state.beginEditingUserMessage(messageID: ids[2], in: conversation.id)
+        // The invalidation write is queued off the main thread; wait for it to land before asserting.
+        await state.waitForCheckpointInvalidations()
 
         #expect(try store.list(conversationId: conversationId) == [kept])
     }
 
     /// Editing from an assistant bubble: truncate to before its prompting user message, and delete the checkpoints covering the truncated part.
     @MainActor
-    @Test func edit_from_assistant_invalidates_checkpoints() throws {
+    @Test func edit_from_assistant_invalidates_checkpoints() async throws {
         let fixture = try makeTruncationFixture(providerSession: nil)
         _ = fixture.state.beginEditingPromptingMessage(for: fixture.ids[3], in: fixture.conversationID)
+        await fixture.state.waitForCheckpointInvalidations()
         #expect(try fixture.store.list(conversationId: fixture.conversationID.uuidString) == [fixture.kept])
     }
 

@@ -198,6 +198,8 @@ final class AppState {
     var memorySuggestions = MemorySuggestionController()
     /// The background memory candidate generation triggered by the latest fresh send; tests await it before reading the repository.
     @ObservationIgnored private(set) var memoryCandidateGeneration: Task<Void, Never>?
+    /// Serial tail task for checkpoint-invalidation writes (see `invalidateCheckpointsAfterTruncation`).
+    @ObservationIgnored private var checkpointInvalidationTail: Task<Void, Never>?
     /// Test seam: when non-nil, `memoryCandidateRepository()` returns its result (simulates a candidate repository that cannot be opened).
     @ObservationIgnored var memoryCandidateRepositoryOverride: (() -> MemoryCandidateRepository?)?
     var hasCompletedOnboarding: Bool {
@@ -1905,6 +1907,8 @@ final class AppState {
     ) async -> ChatSendOutcome {
         let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedText.isEmpty || !attachments.isEmpty else { return .refused }
+        // Checkpoint invalidations queued by an edit truncation land before the checkpoints are read to build the context.
+        if checkpointInvalidationTail != nil { await waitForCheckpointInvalidations() }
 
         let targetConversationID: UUID
         let isNewConversation = conversationID == nil
@@ -2288,7 +2292,7 @@ final class AppState {
             in: conversationID,
             capabilitySelection: capabilitySelection
         )
-        invalidateCheckpointsAfterTruncation(conversationID: conversationID, historyIdsBefore: historyIds)
+        await invalidateCheckpointsAfterTruncation(conversationID: conversationID, historyIdsBefore: historyIds).value
     }
 
     func regenerateMessage(
@@ -2304,7 +2308,7 @@ final class AppState {
             capabilitySelection: capabilitySelection,
             searchRegenerateAction: searchRegenerateAction
         )
-        invalidateCheckpointsAfterTruncation(conversationID: conversationID, historyIdsBefore: historyIds)
+        await invalidateCheckpointsAfterTruncation(conversationID: conversationID, historyIdsBefore: historyIds).value
     }
 
     /// The full history ids before truncation (complete the summary projection first, otherwise the pre-change history is incomplete).
@@ -2317,20 +2321,41 @@ final class AppState {
 
     /// Invalidation hook for edit / regenerate: messages in the pre-change history that are gone after truncation are affected;
     /// when the send is refused or nothing is truncated the set is empty and invalidate deletes nothing.
-    private func invalidateCheckpointsAfterTruncation(conversationID: UUID, historyIdsBefore: [String]) {
+    /// The write must not wait synchronously on the main thread (the write lock can be held by a whole-table write for
+    /// seconds): it is queued on a serial tail task. Async entry points await the returned task; the synchronous
+    /// entry (edit) only queues, and `waitForCheckpointInvalidations` waits for it before the next send.
+    @discardableResult
+    private func invalidateCheckpointsAfterTruncation(conversationID: UUID, historyIdsBefore: [String]) -> Task<Void, Never> {
+        let previous = checkpointInvalidationTail
         guard !historyIdsBefore.isEmpty,
               let conversation = conversations.first(where: { $0.id == conversationID })
-        else { return }
+        else { return previous ?? Task {} }
         let remaining = Set(conversation.messages.map(\.id.uuidString))
         let affected = historyIdsBefore.filter { !remaining.contains($0) }
         guard !affected.isEmpty,
               let store = ContextCompactionStore.forPartition(sessionPartitionUID)
-        else { return }
-        _ = store.invalidateAndPropagate(
-            conversationId: conversationID.uuidString,
-            historyIds: historyIdsBefore,
-            affectedIds: affected
-        )
+        else { return previous ?? Task {} }
+        let task = Task { @MainActor in
+            await previous?.value
+            _ = await store.invalidateAndPropagateAsync(
+                conversationId: conversationID.uuidString,
+                historyIds: historyIdsBefore,
+                affectedIds: affected
+            )
+        }
+        checkpointInvalidationTail = task
+        return task
+    }
+
+    /// Wait for queued checkpoint invalidations to land (before a send reads checkpoints, and before test assertions).
+    func waitForCheckpointInvalidations() async {
+        while let task = checkpointInvalidationTail {
+            await task.value
+            if checkpointInvalidationTail == task {
+                checkpointInvalidationTail = nil
+                return
+            }
+        }
     }
 
     func retryMessage(
@@ -2347,7 +2372,7 @@ final class AppState {
             capabilitySelection: capabilitySelection,
             localCustomFragmentDisposition: localCustomFragmentDisposition
         )
-        invalidateCheckpointsAfterTruncation(conversationID: conversationID, historyIdsBefore: historyIds)
+        await invalidateCheckpointsAfterTruncation(conversationID: conversationID, historyIdsBefore: historyIds).value
     }
 
     /// Create the conversation for the first send: pending instructions are written into the object first, then saved, and then cleared.

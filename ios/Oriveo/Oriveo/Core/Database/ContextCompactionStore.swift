@@ -257,31 +257,12 @@ final class ContextCompactionStore: @unchecked Sendable {
 
     /// k = the smallest index of affectedIds within historyIds; deletes rows whose coversTo index is >= k;
     /// rows whose coversTo is not in historyIds are left alone. Returns the deleted checkpointIds.
+    /// The synchronous variant is for background callers and tests; main-thread callers use `invalidateAndPropagateAsync`.
     @discardableResult
     nonisolated func invalidate(conversationId: String, historyIds: [String], affectedIds: [String]) throws -> [String] {
-        var indexById: [String: Int] = [:]
-        for (index, id) in historyIds.enumerated() where indexById[id] == nil {
-            indexById[id] = index
-        }
-        guard let k = affectedIds.compactMap({ indexById[$0] }).min() else { return [] }
-        let removed = try dbPool.write { db -> [String] in
-            let rows = try Row.fetchAll(
-                db,
-                sql: "SELECT checkpointId, coversTo FROM \(Self.table) WHERE conversationId = ?",
-                arguments: [conversationId]
-            )
-            var removed: [String] = []
-            for row in rows {
-                let coversTo: String = row["coversTo"]
-                guard let index = indexById[coversTo], index >= k else { continue }
-                let checkpointId: String = row["checkpointId"]
-                try db.execute(
-                    sql: "DELETE FROM \(Self.table) WHERE conversationId = ? AND checkpointId = ?",
-                    arguments: [conversationId, checkpointId]
-                )
-                removed.append(checkpointId)
-            }
-            return removed
+        guard let plan = Self.invalidationPlan(historyIds: historyIds, affectedIds: affectedIds) else { return [] }
+        let removed = try dbPool.write { db in
+            try Self.deleteInvalidated(db: db, conversationId: conversationId, plan: plan)
         }
         if !removed.isEmpty { Self.postChange(conversationId: conversationId) }
         return removed
@@ -304,6 +285,65 @@ final class ContextCompactionStore: @unchecked Sendable {
             return []
         }
         if !removed.isEmpty { deleteRemote?(removed) }
+        return removed
+    }
+
+    /// Same as `invalidateAndPropagate`, but the write is queued on the GRDB writer and awaited without
+    /// occupying the calling thread: the write lock can be held by a whole-table write for seconds, and waiting
+    /// for it synchronously on the main thread is an app hang. Returns the deleted checkpointIds, empty on failure.
+    nonisolated func invalidateAndPropagateAsync(
+        conversationId: String,
+        historyIds: [String],
+        affectedIds: [String]
+    ) async -> [String] {
+        guard let plan = Self.invalidationPlan(historyIds: historyIds, affectedIds: affectedIds) else { return [] }
+        do {
+            let removed = try await dbPool.write { db in
+                try Self.deleteInvalidated(db: db, conversationId: conversationId, plan: plan)
+            }
+            if !removed.isEmpty { Self.postChange(conversationId: conversationId) }
+            return removed
+        } catch {
+            print("[ContextCompactionStore] invalidate failed: \(error.localizedDescription)")
+            return []
+        }
+    }
+
+    private nonisolated struct InvalidationPlan: Sendable {
+        let indexById: [String: Int]
+        let k: Int
+    }
+
+    private nonisolated static func invalidationPlan(historyIds: [String], affectedIds: [String]) -> InvalidationPlan? {
+        var indexById: [String: Int] = [:]
+        for (index, id) in historyIds.enumerated() where indexById[id] == nil {
+            indexById[id] = index
+        }
+        guard let k = affectedIds.compactMap({ indexById[$0] }).min() else { return nil }
+        return InvalidationPlan(indexById: indexById, k: k)
+    }
+
+    private nonisolated static func deleteInvalidated(
+        db: Database,
+        conversationId: String,
+        plan: InvalidationPlan
+    ) throws -> [String] {
+        let rows = try Row.fetchAll(
+            db,
+            sql: "SELECT checkpointId, coversTo FROM \(table) WHERE conversationId = ?",
+            arguments: [conversationId]
+        )
+        var removed: [String] = []
+        for row in rows {
+            let coversTo: String = row["coversTo"]
+            guard let index = plan.indexById[coversTo], index >= plan.k else { continue }
+            let checkpointId: String = row["checkpointId"]
+            try db.execute(
+                sql: "DELETE FROM \(table) WHERE conversationId = ? AND checkpointId = ?",
+                arguments: [conversationId, checkpointId]
+            )
+            removed.append(checkpointId)
+        }
         return removed
     }
 

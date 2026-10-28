@@ -262,6 +262,8 @@ final class ChatManager {
     var mcpConfirmationGate: (any McpConfirmationGate)?
     /// Gate for an expired authorization. nil in production, which uses `AppState.mcpReauthorizationCoordinator`.
     var mcpReauthorizationGate: (any McpReauthorizationGate)?
+    /// Serial tail task for Ledger settle writes (see `settleContextLedger`).
+    private var contextLedgerWriteTail: Task<Void, Never>?
     /// Resolves the Context Ledger per partition (manifest appends, rho samples and overflow-miss write-back). The production default is the original
     /// `ContextLedgerStore.forPartition`, so behaviour is unchanged; tests inject an isolated store instead of sharing the global singleton.
     var contextLedgerResolver: (String) -> ContextLedgerStore? = { uid in
@@ -2353,6 +2355,7 @@ final class ChatManager {
     }
 
     /// Settle the Ledger at the end: append the manifest; record a rho sample when it ends successfully, is plain text and has usage. A write failure does not affect finishing the message.
+    /// The write is queued on a serial tail task and never waits for the write lock on the main thread; rho is a read-modify-write, so serial order keeps samples from overwriting each other.
     private func settleContextLedger(
         _ attempt: ContextLedgerAttempt?,
         stopReason: StopReason?,
@@ -2361,11 +2364,29 @@ final class ChatManager {
     ) {
         guard let attempt, let ledger = contextLedgerResolver(attempt.partitionUID) else { return }
         let observed = observedInput
-        try? ledger.appendManifest(attempt.manifest(observedInput: observed, stopReason: stopReason))
+        let manifest = attempt.manifest(observedInput: observed, stopReason: stopReason)
         // Only recorded on a single-leg chat; the usage of a context_window_exceeded ending does not represent the full input, so it is not recorded.
+        var rhoSample: (key: RhoCalibrationKey, observedInput: Int, textBytes: Int)?
         if recordsSample, attempt.singleChatLeg, !attempt.hasAttachments,
            stopReason != .contextWindowExceeded, let observed, observed > 0 {
-            try? ledger.recordRhoSample(attempt.rhoKey, observedInput: observed, textBytes: attempt.textBytes)
+            rhoSample = (attempt.rhoKey, observed, attempt.textBytes)
+        }
+        let previous = contextLedgerWriteTail
+        let sample = rhoSample
+        contextLedgerWriteTail = Task {
+            await previous?.value
+            try? await ledger.settleAsync(manifest: manifest, rhoSample: sample)
+        }
+    }
+
+    /// Wait for queued Ledger settle writes to land (before test assertions).
+    func waitForContextLedgerWrites() async {
+        while let task = contextLedgerWriteTail {
+            await task.value
+            if contextLedgerWriteTail == task {
+                contextLedgerWriteTail = nil
+                return
+            }
         }
     }
 
@@ -5018,8 +5039,17 @@ final class ChatManager {
                     )
                     if contextOverflowed, let attempt = session.contextAttempt {
                         if attempt.singleChatLeg, let pHat = attempt.estimatedInput, let U = attempt.U, pHat < U {
-                            try? self.contextLedgerResolver(attempt.partitionUID)?
-                                .recordRhoOverflowMiss(attempt.rhoKey)
+                            // The fallback resend must read the raised rho: queue the write on the Ledger tail and await it.
+                            if let ledger = self.contextLedgerResolver(attempt.partitionUID) {
+                                let previous = self.contextLedgerWriteTail
+                                let rhoKey = attempt.rhoKey
+                                let write = Task {
+                                    await previous?.value
+                                    try? await ledger.recordRhoOverflowMissAsync(rhoKey)
+                                }
+                                self.contextLedgerWriteTail = write
+                                await write.value
+                            }
                         }
                         // Output started = this attempt received a body, reasoning or image delta.
                         let outputStarted = (Self.hasAnswerContent(session.text) && session.text != session.baselineText)
