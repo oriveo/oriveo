@@ -16,3 +16,8 @@ export {
 export { isResizeObserverLoopNotice } from './ignore-resize-observer-loop';
 export { isRscNotFoundInvariantEvent } from './ignore-rsc-invariant';
 export { THIRD_PARTY_IFRAME_REPLAY_BLOCK_SELECTORS } from './replay-block';
+export {
+  isBackgroundedIdleTransaction,
+  shouldCreateSpanForBrowserRequest,
+  type SentryTransactionEventLike,
+} from './idle-span-hygiene';

@@ -19,6 +19,11 @@ describe("Sentry sampling policy", () => {
       "beforeErrorSampling: (event) => !isHydrationErrorEvent(event)",
     );
     expect(config).toContain("slowClickIgnoreSelectors");
+    // Idle transactions: no spans for long-lived / streaming requests, background-tab transactions are dropped.
+    expect(config).toContain(
+      "browserTracingIntegration({ shouldCreateSpanForRequest: shouldCreateSpanForBrowserRequest })",
+    );
+    expect(config).toContain("isBackgroundedIdleTransaction(event) ? null");
     expect(config).toContain(
       '[data-sentry-ignore-slow-click="sync-state-reset"]',
     );
