@@ -7153,7 +7153,7 @@ final class ChatManager {
             if state == .delivered, let acknowledgement {
                 Task {
                     do {
-                        _ = try RecipeContinuationRuntime.acknowledgeExplicitConsumption(acknowledgement)
+                        _ = try await RecipeContinuationRuntime.acknowledgeExplicitConsumption(acknowledgement)
                     } catch {
                         print("[ChatManager] continuation acknowledgement failed: \(error.localizedDescription)")
                     }

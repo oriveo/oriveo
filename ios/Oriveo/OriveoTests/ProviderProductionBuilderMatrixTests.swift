@@ -2066,7 +2066,7 @@ struct ProviderProductionBuilderMatrixTests {
             // A successful explicit leg ACKs exactly the snapshot it consumed.  If the second
             // response produced a newer sidecar, CAS must leave that newer revision intact.
             let acknowledged = try await RecipeContinuationRuntime.withStore(isolated.store) {
-                try RecipeContinuationRuntime.acknowledgeExplicitConsumption(token)
+                try await RecipeContinuationRuntime.acknowledgeExplicitConsumption(token)
             }
             if acknowledged {
                 #expect(try isolated.store.load(messageID: assistantID) == nil)

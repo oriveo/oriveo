@@ -85,6 +85,8 @@ struct ConversationStoreTests {
             )
         }
         #expect(try continuation.load(messageID: message.id) == nil)
+        // Cleanup is queued on the writer and lands asynchronously: queue another write to wait for it.
+        try continuation.dbPoolForTesting.write { _ in }
         #expect(try continuation.dbPoolForTesting.read { db in
             try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM message_recipe_continuation")
         } == 0, "foreign launch sidecars must be physically purged, not merely ignored")

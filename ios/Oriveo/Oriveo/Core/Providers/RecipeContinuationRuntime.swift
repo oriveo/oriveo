@@ -122,8 +122,9 @@ enum RecipeContinuationRuntime {
         try? store().load(messageID: messageID)
     }
 
+    /// Queued on the writer without waiting for the result (stream interruption finishes on the main thread).
     static func markInterrupted(messageID: UUID) throws {
-        try store().markInterrupted(messageID: messageID)
+        try store().markInterruptedInBackground(messageID: messageID)
     }
 
     /// Captures the exact valid sidecar used by an explicit request.  The caller acknowledges it
@@ -144,8 +145,8 @@ enum RecipeContinuationRuntime {
     @discardableResult
     static func acknowledgeExplicitConsumption(
         _ token: RecipeContinuationStore.ConsumptionToken
-    ) throws -> Bool {
-        try store().discard(token)
+    ) async throws -> Bool {
+        try await store().discardAsync(token)
     }
 
     static func replayBlocks(explicitMessageID: UUID?) -> [[String: Any]]? {

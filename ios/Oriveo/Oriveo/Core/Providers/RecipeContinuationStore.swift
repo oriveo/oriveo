@@ -51,15 +51,21 @@ nonisolated final class RecipeContinuationStore: @unchecked Sendable {
         self.init(preparedPool: try Self.localOnlyPool(for: uid), parentPool: parentPool)
     }
 
+    /// Read-only: the send / stream-interrupt paths call this on the main thread, where a synchronous write would
+    /// wait for the write lock behind a whole-table write. Cleanup (rows of other launches, rows whose parent message
+    /// is gone) is queued on the writer; the read itself filters by launchToken and parent message, so those rows
+    /// are invisible even before the cleanup lands.
     func load(messageID: UUID) throws -> Snapshot? {
-        try purgeOtherLaunches()
+        enqueueCleanup(sql: "DELETE FROM message_recipe_continuation WHERE launchToken != ?", arguments: [Self.launchToken])
         if let parentPool,
            try parentPool.read({ db in
                (try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM message WHERE id = ?", arguments: [messageID.uuidString]) ?? 0) == 0
            }) {
             // Deletion is a terminal lifecycle event. Clear the local row on first observation;
             // no stale opaque payload can be read, synced, backed up, or revived.
-            try discard(messageID: messageID)
+            enqueueCleanup(
+                sql: "DELETE FROM message_recipe_continuation WHERE messageID = ?", arguments: [messageID.uuidString]
+            )
             return nil
         }
         return try dbPool.read { db -> Snapshot? in
@@ -95,10 +101,10 @@ nonisolated final class RecipeContinuationStore: @unchecked Sendable {
         }
     }
 
-    func discard(messageID: UUID) throws {
-        try dbPool.write { db in
-            try db.execute(sql: "DELETE FROM message_recipe_continuation WHERE messageID = ?", arguments: [messageID.uuidString])
-        }
+    /// Queued on the writer without waiting for the result: enqueue order is commit order (the GRDB writer is
+    /// serial), so later writes and awaited writes land behind it.
+    private func enqueueCleanup(sql: String, arguments: StatementArguments) {
+        dbPool.asyncWrite({ db in try db.execute(sql: sql, arguments: arguments) }, completion: { _, _ in })
     }
 
     /// A successful explicit continuation consumes only the precise snapshot that was sent.
@@ -115,10 +121,31 @@ nonisolated final class RecipeContinuationStore: @unchecked Sendable {
         }
     }
 
-    func markInterrupted(messageID: UUID) throws {
-        try dbPool.write { db in
-            try db.execute(sql: "UPDATE message_recipe_continuation SET interrupted = 1, updatedAt = ? WHERE messageID = ?", arguments: [Self.nextRevision(), messageID.uuidString])
+    /// Same as `discard(_:)`, but the write is awaited without occupying the calling thread (the answer-complete
+    /// acknowledgement runs on the main thread).
+    @discardableResult
+    func discardAsync(_ token: ConsumptionToken) async throws -> Bool {
+        try await dbPool.write { db in
+            try db.execute(
+                sql: "DELETE FROM message_recipe_continuation WHERE messageID = ? AND launchToken = ? AND updatedAt = ?",
+                arguments: [token.messageID.uuidString, Self.launchToken, token.revision]
+            )
+            return db.changesCount == 1
         }
+    }
+
+    /// When the app goes to the background only completed rounds are kept; callers must not write a pending tool call into state.
+    /// Queued without waiting for the result: stream interruption finishes on the main thread and must not wait for
+    /// the write lock. Enqueueing fixes the order, so later `save` / continuation reads of the same message land behind it.
+    func markInterruptedInBackground(messageID: UUID) {
+        let id = messageID.uuidString
+        // The revision is taken on the writer so it is monotonic in commit order, like `save`, not enqueue time.
+        dbPool.asyncWrite({ db in
+            try db.execute(
+                sql: "UPDATE message_recipe_continuation SET interrupted = 1, updatedAt = ? WHERE messageID = ?",
+                arguments: [Self.nextRevision(), id]
+            )
+        }, completion: { _, _ in })
     }
 
     /// `replaceAll` atomically replaces the parent message set. Sidecars are intentionally in a
