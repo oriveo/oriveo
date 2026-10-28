@@ -334,6 +334,8 @@ final class AppState {
     var _testingBeforeConversationProjectionUpsert: ((Conversation) -> Void)?
     /// A simulated write failure when the home realtime empty conversation is deleted.
     var _testingEmptyConversationDeleteFailure: Error?
+    /// A simulated write failure when a conversation is deleted (locks "read back from the database on failure").
+    var _testingConversationDeleteFailure: Error?
     /// The home realtime empty conversation delete finished (after the callback): tests wait on it for the delete to end.
     var _testingAfterEmptyConversationDelete: ((UUID, Bool) -> Void)?
 
@@ -995,36 +997,74 @@ final class AppState {
         }
     }
 
-    func deleteConversationProjection(id: UUID) {
-        let persistedUID = boundPartitionUID
-        chatManager.discardStreamingResources(for: id)
-        do {
-            try conversationRuntimeBridge.deleteConversation(id: id, uid: persistedUID)
-            conversations.removeAll { $0.id == id }
-            persistRecoverySnapshotAfterDestructiveChange()
-            removeSearchSources([id])
-        } catch {
-            #if DEBUG
-            AppLog.error(error, module: "AppState", context: ["op": "deleteConversationProjection"])
-            #endif
-        }
+    /// Deletes a conversation in two phases so the main thread never waits for the write lock (a whole-table write can hold it for seconds).
+    /// 1. In the same main-thread turn: release streaming resources and remove it from memory.
+    /// 2. Queue the row delete on the persist queue (behind whole-table writes and upserts already queued, ahead of the
+    ///    recovery snapshot refresh queued right after). On success the search sources are cleared; on failure the
+    ///    conversation is read back from the database into memory (the storage banner shows as for any failed write).
+    /// - Returns: the outcome (true = deleted); callers that clean up images await it.
+    @discardableResult
+    func deleteConversationProjection(id: UUID) -> Task<Bool, Never> {
+        enqueueConversationDeletion(ids: [id], op: "delete_conversation")
     }
 
-    func deleteConversationProjections(ids: Set<UUID>) {
-        guard !ids.isEmpty else { return }
+    @discardableResult
+    func deleteConversationProjections(ids: Set<UUID>) -> Task<Bool, Never> {
+        guard !ids.isEmpty else { return Task { true } }
+        return enqueueConversationDeletion(ids: ids, op: "delete_conversations")
+    }
+
+    private func enqueueConversationDeletion(ids: Set<UUID>, op: String) -> Task<Bool, Never> {
         let persistedUID = boundPartitionUID
+        // Streaming resources must be released before the database / memory removal:
+        // discardStreamingResources goes through the full cancel path first.
         for id in ids {
             chatManager.discardStreamingResources(for: id)
         }
+        let writer: ConversationDeletionWriter
         do {
-            try conversationRuntimeBridge.deleteConversations(ids: Array(ids), uid: persistedUID)
-            conversations.removeAll { ids.contains($0.id) }
-            persistRecoverySnapshotAfterDestructiveChange()
-            removeSearchSources(Array(ids))
+            writer = try conversationRuntimeBridge.conversationDeletionWriter(uid: persistedUID)
         } catch {
-            #if DEBUG
-            AppLog.error(error, module: "AppState", context: ["op": "deleteConversationProjections"])
-            #endif
+            // The partition database cannot be opened: change nothing and show the storage banner.
+            Self.reportConversationPersistFailure(error, op: op)
+            StorageWriteHealthSignal.recordFailure(error)
+            return Task { false }
+        }
+        conversations.removeAll { ids.contains($0.id) }
+        let idList = Array(ids)
+        var injectedFailure: Error?
+        #if DEBUG
+        injectedFailure = _testingConversationDeleteFailure
+        #endif
+        let failure = injectedFailure
+        // The row delete is queued in this turn (not inside a Task): writes the main thread queues afterwards
+        // (recovery snapshot refresh, upserts) land behind it.
+        let (outcomes, outcome) = AsyncStream.makeStream(of: (Bool, [Conversation]).self, bufferingPolicy: .bufferingNewest(1))
+        conversationPersistQueue.async(qos: .userInitiated) {
+            var deleted = false
+            Self.runConversationPersistWrite(op: op) {
+                if let failure { throw failure }
+                try writer.delete(ids: idList)
+                deleted = true
+            }
+            // Not deleted: read the stored conversations back so memory agrees with the database.
+            outcome.yield((deleted, deleted ? [] : writer.storedConversations(ids: idList)))
+            outcome.finish()
+        }
+        persistRecoverySnapshotAfterDestructiveChange()
+        return Task { @MainActor [weak self] () -> Bool in
+            var iterator = outcomes.makeAsyncIterator()
+            let (deleted, stored) = await iterator.next() ?? (false, [])
+            guard let self, self.partitionIsStillBound(persistedUID) else { return deleted }
+            if deleted {
+                self.removeSearchSources(idList)
+            } else {
+                let restored = stored.filter { conversation in
+                    !self.conversations.contains { $0.id == conversation.id }
+                }
+                self.conversations.insert(contentsOf: restored, at: 0)
+            }
+            return deleted
         }
     }
 

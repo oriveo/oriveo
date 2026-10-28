@@ -261,19 +261,25 @@ final class ConversationRuntimeBridge {
         try makeStore(for: uid).fetchAttachmentCleanupRefs(conversationIDs: conversationIDs)
     }
 
-    func deleteConversation(id: UUID, uid: String) throws {
-        let store = try makeStore(for: uid)
-        try store.deleteConversation(id: id)
-    }
-
     func deleteConversationIfEmpty(id: UUID, uid: String) throws -> Bool {
         let store = try makeStore(for: uid)
         return try store.deleteConversationIfEmpty(id: id)
     }
 
+    /// Synchronous deletes for background callers and tests; the app deletes through `conversationDeletionWriter` on the persist queue.
+    func deleteConversation(id: UUID, uid: String) throws {
+        try makeStore(for: uid).deleteConversation(id: id)
+    }
+
     func deleteConversations(ids: [UUID], uid: String) throws {
-        let store = try makeStore(for: uid)
-        try store.deleteConversations(ids: ids)
+        try makeStore(for: uid).deleteConversations(ids: ids)
+    }
+
+    /// The write closure for deleting conversations: the store instance is fixed at the call site (main thread, partition
+    /// already open) and the closure runs on the persist queue, so an in-flight delete still lands in the partition it
+    /// started in and never reopens by uid through the shared manager.
+    func conversationDeletionWriter(uid: String) throws -> ConversationDeletionWriter {
+        ConversationDeletionWriter(store: try makeStore(for: uid))
     }
 
     /// Every conversation this device has deleted.
@@ -493,5 +499,26 @@ final class ConversationRuntimeBridge {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return try? decoder.decode(AppSessionSnapshot.self, from: data)
+    }
+}
+
+/// See `ConversationRuntimeBridge.conversationDeletionWriter(uid:)`.
+nonisolated struct ConversationDeletionWriter: @unchecked Sendable {
+    let store: ConversationStore
+
+    func delete(ids: [UUID]) throws {
+        if ids.count == 1, let id = ids.first {
+            try store.deleteConversation(id: id)
+        } else {
+            try store.deleteConversations(ids: ids)
+        }
+    }
+
+    /// Conversations still in the database (read back into memory when a delete failed).
+    func storedConversations(ids: [UUID]) -> [Conversation] {
+        ids.compactMap { id in
+            (try? store.fetchConversationThread(id: id, hydrateFilePayloads: false)).flatMap { $0 }
+                .map(RecordMappers.conversation(from:))
+        }
     }
 }

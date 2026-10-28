@@ -461,7 +461,7 @@ final class ConversationManager {
     /// Removes the conversations' on-device images before deleting them. Cold-start memory is a
     /// summary (no messages), so attachment references are read from the database, and they must be
     /// read before the rows are deleted.
-    private func deleteConversations(_ toRemove: [Conversation], deleteProjection: () -> Void) {
+    private func deleteConversations(_ toRemove: [Conversation], deleteProjection: () -> Task<Bool, Never>) {
         for conv in toRemove {
             if conv.messages.contains(where: { $0.state == .generating })
                 || appState.streamingConversationIDs.contains(conv.id) {
@@ -471,8 +471,19 @@ final class ConversationManager {
         }
         let partitionUID = AppSessionStore.activeUID
         let imageCandidates = Self.imagePurgeCandidates(attachmentCleanupRefs(for: toRemove))
-        deleteProjection()
-        cleanupDiskImages(candidates: imageCandidates, partitionUID: partitionUID)
+        // The reference-set connection is fixed before the delete (main thread, partition already open): the row
+        // delete runs on the persist queue, and the image purge waits for it to commit.
+        let imageReferences = imageCandidates.isEmpty ? nil : imageReferenceReader(partitionUID: partitionUID)
+        let committed = deleteProjection()
+        if let imageReferences {
+            // Purge after the delete commits, by reference set: files that conflict copies still reference are not removed. Nothing is purged if the delete failed.
+            pendingImagePurge = Task.detached(priority: .utility) {
+                guard await committed.value else { return }
+                ImageOrphanSweeper.purgeUnreferencedImages(
+                    imageCandidates, partitionUID: partitionUID, references: imageReferences
+                )
+            }
+        }
     }
 
     private func attachmentCleanupRefs(for conversations: [Conversation]) -> [ConversationStore.AttachmentCleanupRef] {
@@ -861,14 +872,17 @@ final class ConversationManager {
     /// happen in the background.
     @discardableResult
     private func cleanupDiskImages(candidates: Set<String>, partitionUID: String) -> Task<Void, Never>? {
-        guard !candidates.isEmpty else { return nil }
-        let bridge = isBound ? appState.conversationRuntimeBridge : ConversationRuntimeBridge()
-        guard let references = try? bridge.imageReferenceReader(uid: partitionUID) else { return nil }
+        guard !candidates.isEmpty, let references = imageReferenceReader(partitionUID: partitionUID) else { return nil }
         let task = Task.detached(priority: .utility) {
             ImageOrphanSweeper.purgeUnreferencedImages(candidates, partitionUID: partitionUID, references: references)
             return
         }
         pendingImagePurge = task
         return task
+    }
+
+    private func imageReferenceReader(partitionUID: String) -> ImageOrphanSweeper.ReferenceReader? {
+        let bridge = isBound ? appState.conversationRuntimeBridge : ConversationRuntimeBridge()
+        return try? bridge.imageReferenceReader(uid: partitionUID)
     }
 }
