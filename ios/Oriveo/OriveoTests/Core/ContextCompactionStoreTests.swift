@@ -315,6 +315,7 @@ struct ContextCompactionStoreTests {
     @Test func continue_fallback_regenerate_invalidates_checkpoints() async throws {
         let fixture = try makeTruncationFixture(providerSession: Self.stubSession(), lastAssistantText: "")
         await fixture.state.continueMessage(messageID: fixture.ids[3], in: fixture.conversationID)
+        await fixture.state.waitForCheckpointInvalidations()
         let remaining = fixture.state.conversations.first { $0.id == fixture.conversationID }?.messages.map(\.id) ?? []
         #expect(!remaining.contains(fixture.ids[3]))
         #expect(try fixture.store.list(conversationId: fixture.conversationID.uuidString) == [fixture.kept])

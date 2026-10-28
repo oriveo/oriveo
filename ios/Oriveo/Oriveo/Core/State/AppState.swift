@@ -2292,7 +2292,10 @@ final class AppState {
             in: conversationID,
             capabilitySelection: capabilitySelection
         )
-        await invalidateCheckpointsAfterTruncation(conversationID: conversationID, historyIdsBefore: historyIds).value
+        // Continuing does not truncate, so the invalidation is only queued and not awaited: awaiting it changes how
+        // the continue entry interleaves with managed recovery tasks. Ordering is covered by
+        // `waitForCheckpointInvalidations` before the next send and by the digest check at read time.
+        invalidateCheckpointsAfterTruncation(conversationID: conversationID, historyIdsBefore: historyIds)
     }
 
     func regenerateMessage(
