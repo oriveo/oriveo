@@ -1065,6 +1065,7 @@ final class ChatListViewController: UIViewController {
 
         UIView.performWithoutAnimation {
             collectionView.performBatchUpdates(batch, completion: nil)
+            applyShiftedReconfigures(diff)
         }
     }
 
@@ -1091,6 +1092,7 @@ final class ChatListViewController: UIViewController {
                 commit()
                 applyCollectionMutations(diff)
             }, completion: nil)
+            applyShiftedReconfigures(diff)
             collectionView.setNeedsLayout()
             collectionView.layoutIfNeeded()
         }
@@ -1151,9 +1153,20 @@ final class ChatListViewController: UIViewController {
         if !diff.inserts.isEmpty {
             collectionView.insertItems(at: diff.inserts.map { IndexPath(item: $0, section: 0) })
         }
-        if !diff.reconfigures.isEmpty {
+        if !diff.reconfigures.isEmpty, !diff.reconfiguresShiftedByStructure {
             collectionView.reconfigureItems(at: diff.reconfigures.map { IndexPath(item: $0, section: 0) })
         }
+    }
+
+    /// Reconfigures shifted by an insert or delete in the same update run after the structural change is
+    /// committed, with new indexes. Inside the batch, the same number would both pick the existing cell from
+    /// the pre-update table and query the already-committed dataSource, so a shifted row gets mismatched;
+    /// see `ChatListDiff.Result.reconfigures`.
+    private func applyShiftedReconfigures(_ diff: ChatListDiff.Result) {
+        guard diff.reconfiguresShiftedByStructure, !diff.reconfigures.isEmpty else { return }
+        collectionView.performBatchUpdates({
+            collectionView.reconfigureItems(at: diff.reconfigures.map { IndexPath(item: $0, section: 0) })
+        }, completion: nil)
     }
 
     struct PrependGeometryVerdict {

@@ -24,6 +24,31 @@ struct ChatListDiffTests {
         #expect(result.reconfigures.isEmpty)
     }
 
+    @Test("Prepend Plus Reconfigure Uses New Index And Is Marked Shifted")
+    func prependPlusReconfigureUsesNewIndex() {
+        // b moves from old index 1 to new index 2. Reconfiguring by the old index inside the batch would
+        // make UIKit take the old cell and configure it with row 1 of the new data (a).
+        let result = ChatListDiff.diff(oldIDs: [a, b], newIDs: [c, a, b]) { $0 == b }
+        #expect(result.inserts == [0])
+        #expect(result.reconfigures == [2])
+        #expect(result.reconfiguresShiftedByStructure)
+    }
+
+    @Test("Delete Plus Reconfigure Uses New Index For Shifted Rows")
+    func deletePlusReconfigureUsesNewIndex() {
+        let result = ChatListDiff.diff(oldIDs: [a, b, c], newIDs: [b, c]) { $0 == c }
+        #expect(result.deletes == [0])
+        #expect(result.reconfigures == [1])
+        #expect(result.reconfiguresShiftedByStructure)
+    }
+
+    @Test("Append Plus Reconfigure Is Not Shifted")
+    func appendPlusReconfigureNotShifted() {
+        let result = ChatListDiff.diff(oldIDs: [a, b], newIDs: [a, b, c]) { $0 == b }
+        #expect(result.reconfigures == [1])
+        #expect(!result.reconfiguresShiftedByStructure)
+    }
+
     @Test("Reconfigure Same ID")
     func reconfigureSameID() {
         let result = ChatListDiff.diff(oldIDs: [a, b], newIDs: [a, b]) { $0 == b }
