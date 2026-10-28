@@ -96,8 +96,8 @@ final class McpServerDetailModel {
         var uid: String
         var loadDetail: @MainActor (UUID) throws -> McpServerDetail?
         var actions: @MainActor () throws -> McpServerActions
-        var setPermission: @MainActor (McpToolPermission, UUID, String) throws -> Void
-        var remove: @MainActor (UUID) throws -> Void
+        var setPermission: @MainActor (McpToolPermission, UUID, String) async throws -> Void
+        var remove: @MainActor (UUID) async throws -> Void
         var restoreEndpoint: @MainActor (UUID, String) throws -> Void
     }
 
@@ -109,6 +109,8 @@ final class McpServerDetailModel {
 
     @ObservationIgnored private let dependencies: Dependencies
     @ObservationIgnored private var task: Task<Void, Never>?
+    /// Permission changes and removal await the write lock instead of blocking the main thread; they run as one chain in tap order (see `enqueueWrite`).
+    @ObservationIgnored private var writeTask: Task<Void, Never>?
     @ObservationIgnored private var plan: McpAuthorizationPlan?
     @ObservationIgnored private var startedIntent = false
     /// The old snapshots and "removed" entries from the latest reload. No history is stored locally, so the
@@ -149,6 +151,16 @@ final class McpServerDetailModel {
 
     func waitUntilIdle() async {
         await task?.value
+        await writeTask?.value
+    }
+
+    private func enqueueWrite(_ write: @escaping @MainActor (McpServerDetailModel) async -> Void) {
+        let previous = writeTask
+        writeTask = Task { [weak self] in
+            await previous?.value
+            guard let self else { return }
+            await write(self)
+        }
     }
 
     private func run(_ operation: @escaping @MainActor (McpServerActions) async -> Void) {
@@ -197,8 +209,10 @@ final class McpServerDetailModel {
     }
 
     func setPermission(_ permission: McpToolPermission, toolName: String) {
-        try? dependencies.setPermission(permission, serverId, toolName)
-        load()
+        enqueueWrite { model in
+            try? await model.dependencies.setPermission(permission, model.serverId, toolName)
+            model.load()
+        }
     }
 
     func toggleReadOnlyExpanded() { state.expandedReadOnly.toggle() }
@@ -305,9 +319,12 @@ final class McpServerDetailModel {
     }
 
     /// "Pause this server for now": turn it off in every conversation; quarantined tools stay quarantined.
+    /// The overlay closes first; the switch write is queued on the write chain and lands in the background.
     func pauseServer() {
-        try? dependencies.actions().pause(serverId: serverId)
         state.overlay = nil
+        guard let actions = try? dependencies.actions() else { return }
+        let serverId = serverId
+        enqueueWrite { _ in try? await actions.pause(serverId: serverId) }
     }
 
     // MARK: Removal
@@ -315,13 +332,15 @@ final class McpServerDetailModel {
     func askRemove() { state.overlay = .removeConfirm }
 
     func confirmRemove() {
-        do {
-            try dependencies.remove(serverId)
-            state.overlay = nil
-            isGone = true
-        } catch {
-            state.overlay = nil
-            state.notice = .removeFailed
+        enqueueWrite { model in
+            do {
+                try await model.dependencies.remove(model.serverId)
+                model.state.overlay = nil
+                model.isGone = true
+            } catch {
+                model.state.overlay = nil
+                model.state.notice = .removeFailed
+            }
         }
     }
 

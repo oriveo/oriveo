@@ -979,12 +979,19 @@ struct ChatView: View {
         mcpPanelState = loaded ?? fallback
     }
 
+    /// The switch write awaits the write lock instead of blocking the main thread (the GRDB writer runs calls in
+    /// order, so rapid taps also land in tap order); the panel is reloaded from the database afterwards.
     private func setMcpServer(_ serverId: UUID, enabled: Bool) {
         let uid = appState.sessionPartitionUID
-        try? appState.mcpServerDirectory.store(for: uid).setServerEnabled(
-            enabled, conversationId: mcpConversationScopeID, serverId: serverId
-        )
-        reloadMcpPanelState()
+        guard let store = try? appState.mcpServerDirectory.store(for: uid) else {
+            reloadMcpPanelState()
+            return
+        }
+        let conversationId = mcpConversationScopeID
+        Task {
+            try? await store.setServerEnabledAsync(enabled, conversationId: conversationId, serverId: serverId)
+            reloadMcpPanelState()
+        }
     }
 
     private func openMcpServers() {

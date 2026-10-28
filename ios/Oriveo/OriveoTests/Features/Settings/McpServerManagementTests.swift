@@ -79,7 +79,7 @@ struct McpServerManagementTests {
     // MARK: Detail and per-tool permission
 
     @Test("Detail: two tool groups, 3 shown per group by default; changing one tool's permission touches only that tool and takes effect on outbound requests at once")
-    func detailAndToolPermission() throws {
+    func detailAndToolPermission() async throws {
         let rig = try McpUiRig(); defer { rig.cleanUp() }
         let id = try rig.seedServer(name: "Linear")
         let model = rig.detailModel(id)
@@ -93,6 +93,7 @@ struct McpServerManagementTests {
         model.openToolPermission("create_issue")
         #expect(model.state.overlay == .toolPermission(toolName: "create_issue"))
         model.setPermission(.off, toolName: "create_issue")
+        await model.waitUntilIdle()
         let permissions = try rig.store.fetchToolPermissions(serverId: id)
         #expect(permissions["create_issue"] == .off)
         #expect(permissions["update_issue"] == .ask && permissions["search_issues"] == .auto, "other tools are untouched")
@@ -231,7 +232,7 @@ struct McpServerManagementTests {
     }
 
     @Test("Disable this server for now: turned off in every conversation; the record, credentials and tools are kept, and quarantined tools stay quarantined")
-    func pauseServer() throws {
+    func pauseServer() async throws {
         let rig = try McpUiRig(); defer { rig.cleanUp() }
         let id = try rig.seedServer(name: "Weather", tools: definitions(weatherTools), pendingReview: true)
         let other = try rig.seedServer(name: "Other", url: "https://other.example.org/mcp")
@@ -245,7 +246,8 @@ struct McpServerManagementTests {
         model.appear()
         model.reviewChanges()
         model.pauseServer()
-        #expect(model.state.overlay == nil)
+        #expect(model.state.overlay == nil, "the overlay closes first, without waiting for the write")
+        await model.waitUntilIdle()
         #expect(try rig.store.fetchEnabledServerIds(conversationId: first).isEmpty)
         #expect(try rig.store.fetchEnabledServerIds(conversationId: second) == [other], "other servers' toggles are untouched")
         #expect(try rig.store.fetchServer(id: id) != nil)
@@ -365,7 +367,7 @@ struct McpServerManagementTests {
     // MARK: Removal
 
     @Test("Removal: the credentials are deleted first, then the record and everything kept for it; other servers are untouched")
-    func removeDeletesCredentialsAndRecord() throws {
+    func removeDeletesCredentialsAndRecord() async throws {
         let rig = try McpUiRig(); defer { rig.cleanUp() }
         let id = try rig.seedServer(name: "Linear")
         let keep = try rig.seedServer(name: "Notion", url: "https://notion.example.org/mcp")
@@ -382,6 +384,7 @@ struct McpServerManagementTests {
         #expect(model.state.overlay == .removeConfirm)
         #expect(try rig.store.fetchServer(id: id) != nil, "nothing is deleted before confirming")
         model.confirmRemove()
+        await model.waitUntilIdle()
         #expect(model.isGone)
 
         #expect(try rig.store.fetchServer(id: id) == nil)
@@ -396,7 +399,7 @@ struct McpServerManagementTests {
     }
 
     @Test("No removal when the credentials cannot be deleted: the record and its tools stay as they are, the page shows a notice, and the user can try again")
-    func removeFailsClosedWhenCredentialsCannotBeDeleted() throws {
+    func removeFailsClosedWhenCredentialsCannotBeDeleted() async throws {
         let rig = try McpUiRig(); defer { rig.cleanUp() }
         let id = try rig.seedServer(name: "Linear")
         try rig.credentials.save(McpCredentials(accessToken: "at_1"), serverId: id, uid: McpUiFixture.uid)
@@ -406,6 +409,7 @@ struct McpServerManagementTests {
         model.appear()
         model.askRemove()
         model.confirmRemove()
+        await model.waitUntilIdle()
         #expect(!model.isGone && model.state.notice == .removeFailed && model.state.overlay == nil)
         #expect(try rig.store.fetchServer(id: id) != nil)
         #expect(try rig.store.fetchToolSnapshots(serverId: id).count == McpUiRig.sampleTools.count)
@@ -413,6 +417,7 @@ struct McpServerManagementTests {
         rig.storage.failDeletes = false
         model.askRemove()
         model.confirmRemove()
+        await model.waitUntilIdle()
         #expect(model.isGone)
         #expect(try rig.store.fetchServer(id: id) == nil)
     }

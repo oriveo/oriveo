@@ -87,8 +87,8 @@ private func documentText(_ value: Any) -> String {
 
 /// A gate that runs a check on the main thread when asked, then answers: used to observe production state at the moment of waiting for confirmation.
 private final class InspectingGate: McpConfirmationGate, @unchecked Sendable {
-    private let onAsk: @MainActor (McpConfirmationRequest) -> McpConfirmationChoice
-    init(_ onAsk: @escaping @MainActor (McpConfirmationRequest) -> McpConfirmationChoice) { self.onAsk = onAsk }
+    private let onAsk: @MainActor (McpConfirmationRequest) async -> McpConfirmationChoice
+    init(_ onAsk: @escaping @MainActor (McpConfirmationRequest) async -> McpConfirmationChoice) { self.onAsk = onAsk }
     func requestConfirmation(_ request: McpConfirmationRequest) async throws -> McpConfirmationChoice {
         await onAsk(request)
     }
@@ -96,8 +96,8 @@ private final class InspectingGate: McpConfirmationGate, @unchecked Sendable {
 
 /// An auth-expired gate that runs a check on the main thread when asked, then answers.
 private final class InspectingReauthGate: McpReauthorizationGate, @unchecked Sendable {
-    private let onAsk: @MainActor (McpReauthorizationRequest) -> McpReauthorizationChoice
-    init(_ onAsk: @escaping @MainActor (McpReauthorizationRequest) -> McpReauthorizationChoice) { self.onAsk = onAsk }
+    private let onAsk: @MainActor (McpReauthorizationRequest) async -> McpReauthorizationChoice
+    init(_ onAsk: @escaping @MainActor (McpReauthorizationRequest) async -> McpReauthorizationChoice) { self.onAsk = onAsk }
     func requestReauthorization(_ request: McpReauthorizationRequest) async throws -> McpReauthorizationChoice {
         await onAsk(request)
     }
@@ -659,7 +659,7 @@ extension McpToolBridgeTests {
                 asked += 1
                 if asked == 2 {
                     // While the second confirmation dialog is open, the user turns this tool off in the management screen.
-                    try? state.mcpServerDirectory.setToolPermission(
+                    try? await state.mcpServerDirectory.setToolPermission(
                         .off, serverId: stepServerID, toolName: "get_weather", uid: state.sessionPartitionUID
                     )
                 }
@@ -692,7 +692,7 @@ extension McpToolBridgeTests {
             modelLegs: [(200, stepToolLeg(arguments: #"{"city":"Melbourne"}"#)), (200, stepTextLeg("It is 72F."))]
         ) { state, _ in
             state.chatManager.mcpReauthorizationGate = InspectingReauthGate { _ in
-                try? state.mcpServerDirectory.setToolPermission(
+                try? await state.mcpServerDirectory.setToolPermission(
                     .ask, serverId: stepServerID, toolName: "get_weather", uid: state.sessionPartitionUID
                 )
                 return .reauthorized
@@ -800,7 +800,7 @@ extension McpToolBridgeTests {
                 if let assistant, let step = assistant.toolSteps?.first {
                     payloadBeforeRemoval = try? database.store.fetchStepPayload(messageID: assistant.id, stepID: step.id)?.arguments
                 }
-                try? state.mcpServerDirectory.remove(serverId: stepServerID, uid: state.sessionPartitionUID)
+                try? await state.mcpServerDirectory.remove(serverId: stepServerID, uid: state.sessionPartitionUID)
                 return .once
             }
         }

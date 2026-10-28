@@ -5386,12 +5386,11 @@ final class ChatManager {
     ) async {
         if let payload = update.payload, let store = try? appState.mcpServerDirectory.store(for: uid) {
             // A failure to store only affects the "step detail" (shown as detail not on this device); it does not affect the execution or the answer of this step.
-            await Task.detached(priority: .userInitiated) {
-                try? store.saveStepPayload(
-                    messageID: messageID, stepID: update.id, serverId: update.serverId,
-                    arguments: payload.arguments, resultPrefix: payload.resultPrefix
-                )
-            }.value
+            // Awaits the write lock instead of blocking the main thread.
+            try? await store.saveStepPayloadAsync(
+                messageID: messageID, stepID: update.id, serverId: update.serverId,
+                arguments: payload.arguments, resultPrefix: payload.resultPrefix
+            )
         }
         guard let conversationIndex = conversations.firstIndex(where: { $0.id == conversationID }),
               let messageIndex = conversations[conversationIndex].messages.firstIndex(where: { $0.id == messageID })
@@ -5405,9 +5404,6 @@ final class ChatManager {
             guard update.status != .running,
                   existing.contains(where: { $0.id == update.id && $0.status == .running }) else { return }
         }
-        if update.status == .needsAuth {
-            markMcpServerNeedsAuth(update.serverId, uid: uid)
-        }
         let merged = McpToolStep.merging(update, into: existing)
         if merged != existing {
             var updated = conversations[conversationIndex]
@@ -5416,11 +5412,17 @@ final class ChatManager {
         }
         // Activity status line: set while any step is running and cleared once all have left running.
         // Write the message first and then publish the activity: the cell's text is read from that step in the message.
-        guard ownsSession else { return }
-        if merged.contains(where: { $0.status == .running }) {
-            recordStreamActivity(.mcpTool, in: conversationID, messageID: messageID, sendTaskID: sendTaskID)
-        } else if sessions[conversationID]?.activity == .mcpTool {
-            clearStreamActivity(in: conversationID)
+        if ownsSession {
+            if merged.contains(where: { $0.status == .running }) {
+                recordStreamActivity(.mcpTool, in: conversationID, messageID: messageID, sendTaskID: sendTaskID)
+            } else if sessions[conversationID]?.activity == .mcpTool {
+                clearStreamActivity(in: conversationID)
+            }
+        }
+        // The suspending write goes last: the message is edited by index and the activity published per conversation
+        // above, before the suspension, so nothing touches state that may be stale afterwards.
+        if update.status == .needsAuth {
+            await markMcpServerNeedsAuth(update.serverId, uid: uid)
         }
     }
 
@@ -5435,12 +5437,13 @@ final class ChatManager {
 
     /// The loop found that this server needs to sign in again: record the local connection state as needsAuth, from which the tool panel offers "Re-authorize",
     /// and later sends leave its tools out until a sign-in succeeds.
-    private func markMcpServerNeedsAuth(_ serverId: UUID, uid: String) {
+    /// The write awaits the write lock instead of blocking the main thread.
+    private func markMcpServerNeedsAuth(_ serverId: UUID, uid: String) async {
         guard let store = try? appState.mcpServerDirectory.store(for: uid) else { return }
         var state = (try? store.fetchConnectionState(serverId: serverId)) ?? McpConnectionState(serverId: serverId)
         guard state.status != .needsAuth else { return }
         state.status = .needsAuth
-        try? store.saveConnectionState(state)
+        try? await store.saveConnectionStateAsync(state)
     }
 
     /// Shows the text a tool loop leg has produced so far.

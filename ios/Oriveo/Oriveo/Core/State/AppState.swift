@@ -1937,7 +1937,7 @@ final class AppState {
             // draft id. They move to the real id when the conversation is created, and that has to happen
             // before sending: assembling the usable tools reads by conversation id. If the move fails, this
             // one send simply carries no tools.
-            try? mcpServerDirectory.store(for: sessionPartitionUID).moveConversationSwitches(
+            try? await mcpServerDirectory.store(for: sessionPartitionUID).moveConversationSwitchesAsync(
                 from: generationParameterDraftSessionID, to: targetConversationID
             )
                         // External search is keyed by conversation source: for a draft it lives in memory only and is written once under the real id after the conversation is created; sending the first message reads this in-memory copy.

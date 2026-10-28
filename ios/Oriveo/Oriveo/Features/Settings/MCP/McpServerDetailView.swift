@@ -84,9 +84,9 @@ struct McpServerDetailView: View {
             loadDetail: { try directory.detail(serverId: $0, uid: uid) },
             actions: { try McpServerManagement.actions(directory: directory, uid: uid, reauthorization: reauthorization) },
             setPermission: { permission, serverId, toolName in
-                try directory.setToolPermission(permission, serverId: serverId, toolName: toolName, uid: uid)
+                try await directory.setToolPermission(permission, serverId: serverId, toolName: toolName, uid: uid)
             },
-            remove: { try directory.remove(serverId: $0, uid: uid) },
+            remove: { try await directory.remove(serverId: $0, uid: uid) },
             restoreEndpoint: { try directory.restoreEndpoint(serverId: $0, urlString: $1, uid: uid) }
         ))
     }

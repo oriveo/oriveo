@@ -154,7 +154,7 @@ struct McpMockServerWalkthroughTests {
         #expect(try rig.store.fetchConnectionState(serverId: serverId)?.status == .connected)
 
         // Remove
-        try rig.directory.remove(serverId: serverId, uid: McpUiFixture.uid)
+        try await rig.directory.remove(serverId: serverId, uid: McpUiFixture.uid)
         #expect(try rig.store.fetchServer(id: saved.id) == nil)
         #expect(try rig.database.nonEmptyTables().filter { $0.key != "mcp_conversation_switch" } == [:])
     }
@@ -183,7 +183,7 @@ struct McpMockServerWalkthroughTests {
         await model.waitUntilSettled()
         let serverId = try #require(model.state.completedServerId)
         #expect(rig.credentials.load(serverId: serverId, uid: McpUiFixture.uid)?.pastedToken == "mcp_test_token")
-        try rig.directory.remove(serverId: serverId, uid: McpUiFixture.uid)
+        try await rig.directory.remove(serverId: serverId, uid: McpUiFixture.uid)
         #expect(rig.credentials.load(serverId: serverId, uid: McpUiFixture.uid) == nil)
     }
 }

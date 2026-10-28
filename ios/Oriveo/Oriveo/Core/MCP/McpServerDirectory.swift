@@ -53,11 +53,12 @@ final class McpServerDirectory {
     /// Updates a server record. If the `url` of a `localOnly` record is a full address (the address was
     /// re-entered), it is stored in the credential store first and only the display address goes into the
     /// database; a failed store throws and the record is unchanged.
-    func update(_ record: McpServerRecord, uid: String) throws {
+    /// The write awaits the write lock instead of blocking the calling thread.
+    func update(_ record: McpServerRecord, uid: String) async throws {
         if record.localOnly, McpLocalOnly.displayURL(record.url) != record.url {
             try credentialStore.saveEndpoint(record.url, serverId: record.id, uid: uid)
         }
-        try openStore(uid).updateServer(record)
+        try await openStore(uid).updateServerAsync(record)
     }
 
     /// Removes a server: deletes its credentials and then the record with everything kept for it.
@@ -65,10 +66,10 @@ final class McpServerDirectory {
     /// Credentials go first: when they cannot be deleted this throws and the record stays, so the user can try
     /// again. The other way round the record would be gone while the token is still on the device, with nothing
     /// left in the app to clear it from.
-    func remove(serverId: UUID, uid: String) throws {
+    func remove(serverId: UUID, uid: String) async throws {
         let store = try openStore(uid)
         try credentialStore.delete(serverId: serverId, uid: uid)
-        try store.deleteServer(id: serverId)
+        try await store.deleteServerAsync(id: serverId)
     }
 
     /// Changes one tool's permission. Also revokes this tool's "allow for this conversation" grant in every
@@ -80,8 +81,8 @@ final class McpServerDirectory {
         toolName: String,
         uid: String,
         grants: McpConversationGrants = .shared
-    ) throws {
-        try store(for: uid).setToolPermission(permission, serverId: serverId, toolName: toolName)
+    ) async throws {
+        try await store(for: uid).setToolPermissionAsync(permission, serverId: serverId, toolName: toolName)
         grants.revoke(serverId: serverId, toolNames: [toolName])
     }
 
