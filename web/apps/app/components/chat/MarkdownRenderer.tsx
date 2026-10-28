@@ -1,19 +1,62 @@
 'use client';
 
-import { memo, useMemo, type ReactNode, isValidElement, Children } from 'react';
+import { memo, useEffect, useMemo, useState, type ReactNode, isValidElement, Children } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
-import rehypeKatex from 'rehype-katex';
 import remarkCjkFriendly from 'remark-cjk-friendly';
 import remarkCjkFriendlyGfmStrikethrough from 'remark-cjk-friendly-gfm-strikethrough';
-import type { Components } from 'react-markdown';
+import type { Components, Options as ReactMarkdownOptions } from 'react-markdown';
 import { normalizeLatexDelimiters, splitClosedAndOpenLatex } from '../../lib/utils/latex-normalizer';
 import { highlightCode } from '../../lib/markdown/highlight-setup';
 import { extractText } from '../../lib/markdown/extract-text';
 import { CodeBlock } from './CodeBlock';
 import styles from './MarkdownRenderer.module.css';
 import './highlight-theme.css';
+
+/* KaTeX loads on demand: rehype-katex plus katex itself is about 264KB (about 63KB brotli), which a
+   static import put into the first-load chunks of every /chat page even though most conversations
+   contain no math. It loads immediately when the content has a math delimiter; otherwise it is
+   prefetched shortly after the first renderer mounts, so it is usually ready by the time math
+   appears. Until it has loaded, remark-math is not attached either: math shows as its `$...$`
+   source for a moment instead of landing in the code-block rendering branch. */
+type PluggableList = NonNullable<ReactMarkdownOptions['rehypePlugins']>;
+type RehypeKatexPlugin = PluggableList[number];
+let rehypeKatexPlugin: RehypeKatexPlugin | null = null;
+let rehypeKatexLoad: Promise<RehypeKatexPlugin> | null = null;
+
+function loadRehypeKatex(): Promise<RehypeKatexPlugin> {
+  rehypeKatexLoad ??= import('rehype-katex').then((module) => {
+    rehypeKatexPlugin = module.default;
+    return module.default;
+  });
+  return rehypeKatexLoad;
+}
+
+const KATEX_PREFETCH_DELAY_MS = 2000;
+
+function useRehypeKatex(contentHasMath: boolean): RehypeKatexPlugin | null {
+  const [plugin, setPlugin] = useState<RehypeKatexPlugin | null>(() => rehypeKatexPlugin);
+  useEffect(() => {
+    if (plugin) return;
+    let active = true;
+    const adopt = () => {
+      loadRehypeKatex()
+        .then((loaded) => { if (active) setPlugin(() => loaded); })
+        .catch(() => { rehypeKatexLoad = null; });
+    };
+    if (contentHasMath) {
+      adopt();
+      return () => { active = false; };
+    }
+    const timer = setTimeout(adopt, KATEX_PREFETCH_DELAY_MS);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [contentHasMath, plugin]);
+  return plugin;
+}
 
 interface MarkdownRendererProps {
   content: string;
@@ -423,16 +466,24 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, isStre
   // enableCharFade=false (the reasoning block) skip it even while streaming - see the DOM size
   // reasoning in the props comment.
   const fadeChars = isStreaming && enableCharFade && content.length <= CHAR_FADE_MAX_CHARS;
-  const rehypePlugins = useMemo(
-    () => (fadeChars ? [rehypeKatex, rehypeStreamingCharFade] : [rehypeKatex]),
-    [fadeChars],
-  );
+  // normalizeLatexDelimiters has already turned \(...\) / \[...\] into the $ form, so math needs a $.
+  const rehypeKatex = useRehypeKatex(renderedContent.includes('$'));
+  const rehypePlugins = useMemo(() => {
+    const plugins: PluggableList = rehypeKatex ? [rehypeKatex] : [];
+    if (fadeChars) plugins.push(rehypeStreamingCharFade);
+    return plugins;
+  }, [fadeChars, rehypeKatex]);
+  const remarkPlugins = useMemo<PluggableList>(() => {
+    const plugins: PluggableList = [remarkCjkFriendly, [remarkGfm, STRIKETHROUGH_OPTIONS], [remarkCjkFriendlyGfmStrikethrough, STRIKETHROUGH_OPTIONS]];
+    if (rehypeKatex) plugins.push(remarkMath);
+    return plugins;
+  }, [rehypeKatex]);
 
   return (
     <div className={styles.markdown} data-streaming={isStreaming ? 'true' : undefined}>
       <ReactMarkdown
         // Strikethrough needs a paired `~~`: a single `~` is a range marker in CJK text (11~19°C), and two of them in one sentence would strike out everything between.
-        remarkPlugins={[remarkCjkFriendly, [remarkGfm, STRIKETHROUGH_OPTIONS], [remarkCjkFriendlyGfmStrikethrough, STRIKETHROUGH_OPTIONS], remarkMath]}
+        remarkPlugins={remarkPlugins}
         rehypePlugins={rehypePlugins}
         components={components}
       >
