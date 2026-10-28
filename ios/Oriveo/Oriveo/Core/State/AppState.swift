@@ -2763,6 +2763,26 @@ final class AppState {
         reconcileMemoryItems()
     }
 
+    /// Serial tail task for undoing a memory-item save (see `removeMemoryItemInBackground`).
+    @ObservationIgnored private var memoryItemUndoTail: Task<Void, Never>?
+
+    /// The toast "Undo" deletes the just-created memory item: the tombstone write runs in the background instead of
+    /// waiting synchronously for the write lock on the main thread (behind a whole-table write that stalls for seconds);
+    /// repeated undos queue on one serial tail task so they land in tap order.
+    func removeMemoryItemInBackground(id: String) {
+        guard let repository = memoryItemRepository() else { return }
+        let previous = memoryItemUndoTail
+        memoryItemUndoTail = Task { @MainActor in
+            await previous?.value
+            _ = try? await repository.perform { try $0.remove(id: id) }
+        }
+    }
+
+    /// Wait for queued undo deletions to land (for tests).
+    func waitForMemoryItemUndo() async {
+        await memoryItemUndoTail?.value
+    }
+
     /// The memory item repository of the current partition; legacy field reads and writes go through this object's preferences. nil when the database cannot be opened.
     func memoryItemRepository() -> MemoryItemRepository? {
         MemoryItemRepository.forPartition(

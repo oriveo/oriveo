@@ -296,6 +296,8 @@ struct MemorySuggestionPresentationTests {
 
             // Undo = the item repository deletes the just-created item normally.
             ToastManager.shared.performCurrentAction()
+            // The tombstone is written in the background: wait for it to land before asserting.
+            await state.waitForMemoryItemUndo()
             #expect(items.list().isEmpty)
             #expect(items.allItems().first { $0.id == item.id }?.status == .deleted)
         }

@@ -268,6 +268,16 @@ final class ContextCompactionStore: @unchecked Sendable {
         return removed
     }
 
+    /// Same as `save`, but the write is queued on the GRDB writer and awaited: a main-thread caller (persisting a
+    /// compaction result) waiting synchronously for the write lock would sit behind a whole-table write for seconds.
+    nonisolated func saveAsync(_ record: ContextCheckpointRecord) async throws {
+        try await dbPool.write { db in
+            try Self.upsert(record, in: db)
+            try Self.trim(conversationId: record.conversationId, in: db)
+        }
+        Self.postChange(conversationId: record.conversationId)
+    }
+
     /// Shared invalidation hook: after invalidate, the deleted ids are handed to the remote-delete callback
     /// (local edits / regeneration pass a remote delete; for removed remote messages pass nil and nothing is written back). Failures are only logged and never block the caller.
     @discardableResult

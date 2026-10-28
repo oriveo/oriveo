@@ -150,7 +150,7 @@ final class MemorySuggestionController {
 
     /// Undo a save: the normal item delete path on the item just created.
     func undo(itemID: String, appState: AppState) {
-        _ = try? appState.memoryItemRepository()?.remove(id: itemID)
+        appState.removeMemoryItemInBackground(id: itemID)
     }
 
     /// UI entry: save, then a 5 s "Saved to memory" toast whose action deletes the new item.

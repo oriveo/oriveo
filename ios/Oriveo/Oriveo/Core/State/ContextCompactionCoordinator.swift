@@ -250,7 +250,7 @@ final class ContextCompactionCoordinator {
             case .noop:
                 return Result(outcome: .noop, row: nil, failures: [])
             case .summary(let row):
-                return settled(.summary, row: row, failures: [])
+                return await settled(.summary, row: row, failures: [])
             case .failed(let attempts):
                 failures = attempts
             case .tooLarge:
@@ -268,7 +268,7 @@ final class ContextCompactionCoordinator {
         guard let row = fallbackRow(conversationId: conversationId, snapshot: snapshot, previous: previous) else {
             return Result(outcome: .noop, row: nil, failures: failures)
         }
-        return settled(.fallback, row: row, failures: failures)
+        return await settled(.fallback, row: row, failures: failures)
     }
 
     private func latestValid(
@@ -327,12 +327,12 @@ final class ContextCompactionCoordinator {
         _ outcome: ContextCompactor.Outcome,
         row: ContextCheckpointRecord,
         failures: [[ContextCompactor.FailureReason]]
-    ) -> Result {
+    ) async -> Result {
         // The whole send was already stopped -> nothing is persisted.
         guard !Task.isCancelled else {
             return Result(outcome: .noop, row: nil, failures: failures, cancelled: true)
         }
-        guard let saved = persist(row) else {
+        guard let saved = await persist(row) else {
             return Result(outcome: .noop, row: nil, failures: failures)
         }
         return Result(outcome: outcome, row: saved, failures: failures)
@@ -479,9 +479,9 @@ final class ContextCompactionCoordinator {
     }
 
     /// Persist: if sync is bound, hand out the row and all local checkpointIds of this conversation. A persistence failure is only logged and returns nil.
-    private func persist(_ row: ContextCheckpointRecord) -> ContextCheckpointRecord? {
+    private func persist(_ row: ContextCheckpointRecord) async -> ContextCheckpointRecord? {
         do {
-            try store.save(row)
+            try await store.saveAsync(row)
         } catch {
             print("[ContextCompactionCoordinator] save failed: \(error.localizedDescription)")
             return nil
