@@ -257,7 +257,7 @@ struct MemoryLegacyPrefsBridge {
 }
 
 /// Memory mode for backup import: maps one-to-one onto `ImportMode`.
-enum MemoryBackupImportMode {
+nonisolated enum MemoryBackupImportMode {
     case newOnly
     case merge
     case replace
@@ -388,17 +388,27 @@ final class MemoryItemRepository {
 
     /// Called on partition activation or when memoryText changes: migrates if not yet migrated, otherwise folds a memoryText changed by an older build back into items;
     /// then marks "migrated" and writes back the legacy fields when needed.
-    func reconcileLegacy() throws {
+    /// - Parameter snapshot: the legacy fields at trigger time (the caller fixes them where it triggers); read now when omitted.
+    func reconcileLegacy(prefs snapshot: MemoryLegacyPrefs? = nil) async throws {
         let result = MemoryItems.legacySync(
             uid: uid,
             migrated: isMigrated,
             deviceId: deviceId,
             items: allItems(),
-            prefs: bridge.read(),
+            prefs: snapshot ?? bridge.read(),
             deletedAt: Self.timestamp(now())
         )
-        try store.insertIfAbsent(result.create, syncState: .pending)
-        try store.upsert(result.update, syncState: .pending)
+        // The database write runs in the background (the main thread never waits for the write lock); "migrated" and
+        // the legacy write-back wait for it to land, and a failure reruns on the next partition activation.
+        if !result.create.isEmpty || !result.update.isEmpty {
+            let store = self.store
+            let create = result.create
+            let update = result.update
+            try await Task.detached(priority: .userInitiated) {
+                try store.insertIfAbsent(create, syncState: .pending)
+                try store.upsert(update, syncState: .pending)
+            }.value
+        }
         AppPreferencesStore.setMemoryItemsMigrated(true, uid: migrationScope)
         if let writePrefs = result.writePrefs {
             bridge.write(writePrefs)
@@ -424,37 +434,54 @@ final class MemoryItemRepository {
     /// created if absent. Imported rows are always pending; the caller dual-writes the legacy fields via `dualWriteLegacy()` after preferences are restored.
     /// Returns the number of changed items (replace includes the local items it replaced).
     @discardableResult
-    func importBackup(_ backup: MemoryBackupInput, mode: MemoryBackupImportMode) throws -> Int {
-        let local = allItems().map(MemoryItems.canonical)
-        var changed = 0
-        switch mode {
-        case .replace:
-            // The backup items land as a whole; items alive locally but absent from the backup become tombstones; existing local tombstones are kept as they are
-            let incoming = MemoryItems.backupMerge(mode: .replace, local: local, backup: backup, uid: uid, deviceId: deviceId)
-            let missing = Set(MemoryItems.backupReplaceTombstonedIds(local: local, replaced: incoming))
-            let deletedAt = Self.timestamp(now())
-            let tombstones = local.filter { missing.contains($0.id) }
-                .map { MemoryItems.tombstone($0, mutationId: Self.newId(), deviceId: deviceId, deletedAt: deletedAt) }
-            try store.upsert(incoming + tombstones, syncState: .pending)
-            changed = incoming.count + tombstones.count
-        case .merge where backup.memoryItems != nil:
-            let localById = Dictionary(local.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-            let written = MemoryItems.backupMerge(mode: .merge, local: local, backup: backup, uid: uid, deviceId: deviceId)
-                .filter { localById[$0.id] != $0 }
-            try store.upsert(written, syncState: .pending)
-            changed = written.count
-        case .merge, .newOnly:
-            let incoming = backup.memoryItems
-                ?? backup.preferences.map { MemoryItems.migrate(uid: uid, deviceId: deviceId, prefs: $0) }
-                ?? []
-            changed = try store.insertIfAbsent(incoming, syncState: .pending).count
-        }
+    func importBackup(_ backup: MemoryBackupInput, mode: MemoryBackupImportMode) async throws -> Int {
+        let store = self.store
+        let uid = self.uid
+        let deviceId = self.deviceId
+        let deletedAt = Self.timestamp(now())
+        // Reading local items, merging and writing all run in the background (the main thread never waits for the write lock).
+        let changed = try await Task.detached(priority: .userInitiated) {
+            try Self.importRows(backup, mode: mode, store: store, uid: uid, deviceId: deviceId, deletedAt: deletedAt)
+        }.value
         // After importing a backup with an items section (in any mode) this partition counts as migrated: the legacy fields are not migrated into items again, to avoid duplicating the imported items
         if backup.memoryItems != nil {
             AppPreferencesStore.setMemoryItemsMigrated(true, uid: migrationScope)
         }
         if changed > 0 { notifyLocalChange() }
         return changed
+    }
+
+    /// The database part of `importBackup` (background).
+    nonisolated private static func importRows(
+        _ backup: MemoryBackupInput,
+        mode: MemoryBackupImportMode,
+        store: MemoryItemStore,
+        uid: String,
+        deviceId: String,
+        deletedAt: String
+    ) throws -> Int {
+        let local = ((try? store.all()) ?? []).map(MemoryItems.canonical)
+        switch mode {
+        case .replace:
+            // The backup items land as a whole; items alive locally but absent from the backup become tombstones; existing local tombstones are kept as they are
+            let incoming = MemoryItems.backupMerge(mode: .replace, local: local, backup: backup, uid: uid, deviceId: deviceId)
+            let missing = Set(MemoryItems.backupReplaceTombstonedIds(local: local, replaced: incoming))
+            let tombstones = local.filter { missing.contains($0.id) }
+                .map { MemoryItems.tombstone($0, mutationId: newId(), deviceId: deviceId, deletedAt: deletedAt) }
+            try store.upsert(incoming + tombstones, syncState: .pending)
+            return incoming.count + tombstones.count
+        case .merge where backup.memoryItems != nil:
+            let localById = Dictionary(local.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            let written = MemoryItems.backupMerge(mode: .merge, local: local, backup: backup, uid: uid, deviceId: deviceId)
+                .filter { localById[$0.id] != $0 }
+            try store.upsert(written, syncState: .pending)
+            return written.count
+        case .merge, .newOnly:
+            let incoming = backup.memoryItems
+                ?? backup.preferences.map { MemoryItems.migrate(uid: uid, deviceId: deviceId, prefs: $0) }
+                ?? []
+            return try store.insertIfAbsent(incoming, syncState: .pending).count
+        }
     }
 
     /// After items change (for example after a backup import or a preference restore), compiles the legacy fields and dual-writes only if they differ from prefs.

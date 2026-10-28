@@ -1220,15 +1220,17 @@ enum BackupService {
         partitionUID: String,
         appState: AppState
     ) async -> Int {
-        await MainActor.run {
-            guard appState.sessionPartitionUID == partitionUID,
-                  let repository = appState.memoryItemRepository() else { return 0 }
-            do {
-                return try repository.importBackup(memoryBackupInput(backupFile.data), mode: mode)
-            } catch {
-                print("[BackupService] import memory items failed: \(error.localizedDescription)")
-                return 0
-            }
+        let repository: MemoryItemRepository? = await MainActor.run {
+            guard appState.sessionPartitionUID == partitionUID else { return nil }
+            return appState.memoryItemRepository()
+        }
+        guard let repository else { return 0 }
+        do {
+            // Reads and writes run in the background (the main thread never waits for the write lock); the main thread only sets the migrated flag and wakes sync.
+            return try await repository.importBackup(memoryBackupInput(backupFile.data), mode: mode)
+        } catch {
+            print("[BackupService] import memory items failed: \(error.localizedDescription)")
+            return 0
         }
     }
 

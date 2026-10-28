@@ -50,14 +50,14 @@ struct MemoryItemRepositoryTests {
         )
     }
 
-    @Test func migrationDiffZero() throws {
+    @Test func migrationDiffZero() async throws {
         let device = try Device(uid: "u1", deviceId: "device-a", preferences: prefs(Self.legacyText, antiForget: "Never forget tests"))
-        try device.database.pool.read { (db: Database) throws -> Void in
+        try await device.database.pool.read { (db: Database) throws -> Void in
             #expect(try db.tableExists(MemoryItemStore.table))
             #expect(try db.columns(in: MemoryItemStore.table).map(\.name).contains("syncState"))
         }
 
-        try device.repository.reconcileLegacy()
+        try await device.repository.reconcileLegacy()
 
         let items = device.repository.list()
         #expect(items.map(\.id).sorted() == [
@@ -75,12 +75,12 @@ struct MemoryItemRepositoryTests {
         #expect(device.repository.isMigrated)
     }
 
-    @Test func migrationIdempotentTwoDevices() throws {
+    @Test func migrationIdempotentTwoDevices() async throws {
         let deviceA = try Device(uid: "u1", deviceId: "device-a", preferences: prefs(Self.legacyText))
         let deviceB = try Device(uid: "u1", deviceId: "device-b", preferences: prefs(Self.legacyText))
 
-        try deviceA.repository.reconcileLegacy()
-        try deviceB.repository.reconcileLegacy()
+        try await deviceA.repository.reconcileLegacy()
+        try await deviceB.repository.reconcileLegacy()
         let itemA = try #require(deviceA.repository.list().first)
         let itemB = try #require(deviceB.repository.list().first)
         // Multi-device migration: both id and mutationId are deterministic, so the same item is composed on every device with create-if-absent semantics
@@ -90,21 +90,21 @@ struct MemoryItemRepositoryTests {
 
         // Run it again: nothing is added or changed and the legacy fields are not written again
         let writesBefore = deviceA.writes
-        try deviceA.repository.reconcileLegacy()
+        try await deviceA.repository.reconcileLegacy()
         #expect(deviceA.repository.allItems() == [itemA])
         #expect(deviceA.writes == writesBefore)
 
         // A third device receives the legacy fields after A's dual write (the digest matches memoryText): it only marks them migrated and creates nothing
         let deviceC = try Device(uid: "u1", deviceId: "device-c", preferences: deviceA.preferences)
-        try deviceC.repository.reconcileLegacy()
+        try await deviceC.repository.reconcileLegacy()
         #expect(deviceC.repository.allItems().isEmpty)
         #expect(deviceC.writes == 0)
         #expect(deviceC.repository.isMigrated)
     }
 
-    @Test func dualWriteCompile() throws {
+    @Test func dualWriteCompile() async throws {
         let device = try Device(uid: "u1", deviceId: "device-a", preferences: prefs("Alpha"))
-        try device.repository.reconcileLegacy()
+        try await device.repository.reconcileLegacy()
 
         let beta = try device.repository.create(kind: .preference, content: "Beta")
         #expect(device.preferences.memoryText == "Alpha\n\nBeta")
@@ -128,9 +128,9 @@ struct MemoryItemRepositoryTests {
         #expect(device.preferences.memoryTextDigest == MemoryItems.sha256Hex("Alpha"))
     }
 
-    @Test func oldClientEditFlowsBack() throws {
+    @Test func oldClientEditFlowsBack() async throws {
         let device = try Device(uid: "u1", deviceId: "device-a", preferences: prefs("Alpha"))
-        try device.repository.reconcileLegacy()
+        try await device.repository.reconcileLegacy()
         let legacyId = MemoryItems.legacyMemoryTextId(uid: "u1")
         let migrated = try #require(device.repository.list().first)
 
@@ -140,7 +140,7 @@ struct MemoryItemRepositoryTests {
         remote.memoryUpdatedAt = Date(timeIntervalSince1970: 1_760_600_000)
         #expect(remote.memoryText == "Alpha edited  ")
         device.preferences = remote
-        try device.repository.reconcileLegacy()
+        try await device.repository.reconcileLegacy()
 
         let edited = try #require(device.repository.list().first)
         #expect(edited.id == legacyId)
@@ -152,15 +152,15 @@ struct MemoryItemRepositoryTests {
 
         // An old client clears it: a tombstone is written
         device.preferences.memoryText = ""
-        try device.repository.reconcileLegacy()
+        try await device.repository.reconcileLegacy()
         #expect(device.repository.list().isEmpty)
         #expect(device.repository.allItems().first?.status == .deleted)
         #expect(device.preferences.memoryTextDigest == MemoryItems.sha256Hex(""))
     }
 
-    @Test func deleteWritesTombstone() throws {
+    @Test func deleteWritesTombstone() async throws {
         let device = try Device(uid: "u1", deviceId: "device-a", preferences: prefs(""))
-        try device.repository.reconcileLegacy()
+        try await device.repository.reconcileLegacy()
         let created = try device.repository.create(content: "Gamma")
         #expect(device.preferences.memoryText == "Gamma")
 

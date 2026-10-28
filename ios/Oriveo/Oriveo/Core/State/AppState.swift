@@ -2804,15 +2804,28 @@ final class AppState {
     }
 
     /// Runs when a partition is activated or memoryText changes: migrate / reflow, and dual-write the legacy fields when needed.
-    func reconcileMemoryItems() {
-        do {
-            try memoryItemRepository()?.reconcileLegacy()
-        } catch {
-            #if DEBUG
-            print("[AppState] reconcileMemoryItems failed: \(error)")
-            #endif
+    /// Database writes run in the background and are serialized in call order (a partition activation and a memoryText change land in the order they were triggered).
+    @discardableResult
+    func reconcileMemoryItems() -> Task<Void, Never> {
+        let repository = memoryItemRepository()
+        // The legacy fields are fixed at trigger time: a later preference change is handled by its own reconcile.
+        let prefs = preferences.memoryLegacyPrefs
+        let previous = memoryReconcileTail
+        let task = Task { @MainActor in
+            await previous?.value
+            do {
+                try await repository?.reconcileLegacy(prefs: prefs)
+            } catch {
+                #if DEBUG
+                print("[AppState] reconcileMemoryItems failed: \(error)")
+                #endif
+            }
         }
+        memoryReconcileTail = task
+        return task
     }
+
+    @ObservationIgnored private var memoryReconcileTail: Task<Void, Never>?
 
     /// Dual-write memory items back to the legacy fields (same as updateMemory): save the preferences locally.
     private func writeMemoryLegacy(_ compiled: MemoryLegacyCompile) {
