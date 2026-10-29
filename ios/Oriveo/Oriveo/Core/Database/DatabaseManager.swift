@@ -65,7 +65,11 @@ nonisolated final class DatabaseManager: @unchecked Sendable {
                 throw NotPreparedOnMainThread(uid: uid)
             }
             // The test host's synchronous entry keeps the old semantics: opening a partition makes it the current one.
+            #if DEBUG
+            return try MainThreadDatabaseWriteGuard.exemptingTestHarnessOpen { try self.open(uid: uid, pin: true) }
+            #else
             return try open(uid: uid, pin: true)
+            #endif
         }
         return try open(uid: uid, pin: false)
     }
@@ -76,7 +80,11 @@ nonisolated final class DatabaseManager: @unchecked Sendable {
         if let pool = pinnedPool(for: uid) { return pool }
         return try await withCheckedThrowingContinuation { continuation in
             openQueue.async {
-                continuation.resume(with: Result { try self.open(uid: uid, pin: true) })
+                let result = Result { try self.open(uid: uid, pin: true) }
+                // The continuation sidecar's local database is prewarmed here too: its first open (connecting) often lands on
+                // the main-thread send path. A failure does not affect the main database; it opens on first use instead.
+                if case .success = result { RecipeContinuationStore.prewarmLocalOnlyPool(for: uid) }
+                continuation.resume(with: result)
             }
         }
     }
