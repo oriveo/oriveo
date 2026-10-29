@@ -46,9 +46,9 @@ enum NoteText {
     /// range where `TextEditor` starts to struggle (samples with line breaks all stay within
     /// 26 ms), so the threshold sits at 10,000 and goes no lower.
     /// See `NoteBodyEditorSession` for how the threshold is used while editing.
-    static let boundedLayoutUTF16Threshold = 10_000
+    nonisolated static let boundedLayoutUTF16Threshold = 10_000
 
-    static func requiresBoundedLayout(_ text: String) -> Bool {
+    nonisolated static func requiresBoundedLayout(_ text: String) -> Bool {
         text.utf16.count >= boundedLayoutUTF16Threshold
     }
 
@@ -103,7 +103,7 @@ enum NoteText {
         return AttributedString(clipped)
     }
 
-    static func readingMarkdown(_ text: String) -> String {
+    nonisolated static func readingMarkdown(_ text: String) -> String {
         let kept = text.components(separatedBy: "\n").filter { line in
             let t = line.trimmingCharacters(in: .whitespaces)
             guard t.count >= 3, let first = t.first else { return true }
@@ -129,7 +129,7 @@ enum NoteText {
     }
 
 
-    private static let excessBlankLinesRegex = try! NSRegularExpression(pattern: "\n{3,}")
+    nonisolated private static let excessBlankLinesRegex = try! NSRegularExpression(pattern: "\n{3,}")
 
     private static func previewWindow(_ limit: Int) -> Int { max(limit * 32, 2_048) }
 

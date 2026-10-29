@@ -17,7 +17,7 @@ private struct NetworkDisabledMarkdownInlineImageProvider: InlineImageProvider {
     }
 }
 
-struct MarkdownTypography: Equatable {
+nonisolated struct MarkdownTypography: Equatable, Sendable {
     var baseFontSize: CGFloat = 17
     var lineHeightMultiple: CGFloat = 1.2
     var paragraphSpacing: CGFloat = 12
@@ -147,7 +147,7 @@ struct MarkdownMessageView: View {
             .heading1 { configuration in
                 configuration.label
                     .markdownMargin(top: typography.emphasizedHeadings ? para + 8 : para,
-                                    bottom: typography.emphasizedHeadings ? 8 : 4)
+                                    bottom: Self.markdownUIHeadingBottomMargin(level: 1, typography: typography))
                     .markdownTextStyle {
                         FontWeight(typography.emphasizedHeadings ? .heavy : .bold)
                         FontSize(typography.heading1Size)
@@ -167,10 +167,10 @@ struct MarkdownMessageView: View {
                                 ForegroundColor(textColor)
                             }
                     }
-                    .markdownMargin(top: para + 10, bottom: 6)
+                    .markdownMargin(top: para + 10, bottom: Self.markdownUIHeadingBottomMargin(level: 2, typography: typography))
                 } else {
                     configuration.label
-                        .markdownMargin(top: para, bottom: 4)
+                        .markdownMargin(top: para, bottom: Self.markdownUIHeadingBottomMargin(level: 2, typography: typography))
                         .markdownTextStyle {
                             FontWeight(.semibold)
                             FontSize(typography.heading2Size)
@@ -180,7 +180,7 @@ struct MarkdownMessageView: View {
             }
             .heading3 { configuration in
                 configuration.label
-                    .markdownMargin(top: typography.emphasizedHeadings ? para : 4, bottom: 2)
+                    .markdownMargin(top: typography.emphasizedHeadings ? para : 4, bottom: Self.markdownUIHeadingBottomMargin(level: 3, typography: typography))
                     .markdownTextStyle {
                         FontWeight(.semibold)
                         FontSize(typography.heading3Size)
@@ -521,8 +521,7 @@ private struct StaticMarkdownContent: View {
                     if StaticMarkdownMathSupport.containsMathDelimiters(text) {
                         MathAwareBlockBody(text: text, theme: theme, typography: typography)
                     } else {
-                        Markdown(MarkdownRegexSupport.preprocessForMarkdownUI(text))
-                            .markdownTheme(theme)
+                        Self.markdownUIBody(text, theme: theme)
                     }
                 } else {
                     CachedMarkdownView(text: text, typography: typography)
@@ -536,11 +535,32 @@ private struct StaticMarkdownContent: View {
         }
     }
 
-    private static func containsTable(_ text: String) -> Bool {
+    /// `asIs`: still handed to `StaticMarkdownContent` unchanged (empty text, unclosed fences and other cases that are never split).
+    nonisolated enum LeafRoute { case asIs, plainText, markdownUI, mathAware, cached }
+
+    /// Which leaf view `body` picks for a piece of text without code fences (same conditions as the branches in `body`).
+    nonisolated static func leafRoute(_ text: String) -> LeafRoute {
+        guard !text.isEmpty else { return .asIs }
+        switch MarkdownMessageView.resolvedRenderingMode(for: text, renderHint: nil) {
+        case .plainText: return .plainText
+        case .blockMarkdown:
+            guard containsTable(text) || containsHorizontalRule(text) else { return .cached }
+            return StaticMarkdownMathSupport.containsMathDelimiters(text) ? .mathAware : .markdownUI
+        case .inlineMarkdown: return .cached
+        case .segmentedCodeMarkdown: return .asIs
+        }
+    }
+
+    static func markdownUIBody(_ text: String, theme: MarkdownUI.Theme) -> some View {
+        Markdown(MarkdownRegexSupport.preprocessForMarkdownUI(text))
+            .markdownTheme(theme)
+    }
+
+    nonisolated private static func containsTable(_ text: String) -> Bool {
         MarkdownRegexSupport.containsMatch(MarkdownRegexSupport.tableSeparatorRegex, in: text)
     }
 
-    private static func containsHorizontalRule(_ text: String) -> Bool {
+    nonisolated private static func containsHorizontalRule(_ text: String) -> Bool {
         MarkdownRegexSupport.containsMatch(MarkdownRegexSupport.horizontalRuleRegex, in: text)
     }
 }
@@ -551,7 +571,7 @@ private struct MathAwareBlockBody: View {
     let typography: MarkdownTypography
 
     var body: some View {
-        VStack(alignment: .leading, spacing: OriveoTheme.Spacing.md) {
+        VStack(alignment: .leading, spacing: MarkdownMessageView.codeFenceSegmentSpacing) {
             ForEach(Array(Self.groups(for: text).enumerated()), id: \.offset) { _, group in
                 if group.isTableLike {
                     Markdown(MarkdownRegexSupport.preprocessForMarkdownUI(group.text))
@@ -563,12 +583,12 @@ private struct MathAwareBlockBody: View {
         }
     }
 
-    struct Group {
+    nonisolated struct Group {
         let text: String
         let isTableLike: Bool
     }
 
-    static func groups(for text: String) -> [Group] {
+    nonisolated static func groups(for text: String) -> [Group] {
         let blocks = splitBlocks(LatexNormalizer.normalize(text))
         var groups: [Group] = []
         for block in blocks {
@@ -583,7 +603,7 @@ private struct MathAwareBlockBody: View {
         return groups
     }
 
-    private static func splitBlocks(_ text: String) -> [String] {
+    nonisolated private static func splitBlocks(_ text: String) -> [String] {
         var blocks: [String] = []
         var current: [String] = []
         var fenceMarker: String? = nil
@@ -627,6 +647,380 @@ private struct MathAwareBlockBody: View {
     }
 }
 
+/// A segment of `SegmentedMarkdownBody` split on code fences: each segment is its own view (prose goes through `StaticMarkdownContent`, code is a `CodeBlockCard`).
+nonisolated enum MarkdownCodeFenceSegment: Equatable, Sendable {
+    case markdown(String)
+    case code(language: String?, content: String)
+}
+
+/// One unit of lazy rendering for long bodies (used by the note detail). A whole-body render is already a stack of
+/// independent leaf views; this splits out that same sequence of leaf views together with the spacing between them,
+/// so the host's lazy stack can place them one by one:
+/// - segmented mode: the segments of `SegmentedMarkdownBody`, spaced by `codeFenceSegmentSpacing`;
+/// - MarkdownUI bodies (whole or per segment): split into groups at top-level block boundaries, with the gap between groups restored by the same formula as `BlockSequence` (see `markdownUIBlockGroups`);
+/// - tables with math: the groups of `MathAwareBlockBody`, spaced like its VStack;
+/// - long `CachedMarkdownView` / plain-text bodies: cut into chunks of about `textChunkUTF16` between ordinary paragraphs.
+/// `NoteLazyMarkdownBodyTests` guards that the result is pixel-identical to the whole-body render.
+nonisolated struct MarkdownLazyUnit: Equatable, Sendable {
+    enum Content: Equatable, Sendable {
+        /// Same entry point as `StaticMarkdownContent` (it picks the route from its own content).
+        case staticMarkdown(String)
+        /// Goes straight to MarkdownUI (the same call as the table / rule branch of `StaticMarkdownContent`).
+        case markdownUI(String)
+        /// Goes straight to `CachedMarkdownView` (a chunk cut from a long body; it is not re-routed by its own content).
+        case cachedMarkdown(String)
+        /// Goes straight to `SelectableTextLabel` (a chunk cut from a long plain text).
+        case plainText(String)
+        case code(language: String?, content: String)
+
+        var text: String {
+            switch self {
+            case let .staticMarkdown(text), let .markdownUI(text), let .cachedMarkdown(text), let .plainText(text): text
+            case let .code(_, content): content
+            }
+        }
+    }
+
+    let content: Content
+    /// Distance from the previous unit (0 for the first).
+    let spacingBefore: CGFloat
+}
+
+nonisolated extension MarkdownMessageView {
+    /// Segment spacing of `SegmentedMarkdownBody` / `MathAwareBlockBody` (= `OriveoTheme.Spacing.md`; a literal so units can be cut off the main thread;
+    /// `NoteLazyMarkdownBodyTests` guards that the two are equal).
+    static let codeFenceSegmentSpacing: CGFloat = 12
+
+    /// Target length of a chunk cut from a long body (about a screen and a half).
+    static let textChunkUTF16 = 3_000
+    /// CachedMarkdownView / plain-text bodies are chunked only above this: each is one UITextView holding the whole text, selectable across paragraphs,
+    /// and rendering up to 10k characters in one piece is not expensive, so it stays as is.
+    static let textChunkingThresholdUTF16 = 10_000
+    /// A single block that cannot be cut at a paragraph boundary and exceeds this skips lazy rendering (same value as the bounded-viewport threshold).
+    static let maximumLazyUnitUTF16 = 10_000
+
+    /// Bottom margins of the heading levels in the MarkdownUI theme (h4-h6 are not set).
+    static func markdownUIHeadingBottomMargin(level: Int, typography: MarkdownTypography) -> CGFloat? {
+        switch level {
+        case 1: return typography.emphasizedHeadings ? 8 : 4
+        case 2: return typography.emphasizedHeadings ? 6 : 4
+        case 3: return 2
+        default: return nil
+        }
+    }
+
+    /// The sequence of leaf views a whole-body render actually stacks; a single element when the body is one view (or should not be split).
+    static func lazyUnits(for text: String, typography: MarkdownTypography) -> [MarkdownLazyUnit] {
+        var units: [MarkdownLazyUnit] = []
+        func append(_ content: MarkdownLazyUnit.Content, spacing: CGFloat) {
+            units.append(MarkdownLazyUnit(content: content, spacingBefore: units.isEmpty ? 0 : spacing))
+        }
+        func appendStatic(_ piece: String, spacing: CGFloat) {
+            switch StaticMarkdownContent.leafRoute(piece) {
+            case .markdownUI:
+                for (index, group) in markdownUIBlockGroups(piece, typography: typography).enumerated() {
+                    append(.markdownUI(group.text), spacing: index == 0 ? spacing : group.spacingBefore)
+                }
+            case .mathAware:
+                for (index, group) in MathAwareBlockBody.groups(for: piece).enumerated() {
+                    let groupSpacing = index == 0 ? spacing : codeFenceSegmentSpacing
+                    if group.isTableLike {
+                        append(.markdownUI(group.text), spacing: groupSpacing)
+                    } else {
+                        appendCached(group.text, spacing: groupSpacing)
+                    }
+                }
+            case .cached:
+                appendCached(piece, spacing: spacing, keepsStaticEntry: true)
+            case .plainText:
+                guard piece.utf16.count > textChunkingThresholdUTF16 else {
+                    append(.staticMarkdown(piece), spacing: spacing)
+                    return
+                }
+                for (index, chunk) in plainTextChunks(piece).enumerated() {
+                    append(.plainText(chunk), spacing: index == 0 ? spacing : 0)
+                }
+            case .asIs:
+                append(.staticMarkdown(piece), spacing: spacing)
+            }
+        }
+        /// `keepsStaticEntry`: when no cutting is needed, still go through `StaticMarkdownContent` (same entry as the whole-body render); MathAware groups already go straight to CachedMarkdownView.
+        func appendCached(_ text: String, spacing: CGFloat, keepsStaticEntry: Bool = false) {
+            guard text.utf16.count > textChunkingThresholdUTF16 else {
+                append(keepsStaticEntry ? .staticMarkdown(text) : .cachedMarkdown(text), spacing: spacing)
+                return
+            }
+            for (index, chunk) in cachedMarkdownChunks(text, typography: typography).enumerated() {
+                append(.cachedMarkdown(chunk.text), spacing: index == 0 ? spacing : chunk.spacingBefore)
+            }
+        }
+
+        if staticRenderingMode(for: text) == .segmentedCodeMarkdown {
+            for segment in SegmentedMarkdownBody.parseSegments(text) {
+                switch segment {
+                case let .markdown(piece):
+                    appendStatic(piece, spacing: codeFenceSegmentSpacing)
+                case let .code(language, content):
+                    append(.code(language: language, content: content), spacing: codeFenceSegmentSpacing)
+                }
+            }
+        } else {
+            appendStatic(text, spacing: 0)
+        }
+        return units
+    }
+
+    /// Collect at least this many top-level blocks per group before looking for a cut (same granularity as Android's 8 blocks per segment).
+    static let markdownUIGroupBlockCount = 8
+
+    /// Cuts groups at top-level block boundaries, only where the next block is a paragraph or a table:
+    /// - A group must not start with a heading: the h2 brand bar is a flexible shape inside an HStack, so as the first block of a
+    ///   BlockSequence it is 2pt different in height from a non-first block (measured pixel by pixel in the simulator), which would
+    ///   make a heading-led group differ from the whole-body render; paragraphs and tables are rigid.
+    /// - Gap between groups = max(previous block's bottom margin, next block's top margin), the same formula as `BlockSequence.topPaddingLength`;
+    ///   the previous block is classified by its last line (preprocessing splits single newlines into paragraphs, so the last line is the real last block).
+    /// Text with reference-style link definitions or footnote definitions is not cut (a definition and its reference could land in different groups).
+    private static func markdownUIBlockGroups(
+        _ text: String,
+        typography: MarkdownTypography
+    ) -> [(text: String, spacingBefore: CGFloat)] {
+        guard !text.contains("]:") || referenceDefinitionRegex.firstMatch(
+            in: text, range: NSRange(text.startIndex..., in: text)
+        ) == nil else { return [(text, 0)] }
+
+        // Top-level blocks: separated by blank lines (blank lines inside a ~~~ fence do not count).
+        var blocks: [[Substring]] = []
+        var current: [Substring] = []
+        var inTildeFence = false
+        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            if line.hasPrefix("~~~") { inTildeFence.toggle() }
+            if !inTildeFence, line.allSatisfy({ $0 == " " || $0 == "\t" }) {
+                if !current.isEmpty { blocks.append(current); current = [] }
+                continue
+            }
+            current.append(line)
+        }
+        if !current.isEmpty { blocks.append(current) }
+        guard blocks.count > markdownUIGroupBlockCount else { return [(text, 0)] }
+
+        var groups: [(text: String, spacingBefore: CGFloat)] = []
+        var groupStart = 0
+        var groupSpacing: CGFloat = 0
+        for index in 1..<blocks.count where index - groupStart >= markdownUIGroupBlockCount {
+            guard let nextTop = markdownUIRigidBlockTopMargin(firstLine: blocks[index][0]),
+                  let previousLast = blocks[index - 1].last,
+                  let previousBottom = markdownUIBottomMargin(lastLine: previousLast, typography: typography)
+            else { continue }
+            groups.append((blocks[groupStart..<index].map { $0.joined(separator: "\n") }.joined(separator: "\n\n"), groupSpacing))
+            groupStart = index
+            groupSpacing = max(previousBottom ?? 0, nextTop)
+        }
+        groups.append((blocks[groupStart...].map { $0.joined(separator: "\n") }.joined(separator: "\n\n"), groupSpacing))
+        return groups
+    }
+
+    private static let referenceDefinitionRegex = try! NSRegularExpression(pattern: #"(?m)^ {0,3}\[[^\]]+\]:"#)
+
+    /// Top margin of a rigid block that may start a group: 8 for a table, 0 for a plain paragraph; anything else (heading / list / quote / indented / HTML / image / fence) returns nil and is not cut.
+    private static func markdownUIRigidBlockTopMargin(firstLine: Substring) -> CGFloat? {
+        guard let first = firstLine.first else { return nil }
+        if first == "|" { return 8 }
+        if "#>-*+<[!~` \t=_".contains(first) { return nil }
+        if first.isNumber {
+            let digits = firstLine.prefix(while: \.isNumber)
+            let after = firstLine.dropFirst(digits.count).first
+            if after == "." || after == ")" { return nil }
+        }
+        return 0
+    }
+
+    /// Bottom margin of the previous block (classified by its last line). Outer nil = cannot tell, do not cut; inner nil = the block has no margin.
+    private static func markdownUIBottomMargin(lastLine: Substring, typography: MarkdownTypography) -> CGFloat?? {
+        guard let first = lastLine.first else { return nil }
+        if first == "|" { return .some(8) }
+        if let level = atxHeadingLevel(lastLine) {
+            return .some(markdownUIHeadingBottomMargin(level: level, typography: typography))
+        }
+        // Setext underline, HTML, fence closing: do not cut.
+        if lastLine.allSatisfy({ $0 == "=" || $0 == "-" || $0 == " " }) || first == "<" || lastLine.hasPrefix("~~~") {
+            return nil
+        }
+        // Paragraph / list / quote / indented code: its own or its child paragraph's bottom margin is the paragraph spacing.
+        return .some(typography.paragraphSpacing)
+    }
+
+    /// ATX heading level at the start of a line (not indented); `#` must be followed by a space / tab or end of line (CommonMark).
+    private static func atxHeadingLevel(_ line: Substring) -> Int? {
+        var level = 0
+        var index = line.startIndex
+        while index < line.endIndex, line[index] == "#", level < 7 {
+            level += 1
+            index = line.index(after: index)
+        }
+        guard (1...6).contains(level) else { return nil }
+        guard index == line.endIndex || line[index] == " " || line[index] == "\t" else { return nil }
+        return level
+    }
+}
+
+nonisolated extension MarkdownMessageView {
+    /// Top-level blocks separated by blank lines (blank lines inside ``` / ~~~ fences and $$ display math do not count), returned with the separator before each block so it can be rejoined verbatim.
+    private static func blankLineBlocks(_ text: String) -> [(separator: String, lines: [Substring])] {
+        var blocks: [(separator: String, lines: [Substring])] = []
+        var current: [Substring] = []
+        var pendingSeparator = ""
+        var blankRun = 0
+        var fence: Substring?
+        var inMath = false
+        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if fence == nil, !inMath, trimmed.isEmpty {
+                blankRun += 1
+                continue
+            }
+            if blankRun > 0, !current.isEmpty {
+                blocks.append((pendingSeparator, current))
+                current = []
+                pendingSeparator = String(repeating: "\n", count: blankRun + 1)
+            }
+            blankRun = 0
+            current.append(line)
+            if let marker = fence {
+                if trimmed.hasPrefix(marker) { fence = nil }
+            } else if inMath {
+                if trimmed.contains("$$") { inMath = false }
+            } else if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
+                fence = Substring(trimmed.prefix(3))
+            } else if trimmed.hasPrefix("$$"), !(trimmed.hasSuffix("$$") && trimmed.count >= 5) {
+                inMath = true
+            }
+        }
+        if !current.isEmpty { blocks.append((pendingSeparator, current)) }
+        return blocks
+    }
+
+    /// Paragraph class of a line in the CachedMarkdownView render: only two paragraph styles exist, heading (16 / 12 before, 4 after) and the rest (after = paragraph spacing).
+    /// Tables / fences / math / indented / HTML / setext underlines return nil: no cut next to them.
+    private enum CachedLineKind {
+        case heading(level: Int)
+        case body
+    }
+
+    private static func cachedLineKind(_ line: Substring) -> CachedLineKind? {
+        guard let first = line.first else { return nil }
+        if "|<`~$ \t\\".contains(first) { return nil }
+        if line.allSatisfy({ $0 == "=" || $0 == "-" || $0 == " " }) { return nil }
+        if let level = atxHeadingLevel(line) { return .heading(level: level) }
+        return .body
+    }
+
+    /// Same heading rule as `renderMarkdownTrackingMath`: only a font larger than the body counts as a heading; at least the h1 size gets 16 before, otherwise 12.
+    private static func cachedHeadingSize(level: Int, typography: MarkdownTypography) -> CGFloat {
+        switch level {
+        case 1: return typography.heading1Size
+        case 2: return typography.heading2Size
+        default: return typography.heading3Size
+        }
+    }
+
+    /// Distance between two blocks = the previous block's last paragraph's spacing after + the next block's first paragraph's spacing before. For a block on its own,
+    /// the last paragraph's trailing and the first paragraph's leading spacing do not count toward height (measured: paragraph to paragraph 14, paragraph to heading 26, heading to paragraph 4).
+    private static func cachedChunkGap(previous: CachedLineKind, next: CachedLineKind, typography: MarkdownTypography) -> CGFloat {
+        func isHeading(_ kind: CachedLineKind) -> CGFloat? {
+            guard case let .heading(level) = kind else { return nil }
+            let size = cachedHeadingSize(level: level, typography: typography)
+            return size > typography.baseFontSize ? size : nil
+        }
+        let after: CGFloat = isHeading(previous) != nil ? 4 : typography.paragraphSpacing
+        let before: CGFloat = isHeading(next).map { $0 >= typography.heading1Size ? 16 : 12 } ?? 0
+        return after + before
+    }
+
+    /// Cuts a CachedMarkdownView body into chunks of about `textChunkUTF16`, at blank lines where the paragraph style on both sides is known.
+    static func cachedMarkdownChunks(_ text: String, typography: MarkdownTypography) -> [(text: String, spacingBefore: CGFloat)] {
+        let blocks = blankLineBlocks(text)
+        var chunks: [(text: String, spacingBefore: CGFloat)] = []
+        var current = ""
+        var currentSpacing: CGFloat = 0
+        for (index, block) in blocks.enumerated() {
+            let body = block.lines.joined(separator: "\n")
+            if index > 0, current.utf16.count >= textChunkUTF16,
+               let previousLast = blocks[index - 1].lines.last, let previous = cachedLineKind(previousLast),
+               let first = block.lines.first, let next = cachedLineKind(first) {
+                chunks.append((current, currentSpacing))
+                current = body
+                currentSpacing = cachedChunkGap(previous: previous, next: next, typography: typography)
+            } else {
+                current += (current.isEmpty ? "" : block.separator) + body
+            }
+        }
+        if !current.isEmpty { chunks.append((current, currentSpacing)) }
+        return chunks
+    }
+
+    /// Cuts plain text into chunks of about `textChunkUTF16` at blank lines: the previous chunk keeps (separator newlines - 1) trailing newlines,
+    /// which UITextView lays out as the same number of blank lines, matching the height of those blank lines in the whole text.
+    static func plainTextChunks(_ text: String) -> [String] {
+        let blocks = blankLineBlocks(text)
+        var chunks: [String] = []
+        var current = ""
+        for (index, block) in blocks.enumerated() {
+            let body = block.lines.joined(separator: "\n")
+            if index > 0, current.utf16.count >= textChunkUTF16 {
+                chunks.append(current + String(repeating: "\n", count: max(block.separator.count - 1, 0)))
+                current = body
+            } else {
+                current += (current.isEmpty ? "" : block.separator) + body
+            }
+        }
+        if !current.isEmpty { chunks.append(current) }
+        return chunks
+    }
+}
+
+/// Leaf view of a lazy unit: the same call and environment as the corresponding leaf view in a whole-body render.
+struct MarkdownLazyUnitView: View {
+    let unit: MarkdownLazyUnit
+    var typography: MarkdownTypography = .chat
+
+    var body: some View {
+        leaf
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, unit.spacingBefore)
+            .markdownImageProvider(NetworkDisabledMarkdownImageProvider())
+            .markdownInlineImageProvider(NetworkDisabledMarkdownInlineImageProvider())
+            .environment(\.openURL, OpenURLAction { url in
+                ExternalURLPolicy.allows(url) ? .systemAction(url) : .discarded
+            })
+    }
+
+    @ViewBuilder
+    private var leaf: some View {
+        switch unit.content {
+        case let .staticMarkdown(text):
+            StaticMarkdownContent(
+                text: text,
+                foregroundColor: OriveoTheme.Palette.textPrimary,
+                theme: MarkdownMessageView.theme(for: typography),
+                renderHint: nil,
+                typography: typography
+            )
+        case let .markdownUI(text):
+            StaticMarkdownContent.markdownUIBody(text, theme: MarkdownMessageView.theme(for: typography))
+        case let .cachedMarkdown(text):
+            CachedMarkdownView(text: text, typography: typography)
+        case let .plainText(text):
+            SelectableTextLabel(
+                text: text,
+                fontSize: typography.baseFontSize,
+                textColor: UIColor(OriveoTheme.Palette.textPrimary)
+            )
+        case let .code(language, content):
+            CodeBlockCard(language: language, content: content)
+        }
+    }
+}
+
 private struct SegmentedMarkdownBody: View, Equatable {
     let text: String
     let theme: MarkdownUI.Theme
@@ -643,7 +1037,7 @@ private struct SegmentedMarkdownBody: View, Equatable {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: OriveoTheme.Spacing.md) {
+        VStack(alignment: .leading, spacing: MarkdownMessageView.codeFenceSegmentSpacing) {
             ForEach(Array(Self.cachedSegments(text).enumerated()), id: \.offset) { _, segment in
                 switch segment {
                 case let .markdown(markdownText):
@@ -661,10 +1055,7 @@ private struct SegmentedMarkdownBody: View, Equatable {
         }
     }
 
-    private enum Segment: Equatable {
-        case markdown(String)
-        case code(language: String?, content: String)
-    }
+    typealias Segment = MarkdownCodeFenceSegment
 
     private class SegmentCacheEntry {
         let segments: [Segment]
@@ -681,7 +1072,7 @@ private struct SegmentedMarkdownBody: View, Equatable {
         return segments
     }
 
-    private static func parseSegments(_ text: String) -> [Segment] {
+    nonisolated fileprivate static func parseSegments(_ text: String) -> [Segment] {
         guard text.contains("```") else { return [.markdown(text)] }
 
         var segments: [Segment] = []

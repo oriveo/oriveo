@@ -1,6 +1,6 @@
 import Foundation
 
-enum LatexNormalizer {
+nonisolated enum LatexNormalizer {
     static func normalize(_ text: String) -> String {
         guard text.contains("\\(") || text.contains("\\[") else { return text }
         guard let masked = maskProtectedRegions(text) else { return text }

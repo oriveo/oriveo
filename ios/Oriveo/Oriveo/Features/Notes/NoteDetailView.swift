@@ -93,6 +93,9 @@ struct NoteDetailView: View {
     @State private var showDeleteConfirm = false
     @State private var showMoveSheet = false
     @State private var showCrosscheck = false
+    /// "Select text": the reading pane of a long body is a stack of lazy blocks, so continuous selection across blocks is done over the whole body here.
+    @State private var textSelection: NoteTextSelectionRequest?
+    @State private var visibleUnits = NoteLazyVisibleUnits()
     @FocusState private var titleFocused: Bool
 
     // MARK: - Body
@@ -128,6 +131,12 @@ struct NoteDetailView: View {
                     // The sheet has its own back button, which must not hide with the right-column root page
                     .environment(\.isSplitColumnRoot, false)
             }
+        }
+        .sheet(item: $textSelection) { request in
+            NoteTextSelectionView(request: request)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .environment(\.isSplitColumnRoot, false)
         }
         .fullScreenCover(isPresented: $showCrosscheck) {
             Group {
@@ -571,35 +580,7 @@ struct NoteDetailView: View {
     }
 
 
-    private var brandCardBackground: some View {
-        RoundedRectangle(cornerRadius: OriveoTheme.Radius.card, style: .continuous)
-            .fill(
-                LinearGradient(
-                    colors: [
-                        Color.dynamic(light: 0xFFFFFF, dark: 0x1E2230),
-                        Color.dynamic(light: 0xF1EBFD, dark: 0x232845)
-                    ],
-                    startPoint: .top, endPoint: .bottom
-                )
-            )
-            .overlay(
-                RadialGradient(
-                    colors: [OriveoTheme.Palette.primary.opacity(0.12), .clear],
-                    center: .topTrailing, startRadius: 0, endRadius: 240
-                )
-            )
-            .overlay(alignment: .top) {
-                RoundedRectangle(cornerRadius: OriveoTheme.Radius.card, style: .continuous)
-                    .fill(OriveoTheme.Palette.cardHighlight.opacity(0.5))
-                    .frame(height: 60)
-                    .mask(LinearGradient(colors: [.white, .clear], startPoint: .top, endPoint: .bottom))
-            }
-            .overlay(
-                RoundedRectangle(cornerRadius: OriveoTheme.Radius.card, style: .continuous)
-                    .strokeBorder(OriveoTheme.Palette.primary.opacity(0.12), lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: OriveoTheme.Radius.card, style: .continuous))
-    }
+    private var brandCardBackground: some View { NoteBrandCardBackground() }
 
     /// Write path of the `TextEditor`: the write that crosses the threshold also moves the session
     /// up to the bounded view. Both states change in the same update, so `TextEditor` never renders
@@ -638,11 +619,13 @@ struct NoteDetailView: View {
             .shadow(color: OriveoTheme.Palette.primary.opacity(0.10), radius: 30, y: 14)
         } else {
             let text = contentPane == 0 ? reading.primary : reading.secondary
-            if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if contentPane == 0 ? reading.isPrimaryBlank : reading.isSecondaryBlank {
                 emptyBodyPlaceholder
             } else {
                 VStack(spacing: 30) {
-                    if NoteText.requiresBoundedLayout(text) {
+                    if let units = contentPane == 0 ? reading.primaryUnits : reading.secondaryUnits {
+                        NoteLazyMarkdownBody(units: units, visibleUnits: visibleUnits) { presentTextSelection(longPress: $0) }
+                    } else if reading.usesBoundedReader(pane: contentPane) {
                         BoundedNoteTextView(text: .constant(text), isEditable: false)
                             .frame(height: pageHeight * 0.58)
                     } else {
@@ -687,12 +670,49 @@ struct NoteDetailView: View {
     }
 
 
+    /// Only needed when the reading pane uses lazy blocks (long bodies): a short body is one view and can already be selected continuously.
+    private var currentPaneUnits: [MarkdownLazyUnit]? {
+        isEditingBody ? nil : (contentPane == 0 ? reading.primaryUnits : reading.secondaryUnits)
+    }
+
+    private func presentTextSelection() {
+        guard let units = currentPaneUnits else { return }
+        let source = contentPane == 0 ? reading.primary : reading.secondary
+        textSelection = NoteTextSelectionRequest(
+            text: source,
+            sourceLocation: NoteLazyMarkdownBody.sourceLocation(ofUnit: visibleUnits.top, units: units, in: source)
+        )
+    }
+
+    /// Long press on a block of the reading pane: opens the same panel, scrolled to the press and with that word preselected.
+    private func presentTextSelection(longPress: NoteLazyLongPress) {
+        guard let units = currentPaneUnits, units.indices.contains(longPress.unitIndex) else { return }
+        let source = contentPane == 0 ? reading.primary : reading.secondary
+        let range = NoteLazyMarkdownBody.selectionRange(for: longPress, units: units, in: source)
+        textSelection = NoteTextSelectionRequest(
+            text: source,
+            sourceLocation: range.location,
+            selectedSourceRange: range.length > 0 ? range : nil
+        )
+    }
+
     @ViewBuilder
     private func editControls(_ note: Note) -> some View {
-        if !note.isTrashed && contentPane == 0 {
+        let canEdit = !note.isTrashed && contentPane == 0
+        if canEdit || currentPaneUnits != nil {
             HStack(spacing: 8) {
                 Spacer()
-                if isEditingBody {
+                if currentPaneUnits != nil {
+                    editActionPill(
+                        title: L10n.tr("Select text", table: .notes), icon: "text.cursor",
+                        foreground: OriveoTheme.Palette.textSecondary,
+                        background: OriveoTheme.Palette.surfaceInset.opacity(0.75),
+                        border: OriveoTheme.Palette.hairline.opacity(0.42)
+                    ) { presentTextSelection() }
+                }
+                if !canEdit {
+                    EmptyView()
+                } else if isEditingBody {
                     editActionPill(
                         title: L10n.tr("Cancel", table: .notes), icon: "xmark",
                         foreground: OriveoTheme.Palette.textTertiary,
@@ -870,17 +890,26 @@ struct NoteDetailView: View {
         reloadToken &+= 1
         let token = reloadToken
         let id = noteID
+        let isDark = colorScheme == .dark
         Task { @MainActor in
             let fetched = await appState.noteManager.noteDetail(id: id)
+            // Deriving the reading content (readingMarkdown, lazy units) and the bounded viewport's
+            // display string (per-paragraph direction + soft breaks) are all O(n) over the body, so
+            // they run in the background and the view just takes them; main-thread cost does not grow with length.
+            let reading = await Task.detached(priority: .userInitiated) { NoteReadingContent(note: fetched) }.value
+            if let fetched {
+                await NoteBoundedDisplayCache.shared.prepare(sources: reading.boundedSources(editSource: fetched.body))
+                await NoteLazyMarkdownPrewarm.prepare(units: reading.primaryUnits, isDark: isDark)
+            }
             guard token == reloadToken else { return }
-            apply(fetched)
+            apply(fetched, reading: reading)
         }
     }
 
-    private func apply(_ fetched: Note?) {
+    private func apply(_ fetched: Note?, reading: NoteReadingContent) {
         note = fetched
         hasLoadedOnce = true
-        reading = NoteReadingContent(note: fetched)
+        self.reading = reading
         titleDraft = fetched?.title ?? ""
         if !isEditingBody { bodyDraft = fetched?.body ?? "" }
         contentPane = 0
@@ -992,22 +1021,63 @@ struct NoteDetailView: View {
     }
 }
 
-private struct NoteReadingContent: Equatable {
+nonisolated struct NoteReadingContent: Equatable, Sendable {
     var isCrosscheck = false
     var primary = ""
     var secondary = ""
     var primaryMarkdown = ""
     var secondaryMarkdown = ""
+    /// Whether the body is all whitespace: trimming the whole string on every body evaluation is an
+    /// O(n) copy, so it is computed once here.
+    var isPrimaryBlank = true
+    var isSecondaryBlank = true
+    /// Long bodies split along the renderer's own leaf views and handed to a lazy stack; nil means a
+    /// short body rendered as one view, or an over-long body that cannot be cut (handed to the bounded viewport).
+    var primaryUnits: [MarkdownLazyUnit]?
+    var secondaryUnits: [MarkdownLazyUnit]?
 
     init() {}
 
+    /// All whole-string scans (tens of milliseconds for an MB-sized body); `NoteDetailView.reload()` runs this in the background.
     init(note: Note?) {
         guard let note else { return }
         isCrosscheck = Self.isCrosscheck(note)
         primary = isCrosscheck ? Self.crosscheckContent(note.body) : note.body
         secondary = note.bodySnapshot ?? note.body
+        isPrimaryBlank = Self.isBlank(primary)
+        isSecondaryBlank = Self.isBlank(secondary)
         primaryMarkdown = NoteText.readingMarkdown(primary)
-        secondaryMarkdown = NoteText.readingMarkdown(secondary)
+        primaryUnits = NoteLazyMarkdownBody.units(markdown: primaryMarkdown)
+        // A snapshot equal to the body is never shown (there is no second pane), so don't compute it twice.
+        if secondary == primary {
+            secondaryMarkdown = primaryMarkdown
+            secondaryUnits = primaryUnits
+        } else {
+            secondaryMarkdown = NoteText.readingMarkdown(secondary)
+            secondaryUnits = NoteLazyMarkdownBody.units(markdown: secondaryMarkdown)
+        }
+    }
+
+    /// The source shown by the bounded viewport when the reading pane could not use lazy rich text.
+    func usesBoundedReader(pane: Int) -> Bool {
+        let text = pane == 0 ? primary : secondary
+        let units = pane == 0 ? primaryUnits : secondaryUnits
+        return units == nil && NoteText.requiresBoundedLayout(text)
+    }
+
+    /// Over-long strings that go through the bounded viewport: the source shown when entering edit mode,
+    /// the reading source of a pane that fell back to it, and the source Select Text puts whole into it from a lazy reading pane.
+    func boundedSources(editSource: String) -> [String] {
+        var sources: [String] = []
+        for source in [editSource, primary, secondary]
+            where NoteText.requiresBoundedLayout(source) && !sources.contains(source) {
+            sources.append(source)
+        }
+        return sources
+    }
+
+    private static func isBlank(_ text: String) -> Bool {
+        !text.unicodeScalars.contains { !CharacterSet.whitespacesAndNewlines.contains($0) }
     }
 
     static func isCrosscheck(_ note: Note) -> Bool {
@@ -1028,18 +1098,26 @@ struct BoundedNoteTextView: UIViewRepresentable {
     /// Read once when the view is built: takes back focus and the caret at the moment the editor is
     /// swapped in from `TextEditor` mid-edit.
     var focusTakeover: NoteBodyEditorSession.FocusTakeover?
+    /// Read once when the view is created: scrolls to this location in the stored source on open (Select Text continues from the reading pane's position).
+    var initialScrollSourceLocation: Int?
+    /// Read once when the view is created: the source range selected on open (the pressed word when entering by long press on the reading pane).
+    var initialSelectionSourceRange: NSRange?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(text: $text)
     }
 
     func makeUIView(context: Context) -> UITextView {
-        Self.makeTextView(
+        let view = Self.makeTextView(
             text: text,
             isEditable: isEditable,
             coordinator: context.coordinator,
             focusTakeover: focusTakeover
         )
+        if let initialScrollSourceLocation {
+            view.requestInitialScroll(sourceLocation: initialScrollSourceLocation, selecting: initialSelectionSourceRange)
+        }
+        return view
     }
 
     /// The single source of the production configuration, shared by makeUIView and the layout tests.
@@ -1087,7 +1165,7 @@ struct BoundedNoteTextView: UIViewRepresentable {
     }
 
     private static func apply(_ source: String, to textView: UITextView, coordinator: Coordinator) {
-        let display = displayText(for: source)
+        let display = NoteBoundedDisplayCache.shared.take(source) ?? displayText(for: source)
         if let bounded = textView as? BoundedNoteUITextView {
             bounded.setDisplayText(display)
         } else {
@@ -1096,7 +1174,7 @@ struct BoundedNoteTextView: UIViewRepresentable {
         coordinator.appliedSource = source
     }
 
-    private static let textAttributes: [NSAttributedString.Key: Any] = [
+    nonisolated(unsafe) private static let textAttributes: [NSAttributedString.Key: Any] = [
         .font: UIFont.systemFont(ofSize: 17),
         .foregroundColor: UIColor.label,
     ]
@@ -1109,7 +1187,7 @@ struct BoundedNoteTextView: UIViewRepresentable {
     ///   in full on every resize and edit. Directions are resolved first, then the text is split
     ///   into display paragraphs (see `NoteSoftParagraphBreaks`). The order matters: splitting
     ///   first would re-resolve the direction from the start of every block.
-    static func displayText(for source: String) -> NSAttributedString {
+    nonisolated static func displayText(for source: String) -> NSAttributedString {
         let string = NSMutableAttributedString(
             string: source,
             attributes: textAttributes
@@ -1139,5 +1217,132 @@ struct BoundedNoteTextView: UIViewRepresentable {
             guard textView.typingAttributes[NoteSoftParagraphBreaks.markerKey] != nil else { return }
             textView.typingAttributes.removeValue(forKey: NoteSoftParagraphBreaks.markerKey)
         }
+    }
+}
+
+/// Brand card background: white-to-lilac gradient, a brand glow at the top right, a glass
+/// highlight at the top and a crisp brand border.
+///
+/// The old drawing clipped the whole group (gradient + glow + highlight + border) to the card's
+/// rounded shape, so first-frame main-thread cost grew linearly with card height. The glow
+/// (240pt) and highlight (60pt) only land at the top of the card, so a tall card clips only that
+/// top strip to the same rounded shape; the gradient fill and border already sit inside the shape.
+/// Short cards keep the old drawing. The two paths are pixel-identical (see `NoteLazyMarkdownBodyTests`).
+struct NoteBrandCardBackground: View {
+    static let radialRadius: CGFloat = 240
+    private static var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: OriveoTheme.Radius.card, style: .continuous)
+    }
+
+    /// Cards taller than this are drawn in layers. For 1000-2200pt cards the gradient dither
+    /// differs from the old drawing by 1-4/255 (the old one dithers while compositing the whole
+    /// group offscreen), so shorter cards keep the old drawing and stay identical.
+    static let layeredMinimumHeight: CGFloat = 3_000
+
+    var body: some View {
+        GeometryReader { proxy in
+            if proxy.size.height > Self.layeredMinimumHeight {
+                layered(size: proxy.size)
+            } else {
+                Self.legacy
+            }
+        }
+    }
+
+    private static var fill: LinearGradient {
+        LinearGradient(
+            colors: [
+                Color.dynamic(light: 0xFFFFFF, dark: 0x1E2230),
+                Color.dynamic(light: 0xF1EBFD, dark: 0x232845)
+            ],
+            startPoint: .top, endPoint: .bottom
+        )
+    }
+
+    private static var radialGlow: RadialGradient {
+        RadialGradient(
+            colors: [OriveoTheme.Palette.primary.opacity(0.12), .clear],
+            center: .topTrailing, startRadius: 0, endRadius: radialRadius
+        )
+    }
+
+    private static var glassHighlight: some View {
+        shape
+            .fill(OriveoTheme.Palette.cardHighlight.opacity(0.5))
+            .frame(height: 60)
+            .mask(LinearGradient(colors: [.white, .clear], startPoint: .top, endPoint: .bottom))
+    }
+
+    private static var border: some View {
+        shape.strokeBorder(OriveoTheme.Palette.primary.opacity(0.12), lineWidth: 1)
+    }
+
+    /// The old drawing, still used for short cards.
+    static var legacy: some View {
+        shape
+            .fill(fill)
+            .overlay(radialGlow)
+            .overlay(alignment: .top) { glassHighlight }
+            .overlay(border)
+            .clipShape(shape)
+    }
+
+    /// Only the top `radialRadius` strip carries glow and highlight, so only that strip is drawn;
+    /// the clip path still comes from the full card shape (`CardTopClip`), so pixels match.
+    private func layered(size: CGSize) -> some View {
+        Self.shape
+            .fill(Self.fill)
+            .overlay(alignment: .top) {
+                ZStack(alignment: .top) {
+                    Self.radialGlow
+                    Self.glassHighlight
+                }
+                .frame(height: Self.radialRadius, alignment: .top)
+                .clipShape(CardTopClip(cardHeight: size.height))
+            }
+            .overlay(Self.border)
+    }
+}
+
+/// The full-card rounded path, drawn inside the top-strip view: the path is built from the full
+/// card height, and whatever falls outside the view simply has no effect.
+private struct CardTopClip: Shape {
+    let cardHeight: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        RoundedRectangle(cornerRadius: OriveoTheme.Radius.card, style: .continuous)
+            .path(in: CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: cardHeight))
+    }
+}
+
+/// Prepared display strings for the bounded viewport: after `NoteDetailView.reload()` reads the
+/// detail, the strings to show are laid out in the background and taken when the view is built.
+/// An entry is used only when the source matches (the display string for a source never changes,
+/// so it cannot go stale); only the latest few are kept (body / snapshot / edit source of one note).
+@MainActor
+final class NoteBoundedDisplayCache {
+    static let shared = NoteBoundedDisplayCache()
+
+    private struct Prepared: @unchecked Sendable {
+        let display: NSAttributedString
+    }
+
+    private static let capacity = 4
+    private var entries: [(source: String, display: NSAttributedString)] = []
+
+    func prepare(sources: [String]) async {
+        for source in sources where !entries.contains(where: { $0.source == source }) {
+            let prepared = await Task.detached(priority: .userInitiated) {
+                Prepared(display: BoundedNoteTextView.displayText(for: source))
+            }.value
+            entries.append((source, prepared.display))
+            if entries.count > Self.capacity { entries.removeFirst(entries.count - Self.capacity) }
+        }
+    }
+
+    /// A hit is not removed: reading then editing builds the view twice from the same source. The
+    /// view copies it into its own textStorage, so this instance is never mutated.
+    func take(_ source: String) -> NSAttributedString? {
+        entries.first(where: { $0.source == source })?.display
     }
 }
