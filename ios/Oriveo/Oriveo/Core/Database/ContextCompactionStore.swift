@@ -100,32 +100,58 @@ final class ContextCompactionStore: @unchecked Sendable {
     /// Deletes all checkpoints of this conversation and returns the deleted checkpointIds.
     @discardableResult
     nonisolated func deleteAll(conversationId: String) throws -> [String] {
-        let removed = try dbPool.write { db -> [String] in
-            let ids = try String.fetchAll(
-                db,
-                sql: "SELECT checkpointId FROM \(Self.table) WHERE conversationId = ? ORDER BY createdAt ASC, rowid ASC",
-                arguments: [conversationId]
-            )
-            try db.execute(sql: "DELETE FROM \(Self.table) WHERE conversationId = ?", arguments: [conversationId])
-            return ids
-        }
+        let removed = try dbPool.write { db in try Self.deleteAllRows(conversationId: conversationId, in: db) }
         if !removed.isEmpty { Self.postChange(conversationId: conversationId) }
         return removed
+    }
+
+    /// Same as `deleteAll`, but the write is queued on the GRDB writer and suspends (the panel's "Clear" runs on the main
+    /// thread and must not wait for the write lock there).
+    @discardableResult
+    nonisolated func deleteAllAsync(conversationId: String) async throws -> [String] {
+        let removed = try await dbPool.write { db in try Self.deleteAllRows(conversationId: conversationId, in: db) }
+        if !removed.isEmpty { Self.postChange(conversationId: conversationId) }
+        return removed
+    }
+
+    private nonisolated static func deleteAllRows(conversationId: String, in db: Database) throws -> [String] {
+        let ids = try String.fetchAll(
+            db,
+            sql: "SELECT checkpointId FROM \(table) WHERE conversationId = ? ORDER BY createdAt ASC, rowid ASC",
+            arguments: [conversationId]
+        )
+        try db.execute(sql: "DELETE FROM \(table) WHERE conversationId = ?", arguments: [conversationId])
+        return ids
     }
 
     /// Regenerating first deletes the latestValid row; returns the checkpointIds actually deleted.
     @discardableResult
     nonisolated func delete(conversationId: String, checkpointId: String) throws -> [String] {
-        let deleted = try dbPool.write { db -> Bool in
-            try db.execute(
-                sql: "DELETE FROM \(Self.table) WHERE conversationId = ? AND checkpointId = ?",
-                arguments: [conversationId, checkpointId]
-            )
-            return db.changesCount > 0
+        let deleted = try dbPool.write { db in
+            try Self.deleteRow(conversationId: conversationId, checkpointId: checkpointId, in: db)
         }
         guard deleted else { return [] }
         Self.postChange(conversationId: conversationId)
         return [checkpointId]
+    }
+
+    /// Same as `delete`, but the write suspends instead of holding the calling thread (regenerating starts on the main thread).
+    @discardableResult
+    nonisolated func deleteAsync(conversationId: String, checkpointId: String) async throws -> [String] {
+        let deleted = try await dbPool.write { db in
+            try Self.deleteRow(conversationId: conversationId, checkpointId: checkpointId, in: db)
+        }
+        guard deleted else { return [] }
+        Self.postChange(conversationId: conversationId)
+        return [checkpointId]
+    }
+
+    private nonisolated static func deleteRow(conversationId: String, checkpointId: String, in db: Database) throws -> Bool {
+        try db.execute(
+            sql: "DELETE FROM \(table) WHERE conversationId = ? AND checkpointId = ?",
+            arguments: [conversationId, checkpointId]
+        )
+        return db.changesCount > 0
     }
 
     private nonisolated static func postChange(conversationId: String) {

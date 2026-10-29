@@ -328,15 +328,16 @@ final class MemoryItemRepository {
 
     // MARK: Writes
 
+    // The database reads and writes of the writes below run in the background (as in `perform`), so the main thread never waits
+    // for the write lock; the legacy fields are dual-written and sync is woken only when something was actually written.
+
     /// Manual create; when layer = episodic it is created as L3 (occurredAt defaults to now, and conflicts are checked after saving).
     @discardableResult
     func create(
         kind: MemoryKind = .fact, content: String, pinned: Bool = false, layer: MemoryLayer = .semantic,
         occurredAt: String? = nil
-    ) throws -> MemoryItem {
-        let item = try writer().create(kind: kind, content: content, pinned: pinned, layer: layer, occurredAt: occurredAt)
-        didWriteLocally()
-        return item
+    ) async throws -> MemoryItem {
+        try await perform { try $0.create(kind: kind, content: content, pinned: pinned, layer: layer, occurredAt: occurredAt) }
     }
 
     /// Creates an item after a candidate is confirmed: the same create path as create (new id, pending, dual-write of the legacy fields), with fields taken from the draft.
@@ -350,25 +351,25 @@ final class MemoryItemRepository {
 
     /// Edits the content; when `kind` is non-nil the kind is changed too (settings editor); when `occurredAt` is non-nil the L3 date is changed.
     @discardableResult
-    func update(id: String, content: String, kind: MemoryKind? = nil, occurredAt: String? = nil) throws -> MemoryItem? {
-        try finish(writer().update(id: id, content: content, kind: kind, occurredAt: occurredAt))
+    func update(id: String, content: String, kind: MemoryKind? = nil, occurredAt: String? = nil) async throws -> MemoryItem? {
+        try await performIfWritten { try $0.update(id: id, content: content, kind: kind, occurredAt: occurredAt) }
     }
 
     @discardableResult
-    func setPinned(id: String, pinned: Bool) throws -> MemoryItem? {
-        try finish(writer().setPinned(id: id, pinned: pinned))
+    func setPinned(id: String, pinned: Bool) async throws -> MemoryItem? {
+        try await performIfWritten { try $0.setPinned(id: id, pinned: pinned) }
     }
 
     /// Changing to deleted is the same as remove (writes a tombstone).
     @discardableResult
-    func setStatus(id: String, status: MemoryStatus) throws -> MemoryItem? {
-        try finish(writer().setStatus(id: id, status: status))
+    func setStatus(id: String, status: MemoryStatus) async throws -> MemoryItem? {
+        try await performIfWritten { try $0.setStatus(id: id, status: status) }
     }
 
     /// Writes a tombstone; returns nil when the item does not exist or is already a tombstone.
     @discardableResult
-    func remove(id: String) throws -> MemoryItem? {
-        try finish(writer().remove(id: id))
+    func remove(id: String) async throws -> MemoryItem? {
+        try await performIfWritten { try $0.remove(id: id) }
     }
 
     /// Database reads and writes run on a background thread; back on the main thread the legacy fields are dual-written (all settings-page writes go through here, so the main thread never touches the database).
@@ -381,6 +382,22 @@ final class MemoryItemRepository {
         }.value
         dualWrite(items: all)
         notifyLocalChange()
+        return result
+    }
+
+    /// Same as `perform`, but a nil result (nothing written) skips the dual-write and the sync wake-up.
+    private func performIfWritten<T: Sendable>(
+        _ write: @escaping @Sendable (MemoryItemWriter) throws -> T?
+    ) async throws -> T? {
+        let writer = writer()
+        let (result, all) = try await Task.detached(priority: .userInitiated) {
+            let result = try write(writer)
+            return (result, result == nil ? nil : try writer.store.all())
+        }.value
+        if let all {
+            dualWrite(items: all)
+            notifyLocalChange()
+        }
         return result
     }
 
@@ -417,14 +434,20 @@ final class MemoryItemRepository {
     }
 
     /// Receives the guest partition's items on sign-in: tombstones are skipped, original ids are kept, items are marked pending; items whose id already exists in this partition are left alone. Returns the number written.
+    /// The insert runs in the background (the main thread never waits for the write lock); back on the main thread the legacy fields are dual-written and sync is woken.
     @discardableResult
-    func adoptGuestItems(_ items: [MemoryItem]) throws -> Int {
-        let inserted = try store.insertIfAbsent(items.filter { $0.status != .deleted }, syncState: .pending)
-        if !inserted.isEmpty {
-            dualWrite()
+    func adoptGuestItems(_ items: [MemoryItem]) async throws -> Int {
+        let store = self.store
+        let incoming = items.filter { $0.status != .deleted }
+        let (inserted, all) = try await Task.detached(priority: .userInitiated) {
+            let inserted = try store.insertIfAbsent(incoming, syncState: .pending)
+            return (inserted.count, inserted.isEmpty ? [] : try store.all())
+        }.value
+        if inserted > 0 {
+            dualWrite(items: all)
             notifyLocalChange()
         }
-        return inserted.count
+        return inserted
     }
 
     // MARK: Backup
@@ -500,8 +523,8 @@ final class MemoryItemRepository {
 
     /// Resolves a conflict: the kept item becomes active with conflictGroupId cleared, and the rest of the group are tombstoned. Returns nil if the item does not exist, is deleted, or is not in a conflict group.
     @discardableResult
-    func resolveConflict(keepId: String) throws -> MemoryItem? {
-        try finish(writer().resolveConflict(keepId: keepId))
+    func resolveConflict(keepId: String) async throws -> MemoryItem? {
+        try await performIfWritten { try $0.resolveConflict(keepId: keepId) }
     }
 
     /// L3 conflict resolution: rewrites local items with the two patches from `MemoryRecall.resolve` and deletes nothing.
@@ -509,25 +532,14 @@ final class MemoryItemRepository {
     @discardableResult
     func resolveL3Conflict(
         newerId: String, olderId: String, resolution: MemoryConflictResolution
-    ) throws -> [MemoryItem]? {
-        let written = try writer().resolveL3Conflict(newerId: newerId, olderId: olderId, resolution: resolution)
-        if written != nil { didWriteLocally() }
-        return written
+    ) async throws -> [MemoryItem]? {
+        try await performIfWritten {
+            try $0.resolveL3Conflict(newerId: newerId, olderId: olderId, resolution: resolution)
+        }
     }
 
     private func writer() -> MemoryItemWriter {
         MemoryItemWriter(store: store, deviceId: deviceId, timestamp: Self.timestamp(now()))
-    }
-
-    /// Dual-writes only when something was actually written (non-nil result).
-    private func finish(_ item: MemoryItem?) -> MemoryItem? {
-        if item != nil { didWriteLocally() }
-        return item
-    }
-
-    private func didWriteLocally() {
-        dualWrite()
-        notifyLocalChange()
     }
 
     private func notifyLocalChange() {

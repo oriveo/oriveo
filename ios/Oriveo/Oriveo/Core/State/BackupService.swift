@@ -1185,8 +1185,12 @@ enum BackupService {
         if drainPersistQueue {
             await appState.persistSessionNowOffMainThread(for: partitionUID)
         }
+        // The store instance is fixed here; the write runs in the background (the main thread never waits for the write lock).
+        let store = ContextCompactionStore.forPartition(partitionUID)
         do {
-            try importCheckpoints(rows, store: ContextCompactionStore.forPartition(partitionUID))
+            _ = try await Task.detached(priority: .userInitiated) {
+                try importCheckpoints(rows, store: store)
+            }.value
         } catch {
             print("[BackupService] import checkpoints failed: \(error.localizedDescription)")
         }

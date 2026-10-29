@@ -206,17 +206,17 @@ struct MemoryCandidateRepositoryTests {
 
     @Test func generate_skips_duplicate_active() async throws {
         let device = try Device(uid: "u1")
-        let existing = try device.items.create(kind: .fact, content: "  i  use   TYPESCRIPT ")
+        let existing = try await device.items.create(kind: .fact, content: "  i  use   TYPESCRIPT ")
 
         #expect(try await device.generate(Self.typeScriptText) == nil)
 
         // A paused item also counts as existing
-        try device.items.setStatus(id: existing.id, status: .paused)
+        try await device.items.setStatus(id: existing.id, status: .paused)
         #expect(try await device.generate(Self.typeScriptText, messageId: Self.messageB) == nil)
         #expect(try device.storedRows().isEmpty)
 
         // Once deleted it no longer counts
-        try device.items.remove(id: existing.id)
+        try await device.items.remove(id: existing.id)
         let candidate = try #require(try await device.generate(Self.typeScriptText, messageId: Self.messageC))
         #expect(candidate.content == "I use TypeScript")
     }
@@ -428,7 +428,7 @@ struct MemoryCandidateRepositoryTests {
         #expect(try await device.candidates.pending(nowMs: Self.now + 30) == latest + [second, first])
 
         // second's content already has an item (added elsewhere) -> superseded; first has expired -> expired; both rows are deleted
-        try device.items.create(kind: .fact, content: second.content)
+        try await device.items.create(kind: .fact, content: second.content)
         let swept = try await device.candidates.pending(nowMs: first.expiresAtMs)
 
         #expect(swept == latest)
@@ -581,7 +581,7 @@ struct MemoryCandidateRepositoryTests {
 
     @Test func propose_skips_duplicate_active_and_scopes_folder() async throws {
         let device = try Device(uid: "u1")
-        _ = try device.items.create(kind: .fact, content: "  i  use   TYPESCRIPT ")
+        _ = try await device.items.create(kind: .fact, content: "  i  use   TYPESCRIPT ")
         let typeScript = try Self.proposeArguments("I use TypeScript", kind: "fact", quote: "I use TypeScript")
 
         #expect(try await propose(device, typeScript, userText: Self.typeScriptText) == nil)

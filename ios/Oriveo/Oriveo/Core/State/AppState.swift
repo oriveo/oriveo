@@ -558,6 +558,7 @@ final class AppState {
     func drainPendingWrites() async {
         await memoryReconcileTail?.value
         await memoryItemUndoTail?.value
+        await useMemoryWriteTail?.value
         await waitForCheckpointInvalidations()
         await chatManager.waitForContextLedgerWrites()
         await noteManager.waitForPendingWrites()
@@ -1243,8 +1244,14 @@ final class AppState {
         }
     }
 
+    /// Blocks until the persist queue has drained (for tests).
+    /// Not `sync {}`: when the main thread dispatch_syncs onto an idle serial queue, libdispatch lets the calling thread run
+    /// the writes queued ahead itself, so the database writes would run on the main thread (a violation of the main-thread
+    /// write gate). Post a signal and wait for it on the main thread instead; the queued writes still run on the queue.
     func flushConversationPersistQueue() {
-        conversationPersistQueue.sync {}
+        let drained = DispatchSemaphore(value: 0)
+        conversationPersistQueue.async { drained.signal() }
+        drained.wait()
     }
 
     func currentModel(for conversation: Conversation) -> AIModel? {
@@ -3003,32 +3010,57 @@ final class AppState {
         let mirrorIndex = conversations.firstIndex(where: { $0.id == conversationID })
         let mirroredConversation = mirrorIndex.map { conversations[$0] }
 
-        do {
-            let refreshed = try conversationRuntimeBridge.setConversationUseMemory(
-                id: conversationID,
-                useMemory: useMemory,
-                uid: persistedUID
-            ) ?? {
-                guard var updated = mirroredConversation else { return nil }
-                updated.useMemory = useMemory
-                return try conversationRuntimeBridge.upsertConversation(updated, uid: persistedUID)
-            }()
+        // The in-memory mirror changes first; the write is queued on the conversation persist queue (serial with the other
+        // conversation writes, landing in call order), so the main thread never waits for the write lock. A failed write
+        // rolls the mirror back (unless the switch was flipped again meanwhile).
+        if let mirrorIndex { conversations[mirrorIndex].useMemory = useMemory }
+        let bridge = conversationRuntimeBridge
+        let outcome = ConversationPersistOutcome<Conversation?>()
+        conversationPersistQueue.async(qos: .userInitiated) {
+            outcome.fulfill(Result {
+                try bridge.setConversationUseMemory(id: conversationID, useMemory: useMemory, uid: persistedUID) ?? {
+                    guard var updated = mirroredConversation else { return nil }
+                    updated.useMemory = useMemory
+                    return try bridge.upsertConversation(updated, uid: persistedUID)
+                }()
+            })
+        }
+        let previous = useMemoryWriteTail
+        useMemoryWriteTail = Task { @MainActor [weak self] in
+            await previous?.value
+            let result = await outcome.value
+            guard let self, self.partitionIsStillBound(persistedUID) else { return }
+            self.finishConversationUseMemoryWrite(result, conversationID: conversationID, useMemory: useMemory)
+        }
+    }
 
-            guard let refreshed else { return }
-            let normalized = mirroredConversation.map {
-                normalizeRuntimeConversation(refreshed, preservingTimestampsFrom: $0)
-            } ?? refreshed
+    @ObservationIgnored private var useMemoryWriteTail: Task<Void, Never>?
 
-            if let mirrorIndex {
-                conversations[mirrorIndex] = normalized
-            } else {
-                conversations.insert(normalized, at: 0)
+    private func finishConversationUseMemoryWrite(
+        _ result: Result<Conversation?, Error>,
+        conversationID: UUID,
+        useMemory: Bool
+    ) {
+        let index = conversations.firstIndex(where: { $0.id == conversationID })
+        switch result {
+        case let .success(refreshed):
+            // Not in memory (only in the store): insert the row read back at the top, as the synchronous path did.
+            // When it is in memory the read-back row does not overwrite it: memory may have changed again while the write
+            // was queued, and the switch value is already set.
+            if let refreshed, index == nil { conversations.insert(refreshed, at: 0) }
+        case let .failure(error):
+            if let index, conversations[index].useMemory == useMemory {
+                conversations[index].useMemory = !useMemory
             }
-        } catch {
             #if DEBUG
             AppLog.error(error, module: "AppState", context: ["op": "setConversationUseMemory"])
             #endif
         }
+    }
+
+    /// Waits for the queued use-memory writes and their wrap-up (for tests).
+    func waitForConversationUseMemoryWrites() async {
+        await useMemoryWriteTail?.value
     }
 
     /// Open the Settings memory page; when `editItemId` is non-nil, the memory page edits that item right after appearing
@@ -3198,5 +3230,40 @@ private extension Conversation {
         summary.messages = []
         summary.messagesAreLoaded = false
         return summary
+    }
+}
+
+/// One result from the persist queue, handed back to the main thread for wrap-up: enqueueing happens synchronously on the
+/// caller's thread (keeping the order with other writes) and the main thread suspends for the result.
+nonisolated final class ConversationPersistOutcome<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var result: Result<Value, Error>?
+    private var continuation: CheckedContinuation<Result<Value, Error>, Never>?
+
+    func fulfill(_ result: Result<Value, Error>) {
+        lock.lock()
+        if let continuation {
+            self.continuation = nil
+            lock.unlock()
+            continuation.resume(returning: result)
+        } else {
+            self.result = result
+            lock.unlock()
+        }
+    }
+
+    var value: Result<Value, Error> {
+        get async {
+            await withCheckedContinuation { continuation in
+                lock.lock()
+                if let result {
+                    lock.unlock()
+                    continuation.resume(returning: result)
+                } else {
+                    self.continuation = continuation
+                    lock.unlock()
+                }
+            }
+        }
     }
 }

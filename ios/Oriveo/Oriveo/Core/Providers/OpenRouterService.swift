@@ -571,7 +571,7 @@ final class OpenRouterService: BaseAPIService, ProviderServiceProtocol, BalanceQ
                 reasoningDetails: replayReasoningDetails,
                 toolCalls: replayToolCalls
            ), let encoded = RecipeContinuationRuntime.jsonValue([replayMessage]) {
-            try RecipeContinuationRuntime.save(
+            try await RecipeContinuationRuntime.save(
                 messageID: requestOptions.localContinuationMessageID,
                 recipe: continuationRecipe,
                 state: ["assistantMessages": encoded]
@@ -815,7 +815,7 @@ final class OpenRouterService: BaseAPIService, ProviderServiceProtocol, BalanceQ
                        let replayMessage = replayAccumulator.completedAssistantMessage(
                             content: accumulatedText
                        ), let encoded = RecipeContinuationRuntime.jsonValue([replayMessage]) {
-                        try RecipeContinuationRuntime.save(
+                        try await RecipeContinuationRuntime.save(
                             messageID: requestOptions.localContinuationMessageID,
                             recipe: continuationRecipe,
                             state: ["assistantMessages": encoded]

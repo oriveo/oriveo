@@ -79,7 +79,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
         if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            let blocks = object["content"] as? [[String: Any]],
            let encoded = RecipeContinuationRuntime.jsonValue(blocks) {
-            try RecipeContinuationRuntime.save(
+            try await RecipeContinuationRuntime.save(
                 messageID: requestOptions.localContinuationMessageID,
                 recipe: continuationRecipe,
                 state: ["blocks": encoded]
@@ -321,7 +321,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
                        let blocks = Self.completeReplayBlocks(
                             blocks: replayBlocks, order: replayBlockOrder, inputJSON: replayInputJSON
                        ), let encoded = RecipeContinuationRuntime.jsonValue(blocks) {
-                        try RecipeContinuationRuntime.save(
+                        try await RecipeContinuationRuntime.save(
                             messageID: requestOptions.localContinuationMessageID,
                             recipe: continuationRecipe,
                             state: ["blocks": encoded]

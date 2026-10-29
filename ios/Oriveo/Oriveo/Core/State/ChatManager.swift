@@ -2155,10 +2155,10 @@ final class ChatManager {
 
     /// Deletes all checkpoints of this conversation. nil when the store cannot be opened or the deletion fails.
     @discardableResult
-    func clearCompaction(conversationId conversationID: UUID) -> ContextCompactionToast? {
+    func clearCompaction(conversationId conversationID: UUID) async -> ContextCompactionToast? {
         guard let store = ContextCompactionStore.forPartition(appState.sessionPartitionUID) else { return nil }
         do {
-            _ = try store.deleteAll(conversationId: conversationID.uuidString)
+            _ = try await store.deleteAllAsync(conversationId: conversationID.uuidString)
             return .cleared
         } catch {
             print("[ChatManager] checkpoint deleteAll failed: \(error.localizedDescription)")
@@ -2176,7 +2176,7 @@ final class ChatManager {
             }
             do {
                 if let latest = try store.latestValid(conversationId: conversationID.uuidString, history: history) {
-                    _ = try store.delete(
+                    _ = try await store.deleteAsync(
                         conversationId: conversationID.uuidString,
                         checkpointId: latest.checkpointId
                     )

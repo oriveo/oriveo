@@ -69,7 +69,7 @@ final class MoonshotService: BaseAPIService, ProviderServiceProtocol, CustomBase
             continuationKind: "replay_reasoning", parser: { $0 == "moonshot_reasoning_v1" }
         )
         if let encoded = RecipeContinuationRuntime.jsonValue([Self.assistantReplayMessage(choice.message)]) {
-            try RecipeContinuationRuntime.save(
+            try await RecipeContinuationRuntime.save(
                 messageID: requestOptions.localContinuationMessageID, recipe: continuationRecipe,
                 state: ["assistantMessages": encoded]
             )
@@ -249,7 +249,7 @@ final class MoonshotService: BaseAPIService, ProviderServiceProtocol, CustomBase
                         limits: ToolCallLoop.Limits(maxSteps: maxToolLoops),
                         includesReasoningInAssistantMessage: true,
                         onUnhandledToolCalls: { calls in continuation.yield(.toolCallDeltas(calls)) },
-                        onLegCompleted: { record in try await MainActor.run { try persistence.save(record) } }
+                        onLegCompleted: { record in try await persistence.save(record) }
                     )
                     let progress = MoonshotLoopProgress()
                     let onProgress: ToolCallLoop.ProgressHandler = { event in
@@ -330,7 +330,7 @@ final class MoonshotService: BaseAPIService, ProviderServiceProtocol, CustomBase
                         "content": accumulatedText,
                         "reasoning_content": accumulatedReasoning,
                     ]]) {
-                        try RecipeContinuationRuntime.save(
+                        try await RecipeContinuationRuntime.save(
                             messageID: requestOptions.localContinuationMessageID,
                             recipe: reasoningReplayRecipe, state: ["assistantMessages": encoded]
                         )

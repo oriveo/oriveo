@@ -106,21 +106,21 @@ struct MemoryItemRepositoryTests {
         let device = try Device(uid: "u1", deviceId: "device-a", preferences: prefs("Alpha"))
         try await device.repository.reconcileLegacy()
 
-        let beta = try device.repository.create(kind: .preference, content: "Beta")
+        let beta = try await device.repository.create(kind: .preference, content: "Beta")
         #expect(device.preferences.memoryText == "Alpha\n\nBeta")
         #expect(device.preferences.memoryTextDigest == MemoryItems.sha256Hex("Alpha\n\nBeta"))
         #expect(device.preferences.memoryUpdatedAt != Date(timeIntervalSince1970: 1_760_000_000))
 
-        try device.repository.setPinned(id: beta.id, pinned: true)
+        try await device.repository.setPinned(id: beta.id, pinned: true)
         #expect(device.preferences.memoryText == "Beta\n\nAlpha")
 
-        try device.repository.setStatus(id: beta.id, status: .paused)
+        try await device.repository.setStatus(id: beta.id, status: .paused)
         #expect(device.preferences.memoryText == "Alpha")
         #expect(device.preferences.memoryAntiForgetText.isEmpty)
 
         // Nothing is written when the compiled result is unchanged
         let writesBefore = device.writes
-        try device.repository.update(id: beta.id, content: "Beta 2")
+        try await device.repository.update(id: beta.id, content: "Beta 2")
         #expect(device.writes == writesBefore)
 
         // The digest stays in the same group as memoryText
@@ -161,10 +161,10 @@ struct MemoryItemRepositoryTests {
     @Test func deleteWritesTombstone() async throws {
         let device = try Device(uid: "u1", deviceId: "device-a", preferences: prefs(""))
         try await device.repository.reconcileLegacy()
-        let created = try device.repository.create(content: "Gamma")
+        let created = try await device.repository.create(content: "Gamma")
         #expect(device.preferences.memoryText == "Gamma")
 
-        let tombstone = try #require(try device.repository.remove(id: created.id))
+        let tombstone = try #require(try await device.repository.remove(id: created.id))
         let stored = try #require(device.repository.allItems().first { $0.id == created.id })
         #expect(stored == tombstone)
         #expect(stored.status == .deleted)
@@ -175,16 +175,16 @@ struct MemoryItemRepositoryTests {
         #expect(stored.baseRevision == stored.revision)
         #expect(device.repository.syncState(id: created.id) == .pending)
         #expect(device.repository.list().isEmpty)
-        #expect(try device.repository.remove(id: created.id) == nil)
+        #expect(try await device.repository.remove(id: created.id) == nil)
 
         // An empty compiled result is dual-written as well
         #expect(device.preferences.memoryText.isEmpty)
         #expect(device.preferences.memoryTextDigest == MemoryItems.sha256Hex(""))
     }
 
-    @Test func editMarksPending() throws {
+    @Test func editMarksPending() async throws {
         let device = try Device(uid: "u1", deviceId: "device-a", preferences: prefs(""))
-        let created = try device.repository.create(kind: .instruction, content: "Use metric units")
+        let created = try await device.repository.create(kind: .instruction, content: "Use metric units")
         #expect(created.id == created.id.lowercased())
         #expect(created.mutationId == created.mutationId.lowercased())
         #expect(created.deviceId == "device-a")
@@ -192,7 +192,7 @@ struct MemoryItemRepositoryTests {
         try device.repository.store.setSyncState(.synced, id: created.id)
         #expect(device.repository.syncState(id: created.id) == .synced)
 
-        let edited = try #require(try device.repository.update(id: created.id, content: "Use SI units"))
+        let edited = try #require(try await device.repository.update(id: created.id, content: "Use SI units"))
         #expect(edited.content == "Use SI units")
         #expect(edited.mutationId != created.mutationId)
         #expect(edited.mutationId == edited.mutationId.lowercased())
@@ -205,13 +205,13 @@ struct MemoryItemRepositoryTests {
 
     // MARK: L3 writes (occurredAt, conflicts, resolution)
 
-    @Test func l3CreateSetsOccurredAtNow() throws {
+    @Test func l3CreateSetsOccurredAtNow() async throws {
         let device = try Device(uid: "u1", deviceId: "device-a", preferences: prefs(""))
-        let semantic = try device.repository.create(kind: .fact, content: "Lives in Berlin")
+        let semantic = try await device.repository.create(kind: .fact, content: "Lives in Berlin")
         #expect(semantic.layer == .semantic)
         #expect(semantic.occurredAt == nil)
 
-        let manual = try device.repository.create(kind: .decision, content: "Chose the blue logo", layer: .episodic)
+        let manual = try await device.repository.create(kind: .decision, content: "Chose the blue logo", layer: .episodic)
         #expect(manual.layer == .episodic)
         #expect(manual.occurredAt != nil)
         #expect(manual.occurredAt == manual.createdAt)
@@ -233,18 +233,18 @@ struct MemoryItemRepositoryTests {
         #expect(accepted?.source.observedAt == "2026-10-16T08:00:00Z")
     }
 
-    @Test func l3ConflictMarksBothAndResolves() throws {
+    @Test func l3ConflictMarksBothAndResolves() async throws {
         let device = try Device(uid: "u1", deviceId: "device-a", preferences: prefs(""))
-        let older = try device.repository.create(
+        let older = try await device.repository.create(
             kind: .decision, content: "Decided the saga ends in 1453 in Constantinople", layer: .episodic
         )
         #expect(older.status == .active)
         // Different kind or semantic layer with the same text: neither counts as a conflict
-        _ = try device.repository.create(kind: .event, content: "Decided the saga ends in 1460 in Constantinople", layer: .episodic)
-        _ = try device.repository.create(kind: .decision, content: "Decided the saga ends in 1460 in Constantinople")
+        _ = try await device.repository.create(kind: .event, content: "Decided the saga ends in 1460 in Constantinople", layer: .episodic)
+        _ = try await device.repository.create(kind: .decision, content: "Decided the saga ends in 1460 in Constantinople")
         #expect(try device.repository.store.item(id: older.id)?.status == .active)
 
-        let newer = try device.repository.create(
+        let newer = try await device.repository.create(
             kind: .decision, content: "Decided the saga ends in 1460 in Constantinople", layer: .episodic
         )
         #expect(newer.status == .conflicted)
@@ -255,7 +255,7 @@ struct MemoryItemRepositoryTests {
         #expect(storedOlder.mutationId != older.mutationId)
         #expect(try device.repository.store.item(id: newer.id)?.status == .conflicted)
 
-        let resolved = try #require(try device.repository.resolveL3Conflict(
+        let resolved = try #require(try await device.repository.resolveL3Conflict(
             newerId: newer.id, olderId: older.id, resolution: .useNew
         ))
         #expect(resolved.map(\.id) == [newer.id, older.id])
@@ -269,19 +269,19 @@ struct MemoryItemRepositoryTests {
         #expect(device.repository.syncState(id: newer.id) == .pending)
         // Resolution does not delete items
         #expect(device.repository.list().contains { $0.id == older.id })
-        #expect(try device.repository.resolveL3Conflict(newerId: newer.id, olderId: "missing", resolution: .keepBoth) == nil)
+        #expect(try await device.repository.resolveL3Conflict(newerId: newer.id, olderId: "missing", resolution: .keepBoth) == nil)
     }
 
     /// Editing L3 text locally does not bump the revision: the recall index cache must still be rebuilt accordingly, and the recall results change with it.
     @Test func l3EditRebuildsRecallIndex() async throws {
         let device = try Device(uid: "u1", deviceId: "device-a", preferences: prefs(""))
-        let item = try device.repository.create(kind: .decision, content: "Chose the blue logo", layer: .episodic)
+        let item = try await device.repository.create(kind: .decision, content: "Chose the blue logo", layer: .episodic)
         let cache = MemoryRecallIndexCache()
         let context = MemoryRecallContext(conversationId: "c1", folderId: nil, nowMs: 1_792_195_200_000)
         let before = await cache.recall(items: device.repository.list(), query: "chose the blue logo", context: context)
         #expect(before.map(\.id) == [item.id])
 
-        let edited = try #require(try device.repository.update(id: item.id, content: "Picked Venice for the epilogue"))
+        let edited = try #require(try await device.repository.update(id: item.id, content: "Picked Venice for the epilogue"))
         #expect(edited.revision == item.revision)
         let stale = await cache.recall(items: device.repository.list(), query: "chose the blue logo", context: context)
         #expect(stale.isEmpty)

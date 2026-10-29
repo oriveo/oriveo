@@ -420,7 +420,7 @@ struct ContextCompactionStoreTests {
         }
     }
 
-    @Test func backup_roundtrip_includes_checkpoints() throws {
+    @Test func backup_roundtrip_includes_checkpoints() async throws {
         let source = try McpTestDatabase.make()
         defer { source.cleanUp() }
         let sourceStore = ContextCompactionStore(dbPool: source.pool)
@@ -468,7 +468,9 @@ struct ContextCompactionStoreTests {
         stale.text = "stale"
         try targetStore.save(stale)
 
-        let imported = try BackupService.importCheckpoints(decoded.checkpoints, store: targetStore)
+        // Production writes in the background (synchronous main-thread writes are forbidden), so the test calls it there too.
+        let checkpoints = decoded.checkpoints
+        let imported = try await Task.detached { try BackupService.importCheckpoints(checkpoints, store: targetStore) }.value
         #expect(imported == 2)
         #expect(try targetStore.list(conversationId: kept) == [summary, fallback])
         #expect(try targetStore.list(conversationId: orphan).isEmpty)

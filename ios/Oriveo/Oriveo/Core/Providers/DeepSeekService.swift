@@ -57,7 +57,7 @@ final class DeepSeekService: BaseAPIService, ProviderServiceProtocol, BalanceQue
         if let encoded = RecipeContinuationRuntime.jsonValue([
             Self.assistantReplayMessage(choice.message)
         ]) {
-            try RecipeContinuationRuntime.save(
+            try await RecipeContinuationRuntime.save(
                 messageID: requestOptions.localContinuationMessageID,
                 recipe: continuationRecipe,
                 state: ["assistantMessages": encoded]
@@ -173,7 +173,7 @@ final class DeepSeekService: BaseAPIService, ProviderServiceProtocol, BalanceQue
                         reasoningContent: streamState.accumulatedReasoning,
                         toolCalls: streamState.toolCalls
                     )]) {
-                        try RecipeContinuationRuntime.save(
+                        try await RecipeContinuationRuntime.save(
                             messageID: requestOptions.localContinuationMessageID,
                             recipe: continuationRecipe,
                             state: ["assistantMessages": encoded]

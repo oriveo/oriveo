@@ -171,13 +171,14 @@ enum RecipeContinuationRuntime {
         return messages.count == values.count && !messages.isEmpty ? messages : nil
     }
 
+    /// The write suspends for the write lock instead of blocking the main thread on it.
     static func save(
         messageID: UUID?,
         recipe: MetadataClient.CapabilityRecipe?,
         state: [String: MetadataClient.JSONValue]
-    ) throws {
+    ) async throws {
         guard let messageID, let recipe, !state.isEmpty else { return }
-        try store().save(
+        try await store().saveAsync(
             messageID: messageID,
             kind: recipe.continuationKind ?? "",
             state: state

@@ -38,8 +38,8 @@ nonisolated final class RecipeContinuationStore: @unchecked Sendable {
         try Self.prepareSchema(in: dbPool)
     }
 
-    /// Same store over a pool whose schema is already prepared. The shared local-only pool runs
-    /// `prepareSchema` once at creation, so per-call stores must not repeat that write.
+    /// Same store over the shared local-only pool. Its table is created by the first write (every
+    /// write runs `ensureTable`), so per-call stores never write on open.
     private init(preparedPool: DatabasePool, parentPool: DatabasePool?) {
         dbPool = preparedPool
         self.parentPool = parentPool
@@ -69,6 +69,7 @@ nonisolated final class RecipeContinuationStore: @unchecked Sendable {
             return nil
         }
         return try dbPool.read { db -> Snapshot? in
+            guard try db.tableExists("message_recipe_continuation") else { return nil }
             guard let row = try Row.fetchOne(
                 db, sql: "SELECT kind, stateJSON, interrupted, launchToken, updatedAt FROM message_recipe_continuation WHERE messageID = ?",
                 arguments: [messageID.uuidString]
@@ -90,15 +91,31 @@ nonisolated final class RecipeContinuationStore: @unchecked Sendable {
     func save(messageID: UUID, kind: String, state: [String: MetadataClient.JSONValue], interrupted: Bool = false) throws {
         let raw = String(decoding: try JSONEncoder().encode(state), as: UTF8.self)
         try dbPool.write { db in
-            try db.execute(sql: """
-                INSERT INTO message_recipe_continuation(messageID, kind, stateJSON, interrupted, launchToken, updatedAt)
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT(messageID) DO UPDATE SET
-                    kind = excluded.kind, stateJSON = excluded.stateJSON,
-                    interrupted = excluded.interrupted, launchToken = excluded.launchToken,
-                    updatedAt = excluded.updatedAt
-                """, arguments: [messageID.uuidString, kind, raw, interrupted ? 1 : 0, Self.launchToken, Self.nextRevision()])
+            try Self.ensureTable(in: db)
+            try Self.upsertRow(messageID: messageID, kind: kind, raw: raw, interrupted: interrupted, in: db)
         }
+    }
+
+    /// Same as `save`, but the write is queued on the GRDB writer and suspends instead of holding the calling thread (an answer's
+    /// wrap-up saves continuation state on the main thread). Enqueueing fixes the order: later interrupt marks and consumption
+    /// acknowledgements queue behind it, and it is readable once this returns.
+    func saveAsync(messageID: UUID, kind: String, state: [String: MetadataClient.JSONValue], interrupted: Bool = false) async throws {
+        let raw = String(decoding: try JSONEncoder().encode(state), as: UTF8.self)
+        try await dbPool.write { db in
+            try Self.ensureTable(in: db)
+            try Self.upsertRow(messageID: messageID, kind: kind, raw: raw, interrupted: interrupted, in: db)
+        }
+    }
+
+    private static func upsertRow(messageID: UUID, kind: String, raw: String, interrupted: Bool, in db: Database) throws {
+        try db.execute(sql: """
+            INSERT INTO message_recipe_continuation(messageID, kind, stateJSON, interrupted, launchToken, updatedAt)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(messageID) DO UPDATE SET
+                kind = excluded.kind, stateJSON = excluded.stateJSON,
+                interrupted = excluded.interrupted, launchToken = excluded.launchToken,
+                updatedAt = excluded.updatedAt
+            """, arguments: [messageID.uuidString, kind, raw, interrupted ? 1 : 0, launchToken, nextRevision()])
     }
 
     /// Queued on the writer without waiting for the result: enqueue order is commit order (the GRDB writer is
@@ -113,6 +130,7 @@ nonisolated final class RecipeContinuationStore: @unchecked Sendable {
     @discardableResult
     func discard(_ token: ConsumptionToken) throws -> Bool {
         try dbPool.write { db in
+            try Self.ensureTable(in: db)
             try db.execute(
                 sql: "DELETE FROM message_recipe_continuation WHERE messageID = ? AND launchToken = ? AND updatedAt = ?",
                 arguments: [token.messageID.uuidString, Self.launchToken, token.revision]
@@ -126,6 +144,7 @@ nonisolated final class RecipeContinuationStore: @unchecked Sendable {
     @discardableResult
     func discardAsync(_ token: ConsumptionToken) async throws -> Bool {
         try await dbPool.write { db in
+            try Self.ensureTable(in: db)
             try db.execute(
                 sql: "DELETE FROM message_recipe_continuation WHERE messageID = ? AND launchToken = ? AND updatedAt = ?",
                 arguments: [token.messageID.uuidString, Self.launchToken, token.revision]
@@ -141,6 +160,7 @@ nonisolated final class RecipeContinuationStore: @unchecked Sendable {
         let id = messageID.uuidString
         // The revision is taken on the writer so it is monotonic in commit order, like `save`, not enqueue time.
         dbPool.asyncWrite({ db in
+            try Self.ensureTable(in: db)
             try db.execute(
                 sql: "UPDATE message_recipe_continuation SET interrupted = 1, updatedAt = ? WHERE messageID = ?",
                 arguments: [Self.nextRevision(), id]
@@ -151,14 +171,19 @@ nonisolated final class RecipeContinuationStore: @unchecked Sendable {
     /// `replaceAll` atomically replaces the parent message set. Sidecars are intentionally in a
     /// separate no-backup database, so sweep orphaned IDs after that transaction instead of using
     /// a cross-database FK or copying opaque JSON back into the primary database.
+    ///
+    /// Rows from other launches and rows whose parent message is gone are read once and deleted once; nothing to delete means no
+    /// write (this runs after every conversation write).
     func purgeMissingParentMessages() throws {
-        try purgeOtherLaunches()
-        guard let parentPool else { return }
-        let ids = try dbPool.read { db in
-            try String.fetchAll(db, sql: "SELECT messageID FROM message_recipe_continuation")
+        let rows = try dbPool.read { db -> [(id: String, current: Bool)] in
+            guard try db.tableExists("message_recipe_continuation") else { return [] }
+            return try Row.fetchAll(db, sql: "SELECT messageID, launchToken FROM message_recipe_continuation").map { row in
+                (id: row["messageID"], current: (row["launchToken"] as String?) == Self.launchToken)
+            }
         }
-        guard !ids.isEmpty else { return }
-        var missing: [String] = []
+        var missing = rows.filter { !$0.current }.map(\.id)
+        let ids = rows.filter(\.current).map(\.id)
+        if let parentPool {
         for chunk in ids.chunked(into: 500) {
             let existing = try parentPool.read { db in
                 try Set(String.fetchAll(
@@ -168,6 +193,7 @@ nonisolated final class RecipeContinuationStore: @unchecked Sendable {
                 ))
             }
             missing.append(contentsOf: chunk.filter { !existing.contains($0) })
+        }
         }
         guard !missing.isEmpty else { return }
         try dbPool.write { db in for chunk in missing.chunked(into: 500) {
@@ -199,15 +225,6 @@ nonisolated final class RecipeContinuationStore: @unchecked Sendable {
         let wallMicroseconds = (Date().timeIntervalSince1970 * 1_000_000).rounded(.down)
         lastRevision = max(wallMicroseconds, lastRevision + 1)
         return lastRevision
-    }
-
-    private func purgeOtherLaunches() throws {
-        try dbPool.write { db in
-            try db.execute(
-                sql: "DELETE FROM message_recipe_continuation WHERE launchToken != ?",
-                arguments: [Self.launchToken]
-            )
-        }
     }
 
     /// The local-only sidecar pool, opened at most once per uid.
@@ -249,13 +266,21 @@ nonisolated final class RecipeContinuationStore: @unchecked Sendable {
             path: directory.appendingPathComponent("recipe-continuation.sqlite").path,
             configuration: DatabaseSchema.makeConfiguration()
         )
-        try prepareSchema(in: pool)
+        // No table is created on open: the first open often happens on the main thread (the send path reads continuations), and
+        // creating the table is a write. The first write (always in the background / on the write queue) creates it, and reads
+        // treat a missing table as no data.
         #if DEBUG
         poolOpenCount += 1
         #endif
         cachedPoolUID = uid
         cachedPool = pool
         return pool
+    }
+
+    /// Opens this uid's sidecar connection while the partition database is prewarmed in the background, so the first use on
+    /// the main thread does not have to connect. Failures are ignored: it opens on use as before.
+    static func prewarmLocalOnlyPool(for uid: String) {
+        _ = try? localOnlyPool(for: uid)
     }
 
     /// Drop the cached pool on logout / uid switch. Mirrors `DatabaseManager.close()`: the
@@ -290,18 +315,20 @@ nonisolated final class RecipeContinuationStore: @unchecked Sendable {
     #endif
 
     private static func prepareSchema(in pool: DatabasePool) throws {
-        try pool.write { db in
-            try db.execute(sql: """
-                CREATE TABLE IF NOT EXISTS message_recipe_continuation (
-                    messageID TEXT PRIMARY KEY NOT NULL,
-                    kind TEXT NOT NULL,
-                    stateJSON TEXT NOT NULL,
-                    interrupted INTEGER NOT NULL DEFAULT 0,
-                    launchToken TEXT NOT NULL,
-                    updatedAt REAL NOT NULL
-                )
-                """)
-        }
+        try pool.write { db in try ensureTable(in: db) }
+    }
+
+    private static func ensureTable(in db: Database) throws {
+        try db.execute(sql: """
+            CREATE TABLE IF NOT EXISTS message_recipe_continuation (
+                messageID TEXT PRIMARY KEY NOT NULL,
+                kind TEXT NOT NULL,
+                stateJSON TEXT NOT NULL,
+                interrupted INTEGER NOT NULL DEFAULT 0,
+                launchToken TEXT NOT NULL,
+                updatedAt REAL NOT NULL
+            )
+            """)
     }
 }
 

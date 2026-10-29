@@ -85,10 +85,10 @@ struct BackupMemoryItemsTests {
 
     @Test func roundTripReplace() async throws {
         let source = try Device()
-        let kept = try source.repository.create(content: "Lives in Berlin")
-        _ = try source.repository.create(kind: .instruction, content: "Answer briefly", pinned: true)
-        let removed = try source.repository.create(content: "Old project")
-        _ = try source.repository.remove(id: removed.id)
+        let kept = try await source.repository.create(content: "Lives in Berlin")
+        _ = try await source.repository.create(kind: .instruction, content: "Answer briefly", pinned: true)
+        let removed = try await source.repository.create(content: "Old project")
+        _ = try await source.repository.remove(id: removed.id)
 
         let section = try #require(try BackupService.backupMemorySection(store: source.store))
         let exported = try Self.roundTrip(BackupData(
@@ -99,7 +99,7 @@ struct BackupMemoryItemsTests {
         #expect(exported.memoryItems?.contains { $0.id == removed.id && $0.status == .deleted } == true)
 
         let target = try Device(uid: "u1", deviceId: "device-b")
-        let stale = try target.repository.create(content: "Only on target")
+        let stale = try await target.repository.create(content: "Only on target")
         target.writes = 0
         target.wakeups = 0
 

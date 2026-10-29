@@ -333,7 +333,10 @@ final class MessageWindowLoader {
                 return
             }
             let store = ConversationStore(dbPool: dbPool, attachmentFileStore: attachmentFileStore)
-            try? store.upsertHydratedMessages(remoteMessages, conversationID: conversationID)
+            // This Task inherits the main actor: the write runs in the background instead of waiting for the write lock there.
+            try? await Task.detached(priority: .userInitiated) {
+                try store.upsertHydratedMessages(remoteMessages, conversationID: conversationID)
+            }.value
             await MainActor.run {
                 guard self?.observedConversationID == conversationID else { return }
                 self?.pendingRemoteAnchorHydrations.remove(messageID)
