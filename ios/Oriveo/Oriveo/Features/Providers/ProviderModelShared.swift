@@ -27,7 +27,38 @@ enum RelayCatalogMembership {
                 return
             }
             // Relay only: uses the same literal key as the relay branch of `modelsShareSameRemoteModel`.
-            identifiers = Set(provider.catalogModels.map { ModelResolver.relayIdentityKey($0.id) })
+            identifiers = IdentifierCache.shared.identifiers(providerID: provider.id, catalog: provider.catalogModels)
+        }
+
+        /// The added-models section builds an Index on every body pass, and normalizing the whole
+        /// catalog entry by entry is O(catalog size) (relay catalogs can run to tens of thousands).
+        /// Enabling or removing a model changes `models`, not the catalog, so the key set of the last
+        /// catalog is cached per connection; when the catalog array shares storage, equality takes the
+        /// identity fast path. Without the cache, every removal on the model library page re-normalizes
+        /// the whole catalog several times on the main thread.
+        nonisolated final class IdentifierCache: @unchecked Sendable {
+            static let shared = IdentifierCache()
+
+            private let lock = NSLock()
+            private var entries: [UUID: (catalog: [AIModel], identifiers: Set<String>)] = [:]
+            #if DEBUG
+            /// DEBUG only: how many times the whole catalog was normalized again.
+            private(set) var debugBuildCount = 0
+            #endif
+
+            func identifiers(providerID: UUID, catalog: [AIModel]) -> Set<String> {
+                if let hit = lock.withLock({ entries[providerID] }), hit.catalog == catalog {
+                    return hit.identifiers
+                }
+                let identifiers = Set(catalog.map { ModelResolver.relayIdentityKey($0.id) })
+                lock.withLock {
+                    entries[providerID] = (catalog, identifiers)
+                    #if DEBUG
+                    debugBuildCount += 1
+                    #endif
+                }
+                return identifiers
+            }
         }
 
         func isMissingEnabledModel(_ model: AIModel) -> Bool {

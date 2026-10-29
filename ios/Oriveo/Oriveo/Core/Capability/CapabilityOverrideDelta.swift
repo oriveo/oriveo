@@ -123,7 +123,6 @@ nonisolated enum CapabilityOverrideNormalizer {
 
         var overrides = stored ?? CapabilityOverrides()
         var kept = legacy
-        let setAt = CapabilityOverrideClock.format(now)
 
         if var remaining = kept {
             for (legacyKey, key) in legacyMigration {
@@ -132,7 +131,10 @@ nonisolated enum CapabilityOverrideNormalizer {
                 if overrides[key] == nil {
                     overrides[key] = CapabilityOverrideDelta(
                         op: value ? .add : .remove,
-                        setAt: setAt,
+                        // Format only when a migration actually happens: this runs inside every capability
+                        // projection (each model row × each capability), and each format builds a new
+                        // ISO8601 formatter, so computing it up front is pure waste on a hot path.
+                        setAt: CapabilityOverrideClock.format(now),
                         baseVerdict: serverVerdict[key] ?? "unknown"
                     )
                 }
@@ -147,8 +149,16 @@ nonisolated enum CapabilityOverrideNormalizer {
 
 /// Reading and writing setAt: ISO8601 UTC, second precision.
 nonisolated enum CapabilityOverrideClock {
+    #if DEBUG
+    /// DEBUG only: format count, used by hang regression tests to pin "no formatting on the capability projection hot path".
+    nonisolated(unsafe) static var debugFormatCount = 0
+    #endif
+
     static func format(_ date: Date) -> String {
-        formatter().string(from: date)
+        #if DEBUG
+        debugFormatCount += 1
+        #endif
+        return formatter().string(from: date)
     }
 
     static func parse(_ text: String) -> Date? {
