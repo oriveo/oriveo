@@ -210,6 +210,8 @@ class CapabilityRecipeRequestCompilerTest {
         ).jsonObject
         assertEquals("web_search_20250305", anthropic["tools"]!!.jsonArray.single().jsonObject.string("type"))
         assertEquals("adaptive", anthropic["thinking"]!!.jsonObject.string("type"))
+        // From Opus 4.7 on, display defaults to omitted; the recipe asks for summarized so thinking text comes back.
+        assertEquals("summarized", anthropic["thinking"]!!.jsonObject.string("display"))
         assertEquals("max", anthropic["output_config"]!!.jsonObject.string("effort"))
 
         val gemini = capture(

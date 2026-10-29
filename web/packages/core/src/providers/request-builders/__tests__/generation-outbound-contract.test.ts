@@ -253,7 +253,7 @@ describe('official Anthropic: linkage guard after the capability recipe turns th
         generationParameters: { temperature: { state: 'value', value: 0.5 }, top_k: { state: 'value', value: 20 } },
       },
     }, async () => metadata);
-    expect(request.body.thinking).toEqual({ type: 'adaptive' });
+    expect(request.body.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
     expect(request.body).not.toHaveProperty('temperature');
     expect(request.body).not.toHaveProperty('top_k');
     expect(request.droppedGenerationParameters).toEqual([

@@ -86,7 +86,7 @@ describe('official Anthropic thinking preview', () => {
 
   it('without officialMetadata: the preview reads browser metadata, turns thinking on just like the production builder, and flags the thinking-incompatible rows', async () => {
     const { thinking, body, rowDrops } = await previewAndRequest();
-    expect(body.thinking).toEqual({ type: 'adaptive' });
+    expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
     expect(thinking).toEqual({});
     expect(rowDrops).toEqual(['temperature', 'top_k']);
   });
