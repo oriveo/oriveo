@@ -82,12 +82,37 @@ func isStorageAccessFailure(_ error: Error) -> Bool {
     return false
 }
 
+/// The errors that by themselves mean "the device is out of space": NSFileWriteOutOfSpaceError (640),
+/// ENOSPC (28), EDQUOT (69) and `SQLITE_FULL` (13). They can only come from space running out at the
+/// moment of the write, unlike `SQLITE_IOERR` / EIO, which also carry bad blocks and read-only
+/// filesystems, so there is no need to guess from free space.
+func isUnambiguousOutOfSpace(_ error: Error) -> Bool {
+    if let dbError = error as? DatabaseError {
+        return dbError.resultCode == .SQLITE_FULL
+    }
+    var cursor: NSError? = error as NSError
+    var depth = 0
+    while let current = cursor, depth < 4 {
+        switch current.domain {
+        case NSCocoaErrorDomain where current.code == NSFileWriteOutOfSpaceError:
+            return true
+        case NSPOSIXErrorDomain where current.code == Int(ENOSPC) || current.code == Int(EDQUOT):
+            return true
+        default:
+            break
+        }
+        cursor = current.userInfo[NSUnderlyingErrorKey] as? NSError
+        depth += 1
+    }
+    return false
+}
+
 /// Judge a storage failure.
 ///
-/// **Past the coarse filter there is exactly one test: how much room the device has left.** Within
-/// the family it deliberately does not split by error code — the same full disk is 13 in GRDB, 10
-/// when WAL creates its -shm file and Cocoa 640 when writing JSON, while `SQLITE_IOERR` also
-/// carries bad blocks and read-only filesystems. Free space is the one stable fact.
+/// Past the coarse filter the error itself comes first: an unambiguous out-of-space code
+/// (`isUnambiguousOutOfSpace`) reads as device storage full straight away. The rest of the family
+/// (`SQLITE_IOERR` also carries bad blocks and read-only filesystems, and a full disk while WAL
+/// creates its -shm file only shows 10) is judged by how much room the device has left.
 ///
 /// ## A known, accepted misread
 ///
@@ -106,6 +131,12 @@ func triageStorageFailure(
     guard isStorageAccessFailure(error) else { return nil }
     let availableBytes = availableBytes()
     let bucket = storageFreeBytesBucket(availableBytes)
+    // The kernel said "no space" at the moment of the write, which beats measuring again afterwards:
+    // a failed atomic write deletes its temporary file and the system may have just purged caches,
+    // so free space measured later can be far above what it was during the write.
+    if isUnambiguousOutOfSpace(error) {
+        return .deviceStorageFull(freeBytesBucket: bucket)
+    }
     // With no reading for free space, treat it as "space to spare": better one extra report than
     // a real fault hidden away.
     guard let availableBytes, availableBytes < storageFullThresholdBytes else {
@@ -116,9 +147,10 @@ func triageStorageFailure(
 
 /// How many bytes the app container can still write.
 ///
-/// `volumeAvailableCapacityForImportantUsage` counts space the system can reclaim from caches,
-/// which is the closest thing to "how much can actually be written right now" — unlike the plain
-/// `volumeAvailableCapacity`, which is conservative.
+/// Uses `volumeAvailableCapacity`, the filesystem's plain free space right now. Not
+/// `volumeAvailableCapacityForImportantUsage`: it counts caches the system *could* reclaim, but an
+/// ordinary file write does not wait for that, so it can still report hundreds of MB after the kernel
+/// has already returned ENOSPC, misreading a full disk as an app fault.
 func availableStorageBytesForAppContainer() -> Int64? {
     guard let url = try? FileManager.default.url(
         for: .applicationSupportDirectory,
@@ -127,6 +159,6 @@ func availableStorageBytesForAppContainer() -> Int64? {
         create: false
     ) else { return nil }
 
-    let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
-    return values?.volumeAvailableCapacityForImportantUsage
+    let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityKey])
+    return values?.volumeAvailableCapacity.map(Int64.init)
 }
