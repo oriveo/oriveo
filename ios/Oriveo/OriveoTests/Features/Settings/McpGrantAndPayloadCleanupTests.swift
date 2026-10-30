@@ -41,7 +41,7 @@ struct McpGrantAndPayloadCleanupTests {
     // MARK: Revoking "allow for this conversation"
 
     @Test("Changing one tool's permission revokes only that tool's \"allow for this conversation\" grant; other tools and other servers are untouched")
-    func permissionChangeRevokesThatTool() throws {
+    func permissionChangeRevokesThatTool() async throws {
         let rig = try McpUiRig(); defer { rig.cleanUp() }
         let id = try rig.seedServer(name: "Weather", tools: definitions(tools))
         let other = try rig.seedServer(name: "Other", url: "https://other.example.org/mcp", tools: definitions(tools))
@@ -51,6 +51,7 @@ struct McpGrantAndPayloadCleanupTests {
         let model = rig.detailModel(id)
         model.appear()
         model.setPermission(.ask, toolName: "create")
+        await model.waitUntilIdle()
         #expect(!granted(id, "create"), "a tool that was just tightened must be confirmed again on its next call")
         #expect(granted(id, "search"))
         #expect(granted(other, "create"))
@@ -86,7 +87,7 @@ struct McpGrantAndPayloadCleanupTests {
     }
 
     @Test("Removing a server revokes every grant for that server, from the detail page and through the store alike")
-    func removalRevokes() throws {
+    func removalRevokes() async throws {
         let rig = try McpUiRig(); defer { rig.cleanUp() }
         let viaPage = try rig.seedServer(name: "Weather", tools: definitions(tools))
         grantAll(viaPage)
@@ -94,6 +95,7 @@ struct McpGrantAndPayloadCleanupTests {
         model.appear()
         model.askRemove()
         model.confirmRemove()
+        await model.waitUntilIdle()
         #expect(!granted(viaPage, "search") && !granted(viaPage, "create"))
 
         let viaStore = try rig.seedServer(name: "Other", url: "https://other.example.org/mcp", tools: definitions(tools))
@@ -132,7 +134,7 @@ struct McpGrantAndPayloadCleanupTests {
     // MARK: Cascading deletion of per-step payloads
 
     @Test("Removing a server also deletes the raw arguments and results its steps left on this device; other servers' payloads and the summaries on messages are kept")
-    func removingServerDeletesItsStepPayloads() throws {
+    func removingServerDeletesItsStepPayloads() async throws {
         let rig = try McpUiRig(); defer { rig.cleanUp() }
         let id = try rig.seedServer(name: "Weather", tools: definitions(tools))
         let other = try rig.seedServer(name: "Other", url: "https://other.example.org/mcp", tools: definitions(tools))
@@ -145,7 +147,7 @@ struct McpGrantAndPayloadCleanupTests {
             )
         }
         let steps = [step(1, id), step(2, other)]
-        try rig.database.pool.write { db in
+        try await rig.database.pool.write { db in
             try db.execute(
                 sql: "UPDATE message SET toolSteps = ? WHERE id = ?",
                 arguments: [RecordMappers.encodeToolSteps(steps), message.uuidString]
@@ -154,28 +156,28 @@ struct McpGrantAndPayloadCleanupTests {
         try rig.store.saveStepPayload(messageID: message, stepID: steps[0].id, arguments: #"{"secret":"a"}"#, resultPrefix: "r1")
         try rig.store.saveStepPayload(messageID: message, stepID: steps[1].id, arguments: #"{"secret":"b"}"#, resultPrefix: "r2")
 
-        try rig.directory.remove(serverId: id, uid: McpUiFixture.uid)
+        try await rig.directory.remove(serverId: id, uid: McpUiFixture.uid)
         #expect(try rig.store.fetchStepPayload(messageID: message, stepID: steps[0].id) == nil)
         #expect(try rig.store.fetchStepPayload(messageID: message, stepID: steps[1].id)?.resultPrefix == "r2")
-        let kept: String? = try rig.database.pool.read { db in
+        let kept: String? = try await rig.database.pool.read { db in
             try String.fetchOne(db, sql: "SELECT toolSteps FROM message WHERE id = ?", arguments: [message.uuidString])
         }
         #expect(RecordMappers.decodeToolSteps(kept, messageState: .delivered)?.count == 2, "tool records in existing conversations are kept")
     }
 
     @Test("Deleting a conversation / a message deletes the per-step payloads with it")
-    func deletingConversationDeletesStepPayloads() throws {
+    func deletingConversationDeletesStepPayloads() async throws {
         let rig = try McpUiRig(); defer { rig.cleanUp() }
         let created = try rig.database.insertConversation(messageCount: 2)
         for message in created.messages {
             try rig.store.saveStepPayload(messageID: message, stepID: "1:call_1", arguments: "{}", resultPrefix: "r")
         }
-        try rig.database.pool.write { db in
+        try await rig.database.pool.write { db in
             try db.execute(sql: "DELETE FROM message WHERE id = ?", arguments: [created.messages[0].uuidString])
         }
         #expect(try rig.store.fetchStepPayload(messageID: created.messages[0], stepID: "1:call_1") == nil)
         #expect(try rig.store.fetchStepPayload(messageID: created.messages[1], stepID: "1:call_1") != nil)
-        try rig.database.pool.write { db in
+        try await rig.database.pool.write { db in
             try db.execute(sql: "DELETE FROM conversation WHERE id = ?", arguments: [created.conversation.uuidString])
         }
         #expect(try rig.store.fetchStepPayload(messageID: created.messages[1], stepID: "1:call_1") == nil)

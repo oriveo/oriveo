@@ -59,11 +59,15 @@ internal enum class StreamActivityLabel(@param:StringRes val stringRes: Int) {
      * ([streamActivityLabelText]).
      */
     McpTool(R.string.mcp_steps_running),
+
+    /** External web search: "Searching with {name}…", and after all deliver, until the first token, "Answering from the search results…" ([streamActivityLabelText]). */
+    ExternalSearch(R.string.stream_activity_web_search),
 }
 
 internal fun StreamActivity.label(): StreamActivityLabel = when (this) {
     StreamActivity.WebSearch -> StreamActivityLabel.WebSearch
     StreamActivity.McpTool -> StreamActivityLabel.McpTool
+    StreamActivity.ExternalSearch -> StreamActivityLabel.ExternalSearch
 }
 
 /**
@@ -76,6 +80,10 @@ internal fun streamActivityLabelText(
     label: StreamActivityLabel,
     toolSteps: List<ai.oriveo.community.core.mcp.McpToolStep>?,
 ): String {
+    if (label == StreamActivityLabel.ExternalSearch) {
+        val state = LocalExternalSearchChatHost.current?.activity?.collectAsStateWithLifecycle()?.value
+        return externalSearchActivityText(state)
+    }
     if (label == StreamActivityLabel.McpTool) {
         val running = toolSteps?.lastOrNull {
             it.status == ai.oriveo.community.core.mcp.McpToolStepUpdate.Status.Running.wireValue

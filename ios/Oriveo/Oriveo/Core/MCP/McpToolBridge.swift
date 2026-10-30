@@ -35,6 +35,9 @@ nonisolated struct McpConfirmationRequest: Sendable, Equatable {
     /// The tool does not declare itself read-only (anything undeclared is treated as modifying data). The sheet
     /// uses this to decide whether to say "this will change your content".
     var changesData: Bool = true
+    /// Web results are already in the context this turn and a write tool only accepts "this time only":
+    /// the sheet does not offer "allow for this conversation" and adds a line of explanation.
+    var onceOnly: Bool = false
 }
 
 /// The confirmation gate: a suspension point in the loop whose waiting time does not count toward the call
@@ -308,11 +311,13 @@ nonisolated enum McpToolBridge {
         /// The propose_memory entry when mode=tool: registered last, without changing the limits or the fixed prompt.
         proposeEntry: (any ToolRegistryEntry)? = nil,
         /// The search_memory entry: registered after propose_memory.
-        searchEntry: (any ToolRegistryEntry)? = nil
+        searchEntry: (any ToolRegistryEntry)? = nil,
+        /// The external search web_search entry: registered after the memory tools, with the same limits and fixed prompt as MCP.
+        webSearchEntry: (any ToolRegistryEntry)? = nil
     ) -> ToolCallLoop {
         ToolCallLoop(
             registry: ToolRegistry(
-                entries: entries(for: plan, executor: executor) + [proposeEntry, searchEntry].compactMap { $0 }
+                entries: entries(for: plan, executor: executor) + [proposeEntry, searchEntry, webSearchEntry].compactMap { $0 }
             ),
             legRunner: legRunner,
             adapter: adapter,
@@ -421,6 +426,10 @@ actor McpToolExecutor {
     private let liveState: LiveStateProvider
     private let makeClient: @Sendable (URL) -> McpClient
     private let onStep: StepHandler
+    /// Whether web results are already in the context this turn (supplied by the caller when
+    /// plan.writeToolConfirm == once_when_web_results_present). When true, write tools ignore a
+    /// "this conversation" grant and no new grant is recorded.
+    private let webResultsPresent: @Sendable () async -> Bool
     private var clients: [UUID: (endpoint: URL, client: McpClient)] = [:]
 
     init(
@@ -432,8 +441,10 @@ actor McpToolExecutor {
         tokenProvider: @escaping TokenProvider,
         liveState: @escaping LiveStateProvider,
         makeClient: (@Sendable (URL) -> McpClient)? = nil,
-        onStep: @escaping StepHandler = { _ in }
+        onStep: @escaping StepHandler = { _ in },
+        webResultsPresent: @escaping @Sendable () async -> Bool = { false }
     ) {
+        self.webResultsPresent = webResultsPresent
         self.conversationId = conversationId
         self.runtimeConfig = runtimeConfig
         self.gate = gate
@@ -484,9 +495,14 @@ actor McpToolExecutor {
             }
             endpoint = liveEndpoint
             // With "ask every time", no tools/call is sent without the user's approval.
+            // Web results are in the context this turn: a write tool only accepts "this time only", so a conversation
+            // grant does not count and no new grant is recorded.
+            let onceOnly = !tool.snapshot.readOnly && permission != .auto ? await webResultsPresent() : false
             if permission != .auto, !confirmed,
-               !grants.isGranted(conversationId: conversationId, serverId: tool.server.id, toolName: tool.snapshot.toolName) {
-                if let denied = try await confirm(tool, arguments: arguments, endpoint: endpoint, step: &step) {
+               onceOnly || !grants.isGranted(conversationId: conversationId, serverId: tool.server.id, toolName: tool.snapshot.toolName) {
+                if let denied = try await confirm(
+                    tool, arguments: arguments, endpoint: endpoint, recordsGrant: !onceOnly, step: &step
+                ) {
                     return denied
                 }
                 confirmed = true
@@ -545,6 +561,7 @@ actor McpToolExecutor {
         _ tool: McpPlannedTool,
         arguments: JSONValue,
         endpoint: URL,
+        recordsGrant: Bool = true,
         step: inout McpToolStepUpdate
     ) async throws -> ToolExecutionOutcome? {
         let choice: McpConfirmationChoice
@@ -558,7 +575,8 @@ actor McpToolExecutor {
                 toolTitle: tool.snapshot.title,
                 arguments: arguments,
                 inputSchema: tool.snapshot.inputSchema,
-                changesData: !tool.snapshot.readOnly
+                changesData: !tool.snapshot.readOnly,
+                onceOnly: !recordsGrant
             ))
             try Task.checkCancellation()
         } catch {
@@ -580,7 +598,9 @@ actor McpToolExecutor {
                 message: "The user declined this tool call. Do not call it again for this request; continue without it."
             ))
         case .conversation:
-            grants.grant(conversationId: conversationId, serverId: tool.server.id, toolName: tool.snapshot.toolName)
+            if recordsGrant {
+                grants.grant(conversationId: conversationId, serverId: tool.server.id, toolName: tool.snapshot.toolName)
+            }
             return nil
         case .once:
             return nil

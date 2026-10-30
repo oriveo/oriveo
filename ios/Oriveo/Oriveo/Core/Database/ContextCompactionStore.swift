@@ -100,32 +100,58 @@ final class ContextCompactionStore: @unchecked Sendable {
     /// Deletes all checkpoints of this conversation and returns the deleted checkpointIds.
     @discardableResult
     nonisolated func deleteAll(conversationId: String) throws -> [String] {
-        let removed = try dbPool.write { db -> [String] in
-            let ids = try String.fetchAll(
-                db,
-                sql: "SELECT checkpointId FROM \(Self.table) WHERE conversationId = ? ORDER BY createdAt ASC, rowid ASC",
-                arguments: [conversationId]
-            )
-            try db.execute(sql: "DELETE FROM \(Self.table) WHERE conversationId = ?", arguments: [conversationId])
-            return ids
-        }
+        let removed = try dbPool.write { db in try Self.deleteAllRows(conversationId: conversationId, in: db) }
         if !removed.isEmpty { Self.postChange(conversationId: conversationId) }
         return removed
+    }
+
+    /// Same as `deleteAll`, but the write is queued on the GRDB writer and suspends (the panel's "Clear" runs on the main
+    /// thread and must not wait for the write lock there).
+    @discardableResult
+    nonisolated func deleteAllAsync(conversationId: String) async throws -> [String] {
+        let removed = try await dbPool.write { db in try Self.deleteAllRows(conversationId: conversationId, in: db) }
+        if !removed.isEmpty { Self.postChange(conversationId: conversationId) }
+        return removed
+    }
+
+    private nonisolated static func deleteAllRows(conversationId: String, in db: Database) throws -> [String] {
+        let ids = try String.fetchAll(
+            db,
+            sql: "SELECT checkpointId FROM \(table) WHERE conversationId = ? ORDER BY createdAt ASC, rowid ASC",
+            arguments: [conversationId]
+        )
+        try db.execute(sql: "DELETE FROM \(table) WHERE conversationId = ?", arguments: [conversationId])
+        return ids
     }
 
     /// Regenerating first deletes the latestValid row; returns the checkpointIds actually deleted.
     @discardableResult
     nonisolated func delete(conversationId: String, checkpointId: String) throws -> [String] {
-        let deleted = try dbPool.write { db -> Bool in
-            try db.execute(
-                sql: "DELETE FROM \(Self.table) WHERE conversationId = ? AND checkpointId = ?",
-                arguments: [conversationId, checkpointId]
-            )
-            return db.changesCount > 0
+        let deleted = try dbPool.write { db in
+            try Self.deleteRow(conversationId: conversationId, checkpointId: checkpointId, in: db)
         }
         guard deleted else { return [] }
         Self.postChange(conversationId: conversationId)
         return [checkpointId]
+    }
+
+    /// Same as `delete`, but the write suspends instead of holding the calling thread (regenerating starts on the main thread).
+    @discardableResult
+    nonisolated func deleteAsync(conversationId: String, checkpointId: String) async throws -> [String] {
+        let deleted = try await dbPool.write { db in
+            try Self.deleteRow(conversationId: conversationId, checkpointId: checkpointId, in: db)
+        }
+        guard deleted else { return [] }
+        Self.postChange(conversationId: conversationId)
+        return [checkpointId]
+    }
+
+    private nonisolated static func deleteRow(conversationId: String, checkpointId: String, in db: Database) throws -> Bool {
+        try db.execute(
+            sql: "DELETE FROM \(table) WHERE conversationId = ? AND checkpointId = ?",
+            arguments: [conversationId, checkpointId]
+        )
+        return db.changesCount > 0
     }
 
     private nonisolated static func postChange(conversationId: String) {
@@ -257,34 +283,25 @@ final class ContextCompactionStore: @unchecked Sendable {
 
     /// k = the smallest index of affectedIds within historyIds; deletes rows whose coversTo index is >= k;
     /// rows whose coversTo is not in historyIds are left alone. Returns the deleted checkpointIds.
+    /// The synchronous variant is for background callers and tests; main-thread callers use `invalidateAndPropagateAsync`.
     @discardableResult
     nonisolated func invalidate(conversationId: String, historyIds: [String], affectedIds: [String]) throws -> [String] {
-        var indexById: [String: Int] = [:]
-        for (index, id) in historyIds.enumerated() where indexById[id] == nil {
-            indexById[id] = index
-        }
-        guard let k = affectedIds.compactMap({ indexById[$0] }).min() else { return [] }
-        let removed = try dbPool.write { db -> [String] in
-            let rows = try Row.fetchAll(
-                db,
-                sql: "SELECT checkpointId, coversTo FROM \(Self.table) WHERE conversationId = ?",
-                arguments: [conversationId]
-            )
-            var removed: [String] = []
-            for row in rows {
-                let coversTo: String = row["coversTo"]
-                guard let index = indexById[coversTo], index >= k else { continue }
-                let checkpointId: String = row["checkpointId"]
-                try db.execute(
-                    sql: "DELETE FROM \(Self.table) WHERE conversationId = ? AND checkpointId = ?",
-                    arguments: [conversationId, checkpointId]
-                )
-                removed.append(checkpointId)
-            }
-            return removed
+        guard let plan = Self.invalidationPlan(historyIds: historyIds, affectedIds: affectedIds) else { return [] }
+        let removed = try dbPool.write { db in
+            try Self.deleteInvalidated(db: db, conversationId: conversationId, plan: plan)
         }
         if !removed.isEmpty { Self.postChange(conversationId: conversationId) }
         return removed
+    }
+
+    /// Same as `save`, but the write is queued on the GRDB writer and awaited: a main-thread caller (persisting a
+    /// compaction result) waiting synchronously for the write lock would sit behind a whole-table write for seconds.
+    nonisolated func saveAsync(_ record: ContextCheckpointRecord) async throws {
+        try await dbPool.write { db in
+            try Self.upsert(record, in: db)
+            try Self.trim(conversationId: record.conversationId, in: db)
+        }
+        Self.postChange(conversationId: record.conversationId)
     }
 
     /// Shared invalidation hook: after invalidate, the deleted ids are handed to the remote-delete callback
@@ -304,6 +321,65 @@ final class ContextCompactionStore: @unchecked Sendable {
             return []
         }
         if !removed.isEmpty { deleteRemote?(removed) }
+        return removed
+    }
+
+    /// Same as `invalidateAndPropagate`, but the write is queued on the GRDB writer and awaited without
+    /// occupying the calling thread: the write lock can be held by a whole-table write for seconds, and waiting
+    /// for it synchronously on the main thread is an app hang. Returns the deleted checkpointIds, empty on failure.
+    nonisolated func invalidateAndPropagateAsync(
+        conversationId: String,
+        historyIds: [String],
+        affectedIds: [String]
+    ) async -> [String] {
+        guard let plan = Self.invalidationPlan(historyIds: historyIds, affectedIds: affectedIds) else { return [] }
+        do {
+            let removed = try await dbPool.write { db in
+                try Self.deleteInvalidated(db: db, conversationId: conversationId, plan: plan)
+            }
+            if !removed.isEmpty { Self.postChange(conversationId: conversationId) }
+            return removed
+        } catch {
+            print("[ContextCompactionStore] invalidate failed: \(error.localizedDescription)")
+            return []
+        }
+    }
+
+    private nonisolated struct InvalidationPlan: Sendable {
+        let indexById: [String: Int]
+        let k: Int
+    }
+
+    private nonisolated static func invalidationPlan(historyIds: [String], affectedIds: [String]) -> InvalidationPlan? {
+        var indexById: [String: Int] = [:]
+        for (index, id) in historyIds.enumerated() where indexById[id] == nil {
+            indexById[id] = index
+        }
+        guard let k = affectedIds.compactMap({ indexById[$0] }).min() else { return nil }
+        return InvalidationPlan(indexById: indexById, k: k)
+    }
+
+    private nonisolated static func deleteInvalidated(
+        db: Database,
+        conversationId: String,
+        plan: InvalidationPlan
+    ) throws -> [String] {
+        let rows = try Row.fetchAll(
+            db,
+            sql: "SELECT checkpointId, coversTo FROM \(table) WHERE conversationId = ?",
+            arguments: [conversationId]
+        )
+        var removed: [String] = []
+        for row in rows {
+            let coversTo: String = row["coversTo"]
+            guard let index = plan.indexById[coversTo], index >= plan.k else { continue }
+            let checkpointId: String = row["checkpointId"]
+            try db.execute(
+                sql: "DELETE FROM \(table) WHERE conversationId = ? AND checkpointId = ?",
+                arguments: [conversationId, checkpointId]
+            )
+            removed.append(checkpointId)
+        }
         return removed
     }
 

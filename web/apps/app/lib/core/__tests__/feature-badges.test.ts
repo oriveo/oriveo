@@ -39,6 +39,14 @@ describe('feature-badges', () => {
     expect(isUnseen(memoryId)).toBe(false);
   });
 
+  it('the web search entry dot is independent of memory: each is marked seen on its own', () => {
+    const webSearchId = FEATURE_BADGE_IDS.settingsWebSearch;
+    expect(webSearchId).toBe('settings.webSearch.2026-10');
+    markSeen(webSearchId);
+    expect(isUnseen(webSearchId)).toBe(false);
+    expect(isUnseen(memoryId)).toBe(true);
+  });
+
   it('drops unregistered ids on read and write', () => {
     window.localStorage.setItem(FEATURE_BADGES_SEEN_KEY, JSON.stringify(['settings.memory.2025-01', memoryId]));
     expect(isUnseen(memoryId)).toBe(false);

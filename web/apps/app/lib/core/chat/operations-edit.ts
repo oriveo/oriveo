@@ -94,6 +94,9 @@ export function editAndResend(
     libraryContextCancelledText,
     onNewConversation, onFailed,
     attemptKind: 'edit',
+    // External search: the question changed, so a resend after editing always searches again (previousResultsPersisted:false) and does not pass the deleted answer's web sources;
+    // only regenerate and this turn's internal automatic resend reuse them.
+    searchRegenerate: { action: 'edit_resend' },
     onSendConfirmed: applyTailDeletion,
   });
   return {

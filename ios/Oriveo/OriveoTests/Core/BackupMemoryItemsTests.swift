@@ -83,12 +83,12 @@ struct BackupMemoryItemsTests {
 
     // MARK: Cases
 
-    @Test func roundTripReplace() throws {
+    @Test func roundTripReplace() async throws {
         let source = try Device()
-        let kept = try source.repository.create(content: "Lives in Berlin")
-        _ = try source.repository.create(kind: .instruction, content: "Answer briefly", pinned: true)
-        let removed = try source.repository.create(content: "Old project")
-        _ = try source.repository.remove(id: removed.id)
+        let kept = try await source.repository.create(content: "Lives in Berlin")
+        _ = try await source.repository.create(kind: .instruction, content: "Answer briefly", pinned: true)
+        let removed = try await source.repository.create(content: "Old project")
+        _ = try await source.repository.remove(id: removed.id)
 
         let section = try #require(try BackupService.backupMemorySection(store: source.store))
         let exported = try Self.roundTrip(BackupData(
@@ -99,11 +99,11 @@ struct BackupMemoryItemsTests {
         #expect(exported.memoryItems?.contains { $0.id == removed.id && $0.status == .deleted } == true)
 
         let target = try Device(uid: "u1", deviceId: "device-b")
-        let stale = try target.repository.create(content: "Only on target")
+        let stale = try await target.repository.create(content: "Only on target")
         target.writes = 0
         target.wakeups = 0
 
-        let changed = try target.repository.importBackup(BackupService.memoryBackupInput(exported), mode: .replace)
+        let changed = try await target.repository.importBackup(BackupService.memoryBackupInput(exported), mode: .replace)
         #expect(changed > 0)
         let restored = target.repository.allItems()
         #expect(Self.sorted(restored.filter { $0.id != stale.id }) == Self.sorted(source.repository.allItems()))
@@ -118,7 +118,7 @@ struct BackupMemoryItemsTests {
         #expect(!target.preferences.memoryText.contains("Only on target"))
     }
 
-    @Test func replaceTombstonesLocalOnlyItems() throws {
+    @Test func replaceTombstonesLocalOnlyItems() async throws {
         let fixture = try Self.backupCase("replace_tombstones_local_items_missing_from_backup")
         let input = try #require(fixture["input"] as? [String: Any])
         let expected = try #require(fixture["expected"] as? [String: Any])
@@ -127,7 +127,7 @@ struct BackupMemoryItemsTests {
         try device.store.upsert(local, syncState: .synced)
 
         let backup = try Self.roundTrip(Self.backupData(json: try #require(input["backup"] as? [String: Any])))
-        let changed = try device.repository.importBackup(BackupService.memoryBackupInput(backup), mode: .replace)
+        let changed = try await device.repository.importBackup(BackupService.memoryBackupInput(backup), mode: .replace)
 
         let after = device.repository.allItems()
         let byId = Dictionary(uniqueKeysWithValues: after.map { ($0.id, $0) })
@@ -161,7 +161,7 @@ struct BackupMemoryItemsTests {
         #expect(device.wakeups == 1)
     }
 
-    @Test func mergeKeepsNewerAndTombstones() throws {
+    @Test func mergeKeepsNewerAndTombstones() async throws {
         let fixture = try Self.backupCase("merge_keeps_newer_and_tombstones")
         let input = try #require(fixture["input"] as? [String: Any])
         let expected = try #require(fixture["expected"] as? [String: Any])
@@ -170,7 +170,7 @@ struct BackupMemoryItemsTests {
         try device.store.upsert(local, syncState: .synced)
 
         let backup = try Self.roundTrip(Self.backupData(json: try #require(input["backup"] as? [String: Any])))
-        let changed = try device.repository.importBackup(BackupService.memoryBackupInput(backup), mode: .merge)
+        let changed = try await device.repository.importBackup(BackupService.memoryBackupInput(backup), mode: .merge)
 
         let merged = MemoryItems.listOrder(device.repository.allItems())
         #expect(merged == (try Self.items(expected["items"])))
@@ -184,7 +184,7 @@ struct BackupMemoryItemsTests {
         #expect(changed == 2)
     }
 
-    @Test func legacyBackupMigrates() throws {
+    @Test func legacyBackupMigrates() async throws {
         let fixture = try Self.backupCase("legacy_backup_migrates_preferences")
         let input = try #require(fixture["input"] as? [String: Any])
         let expected = try #require(fixture["expected"] as? [String: Any])
@@ -207,18 +207,18 @@ struct BackupMemoryItemsTests {
         ))
         #expect(backup.memoryItems == nil)
 
-        let changed = try device.repository.importBackup(BackupService.memoryBackupInput(backup), mode: .merge)
+        let changed = try await device.repository.importBackup(BackupService.memoryBackupInput(backup), mode: .merge)
         #expect(changed == 2)
         #expect(Self.sorted(device.repository.allItems()) == Self.sorted(try Self.items(expected["items"])))
 
         // Import once more: create-if-absent, no duplicates and no changes
-        #expect(try device.repository.importBackup(BackupService.memoryBackupInput(backup), mode: .merge) == 0)
+        #expect(try await device.repository.importBackup(BackupService.memoryBackupInput(backup), mode: .merge) == 0)
         #expect(device.repository.allItems().count == 2)
     }
 
     /// A local restricted item (kept on this device, never uploaded) replaced by a newer normal version through import: it lands as normal and is set pending for the next upload.
     @Test("restricted_to_normal_via_import")
-    func restricted_to_normal_via_import() throws {
+    func restricted_to_normal_via_import() async throws {
         let device = try Device()
         let restricted = MemoryItem(
             id: MemoryItemRepository.newId(), kind: .fact, content: "Secret", sensitivity: .restricted,
@@ -234,7 +234,7 @@ struct BackupMemoryItemsTests {
         normal["revision"] = restricted.revision + 1
         normal["mutationId"] = MemoryItemRepository.newId()
         let backup = try Self.roundTrip(Self.backupData(json: ["memorySchemaVersion": 2, "memoryItems": [normal]]))
-        let changed = try device.repository.importBackup(BackupService.memoryBackupInput(backup), mode: .merge)
+        let changed = try await device.repository.importBackup(BackupService.memoryBackupInput(backup), mode: .merge)
 
         #expect(changed == 1)
         let stored = try #require(device.repository.allItems().first { $0.id == restricted.id })
@@ -245,7 +245,7 @@ struct BackupMemoryItemsTests {
         #expect(device.wakeups == 1)
     }
 
-    @Test func importedItemsPending() throws {
+    @Test func importedItemsPending() async throws {
         let fixture = try Self.backupCase("merge_keeps_newer_and_tombstones")
         let input = try #require(fixture["input"] as? [String: Any])
         let device = try Device()
@@ -254,7 +254,7 @@ struct BackupMemoryItemsTests {
 
         // Import new only: only ids missing locally are added, tombstones count as existing, and a higher revision in the backup does not overwrite
         let backup = try Self.roundTrip(Self.backupData(json: try #require(input["backup"] as? [String: Any])))
-        let changed = try device.repository.importBackup(BackupService.memoryBackupInput(backup), mode: .newOnly)
+        let changed = try await device.repository.importBackup(BackupService.memoryBackupInput(backup), mode: .newOnly)
 
         #expect(changed == 1)
         let after = device.repository.allItems()
@@ -271,14 +271,14 @@ struct BackupMemoryItemsTests {
     }
 
     /// After importing a backup with a memoryItems section (in any mode), this account is marked as migrated.
-    @Test func importWithSectionMarksMigrated() throws {
+    @Test func importWithSectionMarksMigrated() async throws {
         let section = try #require(try Self.backupCase("export_section")["expected"] as? [String: Any])
         let backup = try Self.roundTrip(Self.backupData(json: section))
         #expect(backup.memoryItems != nil)
         for mode in [MemoryBackupImportMode.newOnly, .merge, .replace] {
             let device = try Device(memoryText: "Legacy line")
             #expect(!device.repository.isMigrated)
-            _ = try device.repository.importBackup(BackupService.memoryBackupInput(backup), mode: mode)
+            _ = try await device.repository.importBackup(BackupService.memoryBackupInput(backup), mode: mode)
             #expect(device.repository.isMigrated, "\(mode)")
         }
     }
@@ -325,14 +325,14 @@ struct BackupMemoryItemsTests {
         #expect(parsed.data.conversations.isEmpty)
     }
 
-    @Test func crossEndBackupDecodes() throws {
+    @Test func crossEndBackupDecodes() async throws {
         let fixture = try Self.backupCase("export_section")
         let section = try #require(fixture["expected"] as? [String: Any])
 
         // A section exported by another platform is decoded through the production models, imported, then exported again
         let incoming = try Self.roundTrip(Self.backupData(json: section))
         let device = try Device()
-        _ = try device.repository.importBackup(BackupService.memoryBackupInput(incoming), mode: .replace)
+        _ = try await device.repository.importBackup(BackupService.memoryBackupInput(incoming), mode: .replace)
         let exported = try #require(try BackupService.backupMemorySection(store: device.store))
         let encoded = try CanonicalJSON.encode(BackupData(
             providers: [], conversations: [], preferences: nil, lastUsedModelRef: nil,

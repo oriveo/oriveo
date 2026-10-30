@@ -499,6 +499,7 @@ enum L10n {
         case skills = "Skills"
         case notes = "Notes"
         case mcp = "MCP"
+        case webSearch = "WebSearch"
         case voice = "Voice"
     }
 

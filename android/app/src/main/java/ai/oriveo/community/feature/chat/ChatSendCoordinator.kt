@@ -53,6 +53,13 @@ internal class ChatSendCoordinator(
         ai.oriveo.community.core.memory.MemoryRecallIndexCache(),
     // The connection's remembered tool_call verdict (the propose_memory / MCP tool predicate reads it).
     private val toolCallMemoryVerdict: (Provider, ai.oriveo.community.core.model.AIModel) -> Boolean? = { _, _ -> null },
+    /**
+     * Reads this conversation's search source and service on a background thread before every send (cached catalog
+     * only); null = external search not wired, the request goes out unchanged (tests etc.).
+     */
+    private val webSearchSnapshot: (suspend (Provider, ai.oriveo.community.core.model.AIModel, String) -> ai.oriveo.community.feature.chat.modelcontrols.WebSearchPanelSnapshot?)? = null,
+    /** Service binding for this turn's external search (called on a background thread); null = no external search. */
+    private val externalSearchBinding: (suspend (ai.oriveo.community.feature.chat.modelcontrols.WebSearchPanelSnapshot, String) -> ai.oriveo.community.core.search.ExternalSearchBinding?)? = null,
 ) {
     /** The skill prompt and raw knowledge files of one send; null when the conversation has no skill attached. */
     private class SkillInputs(
@@ -179,17 +186,43 @@ internal class ChatSendCoordinator(
         memoryPropose: ai.oriveo.community.core.memory.MemoryProposeSendHook? = null,
         /** VOICE for a voice-conversation send; the request carries it to every leg of this turn. */
         delivery: ai.oriveo.community.core.context.ContextDelivery? = null,
+        /** Internal: this conversation's search source was already read on a background thread ([searchSnapshot] is the result); do not read again. */
+        searchSnapshotRead: Boolean = false,
+        searchSnapshot: ai.oriveo.community.feature.chat.modelcontrols.WebSearchPanelSnapshot? = null,
+        capturedEvidencePartitionId: String? = null,
     ) {
         // Capture the capability partition exactly once, up front. The identity producer may read
         // the epoch later on another thread, and re-reading it there would let a request built for
         // one partition be dispatched against another.
         val evidencePartitionId = capabilityEvidencePartition()
+        // External search: read the source and service on a background thread first, then re-enter with the result;
+        // the read does not change any of the existing ordering below.
+        val readSnapshot = webSearchSnapshot
+        val snapshotModel = ProviderSelectionSnapshot.selectedModel(provider, modelId)
+        if (readSnapshot != null && !searchSnapshotRead && snapshotModel != null) {
+            applicationScope.launch {
+                val snapshot = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    runCatching { readSnapshot(provider, snapshotModel, conversation.id) }.getOrNull()
+                }
+                launchSend(
+                    conversation = conversation, provider = provider, modelId = modelId, text = text, memoryItems = memoryItems,
+                    existingMessages = existingMessages, attachments = attachments, quoteContext = quoteContext,
+                    persistUserMessage = persistUserMessage, appendToAssistant = appendToAssistant,
+                    userMessageAlreadyInHistory = userMessageAlreadyInHistory, attemptKind = attemptKind,
+                    onUserMessageCreated = onUserMessageCreated, memoryPropose = memoryPropose, delivery = delivery,
+                    searchSnapshotRead = true, searchSnapshot = snapshot, capturedEvidencePartitionId = evidencePartitionId,
+                )
+            }
+            return
+        }
+        val evidencePartition = capturedEvidencePartitionId ?: evidencePartitionId
         val dispatch = resolveCapabilityDispatch(
             provider = provider,
             modelId = modelId,
             conversationId = conversation.id,
             skillId = conversation.skillId,
             appendToAssistant = appendToAssistant,
+            webSearchSnapshot = searchSnapshot,
         )
         val selectedModel = dispatch.selectedModel
         val modelControlIdentity = dispatch.modelControlIdentity
@@ -210,6 +243,7 @@ internal class ChatSendCoordinator(
         // mid-send would otherwise cancel it somewhere between prompt assembly and startStream, and
         // the message would be lost.
         applicationScope.launch {
+            val externalSearch = externalSearchSend(conversation.id, dispatch, searchSnapshot, attemptKind)
             val skillInputs = resolveSkillInputs(conversation)
             // Every entry (send / retry / regenerate / edit-and-send / continue) hands the raw
             // inputs to the context assembler in ChatRepository; system is written only by the plan's transport input.
@@ -222,7 +256,7 @@ internal class ChatSendCoordinator(
             }
             val chatContext = chatContextRequest(conversation, memoryItems, skillInputs, attachments, recallQuery, delivery)
             // One identity per send: the request carrier and the search_memory tool predicate read the same value.
-            val evidenceIdentity = capabilityEvidenceIdentity(provider, modelId, evidencePartitionId)
+            val evidenceIdentity = capabilityEvidenceIdentity(provider, modelId, evidencePartition)
             val memorySearch = memorySearchTurn(
                 conversation = conversation,
                 provider = provider,
@@ -345,9 +379,57 @@ internal class ChatSendCoordinator(
                     onUserMessageCreated = onUserMessageCreated,
                     memoryPropose = memoryPropose,
                     memorySearch = memorySearch,
+                    externalSearch = externalSearch,
                 ),
             )
         }
+    }
+
+    /**
+     * Builds the execution-side input when this turn takes an external search path (route.path, not
+     * webSearchEnabled); any other path returns null and the request goes out unchanged. Continue only extends the
+     * text and never searches.
+     */
+    private suspend fun externalSearchSend(
+        conversationId: String,
+        dispatch: CapabilityDispatch,
+        snapshot: ai.oriveo.community.feature.chat.modelcontrols.WebSearchPanelSnapshot?,
+        attemptKind: ai.oriveo.community.feature.chat.ContextConfirmAttempt,
+    ): ai.oriveo.community.core.search.ExternalSearchSend? {
+        // A "regenerate and search again" intent only applies to this one regeneration: take it first (cleared even when the path is not external)
+        val reSearch = ai.oriveo.community.core.search.ExternalSearchReSearchIntents.take(conversationId) &&
+            attemptKind == ai.oriveo.community.feature.chat.ContextConfirmAttempt.REGENERATE
+        val state = dispatch.webSearchState ?: return null
+        val path = state.route.path
+        if (!ai.oriveo.community.core.search.isExternalSearchPath(path) || snapshot == null) return null
+        val action = when (attemptKind) {
+            ai.oriveo.community.feature.chat.ContextConfirmAttempt.CONTINUE,
+            ai.oriveo.community.feature.chat.ContextConfirmAttempt.OVERFLOW_RECOVERY,
+            ai.oriveo.community.feature.chat.ContextConfirmAttempt.TOOL_LOOP_LEG,
+            -> return null
+            ai.oriveo.community.feature.chat.ContextConfirmAttempt.REGENERATE,
+            ai.oriveo.community.feature.chat.ContextConfirmAttempt.RETRY,
+            -> if (reSearch) "re_search" else "regenerate"
+            ai.oriveo.community.feature.chat.ContextConfirmAttempt.EDIT -> "edit_resend"
+            ai.oriveo.community.feature.chat.ContextConfirmAttempt.SEND -> "send"
+        }
+        val serviceId = state.source.serviceId
+        val binding = if (serviceId != null) {
+            externalSearchBinding?.let { bind ->
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    runCatching { bind(snapshot, serviceId) }.getOrNull()
+                }
+            }
+        } else {
+            null
+        }
+        return ai.oriveo.community.core.search.ExternalSearchSend(
+            path = path,
+            toolCall = dispatch.webSearchToolCall ?: snapshot.toolCall,
+            modelKey = dispatch.webSearchModelKey.orEmpty(),
+            binding = binding,
+            action = action,
+        )
     }
 
     /**
@@ -392,6 +474,11 @@ internal class ChatSendCoordinator(
     /** The result of [resolveCapabilityDispatch]: every conclusion a send reaches about capability options. The outbound request and the pre-send check read the same one. */
     internal class CapabilityDispatch(
         val selectedModel: AIModel?,
+        /** This send's combined web search conclusion (only when a search snapshot was read); execution reads route.path and source.serviceId. */
+        val webSearchState: ai.oriveo.community.core.search.WebSearchState? = null,
+        /** The catalog-evidence tool-call tri-state and modelKey from the same input as [webSearchState]. */
+        val webSearchToolCall: String? = null,
+        val webSearchModelKey: String? = null,
         val modelControlIdentity: ai.oriveo.community.core.provider.ModelControlRuntimeIdentity?,
         val resendSettingSource: String?,
         val resendSettingOwner: String?,
@@ -423,6 +510,8 @@ internal class ChatSendCoordinator(
         conversationId: String,
         skillId: String?,
         appendToAssistant: ChatMessage?,
+        /** This conversation's search source and service, read fresh for this send; null = not read (request unchanged). */
+        webSearchSnapshot: ai.oriveo.community.feature.chat.modelcontrols.WebSearchPanelSnapshot? = null,
     ): CapabilityDispatch {
         val selectedModel = ProviderSelectionSnapshot.selectedModel(provider, modelId)
         val modelControlIdentity = selectedModel?.let {
@@ -465,6 +554,8 @@ internal class ChatSendCoordinator(
         // Same resolution the composer chip and the model-control panel use. What goes out on the
         // wire and what the UI shows must always come from one conclusion, never two.
         val relayWebDefault = selectedModel?.let { ai.oriveo.community.core.provider.relay.RelayWebChat.of(provider, it)?.defaultPreference }
+        var webSearchState: ai.oriveo.community.core.search.WebSearchState? = null
+        var webSearchModelKey: String? = null
         val storedTypedPreferences = capabilityPreferenceStore?.resolvedForRequest(
             providerID = provider.id,
             providerKind = provider.kind,
@@ -490,6 +581,29 @@ internal class ChatSendCoordinator(
                     webDefault = relayWebDefault,
                 )?.web ?: values.web,
             )
+        }?.let { values ->
+            // External search: the same combined entry as the panel and the composer preview. Native / relay web
+            // fields are dropped only when nativeFieldsSuppressed; otherwise the request goes out exactly as before.
+            val snapshot = webSearchSnapshot ?: return@let values
+            val model = selectedModel ?: return@let values
+            val modelKey = ai.oriveo.community.feature.chat.modelcontrols.webSearchModelKey(provider, model)
+            val state = ai.oriveo.community.core.search.resolveWebSearchState(
+                snapshot.stateInput(
+                    facts = ai.oriveo.community.feature.chat.modelcontrols.ModelOptionsPanelInput.webSearchFactsForSend(
+                        provider, model, modelControlIdentity?.finalTransport, values.web, modelControlIdentity, snapshot.toolCall,
+                    ),
+                    // The panel can persist iff there is a runtime identity (same premise as the panel; without one the per-conversation choice does not apply)
+                    panelWritable = modelControlIdentity != null,
+                    webOn = ai.oriveo.community.feature.chat.modelcontrols.ModelOptionsPanelInput.webSearchOn(
+                        values.web,
+                        ai.oriveo.community.feature.chat.modelcontrols.ModelOptionsPanelInput.relayWeb(provider, model, webPreference = values.web),
+                    ),
+                    modelKey = modelKey,
+                ),
+            )
+            webSearchState = state
+            webSearchModelKey = modelKey
+            if (state.nativeFieldsSuppressed) values.copy(web = CapabilityWebPreference.Off) else values
         } ?: CapabilityPreferenceValues()
         // A custom fragment goes out on exactly one condition: this owner's custom entry is
         // enabled right now. Schema availability filtering already happens inside
@@ -607,6 +721,9 @@ internal class ChatSendCoordinator(
         val customReasoningMode = if ("reasoning" in customOwners) ReasoningMode.Automatic else effectiveReasoningMode
         return CapabilityDispatch(
             selectedModel = selectedModel,
+            webSearchState = webSearchState,
+            webSearchToolCall = webSearchSnapshot?.toolCall,
+            webSearchModelKey = webSearchModelKey,
             modelControlIdentity = modelControlIdentity,
             resendSettingSource = resendSettingSource,
             resendSettingOwner = resendSettingOwner,
@@ -635,6 +752,8 @@ internal class ChatSendCoordinator(
         modelId: String,
         conversationId: String,
         skillId: String?,
+        /** This conversation's search source read on a background thread for this preview (same as the send); null = not read. */
+        webSearchSnapshot: ai.oriveo.community.feature.chat.modelcontrols.WebSearchPanelSnapshot? = null,
     ): Pair<ReasoningMode, Boolean> {
         val dispatch = resolveCapabilityDispatch(
             provider = provider,
@@ -642,6 +761,7 @@ internal class ChatSendCoordinator(
             conversationId = conversationId,
             skillId = skillId,
             appendToAssistant = null,
+            webSearchSnapshot = webSearchSnapshot,
         )
         return dispatch.customReasoningMode to dispatch.outboundWebSearchEnabled
     }
@@ -653,14 +773,24 @@ internal class ChatSendCoordinator(
      * Whether the tool loop takes over is only decided after the send, because the MCP tool plan has to ask this
      * connection's tool-call ruling. All the composer knows is whether MCP servers are enabled.
      */
-    fun attachmentSendOptions(
+    suspend fun attachmentSendOptions(
         provider: Provider,
         modelId: String,
         conversationId: String,
         skillId: String?,
         mcpEnabledServerCount: Int,
     ): ai.oriveo.community.core.provider.AttachmentSendPreflight.SendOptions {
-        val (reasoningMode, webSearchEnabled) = outboundRouteOptions(provider, modelId, conversationId, skillId)
+        // Same background read as the send, so the preview's "will it search the web" matches the real request
+        val reader = webSearchSnapshot
+        val model = ProviderSelectionSnapshot.selectedModel(provider, modelId)
+        val snapshot = if (reader != null && model != null) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { reader(provider, model, conversationId) }.getOrNull()
+            }
+        } else {
+            null
+        }
+        val (reasoningMode, webSearchEnabled) = outboundRouteOptions(provider, modelId, conversationId, skillId, snapshot)
         return ai.oriveo.community.core.provider.AttachmentSendPreflight.SendOptions(
             reasoningMode = reasoningMode,
             webSearchEnabled = webSearchEnabled,

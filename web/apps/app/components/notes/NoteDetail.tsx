@@ -24,7 +24,7 @@ import { warmConversationAnchorInStore } from '../../lib/core/chat/conversation-
 import { PROVIDER_BRAND_COLORS } from '../../lib/constants/provider-brand-colors';
 import { normalizeUUID, sameNormalizedID } from '../../lib/utils/id-utils';
 import { getSuggestedNoteTags } from '../../lib/utils/note-list';
-import { MarkdownRenderer } from '../chat/MarkdownRenderer';
+import { ProgressiveMarkdownRenderer } from '../chat/MarkdownRenderer';
 import { ProviderIcon } from '../ProviderIcon';
 import { relayIconSource } from '../relay-avatar';
 import { ConfirmDialog } from '../dialogs/ConfirmDialog';
@@ -345,7 +345,8 @@ export function NoteDetail({ noteId }: NoteDetailProps) {
               <div className={styles.markdownPreviewEditorial}>
                 {activeBody.trim() ? (
                   <>
-                    <MarkdownRenderer content={activeBody} />
+                    {/* Remount from the first section when the note or the body/snapshot pane changes, instead of reusing the previous note's fully mounted state */}
+                    <ProgressiveMarkdownRenderer key={`${note.id}:${contentPane}`} content={activeBody} />
                     <div className={styles.colophon} aria-hidden>
                       <span className={styles.colophonDiamond}>◆</span>
                     </div>

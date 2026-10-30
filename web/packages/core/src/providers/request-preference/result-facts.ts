@@ -42,3 +42,14 @@ export function classifyResult({
   }
   return { state: 'unconfirmed', requested: true, observed: false };
 }
+
+/**
+ * Message-facts vocabulary for external web search (request_preference_contract.v2 resultFacts.externalSearch).
+ * Executed locally with the user's own key: not recipe evidence; observationEvidenceKinds never confirms it and it never upgrades any recipe owner.
+ * Must equal the constants in shared/search-contracts/result-facts.v1.json (locked by a contract test).
+ */
+export const EXTERNAL_SEARCH_RESULT_FACTS = Object.freeze({
+  source: 'external_search',
+  evidenceKind: 'external_search_result',
+  states: Object.freeze(['not_requested', 'observed', 'unconfirmed', 'failed'] as const),
+});

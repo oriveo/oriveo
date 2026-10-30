@@ -61,14 +61,14 @@ struct MemoryRawAndOrganizeTests {
     // MARK: Raw-text view
 
     @Test("The raw-text view contains only active items, in list order, each separated by a standalone --- line")
-    func rawRendersActiveOnly() throws {
+    func rawRendersActiveOnly() async throws {
         let (repository, _) = try Self.makeRepository()
-        try repository.create(kind: .identity, content: "I write historical novels")
-        let paused = try repository.create(kind: .instruction, content: "Always answer in Arabic")
-        try repository.setStatus(id: paused.id, status: .paused)
-        try repository.create(kind: .preference, content: "Prefer metric units")
-        let removed = try repository.create(kind: .fact, content: "Old fact")
-        try repository.remove(id: removed.id)
+        try await repository.create(kind: .identity, content: "I write historical novels")
+        let paused = try await repository.create(kind: .instruction, content: "Always answer in Arabic")
+        try await repository.setStatus(id: paused.id, status: .paused)
+        try await repository.create(kind: .preference, content: "Prefer metric units")
+        let removed = try await repository.create(kind: .fact, content: "Old fact")
+        try await repository.remove(id: removed.id)
 
         let state = MemoryRawEditorState(items: repository.allItems())
 
@@ -80,8 +80,8 @@ struct MemoryRawAndOrganizeTests {
     @Test("Saving an unchanged raw text: nothing changed, no item is written")
     func rawUnchangedSavesNothing() async throws {
         let (repository, _) = try Self.makeRepository()
-        try repository.create(kind: .identity, content: "I write historical novels")
-        try repository.create(kind: .preference, content: "Prefer metric units")
+        try await repository.create(kind: .identity, content: "I write historical novels")
+        try await repository.create(kind: .preference, content: "Prefer metric units")
         let before = repository.allItems()
 
         var state = MemoryRawEditorState(items: repository.list())
@@ -96,9 +96,9 @@ struct MemoryRawAndOrganizeTests {
     @Test("Saving after editing the raw text: edited segments update the original item (kind unchanged), extra segments create new facts, missing segments write tombstones; all through the repository")
     func rawEditAppliesOps() async throws {
         let (repository, _) = try Self.makeRepository()
-        let about = try repository.create(kind: .identity, content: "I write historical novels")
-        let units = try repository.create(kind: .preference, content: "Prefer metric units")
-        let si = try repository.create(kind: .constraint, content: "Use SI units")
+        let about = try await repository.create(kind: .identity, content: "I write historical novels")
+        let units = try await repository.create(kind: .preference, content: "Prefer metric units")
+        let si = try await repository.create(kind: .constraint, content: "Use SI units")
 
         var state = MemoryRawEditorState(items: repository.list())
         state.text = "I write historical novels\n---\nPrefer imperial units\n---\nUse SI units\n---\nLive in Lisbon\n"
@@ -134,9 +134,9 @@ struct MemoryRawAndOrganizeTests {
     }
 
     @Test("A segment over 2000 characters: the hint says \"item n\" (n starts at 1), and no item is written")
-    func rawTooLongShowsIndex() throws {
+    func rawTooLongShowsIndex() async throws {
         let (repository, _) = try Self.makeRepository()
-        try repository.create(kind: .identity, content: "I write historical novels")
+        try await repository.create(kind: .identity, content: "I write historical novels")
         let before = repository.allItems()
 
         var state = MemoryRawEditorState(items: repository.list())

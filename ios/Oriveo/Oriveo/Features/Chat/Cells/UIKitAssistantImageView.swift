@@ -88,20 +88,34 @@ final class UIKitAssistantImageView: UIView {
     }
 
     private func setAspectRatio(_ ratio: CGFloat) {
+        // A non-finite or non-positive ratio never becomes a constraint: a zero-width image or a bad
+        // thumbnail can produce a ratio that turns the height into inf.
+        guard ratio.isFinite, ratio > 0 else { return }
         currentRatio = ratio
         applyHeightForCurrentBounds()
     }
 
+    /// Height = width / ratio, clamped to a finite range: an extremely thin image (1x100000) would
+    /// otherwise produce a constant in the millions and wreck the constraint engine's numerics.
+    nonisolated static func containerHeight(width: CGFloat, ratio: CGFloat) -> CGFloat? {
+        guard width.isFinite, width > 0, ratio.isFinite, ratio > 0 else { return nil }
+        let raw = (width / ratio).rounded()
+        guard raw.isFinite else { return nil }
+        return min(max(raw, 1), maxContainerHeight)
+    }
+
+    /// Height cap for one image container (about 10 screens).
+    nonisolated static let maxContainerHeight: CGFloat = 8000
+
     private func applyHeightForCurrentBounds() {
-        guard currentRatio > 0 else { return }
-        let w = bounds.width > 0 ? bounds.width : 320
-        heightConstraint.constant = (w / currentRatio).rounded()
+        let w = bounds.width.isFinite && bounds.width > 0 ? bounds.width : 320
+        guard let h = Self.containerHeight(width: w, ratio: currentRatio) else { return }
+        heightConstraint.constant = h
     }
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        guard currentRatio > 0, bounds.width > 0 else { return }
-        let h = (bounds.width / currentRatio).rounded()
+        guard let h = Self.containerHeight(width: bounds.width, ratio: currentRatio) else { return }
         guard abs(heightConstraint.constant - h) > 0.5 else { return }
         heightConstraint.constant = h
         onLanded?()

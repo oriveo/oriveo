@@ -66,6 +66,13 @@ object MessageMapper {
             runCatching { json.decodeFromString<List<UnhandledToolCall>>(raw) }.getOrDefault(emptyList())
         }.orEmpty(),
         toolFallbackNotice = toolFallbackNotice,
+        searchErrorCard = searchErrorCardJson?.let { raw ->
+            runCatching { json.decodeFromString<ai.oriveo.community.core.model.SearchMessageErrorCard>(raw) }.getOrNull()
+        },
+        searchNotice = searchNotice,
+        searchSourcesLine = searchSourcesLineJson?.let { raw ->
+            runCatching { json.decodeFromString<ai.oriveo.community.core.model.SearchMessageSourcesLine>(raw) }.getOrNull()
+        },
         customRetryWithoutFieldsAvailable = customRetryWithoutFieldsAvailable,
         customRetryWithoutFieldsCode = customRetryWithoutFieldsCode,
         // The message is no longer generating but a step is still `running` (the process was
@@ -133,6 +140,9 @@ object MessageMapper {
                 .takeIf { it.isNotEmpty() }
                 ?.let { json.encodeToString(it) },
             toolFallbackNotice = toolFallbackNotice?.takeIf { it.isNotBlank() },
+            searchErrorCardJson = searchErrorCard?.let { json.encodeToString(it) },
+            searchNotice = searchNotice?.takeIf { it.isNotBlank() },
+            searchSourcesLineJson = searchSourcesLine?.let { json.encodeToString(it) },
             customRetryWithoutFieldsAvailable = customRetryWithoutFieldsAvailable,
             customRetryWithoutFieldsCode = customRetryWithoutFieldsCode,
             toolStepsJson = encodeToolStepsJson(toolSteps),

@@ -1,4 +1,4 @@
-import { openDB } from 'idb';
+import { openDB } from './idb-open';
 import type { MemoryItem } from '@oriveo/core/context/memory-items';
 import { getPartitionDB } from './idb';
 import { getDBName } from './partition';

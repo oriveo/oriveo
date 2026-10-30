@@ -332,6 +332,12 @@
       "reviewedAt": "2026-10-19",
       "officialUpdatedAt": null
     },
+    "anthropic.thinking": {
+      "kind": "official_doc",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/thinking",
+      "reviewedAt": "2026-10-29",
+      "officialUpdatedAt": null
+    },
     "gemini.generate_content": {
       "kind": "official_doc",
       "url": "https://ai.google.dev/api/generate-content",
@@ -1051,7 +1057,7 @@
       "reviewedAt": "2026-08-11"
     },
     "anthropic.messages.reasoning.v2": {
-      "$comment": "adaptive thinking + output_config.effort, the current official shape.",
+      "$comment": "adaptive thinking + output_config.effort, the current official shape. The thinking page (Controlling thinking display) says display defaults to omitted from Claude Opus 4.7 on (Opus 4.8 / 5 / 5.5, Sonnet 5 / 5.5, Fable 5 / 5.1, Haiku 5.5), which returns an empty thinking field; only an explicit display: summarized returns the thinking summary. 4.6 already defaults to summarized, so sending it there changes nothing. Every display value is billed the same. display together with between_tools is a 400, and this recipe never sends between_tools.",
       "id": "anthropic.messages.reasoning.v2",
       "providerKind": "anthropic",
       "transport": {
@@ -1070,7 +1076,8 @@
           "intent": "low",
           "pointer": "/thinking",
           "value": {
-            "type": "adaptive"
+            "type": "adaptive",
+            "display": "summarized"
           }
         },
         {
@@ -1084,7 +1091,8 @@
           "intent": "balanced",
           "pointer": "/thinking",
           "value": {
-            "type": "adaptive"
+            "type": "adaptive",
+            "display": "summarized"
           }
         },
         {
@@ -1098,7 +1106,8 @@
           "intent": "deep",
           "pointer": "/thinking",
           "value": {
-            "type": "adaptive"
+            "type": "adaptive",
+            "display": "summarized"
           }
         },
         {
@@ -1112,7 +1121,8 @@
           "intent": "max",
           "pointer": "/thinking",
           "value": {
-            "type": "adaptive"
+            "type": "adaptive",
+            "display": "summarized"
           }
         },
         {
@@ -1127,9 +1137,10 @@
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
       "sourceRefs": [
-        "anthropic.effort"
+        "anthropic.effort",
+        "anthropic.thinking"
       ],
-      "reviewedAt": "2026-09-24"
+      "reviewedAt": "2026-10-29"
     },
     "gemini.generate_content.reasoning.v1": {
       "$comment": "The thinkingBudget shape, used by the 2.5 generation.",

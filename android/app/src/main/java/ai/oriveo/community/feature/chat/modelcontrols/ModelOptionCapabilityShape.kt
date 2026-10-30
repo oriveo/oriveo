@@ -2,6 +2,9 @@ package ai.oriveo.community.feature.chat.modelcontrols
 
 import ai.oriveo.community.core.provider.CapabilityControlPresentation
 import ai.oriveo.community.core.provider.relay.RelayWebChat
+import ai.oriveo.community.core.search.WebSearchCardPresentation
+import ai.oriveo.community.core.search.WebSearchRoute
+import ai.oriveo.community.core.search.WebSearchState
 
 /**
  * What one capability card in the model options panel looks like; the shape follows only from facts that are already resolved.
@@ -18,7 +21,12 @@ sealed interface ModelOptionCapabilityShape {
      * On and off only. [isOn] null means the user never chose, so the UI draws the model default and stores nothing for them.
      * [kind] tells the capability recipe's switch apart from the chat-template thinking switch of a custom connection (the latter reads and writes the additional request body).
      */
-    data class Toggle(val isOn: Boolean?, val kind: ToggleKind = ToggleKind.Capability) : ModelOptionCapabilityShape
+    data class Toggle(
+        val isOn: Boolean?,
+        val kind: ToggleKind = ToggleKind.Capability,
+        /** Same as [Notice.searchCard]: actions added under the original switch when native search was withdrawn / rejected and no search service exists on this device. */
+        val searchCard: WebSearchCardPresentation? = null,
+    ) : ModelOptionCapabilityShape
 
     /**
      * A multi-tier segmented control. [tiers] is already in render order: the automatic tier comes first when the recipe has one, "off" follows when present,
@@ -41,16 +49,40 @@ sealed interface ModelOptionCapabilityShape {
     data class ToggleWithTiming(
         val timings: List<String>,
         val selectedTiming: String,
+        /** Same as [Toggle.searchCard]. */
+        val searchCard: WebSearchCardPresentation? = null,
     ) : ModelOptionCapabilityShape
 
-    /** No usable switch, but there is something to say and a way forward. [escape] null means a read-only note that is not tappable (subscription always searches). */
-    data class Notice(val status: NoticeStatus, val body: NoticeBody, val escape: Escape?) : ModelOptionCapabilityShape
+    /**
+     * No usable switch, but there is something to say and a way forward. [escape] null means a read-only note that is not tappable (subscription always searches).
+     * A non-null [searchCard] carries the extra status / actions the web card shows when no search service on this device is selectable.
+     */
+    data class Notice(
+        val status: NoticeStatus,
+        val body: NoticeBody,
+        val escape: Escape?,
+        val searchCard: WebSearchCardPresentation? = null,
+    ) : ModelOptionCapabilityShape
 
     /** A one-line status whose whole row is tappable (switch models / see the reason). [value] is set only when the current tier is shown read-only. */
     data class Disclosure(
         val status: DisclosureStatus,
         val value: String? = null,
         val tappable: Boolean = true,
+        /** Same as [Notice.searchCard]: status / actions when the model cannot search and no search service exists on this device. */
+        val searchCard: WebSearchCardPresentation? = null,
+    ) : ModelOptionCapabilityShape
+
+    /**
+     * Web switch plus an external search service on this device: when the model can search natively there is an extra "Search method: ..." row,
+     * otherwise the line under the switch reads "Search with X". [native] is the original switch shape when native search is available (its status line and timing are reused);
+     * all text, links and notes come from [card] (webSearchCardPresentation), and [route] is this turn's web search path.
+     */
+    data class ToggleWithSource(
+        val isOn: Boolean,
+        val native: ModelOptionCapabilityShape?,
+        val route: WebSearchRoute,
+        val card: WebSearchCardPresentation,
     ) : ModelOptionCapabilityShape
 
     /** The custom connection's protocol is still "automatic": the whole card collapses to one ask, choose a protocol first. */
@@ -88,7 +120,8 @@ sealed interface ModelOptionCapabilityShape {
         CustomThinkingUseAdditionalBody,
         SubscriptionAlwaysSearches,
     }
-    enum class Escape { SupportedModels, AdditionalBody }
+    enum class Escape { SupportedModels, AdditionalBody, PickSearchSource, OneTapEnableSearch, AddSearchService }
+
     /**
      * The facts of a relay web row: a local engine -> the connection cannot do it (web-fragment presentationCases);
      * otherwise -> [RelayWebToggle] (web-probe presentationCases).
@@ -134,6 +167,8 @@ sealed interface ModelOptionCapabilityShape {
         val showsThinking: Boolean = false,
         /** Relay web row facts; null means this is not a relay and the remaining rules apply. */
         val relayWeb: RelayWeb? = null,
+        /** The combined web card result (resolveWebSearchState); null means external search is not wired in and the shape is unchanged. */
+        val webSearch: WebSearchState? = null,
     )
 
     /**
@@ -156,6 +191,34 @@ sealed interface ModelOptionCapabilityShape {
         val TIER_ORDER: List<String> = listOf("low", "balanced", "deep", "max")
 
         fun resolve(input: Input): ModelOptionCapabilityShape {
+            val existing = resolveExisting(input)
+            if (input.capability != Capability.Web) return existing
+            val state = input.webSearch ?: return existing
+            // The shape is decided entirely by resolveWebSearchState's shapeMode; this only assembles it.
+            return when (state.shapeMode) {
+                "toggle_with_source" -> ToggleWithSource(
+                    isOn = state.toggleOn,
+                    native = existing.takeIf {
+                        state.route.row == "toggle_with_source_picker" &&
+                            (it is Toggle || it is ToggleWithTiming || it is RelayWebToggle)
+                    },
+                    route = state.route,
+                    card = state.card,
+                )
+                // existing_with_actions: the original shape plus detail / actions; search_notice: the original row, with its status taken from card.status
+                "existing_with_actions", "search_notice" -> when (existing) {
+                    is Notice -> existing.copy(searchCard = state.card)
+                    is Disclosure -> existing.copy(searchCard = state.card)
+                    is Toggle -> existing.copy(searchCard = state.card)
+                    is ToggleWithTiming -> existing.copy(searchCard = state.card)
+                    else -> existing
+                }
+                else -> existing
+            }
+        }
+
+        /** The shape without external search (everything produced when it is not wired in). */
+        private fun resolveExisting(input: Input): ModelOptionCapabilityShape {
             if (input.connection == ConnectionCategory.CustomLLM) {
                 if (input.protocolUndecided) return ProtocolUndecided
                 if (input.capability == Capability.Reasoning) {

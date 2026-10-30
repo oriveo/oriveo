@@ -267,7 +267,7 @@ struct ContextCompactionStoreTests {
 
     /// Edit-and-resend takes the pre-edit history before truncating: checkpoints covering the truncated part are deleted and earlier ones are kept.
     @MainActor
-    @Test func edit_resend_invalidates_covering_checkpoints() throws {
+    @Test func edit_resend_invalidates_covering_checkpoints() async throws {
         let ids = (0..<4).map { _ in UUID() }
         let roles: [ChatRole] = [.user, .assistant, .user, .assistant]
         let state = AppState(seedDemoData: false, sessionUID: "context-checkpoint-\(UUID().uuidString)")
@@ -285,15 +285,18 @@ struct ContextCompactionStoreTests {
         try store.save(dropped)
 
         _ = state.beginEditingUserMessage(messageID: ids[2], in: conversation.id)
+        // The invalidation write is queued off the main thread; wait for it to land before asserting.
+        await state.waitForCheckpointInvalidations()
 
         #expect(try store.list(conversationId: conversationId) == [kept])
     }
 
     /// Editing from an assistant bubble: truncate to before its prompting user message, and delete the checkpoints covering the truncated part.
     @MainActor
-    @Test func edit_from_assistant_invalidates_checkpoints() throws {
+    @Test func edit_from_assistant_invalidates_checkpoints() async throws {
         let fixture = try makeTruncationFixture(providerSession: nil)
         _ = fixture.state.beginEditingPromptingMessage(for: fixture.ids[3], in: fixture.conversationID)
+        await fixture.state.waitForCheckpointInvalidations()
         #expect(try fixture.store.list(conversationId: fixture.conversationID.uuidString) == [fixture.kept])
     }
 
@@ -312,6 +315,7 @@ struct ContextCompactionStoreTests {
     @Test func continue_fallback_regenerate_invalidates_checkpoints() async throws {
         let fixture = try makeTruncationFixture(providerSession: Self.stubSession(), lastAssistantText: "")
         await fixture.state.continueMessage(messageID: fixture.ids[3], in: fixture.conversationID)
+        await fixture.state.waitForCheckpointInvalidations()
         let remaining = fixture.state.conversations.first { $0.id == fixture.conversationID }?.messages.map(\.id) ?? []
         #expect(!remaining.contains(fixture.ids[3]))
         #expect(try fixture.store.list(conversationId: fixture.conversationID.uuidString) == [fixture.kept])
@@ -416,7 +420,7 @@ struct ContextCompactionStoreTests {
         }
     }
 
-    @Test func backup_roundtrip_includes_checkpoints() throws {
+    @Test func backup_roundtrip_includes_checkpoints() async throws {
         let source = try McpTestDatabase.make()
         defer { source.cleanUp() }
         let sourceStore = ContextCompactionStore(dbPool: source.pool)
@@ -464,7 +468,9 @@ struct ContextCompactionStoreTests {
         stale.text = "stale"
         try targetStore.save(stale)
 
-        let imported = try BackupService.importCheckpoints(decoded.checkpoints, store: targetStore)
+        // Production writes in the background (synchronous main-thread writes are forbidden), so the test calls it there too.
+        let checkpoints = decoded.checkpoints
+        let imported = try await Task.detached { try BackupService.importCheckpoints(checkpoints, store: targetStore) }.value
         #expect(imported == 2)
         #expect(try targetStore.list(conversationId: kept) == [summary, fallback])
         #expect(try targetStore.list(conversationId: orphan).isEmpty)

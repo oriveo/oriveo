@@ -11,8 +11,11 @@ final class FeatureBadges {
     /// The "Memory" row in Settings, leading to the memory settings page.
     static let settingsMemory = "settings.memory.2026-10"
 
+    /// The "Web search" tile in Settings, leading to the Web search page.
+    static let settingsWebSearch = "settings.webSearch.2026-10"
+
     /// Currently registered ids; to prompt again for an updated feature, add a new id and remove the old one.
-    static let registeredIDs: [String] = [settingsMemory]
+    static let registeredIDs: [String] = [settingsMemory, settingsWebSearch]
 
     static let storageKey = "featureBadges.seen"
 

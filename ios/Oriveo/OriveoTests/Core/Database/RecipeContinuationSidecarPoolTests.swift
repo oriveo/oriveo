@@ -60,6 +60,27 @@ struct RecipeContinuationSidecarPoolTests {
         }
     }
 
+    @Test("Opening the sidecar and an empty purge do not write: the first write creates the table (opens often run on the main-thread send path)")
+    func sidecarOpenAndEmptyPurgeDoNotWrite() throws {
+        let uid = "sidecar-lazy-\(UUID().uuidString)"
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("oriveo-sidecar-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        RecipeContinuationStore.resetLocalOnlyPoolForTesting()
+        defer {
+            RecipeContinuationStore.resetLocalOnlyPoolForTesting()
+            try? FileManager.default.removeItem(at: directory)
+            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+        }
+        let parentPool = try makeParentPool(in: directory)
+        defer { try? parentPool.close() }
+        let pool = try RecipeContinuationStore.localOnlyPoolForTesting(for: uid)
+        #expect(try pool.read { try $0.tableExists("message_recipe_continuation") } == false, "Opening must not create the table")
+
+        try RecipeContinuationStore.purgeOrphans(for: uid, parentPool: parentPool)
+        #expect(try pool.read { try $0.tableExists("message_recipe_continuation") } == false, "Nothing to delete means no write")
+    }
+
     @Test("The pool reopens after close and rebinds on a uid switch")
     func sidecarPoolRebindsOnCloseAndUIDSwitch() throws {
         try withTemporaryUID { uid, _ in

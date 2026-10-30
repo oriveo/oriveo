@@ -107,6 +107,8 @@ class ToolsUnsupportedError(
     val upstream: ProviderServiceError,
     var legIndex: Int = 0,
     var receivedStructuredToolCalls: Boolean = false,
+    /** Rejected (400 / 422) only because the leg carried the external web_search tool; the caller re-routes instead of treating it as "tools unsupported". */
+    val webSearchRejection: Boolean = false,
 ) : Exception("The selected connection rejected native tools."), ToolLoopLegRejection {
     override fun annotate(legIndex: Int, receivedStructuredToolCalls: Boolean) {
         this.legIndex = legIndex
@@ -347,6 +349,11 @@ class ProviderToolLegRunner internal constructor(
                 val mapped = SseParser.mapHttpError(response.status.value, body, credentials)
                 if (ToolUnsupportedErrorMatcher.matches(response.status.value, body)) {
                     throw ToolsUnsupportedError(mapped)
+                }
+                if (response.status.value in ai.oriveo.community.core.search.TOOLS_REJECTED_STATUSES &&
+                    request.tools.any { it.function.name == ai.oriveo.community.core.search.WEB_SEARCH_TOOL.name }
+                ) {
+                    throw ToolsUnsupportedError(mapped, webSearchRejection = true)
                 }
                 throw mapped
             }

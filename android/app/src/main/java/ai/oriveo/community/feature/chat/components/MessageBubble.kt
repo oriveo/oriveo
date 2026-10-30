@@ -278,6 +278,8 @@ fun MessageBubble(
      * running has nothing on screen to wait for, and should not shimmer.
      */
     isLiveStream: Boolean = false,
+    /** Last message in the conversation: the external search error card shows its regenerate-style buttons only here. */
+    isLastMessage: Boolean = false,
     showMetadata: Boolean = true,
     providerNameOverride: String? = null,
     modelNameOverride: String? = null,
@@ -348,6 +350,7 @@ fun MessageBubble(
             onCrosscheck = onCrosscheck,
             replyNotice = replyNotice,
             onContinueReply = onContinueReply,
+            isLastMessage = isLastMessage,
             modifier = modifier.testTag("chat_message_assistant"),
             attachmentStore = attachmentStore,
         )
@@ -726,6 +729,7 @@ private fun AssistantMessage(
     onCrosscheck: (() -> Unit)? = null,
     replyNotice: ReplyNoticeModel? = null,
     onContinueReply: () -> Unit = {},
+    isLastMessage: Boolean = false,
     modifier: Modifier,
     attachmentStore: AttachmentStore,
 ) {
@@ -941,10 +945,21 @@ private fun AssistantMessage(
                     }
                 }
 
+                // External web search query chips: appended per call, at most 3; the one in flight shows a spinner
+                if (waitingOnLiveStream && streamingActivity == StreamActivity.ExternalSearch) {
+                    LocalExternalSearchChatHost.current?.activity?.collectAsStateWithLifecycle()?.value?.let { state ->
+                        SearchQueryChips(state)
+                    }
+                }
+
                 if (message.unhandledToolCalls.isNotEmpty()) {
                     UnhandledToolCallsCard(message.unhandledToolCalls)
                 } else if (message.toolFallbackNotice == "library_not_searched") {
                     ToolFallbackNoticeRow()
+                }
+                // One-off notice when tools were rejected and the turn fell back to searching up front (finishSearchReply.notice == tools_rejected)
+                if (message.searchNotice == "tools_rejected" && !isStreaming) {
+                    ToolFallbackNoticeRow(textRes = R.string.web_search_chat_tools_rejected_notice)
                 }
 
                 if (!message.attachments.isNullOrEmpty()) {
@@ -954,14 +969,43 @@ private fun AssistantMessage(
                     )
                 }
 
-                if (shouldShowAssistantCitations(
-                        hasCitations = !message.citations.isNullOrEmpty(),
+                // External web search sources card: the title only reads the persisted sourcesLine; zero sources still shows one row, without an expand arrow.
+                // Library / MCP sources keep using the citations block.
+                val searchSourcesLine = message.searchSourcesLine
+                val citationsForBlock = if (searchSourcesLine != null) {
+                    ExternalSearchChatPresentation.otherSources(message.citations)
+                } else {
+                    message.citations.orEmpty()
+                }
+                if (searchSourcesLine != null && shouldShowAssistantCitations(
+                        hasCitations = true,
                         isStreaming = isStreaming,
                         hasBody = showBody,
                         isBodyRenderSettled = isBodyRenderSettled,
                     )
                 ) {
-                    CitationsBlock(citations = message.citations.orEmpty())
+                    SearchSourcesBlock(
+                        initiallyExpanded = LocalSearchSourcesInitiallyExpanded.current,
+                        line = searchSourcesLine,
+                        citations = ExternalSearchChatPresentation.webSources(message.citations),
+                    )
+                }
+                if (shouldShowAssistantCitations(
+                        hasCitations = citationsForBlock.isNotEmpty(),
+                        isStreaming = isStreaming,
+                        hasBody = showBody,
+                        isBodyRenderSettled = isBodyRenderSettled,
+                    )
+                ) {
+                    CitationsBlock(citations = message.citations.orEmpty().let { all ->
+                        if (searchSourcesLine != null) ExternalSearchChatPresentation.otherSources(all) else all
+                    })
+                }
+
+                // External web search error card (persisted searchErrorCard): after the body, before the message action bar (same position on every platform)
+                val searchErrorCard = message.searchErrorCard
+                if (searchErrorCard != null && !isStreaming) {
+                    SearchErrorCardView(messageId = message.id, card = searchErrorCard, isLastMessage = isLastMessage)
                 }
             }
 
@@ -1138,7 +1182,7 @@ private fun UnhandledToolCallsCard(calls: List<UnhandledToolCall>) {
 }
 
 @Composable
-private fun ToolFallbackNoticeRow() {
+private fun ToolFallbackNoticeRow(@androidx.annotation.StringRes textRes: Int = R.string.tool_fallback_library_not_searched) {
     val colors = OriveoTheme.colors
     Row(
         modifier = Modifier
@@ -1156,7 +1200,7 @@ private fun ToolFallbackNoticeRow() {
             tint = colors.textTertiary,
         )
         Text(
-            text = stringResource(R.string.tool_fallback_library_not_searched),
+            text = stringResource(textRes),
             style = OriveoTheme.typography.footnote.copy(fontWeight = FontWeight.SemiBold),
             color = colors.textSecondary,
         )

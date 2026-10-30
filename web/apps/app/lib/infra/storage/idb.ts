@@ -1,4 +1,5 @@
-import { openDB, deleteDB, type DBSchema, type IDBPDatabase } from 'idb';
+import { deleteDB, type DBSchema, type IDBPDatabase } from 'idb';
+import { openDB } from './idb-open';
 import type { Conversation, Provider, Folder, Note, NoteFolder } from '@oriveo/shared';
 import type { RhoCalibrationJSON } from '@oriveo/core/context/calibration';
 import type { ContextManifest } from '@oriveo/core/context/manifest';

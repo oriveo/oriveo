@@ -84,7 +84,7 @@
     <string name="message_failed">Gönderim Başarısız Oldu</string>
     <string name="message_failed_body">İstek temiz bir şekilde tamamlanmadı. Şimdi yeniden deneyin veya tekrar göndermeden önce son kullanıcı mesajını düzenleyin.</string>
     <string name="message_interrupted">Yanıt Kesildi</string>
-    <string name="message_interrupted_body">Kısmi yanıt korundu. Kaldığı yerden devam etmek için Oluşturmaya Devam Et\'e dokunun veya yeni eksiksiz bir yanıt için Yenile\'ye dokunun.</string>
+    <string name="message_interrupted_body">Kısmi yanıt korundu. Kaldığı yerden devam etmek için Oluşturmaya Devam Et\'e dokunun veya yeni eksiksiz bir yanıt için Yeniden oluştur\'a dokunun.</string>
     <string name="web_search">Web araması</string>
     <string name="export_conversation">Konuşmayı Dışa Aktar</string>
     <string name="chat_export_markdown_ready">Markdown dışa aktarımı için paylaşım sayfası açıldı.</string>

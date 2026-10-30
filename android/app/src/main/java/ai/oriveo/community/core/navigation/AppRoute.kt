@@ -46,6 +46,28 @@ sealed interface AppRoute {
     @Serializable data object VoiceSettings : AppRoute
     /** Remote MCP: the server list, adding a server, and a server's details. */
     @Serializable data object McpServers : AppRoute
+    /** Settings > Web Search (my services, add, connect / custom, consent and test, and detail are all paged within this one route). */
+    @Serializable data object WebSearchSettings : AppRoute
+    /**
+     * Opens web search settings from the chat web search card (external search contract): non-empty [serviceId] = one-tap enable; the connect page pre-fills per oneTapReuseTarget,
+     * and once the test passes, the web switch of conversation [conversationId] is turned on; empty = the add-search-service flow, which does not auto-enable on return.
+     */
+    @Serializable data class WebSearchFromChat(
+        /** Empty = the panel cannot persist, so a passed one-tap enable does not write the conversation's web setting. */
+        val conversationId: String? = null,
+        val serviceId: String? = null,
+        val regionId: String? = null,
+        val connectionRef: String? = null,
+        val connectionName: String? = null,
+    ) : AppRoute
+    /**
+     * Jump from the external search error card in chat (external search contract): the detail of [serviceId]; [edit] = go straight into custom service editing.
+     * If the service is no longer on this device (or [serviceId] is empty), stay on the web search settings page.
+     */
+    @Serializable data class WebSearchService(
+        val serviceId: String? = null,
+        val edit: Boolean = false,
+    ) : AppRoute
     @Serializable data object McpAddServer : AppRoute
     @Serializable data class McpServerDetail(val serverId: String) : AppRoute
     @Serializable data object Onboarding : AppRoute

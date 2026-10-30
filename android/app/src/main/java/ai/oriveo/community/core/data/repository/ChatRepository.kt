@@ -65,6 +65,7 @@ import ai.oriveo.community.core.provider.CapabilityControlResolution
 import ai.oriveo.community.core.model.RelayImageConfig
 import ai.oriveo.community.core.model.RelayImageMode
 import ai.oriveo.community.core.model.RelayTransport
+import ai.oriveo.community.core.search.toCitation
 import ai.oriveo.community.core.util.generateUuidString
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -227,6 +228,11 @@ class ChatRepository(
          * it shares the first-leg / tail-leg / downgrade behavior with propose_memory.
          */
         memorySearch: ai.oriveo.community.core.memory.MemorySearchTurn? = null,
+        /**
+         * External web search: non-null when route.path is an external path. Wired strictly from planSearchTurn's output:
+         * the tool path registers web_search, presearch / reuse go into [D]; on every other path it is null and the outbound request is unchanged.
+         */
+        externalSearch: ai.oriveo.community.core.search.ExternalSearchSend? = null,
     ) {
         val modelSelection = resolveSendModelSelection(provider, modelID)
         val runtimeModelId = modelSelection.runtimeModelId
@@ -286,6 +292,8 @@ class ChatRepository(
         var memoryFallback = compaction == null
         val recoveryFallbackB = overflowRecovery?.takeIf { it.checkpoint == null }
             ?.projection?.plan?.budget?.let { budget -> budget.B ?: budget.estimatedInput }
+        // The external search segment this turn hands to [D] (deliver.content of a presearch / reuse); every re-projection carries it, right after <oriveo-library>.
+        var injectedWebSegment: String? = null
         suspend fun projectChat(
             overflowFallbackB: Int?,
             toolSafety: String? = null,
@@ -312,6 +320,7 @@ class ChatRepository(
                     window = ChatContextProjector.window(provider, model ?: requestOptions.activeModel, requestOptions, budgetCap),
                     rhoHi = rhoHi,
                     overflowFallbackB = overflowFallbackB,
+                    web = injectedWebSegment,
                     purpose = if (toolSafety != null) {
                         ai.oriveo.community.core.context.RequestPurpose.TOOL_LOOP_LEG
                     } else if (continueTarget != null) {
@@ -320,6 +329,7 @@ class ChatRepository(
                         ai.oriveo.community.core.context.RequestPurpose.CHAT
                     },
                     keepAssistantId = continueTarget?.id,
+                    recordExcludeId = appendToAssistant?.id,
                     toolSafety = toolSafety,
                     // The stored row is applied only to projections with purpose=chat; the tool-loop first leg does not read it (it uses the in-memory fallback when required).
                     checkpoint = storedCheckpoint.takeIf { overflowFallbackB == null && toolSafety == null },
@@ -352,6 +362,24 @@ class ChatRepository(
                 ),
             )
             return
+        }
+        // Reuse: the external sources already persisted on the answer being regenerated (a retry reuses the assistant slot; a regenerate takes the answer after the last user message, before it is deleted).
+        val previousSearchCitations: List<Citation> = if (externalSearch == null) {
+            emptyList()
+        } else {
+            (
+                appendToAssistant?.citations ?: if (
+                    overflowRecovery == null && attemptKind == ContextConfirmAttempt.REGENERATE && userMessageAlreadyInHistory
+                ) {
+                    existingMessages.lastOrNull()?.takeIf { it.role == ChatRole.User }?.let { lastUser ->
+                        conversationRepository.getWithMessages(conversation.id)?.messages.orEmpty()
+                            .dropWhile { it.id != lastUser.id }.drop(1)
+                            .lastOrNull { it.role == ChatRole.Assistant }?.citations
+                    }
+                } else {
+                    null
+                }
+                ).orEmpty().filter { it.source == ai.oriveo.community.core.search.EXTERNAL_SEARCH_SOURCE }
         }
         // Regenerate: the old answer (the messages after the last user message) is deleted only once the refusal check has passed; on a refusal it stays untouched.
         if (overflowRecovery == null && attemptKind == ContextConfirmAttempt.REGENERATE && userMessageAlreadyInHistory) {
@@ -765,6 +793,45 @@ class ChatRepository(
         var searchRetryProjection: ChatContextProjection? = null
         // The ordinary streaming first leg ran a search but the results never reached a tail leg (no tail leg / thinking branch): the returned ids are not merged into memoryIds.
         var searchResultsUnsent = false
+        // Re-projection carrying this turn's external search segment in [D]; when set, the outbound request and the bookkeeping use it instead of the first projection.
+        var webProjection: ChatContextProjection? = null
+        // External search driver of this reply (tool path / presearch / reuse); finalizing, stopping and failing all take sources, facts and the error card from it.
+        var searchRunner: ai.oriveo.community.core.search.SearchReplyRunner? = null
+
+        /** When the reply ends, write the external search outcome onto the assistant message (sources in the same list as other citations, message facts, error card, notice). */
+        fun ChatMessage.withSearchReply(stopped: Boolean): ChatMessage {
+            val runner = searchRunner ?: return this
+            if (stopped) runner.stopped()
+            val finish = runner.finish()
+            val searchCitations = finish.citations.map { it.toCitation() }
+            val merged = citations.orEmpty().filterNot { c ->
+                c.source == ai.oriveo.community.core.search.EXTERNAL_SEARCH_SOURCE && searchCitations.any { it.url == c.url }
+            } + searchCitations
+            val fact = finish.facts.source?.let { source ->
+                CapabilityExecutionResult(owner = "web", state = finish.facts.state, source = source)
+            }
+            return copy(
+                citations = merged.takeIf { it.isNotEmpty() },
+                capabilityExecutionResults = capabilityExecutionResults.filterNot {
+                    it.source == ai.oriveo.community.core.search.EXTERNAL_SEARCH_SOURCE
+                } + listOfNotNull(fact),
+                searchErrorCard = finish.errorCard?.let { card ->
+                    ai.oriveo.community.core.model.SearchMessageErrorCard(
+                        errorClass = card.errorClass,
+                        headline = card.headline,
+                        primaryAction = card.primaryAction,
+                        secondaryAction = card.secondaryAction,
+                        serviceName = card.serviceName,
+                        serviceId = runner.state.service.id,
+                        switchTo = card.switchTo?.let { ai.oriveo.community.core.model.SearchMessageSwitchTarget(it.id, it.name) },
+                    )
+                },
+                searchNotice = finish.notice,
+                searchSourcesLine = finish.sourcesLine?.let { line ->
+                    ai.oriveo.community.core.model.SearchMessageSourcesLine(line.searchCount, line.serviceName, line.sourceCount, line.reused, line.custom)
+                },
+            )
+        }
         try {
             relayImageRouteError?.let { throw it }
             // The main chat path sends only the plan: if the assembler yields no messages (the last outbound message is not this turn's user message) it counts as a send failure.
@@ -837,6 +904,25 @@ class ChatRepository(
                     )
 
                 /**
+                 * The external search segment (deliver.content of a presearch / reuse) goes verbatim into this turn's [D], right after <oriveo-library>,
+                 * through the same re-projection path as every other [D] input; a refusal counts as a send failure.
+                 */
+                suspend fun injectWebSegment(content: String) {
+                    val lastUserIndex = providerMessages.indexOfLast { it.role == ChatRole.User }
+                    if (lastUserIndex < 0) return
+                    injectedWebSegment = content
+                    val reprojected = projectChat(overflowFallbackB = recoveryFallbackB)
+                    reprojected?.reject?.let { throw ContextRejectedError(it) }
+                    val currentText = checkNotNull(
+                        reprojected?.messages?.lastOrNull()?.takeIf { it.role == ChatRole.User }?.text,
+                    ) { "web search delivery has no context plan" }
+                    webProjection = reprojected
+                    providerMessages = providerMessages.toMutableList().also {
+                        it[lastUserIndex] = it[lastUserIndex].copy(text = currentText)
+                    }
+                }
+
+                /**
                  * The only input of the tool-loop (MCP) first leg: re-projects with purpose toolLoopLeg and [toolSafety] as the last segment of the system prompt;
                  * the stored-row checkpoint is not applied. options gets this plan's system prompt and [D], and the outbound messages are [providerMessages].
                  * When the re-projection is refused or yields no messages it is treated as a send failure (same as the main path; the system prompt is never assembled separately).
@@ -889,9 +975,149 @@ class ChatRepository(
                     )
                 }
 
+                // External web search: externalSearch is set only when route.path is an external path. Counts, budgets, numbering,
+                // facts and error cards all follow the output of planSearchTurn and applySearchEvent; nothing is decided here.
+                val searchBinding = externalSearch?.binding?.takeIf {
+                    !relayUseImagesEndpoint && !supportsImageGen && !textContinuationOnly
+                }
+                // The tool-path web_search entry; set back to null after a rejection reroute (later resends carry no tool).
+                var webSearchEntry: ai.oriveo.community.core.tools.ToolRegistryEntry? = null
+                // A loop carrying web_search ran (including a rejected first leg): the ordinary streaming branch adds no memory-tool leg.
+                var webSearchLoopAttempted = false
+                // MCP write confirmation: plan.writeToolConfirm and the current webResultsPresent decide "just this once"
+                var searchWriteToolConfirm = "n/a"
+                val mcpForceOnceConfirmation = {
+                    searchWriteToolConfirm == "once_when_web_results_present" && searchRunner?.webResultsPresent == true
+                }
+                // Evaluated only when this turn takes external search (other paths never touch the MCP config)
+                val searchToolHostInput by lazy {
+                    ai.oriveo.community.core.search.SearchToolHostInput(
+                        mcp = !mcpPlan.isEmpty,
+                        memoryTools = proposeLoopEntry != null || searchLoopEntry != null,
+                        nativeMoonshotLoop = provider.kind == ProviderKind.Moonshot,
+                        // Always pass the effective step count of the MCP runtime config (not only when MCP is on)
+                        serverMaxSteps = mcpChatToolRunner?.serverMaxSteps(),
+                        // The generic loop replays tool_calls and tool results itself, so this is always tool_loop
+                        continuationKind = "tool_loop",
+                    )
+                }
+                fun planExternalSearch(
+                    rejection: ai.oriveo.community.core.search.SearchUpstreamRejection?,
+                ): ai.oriveo.community.core.search.SearchTurnPlan {
+                    val ext = checkNotNull(externalSearch)
+                    return ai.oriveo.community.core.search.planSearchTurn(
+                        ai.oriveo.community.core.search.SearchTurnPlanInput(
+                            path = ext.path,
+                            service = checkNotNull(searchBinding).service,
+                            toolCall = ext.toolCall,
+                            host = searchToolHostInput,
+                            // thinking.on = this turn's outbound request really carries a reasoning parameter;
+                            // continuation state is always available (the generic loop replays tool_calls and tool results itself).
+                            thinking = ai.oriveo.community.core.search.SearchThinking(
+                                on = ai.oriveo.community.core.search.searchThinkingOn(effectiveReasoning),
+                                protocol = ai.oriveo.community.core.search.searchThinkingProtocol(
+                                    requestOptions.modelControlRuntimeIdentity?.finalTransport,
+                                    provider.kind.name.lowercase(),
+                                ),
+                                continuationStateAvailable = true,
+                            ),
+                            upstreamRejection = rejection,
+                            toolsRejectedBefore = ai.oriveo.community.core.search.SearchToolsRejectionMemory
+                                .rejectedBefore(conversation.id, ext.modelKey),
+                            regenerate = ai.oriveo.community.core.search.SearchRegenerate(
+                                ext.action,
+                                previousResultsPersisted = previousSearchCitations.isNotEmpty(),
+                            ),
+                            userText = text,
+                            b = sendProjection.windowBudget?.B,
+                            today = java.time.LocalDate.now().toString(),
+                        ),
+                    )
+                }
+                suspend fun searchReplyStart(plan: ai.oriveo.community.core.search.SearchTurnPlan): ai.oriveo.community.core.search.SearchReplyStart {
+                    val binding = checkNotNull(searchBinding)
+                    return ai.oriveo.community.core.search.SearchReplyStart(
+                        plan = plan.replyPlan,
+                        service = binding.service,
+                        otherServices = binding.otherServices,
+                        b = sendProjection.windowBudget?.B,
+                        rhoHi = currentRhoHi(),
+                        retrievedAt = java.time.Instant.now().toString(),
+                    )
+                }
+                /** A non-null [resume] means an internal resend within this turn: keep this turn's reply state (sources line, facts and error card keep their actual values). */
+                suspend fun startSearchRunner(
+                    plan: ai.oriveo.community.core.search.SearchTurnPlan,
+                    resume: ai.oriveo.community.core.search.SearchReplyState? = null,
+                ): ai.oriveo.community.core.search.SearchReplyRunner {
+                    val binding = checkNotNull(searchBinding)
+                    val runner = ai.oriveo.community.core.search.SearchReplyRunner(
+                        initial = resume ?: ai.oriveo.community.core.search.startSearchReply(searchReplyStart(plan)),
+                        binding = binding,
+                        track = {},
+                        activity = { activity, retry ->
+                            outputs.streamingExternalSearch.value = ai.oriveo.community.core.search.nextExternalSearchActivity(
+                                outputs.streamingExternalSearch.value,
+                                activity,
+                                retry,
+                            )
+                            // After deliver the activity stays until the first token (a text / reasoning delta clears it), and the row reads "answering from the search results"
+                            if (activity != null) {
+                                outputs.streamingActivity.value = ai.oriveo.community.core.model.StreamActivity.ExternalSearch
+                            }
+                        },
+                    )
+                    searchRunner = runner
+                    searchWriteToolConfirm = plan.writeToolConfirm
+                    return runner
+                }
+                /** Presearch (query = the user's text) or reuse: the delivered content goes into [D]. */
+                suspend fun applySearchPlanToContext(plan: ai.oriveo.community.core.search.SearchTurnPlan, runner: ai.oriveo.community.core.search.SearchReplyRunner) {
+                    val presearch = plan.presearch
+                    when {
+                        plan.reuse -> runner.reuse(previousSearchCitations)?.let { injectWebSegment(it) }
+                        presearch != null -> injectWebSegment(runner.search(presearch.query, presearch.count).content)
+                    }
+                }
+                val resumeSearch = externalSearch?.resume
+                if (searchBinding != null && resumeSearch != null) {
+                    // Internal resend within this turn: no new request and no web_search; [D] is rebuilt by reuse on a separate state, the reply state is unchanged (not marked as reused)
+                    val plan = planExternalSearch(null)
+                    startSearchRunner(plan, resumeSearch)
+                    ai.oriveo.community.core.search.rebuildSearchDelivery(searchReplyStart(plan), resumeSearch.citations)
+                        ?.let { injectWebSegment(it) }
+                } else if (searchBinding != null) {
+                    val plan = planExternalSearch(null)
+                    val runner = startSearchRunner(plan)
+                    applySearchPlanToContext(plan, runner)
+                    val tool = plan.webSearchTool
+                    if (plan.requestHasWebSearchTool && tool != null && mcpChatToolRunner != null && model != null) {
+                        webSearchEntry = ai.oriveo.community.core.search.WebSearchToolEntry(tool, runner)
+                    }
+                }
+                val searchToolHost = webSearchEntry?.let { searchToolHostInput }
+                    ?.let { ai.oriveo.community.core.search.resolveSearchToolHost(it.copy(path = "external_tool")) }
+                /**
+                 * Rejection reroute: the first leg carrying web_search was rejected (400 / 422). Remember the conversation and model,
+                 * re-plan, and when the plan moves to presearch put it into [D].
+                 * Returns true when it moved to presearch / reuse (this turn is then resent with that, not through the old "resend without tools" branch).
+                 */
+                suspend fun rerouteSearchAfterRejection(error: ai.oriveo.community.core.tools.ToolsUnsupportedError): Boolean {
+                    val ext = externalSearch ?: return false
+                    if (webSearchEntry == null) return false
+                    webSearchEntry = null
+                    val status = error.upstream.httpStatus ?: return false
+                    val plan = planExternalSearch(ai.oriveo.community.core.search.SearchUpstreamRejection(status, 0))
+                    if (plan.presearch == null && !plan.reuse) return false
+                    // Remember the conversation and model only once the presearch reroute holds
+                    ai.oriveo.community.core.search.SearchToolsRejectionMemory.mark(conversation.id, ext.modelKey)
+                    applySearchPlanToContext(plan, startSearchRunner(plan))
+                    return true
+                }
+
                 // null = the MCP loop did not run, or its first leg had tools rejected and the ordinary send below resends without tools.
                 var mcpResult: ai.oriveo.community.core.tools.ToolCallLoop.Result? = null
-                if (!mcpPlan.isEmpty) {
+                if (!mcpPlan.isEmpty || webSearchEntry != null) {
                     // The tool loop produces the final answer itself, leg by leg, over whichever of
                     // the four wire protocols this connection speaks.
                     val runner = checkNotNull(mcpChatToolRunner)
@@ -899,7 +1125,10 @@ class ChatRepository(
                     val activeModel = checkNotNull(model)
                     var legText = ""
                     rhoMultiLeg = true
-                    val transport = toolLoopTransport(ai.oriveo.community.core.mcp.McpSafetyPrompt.TEXT)
+                    // With search alone there is no MCP safety segment (an empty toolSafety = a tool-loop leg with nothing added to the system prompt)
+                    val transport = toolLoopTransport(if (mcpPlan.isEmpty) "" else ai.oriveo.community.core.mcp.McpSafetyPrompt.TEXT)
+                    val loopSearchEntry = webSearchEntry
+                    if (loopSearchEntry != null) webSearchLoopAttempted = true
                     mcpResult = try {
                         runner.run(
                             conversationId = conversation.id,
@@ -962,16 +1191,34 @@ class ChatRepository(
                             },
                             proposeEntry = proposeLoopEntry,
                             searchEntry = searchLoopEntry,
+                            webSearchEntry = loopSearchEntry,
+                            searchHost = searchToolHost,
+                            // "Just this once" is only possible when this turn takes external search; otherwise nothing is passed
+                            forceOnceConfirmation = mcpForceOnceConfirmation.takeIf { searchBinding != null },
                         )
                     } catch (error: ai.oriveo.community.core.tools.ToolsUnsupportedError) {
                         // A 4xx on a later leg, or after a structured tool call was seen, is not "tools unsupported": it fails with the usual error card.
                         if (error.legIndex != 0 || error.receivedStructuredToolCalls) throw error.upstream
+                        // A 400 / 422 on a first leg carrying web_search that is really a context overflow goes to overflow recovery; it is not a tools rejection
+                        if (webSearchEntry != null && isContextOverflow(
+                                error.upstream,
+                                overflowFamilyOf(chatRequestFamily(null, provider, relayDeliveredTransport.get())),
+                            )
+                        ) {
+                            throw error.upstream
+                        }
+                        val searchRerouted = rerouteSearchAfterRejection(error)
+                        // Rejected only because it carried web_search, and no reroute is possible: fail with the usual error card
+                        if (error.webSearchRejection && !searchRerouted) throw error.upstream
                         // A first leg that carried propose_memory was rejected: report the downgrade; this round runs the fallback (the resend below carries no tools).
                         if (proposeLoopEntry != null) memoryPropose?.onToolsRejected()
                         if (searchLoopEntry != null) memorySearch?.onToolsRejected()
                         // A deterministic 4xx on the first leg: resend once this time without tools; the connection
                         // memory records false only when it is eligible (recordToolsRejected / ToolCallMemoryStore.isEligible).
-                        recordToolsRejected(provider, activeModel, error, sentTransport = relayFirstSend)
+                        // A rejection that rerouted web_search to presearch (remembered per conversation and model in process) writes no connection memory.
+                        if (!searchRerouted && !mcpPlan.isEmpty) {
+                            recordToolsRejected(provider, activeModel, error, sentTransport = relayFirstSend)
+                        }
                         outputs.streamingText.value = initialText
                         null
                     }
@@ -1034,7 +1281,7 @@ class ChatRepository(
                     val transport = if (dedicatedImageRoute) {
                         imageGenerationRequest(effectiveRequestOptions)
                     } else {
-                        sendProjection.planned.transportInput(effectiveRequestOptions, providerMessages)
+                        (webProjection ?: sendProjection).planned.transportInput(effectiveRequestOptions, providerMessages)
                     }
                     val done = service.sendMessage(
                         apiKey = effectiveApiKey,
@@ -1053,7 +1300,7 @@ class ChatRepository(
                 } else if (useNonStreamingRelayRuntime) {
                     // Judged tool but this exit does not carry propose_memory: this message reruns the fallback (directive suggestion plus v1 memory routing) and no degradation is recorded.
                     if (proposeTools.isNotEmpty()) memoryPropose?.onToolsNotAttached()
-                    val transport = sendProjection.planned
+                    val transport = (webProjection ?: sendProjection).planned
                         .transportInput(effectiveRequestOptions, providerMessages, withDynamic = !relayImageRawPrompt)
                     val done = service.sendMessage(
                         apiKey = effectiveApiKey,
@@ -1088,9 +1335,9 @@ class ChatRepository(
                     if (continueTarget != null && loadedContinuation?.kind in REPLAY_CONTINUATION_KINDS) {
                         providerMessages = providerMessages.filterNot { it.id == continueTarget.id }
                     }
-                    val currentFingerprint = ContinuationFingerprint.of(sendProjection, relayUpstreamModelId)
+                    val currentFingerprint = ContinuationFingerprint.of(webProjection ?: sendProjection, relayUpstreamModelId)
                     // Only an ordinary streaming first leg that did not enter the tool loop carries propose_memory.
-                    var proposeLegTools = proposeTools.isNotEmpty() && mcpPlan.isEmpty
+                    var proposeLegTools = proposeTools.isNotEmpty() && mcpPlan.isEmpty && !webSearchLoopAttempted
                     val serviceOptions = effectiveRequestOptions.copy(
                         localContinuationMessageId = assistantMessageId,
                         localContinuationState = continuationState,
@@ -1098,7 +1345,7 @@ class ChatRepository(
                         localContinuationFingerprintMatches = continuationFingerprints[assistantMessageId] == currentFingerprint,
                         clientTools = if (proposeLegTools) proposeTools else emptyList(),
                     )
-                    val transport = sendProjection.planned
+                    val transport = (webProjection ?: sendProjection).planned
                         .transportInput(serviceOptions, providerMessages, withDynamic = !relayImageRawPrompt)
                     fun openStream(transport: TransportInput) = service.sendMessageStream(
                         apiKey = effectiveApiKey,
@@ -1129,7 +1376,7 @@ class ChatRepository(
                         memorySearch?.onToolsRejected()
                         emitAll(
                             openStream(
-                                sendProjection.planned.transportInput(
+                                (webProjection ?: sendProjection).planned.transportInput(
                                     serviceOptions.copy(clientTools = emptyList()),
                                     providerMessages,
                                     withDynamic = !relayImageRawPrompt,
@@ -1222,7 +1469,7 @@ class ChatRepository(
                                         state = event.state,
                                     )
                                     // Record this plan's fingerprint at the same moment as previousResponseId (in memory only).
-                                    val fingerprint = chatProjection
+                                    val fingerprint = (webProjection ?: chatProjection)
                                         ?.let { ContinuationFingerprint.of(it, relayUpstreamModelId) }
                                     if (fingerprint != null) {
                                         continuationFingerprints[assistantMessageId] = fingerprint
@@ -1309,7 +1556,7 @@ class ChatRepository(
                             var retryResult: ProviderChatResult? = null
                             var retryFinish: ai.oriveo.community.core.context.StreamFinish? = null
                             // Before the resend, append the entries found by search after the automatic recall in [D] (re-projection, with the same recallMax cut).
-                            var retryProjection = sendProjection
+                            var retryProjection = webProjection ?: sendProjection
                             var retryMessages = providerMessages
                             val searchedEntries = searchHook?.searchedEntries.orEmpty()
                             if (searchedEntries.isNotEmpty()) {
@@ -1580,7 +1827,7 @@ class ChatRepository(
                         localCapabilityExecutionResults,
                     memoryItemIds = deliveredMemoryItemIds(
                         // Memory items returned to the model by search_memory are merged into memoryIds; on a thinking-model resend they are already in the re-projected [D].
-                        sentMemoryIds = (toolLoopProjection ?: searchRetryProjection ?: chatProjection)
+                        sentMemoryIds = (toolLoopProjection ?: searchRetryProjection ?: webProjection ?: chatProjection)
                             ?.plan?.memoryIds?.let { ids ->
                                 if (searchRetryProjection != null || searchResultsUnsent) ids else (ids + memorySearch?.returnedIds.orEmpty()).distinct()
                             },
@@ -1598,12 +1845,12 @@ class ChatRepository(
                     cacheCreation5mTokens = result?.cacheCreation5mTokens,
                     cacheCreation1hTokens = result?.cacheCreation1hTokens,
                     costSource = messageCost.costSource,
-                )
+                ).withSearchReply(stopped = false)
                 conversationRepository.updateMessage(conversation.id, deliveredMessage)
                 // A rho sample is taken only from plain-text requests, using the input tokens of this round's usage.
                 val observedInput = result?.promptTokens?.takeIf { hasProviderUsage && it > 0 }
                 recordChatLedger(
-                    projection = chatProjection,
+                    projection = webProjection ?: chatProjection,
                     conversationId = conversation.id,
                     transportKey = rhoTransportKey,
                     family = chatRequestFamily(streamFinish, provider, relayDeliveredTransport.get()),
@@ -1684,7 +1931,7 @@ class ChatRepository(
                     ?: assistantPlaceholder.citations,
                 capabilityExecutionResults = capabilityExecutionCollector.requestedResults(),
                 toolSteps = mcpToolSteps.takeIf { it.isNotEmpty() },
-            )
+            ).withSearchReply(stopped = true)
             // NonCancellable: the surrounding scope is already cancelled, so an ordinary write
             // here would be skipped and the partial answer lost.
             withContext(NonCancellable) {
@@ -1702,7 +1949,7 @@ class ChatRepository(
                 // A user cancellation writes an interrupted manifest; a system interruption (sign-out / account switch / background expiry) writes none.
                 if (!outputs.systemInterrupted.get()) {
                     recordChatLedger(
-                        projection = chatProjection,
+                        projection = webProjection ?: chatProjection,
                         conversationId = conversation.id,
                         transportKey = rhoTransportKey,
                         family = chatStopFamily(provider, relayDeliveredTransport.get()),
@@ -1723,7 +1970,7 @@ class ChatRepository(
             if (overflowed && chatProjection != null) {
                 recordOverflowAttempt(
                     projection = chatProjection,
-                    ledgerProjection = chatProjection,
+                    ledgerProjection = webProjection ?: chatProjection,
                     recordMiss = !rhoMultiLeg,
                     conversationId = conversation.id,
                     transportKey = rhoTransportKey,
@@ -1770,6 +2017,10 @@ class ChatRepository(
                         appendToAssistant = null,
                         attemptKind = attemptKind,
                         overflowRecovery = ChatOverflowRecovery(assistantPlaceholder, recovery, compactedRow, budgetCap),
+                        // An internal resend within this turn reuses the external search results already fetched (rebuilt by reuse: no new request, no new charge)
+                        externalSearch = externalSearch?.let { ext ->
+                            searchRunner?.let { runner -> ext.forInternalResend(runner.state) } ?: ext
+                        },
                     )
                     return
                 }
@@ -1953,7 +2204,7 @@ class ChatRepository(
                 attachments = streamingAttachments.ifEmpty { assistantPlaceholder.attachments },
                 citations = accumulatedCitations.takeIf { it.isNotEmpty() } ?: assistantPlaceholder.citations,
                 toolSteps = mcpToolSteps.takeIf { it.isNotEmpty() },
-            )
+            ).withSearchReply(stopped = userStopped)
             // Inline images that arrived before the failure are extracted and saved too; the attempt may
             // already be cancelled, so saving must not be interrupted.
             val (failedText, failedAttachments) = withContext(NonCancellable) {
@@ -1968,7 +2219,7 @@ class ChatRepository(
                 // A cancelled attempt (OkHttp "Canceled" landing here) is recorded as interrupted; the coroutine is already cancelled, so the ledger write must not be interrupted.
                 withContext(NonCancellable) {
                     recordChatLedger(
-                        projection = chatProjection,
+                        projection = webProjection ?: chatProjection,
                         conversationId = conversation.id,
                         transportKey = rhoTransportKey,
                         family = attemptFamily,

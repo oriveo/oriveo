@@ -1,19 +1,64 @@
 'use client';
 
-import { memo, useMemo, type ReactNode, isValidElement, Children } from 'react';
+import { Fragment, memo, useEffect, useMemo, useRef, useState, type ReactNode, isValidElement, Children } from 'react';
+import { flushSync } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
-import rehypeKatex from 'rehype-katex';
 import remarkCjkFriendly from 'remark-cjk-friendly';
 import remarkCjkFriendlyGfmStrikethrough from 'remark-cjk-friendly-gfm-strikethrough';
-import type { Components } from 'react-markdown';
+import type { Components, Options as ReactMarkdownOptions } from 'react-markdown';
 import { normalizeLatexDelimiters, splitClosedAndOpenLatex } from '../../lib/utils/latex-normalizer';
 import { highlightCode } from '../../lib/markdown/highlight-setup';
 import { extractText } from '../../lib/markdown/extract-text';
+import { splitMarkdownSections } from '../../lib/markdown/split-markdown-sections';
 import { CodeBlock } from './CodeBlock';
 import styles from './MarkdownRenderer.module.css';
 import './highlight-theme.css';
+
+/* KaTeX loads on demand: rehype-katex plus katex itself is about 264KB (about 63KB brotli), which a
+   static import put into the first-load chunks of every /chat page even though most conversations
+   contain no math. It loads immediately when the content has a math delimiter; otherwise it is
+   prefetched shortly after the first renderer mounts, so it is usually ready by the time math
+   appears. Until it has loaded, remark-math is not attached either: math shows as its `$...$`
+   source for a moment instead of landing in the code-block rendering branch. */
+type PluggableList = NonNullable<ReactMarkdownOptions['rehypePlugins']>;
+type RehypeKatexPlugin = PluggableList[number];
+let rehypeKatexPlugin: RehypeKatexPlugin | null = null;
+let rehypeKatexLoad: Promise<RehypeKatexPlugin> | null = null;
+
+function loadRehypeKatex(): Promise<RehypeKatexPlugin> {
+  rehypeKatexLoad ??= import('rehype-katex').then((module) => {
+    rehypeKatexPlugin = module.default;
+    return module.default;
+  });
+  return rehypeKatexLoad;
+}
+
+const KATEX_PREFETCH_DELAY_MS = 2000;
+
+function useRehypeKatex(contentHasMath: boolean): RehypeKatexPlugin | null {
+  const [plugin, setPlugin] = useState<RehypeKatexPlugin | null>(() => rehypeKatexPlugin);
+  useEffect(() => {
+    if (plugin) return;
+    let active = true;
+    const adopt = () => {
+      loadRehypeKatex()
+        .then((loaded) => { if (active) setPlugin(() => loaded); })
+        .catch(() => { rehypeKatexLoad = null; });
+    };
+    if (contentHasMath) {
+      adopt();
+      return () => { active = false; };
+    }
+    const timer = setTimeout(adopt, KATEX_PREFETCH_DELAY_MS);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [contentHasMath, plugin]);
+  return plugin;
+}
 
 interface MarkdownRendererProps {
   content: string;
@@ -354,19 +399,13 @@ const STATIC_COMPONENTS: Components = {
 
 const STRIKETHROUGH_OPTIONS = { singleTilde: false } as const;
 
-export const MarkdownRenderer = memo(function MarkdownRenderer({ content, isStreaming, onSaveCodeBlock, enableCharFade = true }: MarkdownRendererProps) {
-  // Formula and marker preprocessing: while streaming, everything after an unclosed delimiter
-  // ($ \( ** ` ``` links and so on) is peeled off as a plain tail so half-written markers do not
-  // twitch; the closed part is normalized \(...\)/\[...\] -> $/$$ for remark-math to pick up.
-  // Fading is done by the CSS bottom mask (data-streaming), so nothing is split into increments
-  // and no DOM is added or removed here.
-  const { renderedContent, tail } = useMemo(() => {
-    if (isStreaming) {
-      return prepareStreamingMarkdown(content);
-    }
-    return { renderedContent: normalizeLatexDelimiters(content), tail: '' };
-  }, [content, isStreaming]);
-
+function useMarkdownPipeline(
+  renderedContent: string,
+  contentLength: number,
+  isStreaming: boolean | undefined,
+  onSaveCodeBlock: ((markdown: string) => void) | undefined,
+  enableCharFade: boolean,
+) {
   const components: Components = useMemo(
     () => ({
       ...STATIC_COMPONENTS,
@@ -422,17 +461,49 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, isStre
   // avoid re-rendering and animating the whole text for nothing. Callers passing
   // enableCharFade=false (the reasoning block) skip it even while streaming - see the DOM size
   // reasoning in the props comment.
-  const fadeChars = isStreaming && enableCharFade && content.length <= CHAR_FADE_MAX_CHARS;
-  const rehypePlugins = useMemo(
-    () => (fadeChars ? [rehypeKatex, rehypeStreamingCharFade] : [rehypeKatex]),
-    [fadeChars],
+  const fadeChars = isStreaming === true && enableCharFade && contentLength <= CHAR_FADE_MAX_CHARS;
+  // normalizeLatexDelimiters has already turned \(...\) / \[...\] into the $ form, so math needs a $.
+  const rehypeKatex = useRehypeKatex(renderedContent.includes('$'));
+  const rehypePlugins = useMemo(() => {
+    const plugins: PluggableList = rehypeKatex ? [rehypeKatex] : [];
+    if (fadeChars) plugins.push(rehypeStreamingCharFade);
+    return plugins;
+  }, [fadeChars, rehypeKatex]);
+  const remarkPlugins = useMemo<PluggableList>(() => {
+    const plugins: PluggableList = [remarkCjkFriendly, [remarkGfm, STRIKETHROUGH_OPTIONS], [remarkCjkFriendlyGfmStrikethrough, STRIKETHROUGH_OPTIONS]];
+    if (rehypeKatex) plugins.push(remarkMath);
+    return plugins;
+  }, [rehypeKatex]);
+
+  return { components, rehypePlugins, remarkPlugins, fadeChars };
+}
+
+export const MarkdownRenderer = memo(function MarkdownRenderer({ content, isStreaming, onSaveCodeBlock, enableCharFade = true }: MarkdownRendererProps) {
+  // Formula and marker preprocessing: while streaming, everything after an unclosed delimiter
+  // ($ \( ** ` ``` links and so on) is peeled off as a plain tail so half-written markers do not
+  // twitch; the closed part is normalized \(...\)/\[...\] -> $/$$ for remark-math to pick up.
+  // Fading is done by the CSS bottom mask (data-streaming), so nothing is split into increments
+  // and no DOM is added or removed here.
+  const { renderedContent, tail } = useMemo(() => {
+    if (isStreaming) {
+      return prepareStreamingMarkdown(content);
+    }
+    return { renderedContent: normalizeLatexDelimiters(content), tail: '' };
+  }, [content, isStreaming]);
+
+  const { components, rehypePlugins, remarkPlugins, fadeChars } = useMarkdownPipeline(
+    renderedContent,
+    content.length,
+    isStreaming,
+    onSaveCodeBlock,
+    enableCharFade,
   );
 
   return (
     <div className={styles.markdown} data-streaming={isStreaming ? 'true' : undefined}>
       <ReactMarkdown
         // Strikethrough needs a paired `~~`: a single `~` is a range marker in CJK text (11~19°C), and two of them in one sentence would strike out everything between.
-        remarkPlugins={[remarkCjkFriendly, [remarkGfm, STRIKETHROUGH_OPTIONS], [remarkCjkFriendlyGfmStrikethrough, STRIKETHROUGH_OPTIONS], remarkMath]}
+        remarkPlugins={remarkPlugins}
         rehypePlugins={rehypePlugins}
         components={components}
       >
@@ -441,6 +512,94 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, isStre
       {tail ? (
         <span className={`${styles.streamingTail}${fadeChars ? ' o-fadeChar' : ''}`}>{tail}</span>
       ) : null}
+    </div>
+  );
+});
+
+/** Target characters per section: the first frame renders only the first section, about two to three screens of body text. */
+export const PROGRESSIVE_SECTION_CHARS = 4000;
+
+interface MarkdownSectionProps {
+  text: string;
+  components: Components;
+  remarkPlugins: PluggableList;
+  rehypePlugins: PluggableList;
+}
+
+// Skip re-rendering when the section text and plugins are unchanged: when later sections mount or an
+// edit changes one section, the already mounted sections cost nothing.
+const MarkdownSection = memo(function MarkdownSection({ text, components, remarkPlugins, rehypePlugins }: MarkdownSectionProps) {
+  return (
+    <ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins} components={components}>
+      {text}
+    </ReactMarkdown>
+  );
+});
+
+type IdleHandle = { cancel: () => void };
+
+function scheduleIdle(run: () => void): IdleHandle {
+  if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+    const id = window.requestIdleCallback(run, { timeout: 200 });
+    return { cancel: () => window.cancelIdleCallback(id) };
+  }
+  const id = setTimeout(run, 16);
+  return { cancel: () => clearTimeout(id) };
+}
+
+/**
+ * Non-streaming renderer for long bodies (note detail): splits at top-level block boundaries, mounts only the
+ * first section in the first frame and mounts the rest one per idle callback, so first-frame cost does not
+ * depend on body length.
+ *
+ * Every section's ReactMarkdown is a direct child of the same `.markdown` container (react-markdown adds no
+ * wrapper element) and the '\n' text node that whole-document parsing leaves between blocks is restored between
+ * sections, so once everything is mounted the DOM is node-for-node identical to whole-document rendering:
+ * spacing, background layers and native cross-section selection are unchanged. Before select-all / copy / find /
+ * print, any unmounted sections are mounted synchronously so those act on the full text. A short body has a
+ * single section and behaves like MarkdownRenderer.
+ */
+export const ProgressiveMarkdownRenderer = memo(function ProgressiveMarkdownRenderer({ content }: { content: string }) {
+  const renderedContent = useMemo(() => normalizeLatexDelimiters(content), [content]);
+  const sections = useMemo(() => splitMarkdownSections(renderedContent, PROGRESSIVE_SECTION_CHARS), [renderedContent]);
+  const { components, rehypePlugins, remarkPlugins } = useMarkdownPipeline(renderedContent, content.length, false, undefined, true);
+  const [mounted, setMounted] = useState(1);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const total = sections.length;
+  const visible = Math.min(mounted, total);
+  const complete = visible >= total;
+
+  useEffect(() => {
+    if (complete) return;
+    const handle = scheduleIdle(() => setMounted((count) => count + 1));
+    return () => handle.cancel();
+  }, [complete, visible]);
+
+  useEffect(() => {
+    if (complete) return;
+    const mountAll = () => flushSync(() => setMounted(Number.MAX_SAFE_INTEGER));
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.metaKey) mountAll();
+    };
+    const container = containerRef.current;
+    document.addEventListener('keydown', onKeyDown, true);
+    window.addEventListener('beforeprint', mountAll);
+    container?.addEventListener('selectstart', mountAll);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown, true);
+      window.removeEventListener('beforeprint', mountAll);
+      container?.removeEventListener('selectstart', mountAll);
+    };
+  }, [complete]);
+
+  return (
+    <div ref={containerRef} className={styles.markdown} data-sections={total} data-sections-mounted={visible}>
+      {sections.slice(0, visible).map((text, index) => (
+        <Fragment key={index}>
+          {index > 0 ? '\n' : null}
+          <MarkdownSection text={text} components={components} remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins} />
+        </Fragment>
+      ))}
     </div>
   );
 });

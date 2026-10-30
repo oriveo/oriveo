@@ -84,7 +84,7 @@
     <string name="message_failed">Kirim Gagal</string>
     <string name="message_failed_body">Permintaan itu tidak diselesaikan dengan rapi. Coba lagi sekarang atau edit pesan pengguna terakhir sebelum mengirimnya lagi.</string>
     <string name="message_interrupted">Respon Terganggu</string>
-    <string name="message_interrupted_body">Balasan sebagian telah disimpan. Ketuk Lanjutkan Pembuatan untuk melanjutkan dari tempat berhenti, atau Diperbarui untuk meminta jawaban lengkap baru.</string>
+    <string name="message_interrupted_body">Balasan sebagian telah disimpan. Ketuk Lanjutkan Pembuatan untuk melanjutkan dari tempat berhenti, atau Buat ulang untuk meminta jawaban lengkap baru.</string>
     <string name="web_search">Pencarian web</string>
     <string name="export_conversation">Ekspor Percakapan</string>
     <string name="chat_export_markdown_ready">Lembar berbagi dibuka untuk ekspor Markdown.</string>

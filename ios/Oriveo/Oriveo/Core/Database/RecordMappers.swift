@@ -287,7 +287,8 @@ enum RecordMappers {
     }
 
     nonisolated static func encodeCapabilityExecution(_ result: CapabilityExecutionResult?) -> String? {
-        guard let result, !result.states.isEmpty,
+                // Messages with only external search facts (no recipe owner) must also be persisted.
+        guard let result, !result.states.isEmpty || result.externalSearch != nil,
               let data = try? JSONEncoder().encode(result) else { return nil }
         return String(data: data, encoding: .utf8)
     }
@@ -295,7 +296,7 @@ enum RecordMappers {
     nonisolated static func decodeCapabilityExecution(_ raw: String?) -> CapabilityExecutionResult? {
         guard let raw, let data = raw.data(using: .utf8),
               let decoded = try? JSONDecoder().decode(CapabilityExecutionResult.self, from: data),
-              !decoded.states.isEmpty else { return nil }
+              !decoded.states.isEmpty || decoded.externalSearch != nil else { return nil }
         return decoded
     }
 

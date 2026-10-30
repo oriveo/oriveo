@@ -83,11 +83,15 @@ final class UIKitTableCard: UIView {
     private var latexObserver: NSObjectProtocol?
     private var untrustedWidthFallbackScheduled = false
 
-    /// Every subview of one row. Cells start as drawing placeholders with the same frame and
-    /// attributed text (a plain UIView plus one text draw, pixel-identical to the UITextView), so the
-    /// first frame shows the whole table. UITextViews (needed for selection questions, about 0.5ms
-    /// each, on the order of 100ms for a 30 x 5 table) replace them in later idle frames under the
-    /// shared budget of `TableCardCellUpgradeScheduler`.
+    /// Every subview of one row. Cells stay as drawing placeholders with the same frame and
+    /// attributed text (a plain UIView plus one text draw, pixel-identical to the UITextView). A
+    /// UITextView exists only for selection and links: it is built for a row only when a finger lands
+    /// on it (see `hitTest`) and swapped back to a placeholder when another row is touched or the card
+    /// leaves the window.
+    /// The whole table is deliberately not upgraded in the background: every UITextView registers
+    /// observers with the global notification center, and unregistering on dealloc costs more the more
+    /// text views are alive in the process. Upgrading the whole table made the live count grow with table
+    /// size, so releasing one large table became quadratic and blocked the main thread for seconds.
     private struct RowViews {
         let rowView: UIView
         let topLine: UIView?
@@ -100,6 +104,11 @@ final class UIKitTableCard: UIView {
 
     private var rowViews: [RowViews] = []
     private var placeholderCount = 0
+    /// Cells of this card that are currently UITextViews, and the process-wide total: regression tests
+    /// use them to pin that the live text view count does not depend on table size.
+    /// Only read and written on the main thread; deinit is nonisolated, so this is not a MainActor static.
+    private var upgradedCellCount = 0
+    nonisolated(unsafe) private static var liveUpgradedCellCount = 0
     /// Set when an inline formula image finishes rendering or the appearance changes: the next layout
     /// re-renders cell text, for built and placeholder cells alike.
     private var needsCellContentRender = false
@@ -170,6 +179,7 @@ final class UIKitTableCard: UIView {
     }
 
     deinit {
+        Self.liveUpgradedCellCount -= upgradedCellCount
         if let latexObserver {
             NotificationCenter.default.removeObserver(latexObserver)
         }
@@ -224,21 +234,28 @@ final class UIKitTableCard: UIView {
         if needsCellContentRender {
             setNeedsLayout()
         }
-        // The scheduler skips this card while it is off screen or in the reuse pool; back in a window,
-        // the remaining placeholders continue upgrading to UITextViews.
-        if placeholderCount > 0 {
-            TableCardCellUpgradeScheduler.shared.enqueue(self)
+    }
+
+    override func willMove(toWindow newWindow: UIWindow?) {
+        super.willMove(toWindow: newWindow)
+        // Selection is meaningless once the card leaves the window (cell reuse, reuse pool, the whole
+        // message released): swap every text view back to a pixel-identical placeholder so pooled and
+        // soon-to-be-released cards hold no UITextView.
+        if newWindow == nil {
+            downgradeRows(keepingSelection: false, except: nil)
         }
     }
 
     /// A touch on a row that is still placeholders upgrades that row to UITextViews before normal hit
     /// testing, so long-press selection and the Ask menu work from the first frame (a few milliseconds
-    /// for a five-cell row, paid once on touch down).
+    /// for a five-cell row, paid once on touch down). The card's other rows without a selection go back
+    /// to placeholders, so only the row being interacted with is a text view at any time.
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         if placeholderCount > 0, self.point(inside: point, with: event) {
             let pointInTable = convert(point, to: tableContainer)
             if let rowIdx = rowViews.firstIndex(where: { $0.rowView.frame.minY <= pointInTable.y && pointInTable.y < $0.rowView.frame.maxY }),
                rowViews[rowIdx].placeholderCount > 0 {
+                downgradeRows(keepingSelection: true, except: rowIdx)
                 traitCollection.performAsCurrent {
                     for j in rowViews[rowIdx].cells.indices {
                         upgradeCell(row: rowIdx, column: j)
@@ -326,11 +343,6 @@ final class UIKitTableCard: UIView {
                 applyCellContents()
             }
             layoutRows(columnWidths: columnWidths, totalWidth: totalWidth)
-            // Layout never builds a UITextView: placeholders already match the final pixels, and
-            // upgrades happen only inside the scheduler's shared per-frame budget.
-            if placeholderCount > 0 {
-                TableCardCellUpgradeScheduler.shared.enqueue(self)
-            }
         }
 
         tableContainer.frame = CGRect(x: 0, y: 0, width: totalWidth, height: totalHeight)
@@ -473,45 +485,7 @@ final class UIKitTableCard: UIView {
         }
     }
 
-    // MARK: - Upgrading placeholders to UITextViews
-
-    /// Replaces placeholders with UITextViews until the deadline, visible rows first. Returns whether
-    /// every cell is upgraded. With `guaranteesProgress`, at least one cell is upgraded so the scheduler
-    /// always moves forward.
-    @discardableResult
-    func upgradePendingCells(until deadline: CFTimeInterval, guaranteesProgress: Bool) -> Bool {
-        guard placeholderCount > 0 else { return true }
-        var upgraded = 0
-        // Scheduler callbacks run outside layout, where UITraitCollection.current is unreliable; build
-        // with the card's own traits.
-        traitCollection.performAsCurrent {
-            for rowIdx in rowIndicesVisibleFirst() {
-                for j in rowViews[rowIdx].cells.indices where rowViews[rowIdx].cells[j] is CellPlaceholderView {
-                    if CACurrentMediaTime() >= deadline, !(guaranteesProgress && upgraded == 0) { return }
-                    upgradeCell(row: rowIdx, column: j)
-                    upgraded += 1
-                }
-            }
-        }
-        return placeholderCount == 0
-    }
-
-    private func rowIndicesVisibleFirst() -> [Int] {
-        let pending = rowViews.indices.filter { rowViews[$0].placeholderCount > 0 }
-        guard let window else { return pending }
-        let visibleRect = window.bounds
-        var visible: [Int] = []
-        var offscreen: [Int] = []
-        for rowIdx in pending {
-            let rowView = rowViews[rowIdx].rowView
-            if rowView.convert(rowView.bounds, to: window).intersects(visibleRect) {
-                visible.append(rowIdx)
-            } else {
-                offscreen.append(rowIdx)
-            }
-        }
-        return visible + offscreen
-    }
+    // MARK: - Swapping placeholders and UITextViews
 
     private func upgradeCell(row rowIdx: Int, column j: Int) {
         guard let placeholder = rowViews[rowIdx].cells[j] as? CellPlaceholderView else { return }
@@ -536,16 +510,57 @@ final class UIKitTableCard: UIView {
         rowViews[rowIdx].cells[j] = label
         rowViews[rowIdx].placeholderCount -= 1
         placeholderCount -= 1
+        upgradedCellCount += 1
+        Self.liveUpgradedCellCount += 1
         bindAskSelection(label, rowCells: cellsForRow(rowIdx), column: j)
     }
 
+    /// Swaps rows that are UITextViews back to pixel-identical placeholders. With `keepingSelection`,
+    /// rows with a selection or the first responder are skipped, so text the user is selecting does not
+    /// vanish because a finger landed on another row.
+    private func downgradeRows(keepingSelection: Bool, except keptRow: Int?) {
+        guard upgradedCellCount > 0 else { return }
+        for rowIdx in rowViews.indices where rowIdx != keptRow {
+            let row = rowViews[rowIdx]
+            guard row.placeholderCount < row.cells.count else { continue }
+            if keepingSelection, row.cells.contains(where: { cell in
+                guard let textView = cell as? ChatPassiveTextView else { return false }
+                return textView.isFirstResponder || textView.selectedRange.length > 0
+            }) { continue }
+            for j in row.cells.indices {
+                guard let textView = rowViews[rowIdx].cells[j] as? ChatPassiveTextView else { continue }
+                let placeholder = CellPlaceholderView()
+                placeholder.attributedText = cellContents[rowIdx][j]
+                placeholder.frame = textView.frame
+                textView.onAskSelection = nil
+                textView.superview?.insertSubview(placeholder, aboveSubview: textView)
+                textView.removeFromSuperview()
+                rowViews[rowIdx].cells[j] = placeholder
+                rowViews[rowIdx].placeholderCount += 1
+                placeholderCount += 1
+                upgradedCellCount -= 1
+                Self.liveUpgradedCellCount -= 1
+            }
+        }
+    }
+
     #if DEBUG
-    /// Snapshots and measurements want the finished table: upgrade every placeholder synchronously.
-    /// Production spreads upgrades across frames through the scheduler.
+    static var liveUpgradedCellCountForTesting: Int { liveUpgradedCellCount }
+    #endif
+
+    #if DEBUG
+    /// Snapshots and measurements want a table made entirely of UITextViews: upgrade every placeholder
+    /// synchronously. Production only upgrades the row being touched.
     func completeDeferredRows() {
         setNeedsLayout()
         layoutIfNeeded()
-        upgradePendingCells(until: .infinity, guaranteesProgress: true)
+        traitCollection.performAsCurrent {
+            for rowIdx in rowViews.indices {
+                for j in rowViews[rowIdx].cells.indices {
+                    upgradeCell(row: rowIdx, column: j)
+                }
+            }
+        }
     }
 
     /// Test seam: (rows, rows with content, rows that are all UITextViews, remaining placeholder cells).
@@ -798,10 +813,10 @@ final class UIKitTableCard: UIView {
 // MARK: - Cell placeholders
 
 extension UIKitTableCard {
-    /// A cell placeholder shown until its UITextView is built: same frame and attributed text, drawn
+    /// The cell's resident drawing view: same frame and attributed text as a UITextView, drawn
     /// directly with NSAttributedString. It matches a TextKit 1 UITextView pixel for pixel in light and
     /// dark, at fractional column widths, with wrapping, header kerning and inline formulas. It does not
-    /// receive touches: the card's hitTest upgrades the row first.
+    /// receive touches: the card's hitTest upgrades the touched row first.
     final class CellPlaceholderView: UIView {
         var attributedText: NSAttributedString? {
             didSet { setNeedsDisplay() }
@@ -850,99 +865,4 @@ extension UIKitTableCard {
             )
         }
     }
-}
-
-// MARK: - Placeholder upgrade scheduling
-
-/// Shared scheduling for table cards upgrading cell placeholders to UITextViews: every card shares one
-/// per-frame budget.
-///
-/// - Layout never builds UITextViews (placeholders already match the final pixels); upgrades happen only
-///   here. Each frame (one display link callback) every pending card shares `frameBudget`, so several
-///   tables entering the screen together do not each take a full budget and overrun the frame.
-/// - Runs only in the default run loop mode: nothing upgrades while the user drags or the list
-///   decelerates (tracking mode); it resumes after.
-/// - Cards not in a window (off screen, in the reuse pool) are skipped and dropped from the queue;
-///   `didMoveToWindow` enqueues them again.
-/// - Visible cards upgrade first. Upgrades only make selection available, so the budget is
-///   conservative and does not compete with scrolling or animations.
-@MainActor
-final class TableCardCellUpgradeScheduler {
-    static let shared = TableCardCellUpgradeScheduler()
-
-    static let frameBudget: CFTimeInterval = 0.004
-
-    private var displayLink: CADisplayLink?
-    private let cards = NSHashTable<UIKitTableCard>.weakObjects()
-
-    private init() {}
-
-    #if DEBUG
-    /// Test seam: overrides the per-frame budget (0 upgrades a single cell per frame).
-    var frameBudgetOverrideForTesting: CFTimeInterval?
-    /// Test seam: pauses display-link-driven upgrades (to capture the placeholder-only first frame or
-    /// to isolate measurements).
-    var isPausedForTesting = false
-    /// Test seam: runs one upgrade frame synchronously (same implementation as the display link callback).
-    func runFrameForTesting() {
-        runFrame()
-    }
-    #endif
-
-    private var budget: CFTimeInterval {
-        #if DEBUG
-        if let frameBudgetOverrideForTesting { return frameBudgetOverrideForTesting }
-        #endif
-        return Self.frameBudget
-    }
-
-    func enqueue(_ card: UIKitTableCard) {
-        cards.add(card)
-        guard displayLink == nil else { return }
-        let link = CADisplayLink(target: self, selector: #selector(tick(_:)))
-        link.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 60, preferred: 60)
-        link.add(to: .main, forMode: .default)
-        displayLink = link
-    }
-
-    @objc private func tick(_ link: CADisplayLink) {
-        #if DEBUG
-        if isPausedForTesting { return }
-        #endif
-        runFrame()
-    }
-
-    private func runFrame() {
-        let deadline = CACurrentMediaTime() + budget
-        var visible: [UIKitTableCard] = []
-        var offscreen: [UIKitTableCard] = []
-        for card in cards.allObjects {
-            guard let window = card.window else {
-                cards.remove(card)
-                continue
-            }
-            if card.convert(card.bounds, to: window).intersects(window.bounds) {
-                visible.append(card)
-            } else {
-                offscreen.append(card)
-            }
-        }
-        var madeProgress = false
-        for card in visible + offscreen {
-            if madeProgress, CACurrentMediaTime() >= deadline { break }
-            // Upgrade at least one cell per frame so a single cell over budget cannot starve the queue.
-            if card.upgradePendingCells(until: deadline, guaranteesProgress: !madeProgress) {
-                cards.remove(card)
-            }
-            madeProgress = true
-        }
-        if cards.count == 0 {
-            displayLink?.invalidate()
-            displayLink = nil
-        }
-    }
-
-    // A long-lived singleton; like StreamingDisplayClock, a nonisolated deinit avoids the iOS 18
-    // back-deploy shim.
-    nonisolated deinit {}
 }

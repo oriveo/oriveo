@@ -126,7 +126,14 @@ struct MemorySuggestionPresentationTests {
             try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
             defaults.removePersistentDomain(forName: suiteName)
         }
-        try await body(state, conversation)
+        // Wait for the send tasks before the partition is deleted: failure wrap-up still writes (cost refresh) after the session is removed.
+        do {
+            try await body(state, conversation)
+        } catch {
+            await state.chatManager.waitForSendTasksForTesting()
+            throw error
+        }
+        await state.chatManager.waitForSendTasksForTesting()
     }
 
     /// Sends the sentence of a fixture case and waits for background candidate generation to finish.
@@ -296,6 +303,8 @@ struct MemorySuggestionPresentationTests {
 
             // Undo = the item repository deletes the just-created item normally.
             ToastManager.shared.performCurrentAction()
+            // The tombstone is written in the background: wait for it to land before asserting.
+            await state.waitForMemoryItemUndo()
             #expect(items.list().isEmpty)
             #expect(items.allItems().first { $0.id == item.id }?.status == .deleted)
         }

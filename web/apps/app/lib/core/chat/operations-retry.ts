@@ -42,6 +42,8 @@ export interface RetryMessageParams {
   capabilityRecipeOmissions?: Array<{ recipeRef: string; locatedPointers: string[] }>;
   capabilityRecipeResendOwners?: Array<'web' | 'reasoning' | 'generation'>;
   excludeCapabilityOwners?: Array<'web' | 'reasoning' | 'generation'>;
+  /** External search: `re_search` = "regenerate and search again" (menu item and error-card button); omitted = reuse the previous result. */
+  searchRegenerateAction?: 're_search';
 }
 
 export type RetrySendOperation = (
@@ -61,7 +63,7 @@ export function retryMessageWithSender(
   params: RetryMessageParams,
   send: RetrySendOperation,
 ): SendHandle | null {
-  const { messageId, conversation, messages, provider, model, reasoningMode, webSearchEnabled, onNewConversation, onFailed, libraryContextCancelledText, libraryFailurePresentation, excludeCustomFragments = false, omitAdditionalBody = false, omitGenerationParameters = [], excludeCustomFragmentOwners = [], capabilityRecipeOmissions = [], capabilityRecipeResendOwners = [], excludeCapabilityOwners = [] } = params;
+  const { messageId, conversation, messages, provider, model, reasoningMode, webSearchEnabled, onNewConversation, onFailed, libraryContextCancelledText, libraryFailurePresentation, excludeCustomFragments = false, omitAdditionalBody = false, omitGenerationParameters = [], excludeCustomFragmentOwners = [], capabilityRecipeOmissions = [], capabilityRecipeResendOwners = [], excludeCapabilityOwners = [], searchRegenerateAction } = params;
   const explicitModelControlResend = excludeCustomFragmentOwners.length > 0
     || capabilityRecipeOmissions.length > 0
     || capabilityRecipeResendOwners.length > 0;
@@ -138,6 +140,8 @@ export function retryMessageWithSender(
         errorSource: undefined,
         errorTechnicalDetail: undefined,
         additionalBodyRetryEligible: undefined,
+        searchErrorCard: undefined,
+        searchNotice: undefined,
         generationParameterRejection: undefined,
         inputRejection: undefined,
         relayImageUnsupported: undefined,
@@ -155,6 +159,11 @@ export function retryMessageWithSender(
   return send(ctx, {
     // Retrying a failed message is recorded as retry; regenerating a completed / interrupted answer is recorded as regenerate.
     attemptKind: retryingFailedAssistant ? 'retry' : 'regenerate',
+    // External search: by default reuse the already-stored result of the message being regenerated and do not search; re_search = the user clicked "regenerate and search again".
+    searchRegenerate: {
+      action: searchRegenerateAction ?? 'regenerate',
+      previousCitations: failedAssistant.role === 'assistant' ? failedAssistant.citations : undefined,
+    },
     text: userMsg.text, prevMessages: remaining, conversation,
     provider, model, reasoningMode, webSearchEnabled,
     attachments: userMsg.attachments,

@@ -1,4 +1,5 @@
 import {
+  isBackgroundedIdleTransaction,
   isErrorThrownEntirelyByBrowserExtension,
   isHydrationErrorEvent,
   isIgnorableBrowserExtensionError,
@@ -6,6 +7,7 @@ import {
   isIgnorableMobileBrowserInjection,
   THIRD_PARTY_IFRAME_REPLAY_BLOCK_SELECTORS,
   isResizeObserverLoopNotice,
+  shouldCreateSpanForBrowserRequest,
 } from "@oriveo/shared";
 import { installDetachedHoistableGuard } from "@oriveo/shared/browser/detached-hoistable-guard";
 import * as Sentry from "@sentry/nextjs";
@@ -56,7 +58,9 @@ Sentry.init({
       // The App Check reCAPTCHA iframe makes rrweb throw its own cross-origin SecurityError.
       block: [...THIRD_PARTY_IFRAME_REPLAY_BLOCK_SELECTORS],
     }),
-    Sentry.browserTracingIntegration(),
+    // Long-lived Firestore channels and streaming chat requests get no span; otherwise they keep
+    // pageload / navigation transactions open for 10-30 seconds.
+    Sentry.browserTracingIntegration({ shouldCreateSpanForRequest: shouldCreateSpanForBrowserRequest }),
   ],
   beforeSend(event, hint) {
     if (isProviderResponseErrorHint(hint)) return null;
@@ -78,7 +82,9 @@ Sentry.init({
     return redactSentryEvent(liftProviderErrorDetail(event, hint));
   },
   // Page-load and navigation transaction events carry the page address (the OAuth callback URL contains the authorization code), so they are redacted as well.
-  beforeSendTransaction: (event) => redactSentryEvent(event),
+  // Pageload / navigation transactions marked cancelled because the tab went to the background have
+  // throttled timings, so they stay out of the percentiles.
+  beforeSendTransaction: (event) => (isBackgroundedIdleTransaction(event) ? null : redactSentryEvent(event)),
   beforeBreadcrumb: redactSentryBreadcrumb,
   // Browser tracing records outgoing fetch URLs on spans, so the same redaction applies here.
   beforeSendSpan: redactSentrySpan,

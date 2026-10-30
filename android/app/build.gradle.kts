@@ -237,6 +237,8 @@ val metadataContractAssetFiles = listOf(
     "model-contracts/bundled-metadata.v2.json.gz",
     "model-contracts/metadata_payload.v2.schema.json",
     "test-fixtures/capability/rejection-signatures.v1.json",
+    // Bundled external-search catalog snapshot (the ?view=search payload as-is): fallback when neither network nor cache is available
+    "search-contracts/search_catalog_view.v1.json",
 )
 val metadataContractRoot: File? = generateSequence(projectDir) { it.parentFile }
     .map { it.resolve("shared") }
@@ -285,6 +287,10 @@ dependencies {
     implementation(libs.androidx.lifecycle.process)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.security.crypto)
+    // The external-search catalog signature check uses Tink's Ed25519Verify (the JCA on minSdk 26 has no Ed25519).
+    // tink-android is already a runtime transitive dependency of security-crypto but invisible at compile time, so it
+    // is declared explicitly at the same version; the APK gains no extra artifact.
+    implementation(libs.tink.android)
     implementation(libs.androidx.browser)
     implementation(libs.androidx.exifinterface)
     implementation(libs.androidx.media3.muxer)
@@ -349,4 +355,6 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation(libs.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(platform(libs.compose.bom))
+    androidTestImplementation(libs.compose.ui.test.junit4)
 }

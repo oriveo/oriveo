@@ -198,6 +198,8 @@ final class AppState {
     var memorySuggestions = MemorySuggestionController()
     /// The background memory candidate generation triggered by the latest fresh send; tests await it before reading the repository.
     @ObservationIgnored private(set) var memoryCandidateGeneration: Task<Void, Never>?
+    /// Serial tail task for checkpoint-invalidation writes (see `invalidateCheckpointsAfterTruncation`).
+    @ObservationIgnored private var checkpointInvalidationTail: Task<Void, Never>?
     /// Test seam: when non-nil, `memoryCandidateRepository()` returns its result (simulates a candidate repository that cannot be opened).
     @ObservationIgnored var memoryCandidateRepositoryOverride: (() -> MemoryCandidateRepository?)?
     var hasCompletedOnboarding: Bool {
@@ -332,6 +334,8 @@ final class AppState {
     var _testingBeforeConversationProjectionUpsert: ((Conversation) -> Void)?
     /// A simulated write failure when the home realtime empty conversation is deleted.
     var _testingEmptyConversationDeleteFailure: Error?
+    /// A simulated write failure when a conversation is deleted (locks "read back from the database on failure").
+    var _testingConversationDeleteFailure: Error?
     /// The home realtime empty conversation delete finished (after the callback): tests wait on it for the delete to end.
     var _testingAfterEmptyConversationDelete: ((UUID, Bool) -> Void)?
 
@@ -530,7 +534,37 @@ final class AppState {
                 CapabilityPreferenceRuntimeIdentity.registerRelayLegacyAliases(for: self.providers)
             }
         }
+        #if DEBUG
+        Self.liveInstancesForTesting.setObject(boundPartitionUID as NSString, forKey: self)
+        #endif
     }
+
+    #if DEBUG
+    /// Test seam: the AppStates still alive in the process (weak references) -> the partition they were built for. Before a test
+    /// deletes a partition it finds them by partition and waits for their in-flight reads and writes to drain (see
+    /// OriveoTests/Support/TestPartitionCleanup), so cases do not have to pass instances around.
+    private static let liveInstancesForTesting = NSMapTable<AppState, NSString>.weakToStrongObjects()
+
+    /// Live instances built for, or currently bound to, one of the given partitions.
+    static func liveInstancesForTesting(boundTo uids: Set<String>) -> [AppState] {
+        guard let states = liveInstancesForTesting.keyEnumerator().allObjects as? [AppState] else { return [] }
+        return states.filter { state in
+            let initial = liveInstancesForTesting.object(forKey: state) as String?
+            return uids.contains(state.boundPartitionUID) || initial.map(uids.contains) == true
+        }
+    }
+
+    /// Test seam: waits until every queued background read / write tail of this AppState has drained.
+    func drainPendingWrites() async {
+        await memoryReconcileTail?.value
+        await memoryItemUndoTail?.value
+        await useMemoryWriteTail?.value
+        await waitForCheckpointInvalidations()
+        await chatManager.waitForContextLedgerWrites()
+        await noteManager.waitForPendingWrites()
+        await drainConversationPersistQueue()
+    }
+    #endif
 
     static let preview: AppState = {
         AppState(seedDemoData: true)
@@ -732,7 +766,17 @@ final class AppState {
     /// Mark leftover `.generating` assistants as interrupted after a cold start.
     /// Cold-start memory is a summary projection, so this has to be SQL.
     private func sanitizeStaleGeneratingMessages() {
-        try? conversationRuntimeBridge.sanitizeStaleGeneratingMessages(uid: boundPartitionUID)
+        // Only the leftover ids are read here (a read does not wait for the write lock); the UPDATE for exactly those
+        // ids is queued on the persist queue so the main thread never writes synchronously.
+        let uid = boundPartitionUID
+        let bridge = conversationRuntimeBridge
+        if let staleIDs = try? bridge.staleGeneratingMessageIDs(uid: uid), !staleIDs.isEmpty {
+            conversationPersistQueue.async(qos: .userInitiated) {
+                Self.runConversationPersistWrite(op: "sanitize_stale_generating") {
+                    try bridge.sanitizeStaleGeneratingMessages(messageIDs: staleIDs, uid: uid)
+                }
+            }
+        }
         // When the database cannot be opened, memory comes from the recovery snapshot (full threads)
         // and the SQL above fails, so memory is the only copy. Without settling it here a leftover
         // .generating message keeps spinning forever.
@@ -993,34 +1037,74 @@ final class AppState {
         }
     }
 
-    func deleteConversationProjection(id: UUID) {
-        let persistedUID = boundPartitionUID
-        chatManager.discardStreamingResources(for: id)
-        do {
-            try conversationRuntimeBridge.deleteConversation(id: id, uid: persistedUID)
-            conversations.removeAll { $0.id == id }
-            persistRecoverySnapshotAfterDestructiveChange()
-        } catch {
-            #if DEBUG
-            AppLog.error(error, module: "AppState", context: ["op": "deleteConversationProjection"])
-            #endif
-        }
+    /// Deletes a conversation in two phases so the main thread never waits for the write lock (a whole-table write can hold it for seconds).
+    /// 1. In the same main-thread turn: release streaming resources and remove it from memory.
+    /// 2. Queue the row delete on the persist queue (behind whole-table writes and upserts already queued, ahead of the
+    ///    recovery snapshot refresh queued right after). On success the search sources are cleared; on failure the
+    ///    conversation is read back from the database into memory (the storage banner shows as for any failed write).
+    /// - Returns: the outcome (true = deleted); callers that clean up images await it.
+    @discardableResult
+    func deleteConversationProjection(id: UUID) -> Task<Bool, Never> {
+        enqueueConversationDeletion(ids: [id], op: "delete_conversation")
     }
 
-    func deleteConversationProjections(ids: Set<UUID>) {
-        guard !ids.isEmpty else { return }
+    @discardableResult
+    func deleteConversationProjections(ids: Set<UUID>) -> Task<Bool, Never> {
+        guard !ids.isEmpty else { return Task { true } }
+        return enqueueConversationDeletion(ids: ids, op: "delete_conversations")
+    }
+
+    private func enqueueConversationDeletion(ids: Set<UUID>, op: String) -> Task<Bool, Never> {
         let persistedUID = boundPartitionUID
+        // Streaming resources must be released before the database / memory removal:
+        // discardStreamingResources goes through the full cancel path first.
         for id in ids {
             chatManager.discardStreamingResources(for: id)
         }
+        let writer: ConversationDeletionWriter
         do {
-            try conversationRuntimeBridge.deleteConversations(ids: Array(ids), uid: persistedUID)
-            conversations.removeAll { ids.contains($0.id) }
-            persistRecoverySnapshotAfterDestructiveChange()
+            writer = try conversationRuntimeBridge.conversationDeletionWriter(uid: persistedUID)
         } catch {
-            #if DEBUG
-            AppLog.error(error, module: "AppState", context: ["op": "deleteConversationProjections"])
-            #endif
+            // The partition database cannot be opened: change nothing and show the storage banner.
+            Self.reportConversationPersistFailure(error, op: op)
+            StorageWriteHealthSignal.recordFailure(error)
+            return Task { false }
+        }
+        conversations.removeAll { ids.contains($0.id) }
+        let idList = Array(ids)
+        var injectedFailure: Error?
+        #if DEBUG
+        injectedFailure = _testingConversationDeleteFailure
+        #endif
+        let failure = injectedFailure
+        // The row delete is queued in this turn (not inside a Task): writes the main thread queues afterwards
+        // (recovery snapshot refresh, upserts) land behind it.
+        let (outcomes, outcome) = AsyncStream.makeStream(of: (Bool, [Conversation]).self, bufferingPolicy: .bufferingNewest(1))
+        conversationPersistQueue.async(qos: .userInitiated) {
+            var deleted = false
+            Self.runConversationPersistWrite(op: op) {
+                if let failure { throw failure }
+                try writer.delete(ids: idList)
+                deleted = true
+            }
+            // Not deleted: read the stored conversations back so memory agrees with the database.
+            outcome.yield((deleted, deleted ? [] : writer.storedConversations(ids: idList)))
+            outcome.finish()
+        }
+        persistRecoverySnapshotAfterDestructiveChange()
+        return Task { @MainActor [weak self] () -> Bool in
+            var iterator = outcomes.makeAsyncIterator()
+            let (deleted, stored) = await iterator.next() ?? (false, [])
+            guard let self, self.partitionIsStillBound(persistedUID) else { return deleted }
+            if deleted {
+                self.removeSearchSources(idList)
+            } else {
+                let restored = stored.filter { conversation in
+                    !self.conversations.contains { $0.id == conversation.id }
+                }
+                self.conversations.insert(contentsOf: restored, at: 0)
+            }
+            return deleted
         }
     }
 
@@ -1153,8 +1237,21 @@ final class AppState {
         conversations = []
     }
 
+    /// Waits for the writes already queued on the persist queue (without occupying the main thread).
+    func drainConversationPersistQueue() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            conversationPersistQueue.async { continuation.resume() }
+        }
+    }
+
+    /// Blocks until the persist queue has drained (for tests).
+    /// Not `sync {}`: when the main thread dispatch_syncs onto an idle serial queue, libdispatch lets the calling thread run
+    /// the writes queued ahead itself, so the database writes would run on the main thread (a violation of the main-thread
+    /// write gate). Post a signal and wait for it on the main thread instead; the queued writes still run on the queue.
     func flushConversationPersistQueue() {
-        conversationPersistQueue.sync {}
+        let drained = DispatchSemaphore(value: 0)
+        conversationPersistQueue.async { drained.signal() }
+        drained.wait()
     }
 
     func currentModel(for conversation: Conversation) -> AIModel? {
@@ -1593,6 +1690,14 @@ final class AppState {
         }
     }
 
+        /// Deleting a conversation deletes `conversationSource:<id>` (external search services contract): hooked into the projection delete layer and the sync remote delete,
+        /// so both a local delete and a delete arriving via sync clear it; file IO stays off the main thread.
+    func removeSearchSources(_ ids: [UUID]) {
+        let store = SearchServiceStore(scope: sessionPartitionUID)
+        let keys = ids.map(\.uuidString)
+        Task.detached(priority: .utility) { try? await store.removeConversationSources(keys) }
+    }
+
     func renameConversation(id: UUID, newTitle: String) {
         conversationManager.renameConversation(id: id, newTitle: newTitle)
     }
@@ -1895,6 +2000,8 @@ final class AppState {
     ) async -> ChatSendOutcome {
         let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedText.isEmpty || !attachments.isEmpty else { return .refused }
+        // Checkpoint invalidations queued by an edit truncation land before the checkpoints are read to build the context.
+        if checkpointInvalidationTail != nil { await waitForCheckpointInvalidations() }
 
         let targetConversationID: UUID
         let isNewConversation = conversationID == nil
@@ -1923,8 +2030,13 @@ final class AppState {
             // draft id. They move to the real id when the conversation is created, and that has to happen
             // before sending: assembling the usable tools reads by conversation id. If the move fails, this
             // one send simply carries no tools.
-            try? mcpServerDirectory.store(for: sessionPartitionUID).moveConversationSwitches(
+            try? await mcpServerDirectory.store(for: sessionPartitionUID).moveConversationSwitchesAsync(
                 from: generationParameterDraftSessionID, to: targetConversationID
+            )
+                        // External search is keyed by conversation source: for a draft it lives in memory only and is written once under the real id after the conversation is created; sending the first message reads this in-memory copy.
+            SearchSourceDrafts.shared.adopt(
+                from: generationParameterDraftSessionID, to: targetConversationID,
+                store: SearchServiceStore(scope: sessionPartitionUID)
             )
         }
 
@@ -2273,21 +2385,26 @@ final class AppState {
             in: conversationID,
             capabilitySelection: capabilitySelection
         )
+        // Continuing does not truncate, so the invalidation is only queued and not awaited: awaiting it changes how
+        // the continue entry interleaves with managed recovery tasks. Ordering is covered by
+        // `waitForCheckpointInvalidations` before the next send and by the digest check at read time.
         invalidateCheckpointsAfterTruncation(conversationID: conversationID, historyIdsBefore: historyIds)
     }
 
     func regenerateMessage(
         messageID: UUID,
         in conversationID: UUID,
-        capabilitySelection: ChatCapabilitySelection = ChatCapabilitySelection()
+        capabilitySelection: ChatCapabilitySelection = ChatCapabilitySelection(),
+        searchRegenerateAction: SearchRegenerateAction = .regenerate
     ) async {
         let historyIds = checkpointHistoryIds(of: conversationID)
         await chatManager.regenerateMessage(
             messageID: messageID,
             in: conversationID,
-            capabilitySelection: capabilitySelection
+            capabilitySelection: capabilitySelection,
+            searchRegenerateAction: searchRegenerateAction
         )
-        invalidateCheckpointsAfterTruncation(conversationID: conversationID, historyIdsBefore: historyIds)
+        await invalidateCheckpointsAfterTruncation(conversationID: conversationID, historyIdsBefore: historyIds).value
     }
 
     /// The full history ids before truncation (complete the summary projection first, otherwise the pre-change history is incomplete).
@@ -2300,20 +2417,41 @@ final class AppState {
 
     /// Invalidation hook for edit / regenerate: messages in the pre-change history that are gone after truncation are affected;
     /// when the send is refused or nothing is truncated the set is empty and invalidate deletes nothing.
-    private func invalidateCheckpointsAfterTruncation(conversationID: UUID, historyIdsBefore: [String]) {
+    /// The write must not wait synchronously on the main thread (the write lock can be held by a whole-table write for
+    /// seconds): it is queued on a serial tail task. Async entry points await the returned task; the synchronous
+    /// entry (edit) only queues, and `waitForCheckpointInvalidations` waits for it before the next send.
+    @discardableResult
+    private func invalidateCheckpointsAfterTruncation(conversationID: UUID, historyIdsBefore: [String]) -> Task<Void, Never> {
+        let previous = checkpointInvalidationTail
         guard !historyIdsBefore.isEmpty,
               let conversation = conversations.first(where: { $0.id == conversationID })
-        else { return }
+        else { return previous ?? Task {} }
         let remaining = Set(conversation.messages.map(\.id.uuidString))
         let affected = historyIdsBefore.filter { !remaining.contains($0) }
         guard !affected.isEmpty,
               let store = ContextCompactionStore.forPartition(sessionPartitionUID)
-        else { return }
-        _ = store.invalidateAndPropagate(
-            conversationId: conversationID.uuidString,
-            historyIds: historyIdsBefore,
-            affectedIds: affected
-        )
+        else { return previous ?? Task {} }
+        let task = Task { @MainActor in
+            await previous?.value
+            _ = await store.invalidateAndPropagateAsync(
+                conversationId: conversationID.uuidString,
+                historyIds: historyIdsBefore,
+                affectedIds: affected
+            )
+        }
+        checkpointInvalidationTail = task
+        return task
+    }
+
+    /// Wait for queued checkpoint invalidations to land (before a send reads checkpoints, and before test assertions).
+    func waitForCheckpointInvalidations() async {
+        while let task = checkpointInvalidationTail {
+            await task.value
+            if checkpointInvalidationTail == task {
+                checkpointInvalidationTail = nil
+                return
+            }
+        }
     }
 
     func retryMessage(
@@ -2330,7 +2468,7 @@ final class AppState {
             capabilitySelection: capabilitySelection,
             localCustomFragmentDisposition: localCustomFragmentDisposition
         )
-        invalidateCheckpointsAfterTruncation(conversationID: conversationID, historyIdsBefore: historyIds)
+        await invalidateCheckpointsAfterTruncation(conversationID: conversationID, historyIdsBefore: historyIds).value
     }
 
     /// Create the conversation for the first send: pending instructions are written into the object first, then saved, and then cleared.
@@ -2420,14 +2558,17 @@ final class AppState {
 
     /// Loads the current partition's data into memory.
     /// - Parameter startsAttachmentCleanup: whether to start this partition's attachment sweep here (sidecar files plus orphan images).
+    ///
+    /// When the partition database is not open yet (cold start) the main thread does not open it: the non-database data of the
+    /// session snapshot is installed first, the database is prepared in the background (connection + migrations) while
+    /// `sessionStoreReady == false` and the root view shows nothing that could reach the database, and then the conversations
+    /// are read on the main thread (`loadSessionStore`).
     func loadSession(boundTo uid: String? = nil, startsAttachmentCleanup: Bool = true) {
         resetTransientNoteContext()
         preferences = AppPreferencesStore.load()
         let activeUID = uid ?? AppSessionStore.activeUID
         boundPartitionUID = activeUID
-        // Partition activation: migrate legacy fields into memory items / reflow edits from old clients
-        reconcileMemoryItems()
-        memoryItemsCache.bind(uid: activeUID)
+        sessionLoadGeneration &+= 1
 
         let snapshot = AppSessionStore.load(for: activeUID)
 
@@ -2442,6 +2583,45 @@ final class AppState {
             folders = []
             lastUsedModelRef = nil
         }
+
+        if DatabaseManager.shared.openedPool(for: activeUID) != nil || DatabaseManager.allowsMainThreadFirstOpen {
+            sessionStoreReady = true
+            sessionStoreReadyTask = nil
+            loadSessionStore(uid: activeUID, snapshot: snapshot, startsAttachmentCleanup: startsAttachmentCleanup)
+            return
+        }
+        sessionStoreReady = false
+        conversations = []
+        let generation = sessionLoadGeneration
+        sessionStoreReadyTask = Task { @MainActor [weak self] in
+            var openError: Error?
+            do {
+                _ = try await DatabaseManager.shared.prepare(for: activeUID)
+            } catch {
+                openError = error
+            }
+            guard let self, self.sessionLoadGeneration == generation, self.partitionIsStillBound(activeUID) else { return }
+            // Mark ready first: the cache rebuilds triggered by installing the conversations below must be able to read the database.
+            self.sessionStoreReady = true
+            if let openError {
+                // It cannot be opened: same as a failed read, fall back to the recovery snapshot and enter the blocked state.
+                self.databaseHealthProbe.recordFailure(openError)
+                self.conversations = self.conversationRuntimeBridge.loadRecoveryProjection(snapshot: snapshot, uid: activeUID)
+            } else {
+                self.loadSessionStore(uid: activeUID, snapshot: snapshot, startsAttachmentCleanup: startsAttachmentCleanup)
+            }
+        }
+    }
+
+    /// The partition database is open: read the conversations, memory items, startup recovery and so on (the main thread only reads; every write is queued).
+    private func loadSessionStore(
+        uid activeUID: String,
+        snapshot: AppSessionSnapshot?,
+        startsAttachmentCleanup: Bool
+    ) {
+        // Partition activation: migrate legacy fields into memory items / reflow edits from old clients
+        reconcileMemoryItems()
+        memoryItemsCache.bind(uid: activeUID)
 
         do {
             let recoveredProjection = conversationRuntimeBridge.loadRecoveryProjection(
@@ -2480,10 +2660,16 @@ final class AppState {
                 merged: mergedProjection,
                 authoritative: authoritativeProjection
             ) {
-                conversations = (try? conversationRuntimeBridge.replaceAllConversations(
-                    mergedProjection,
-                    uid: activeUID
-                )) ?? mergedProjection
+                // The whole-table write is queued on the persist queue (the main thread never waits for the write lock) and
+                // every write queued afterwards lands behind it; memory uses the summary form of the merge result
+                // (the cold-start mirror holds summaries only, the same shape as reading them back from the database).
+                let bridge = conversationRuntimeBridge
+                conversationPersistQueue.async(qos: .userInitiated) {
+                    Self.runConversationPersistWrite(op: "load_session_recovery_replace") {
+                        _ = try bridge.replaceAllConversations(mergedProjection, uid: activeUID)
+                    }
+                }
+                conversations = mergedProjection.map(\.coldStartSummary)
             } else {
                 conversations = authoritativeProjection
             }
@@ -2609,10 +2795,22 @@ final class AppState {
         }
     }
 
-    func persistSessionNow(for persistedUID: String? = nil) {
+    /// Saves the current data to the partition (no debounce, so nothing is lost before a switch) without waiting: the
+    /// snapshot is fixed on the main thread now and the write is queued on the persist queue. The main thread never
+    /// waits on a queue that may be busy with a whole-table write. Callers that must continue only after the write use
+    /// `persistSessionNowOffMainThread()`.
+    func enqueueSessionPersist(for persistedUID: String? = nil) {
         guard let work = makeImmediateSessionPersistWork(for: persistedUID) else { return }
-        conversationPersistQueue.sync(execute: work)
+        conversationPersistQueue.async(qos: .userInitiated, execute: work)
     }
+
+    #if DEBUG
+    /// Tests only: persist synchronously (the main thread waits for the persist queue; forbidden in production).
+    func persistSessionNow(for persistedUID: String? = nil) {
+        enqueueSessionPersist(for: persistedUID)
+        flushConversationPersistQueue()
+    }
+    #endif
 
     func persistSessionNowOffMainThread(for persistedUID: String? = nil) async {
         guard let work = makeImmediateSessionPersistWork(for: persistedUID) else { return }
@@ -2658,6 +2856,7 @@ final class AppState {
             folders: folders
         )
         let bridge = conversationRuntimeBridge
+        let checkpointPool = checkpoint ? bridge.openedPool() : nil
 
         pendingSessionPersistWorkItem?.cancel()
 
@@ -2671,9 +2870,9 @@ final class AppState {
                 try bridge.persistRecoveryProjectionFromDatabase(uid: persistedUID, skipIfUnchanged: true)
             }
             AppSessionStore.save(snapshot, for: persistedUID)
-            if checkpoint {
+            if let checkpointPool {
                 Self.runConversationPersistWrite(op: "persist_lifecycle_checkpoint") {
-                    try bridge.checkpoint()
+                    try DatabaseManager.checkpoint(checkpointPool)
                 }
             }
             holder.endOnMain()
@@ -2681,6 +2880,22 @@ final class AppState {
     }
 
     private var persistableProviders: [Provider] { providers }
+
+    /// The partition database is open and the session loaded (the database phase of `loadSession` has run). While false the
+    /// root view shows nothing and database-related entry points wait for `sessionStoreReadyTask`.
+    private(set) var sessionStoreReady = true
+    /// The task that prepares the partition database in the background and loads the session; nil when already ready.
+    @ObservationIgnored private(set) var sessionStoreReadyTask: Task<Void, Never>?
+    @ObservationIgnored private var sessionLoadGeneration: UInt = 0
+
+    /// Waits until the partition database is open and the session loaded (returns at once when already ready).
+    func waitForSessionStore() async {
+        while !sessionStoreReady, let task = sessionStoreReadyTask {
+            await task.value
+            // This load was superseded by a newer `loadSession` with no new task (or invalidated): do not spin.
+            if sessionStoreReadyTask == task, !sessionStoreReady { return }
+        }
+    }
 
     func updateTheme(_ theme: ThemeOption) {
         preferences.theme = theme
@@ -2718,6 +2933,26 @@ final class AppState {
         reconcileMemoryItems()
     }
 
+    /// Serial tail task for undoing a memory-item save (see `removeMemoryItemInBackground`).
+    @ObservationIgnored private var memoryItemUndoTail: Task<Void, Never>?
+
+    /// The toast "Undo" deletes the just-created memory item: the tombstone write runs in the background instead of
+    /// waiting synchronously for the write lock on the main thread (behind a whole-table write that stalls for seconds);
+    /// repeated undos queue on one serial tail task so they land in tap order.
+    func removeMemoryItemInBackground(id: String) {
+        guard let repository = memoryItemRepository() else { return }
+        let previous = memoryItemUndoTail
+        memoryItemUndoTail = Task { @MainActor in
+            await previous?.value
+            _ = try? await repository.perform { try $0.remove(id: id) }
+        }
+    }
+
+    /// Wait for queued undo deletions to land (for tests).
+    func waitForMemoryItemUndo() async {
+        await memoryItemUndoTail?.value
+    }
+
     /// The memory item repository of the current partition; legacy field reads and writes go through this object's preferences. nil when the database cannot be opened.
     func memoryItemRepository() -> MemoryItemRepository? {
         MemoryItemRepository.forPartition(
@@ -2739,15 +2974,28 @@ final class AppState {
     }
 
     /// Runs when a partition is activated or memoryText changes: migrate / reflow, and dual-write the legacy fields when needed.
-    func reconcileMemoryItems() {
-        do {
-            try memoryItemRepository()?.reconcileLegacy()
-        } catch {
-            #if DEBUG
-            print("[AppState] reconcileMemoryItems failed: \(error)")
-            #endif
+    /// Database writes run in the background and are serialized in call order (a partition activation and a memoryText change land in the order they were triggered).
+    @discardableResult
+    func reconcileMemoryItems() -> Task<Void, Never> {
+        let repository = memoryItemRepository()
+        // The legacy fields are fixed at trigger time: a later preference change is handled by its own reconcile.
+        let prefs = preferences.memoryLegacyPrefs
+        let previous = memoryReconcileTail
+        let task = Task { @MainActor in
+            await previous?.value
+            do {
+                try await repository?.reconcileLegacy(prefs: prefs)
+            } catch {
+                #if DEBUG
+                print("[AppState] reconcileMemoryItems failed: \(error)")
+                #endif
+            }
         }
+        memoryReconcileTail = task
+        return task
     }
+
+    @ObservationIgnored private var memoryReconcileTail: Task<Void, Never>?
 
     /// Dual-write memory items back to the legacy fields (same as updateMemory): save the preferences locally.
     private func writeMemoryLegacy(_ compiled: MemoryLegacyCompile) {
@@ -2762,32 +3010,57 @@ final class AppState {
         let mirrorIndex = conversations.firstIndex(where: { $0.id == conversationID })
         let mirroredConversation = mirrorIndex.map { conversations[$0] }
 
-        do {
-            let refreshed = try conversationRuntimeBridge.setConversationUseMemory(
-                id: conversationID,
-                useMemory: useMemory,
-                uid: persistedUID
-            ) ?? {
-                guard var updated = mirroredConversation else { return nil }
-                updated.useMemory = useMemory
-                return try conversationRuntimeBridge.upsertConversation(updated, uid: persistedUID)
-            }()
+        // The in-memory mirror changes first; the write is queued on the conversation persist queue (serial with the other
+        // conversation writes, landing in call order), so the main thread never waits for the write lock. A failed write
+        // rolls the mirror back (unless the switch was flipped again meanwhile).
+        if let mirrorIndex { conversations[mirrorIndex].useMemory = useMemory }
+        let bridge = conversationRuntimeBridge
+        let outcome = ConversationPersistOutcome<Conversation?>()
+        conversationPersistQueue.async(qos: .userInitiated) {
+            outcome.fulfill(Result {
+                try bridge.setConversationUseMemory(id: conversationID, useMemory: useMemory, uid: persistedUID) ?? {
+                    guard var updated = mirroredConversation else { return nil }
+                    updated.useMemory = useMemory
+                    return try bridge.upsertConversation(updated, uid: persistedUID)
+                }()
+            })
+        }
+        let previous = useMemoryWriteTail
+        useMemoryWriteTail = Task { @MainActor [weak self] in
+            await previous?.value
+            let result = await outcome.value
+            guard let self, self.partitionIsStillBound(persistedUID) else { return }
+            self.finishConversationUseMemoryWrite(result, conversationID: conversationID, useMemory: useMemory)
+        }
+    }
 
-            guard let refreshed else { return }
-            let normalized = mirroredConversation.map {
-                normalizeRuntimeConversation(refreshed, preservingTimestampsFrom: $0)
-            } ?? refreshed
+    @ObservationIgnored private var useMemoryWriteTail: Task<Void, Never>?
 
-            if let mirrorIndex {
-                conversations[mirrorIndex] = normalized
-            } else {
-                conversations.insert(normalized, at: 0)
+    private func finishConversationUseMemoryWrite(
+        _ result: Result<Conversation?, Error>,
+        conversationID: UUID,
+        useMemory: Bool
+    ) {
+        let index = conversations.firstIndex(where: { $0.id == conversationID })
+        switch result {
+        case let .success(refreshed):
+            // Not in memory (only in the store): insert the row read back at the top, as the synchronous path did.
+            // When it is in memory the read-back row does not overwrite it: memory may have changed again while the write
+            // was queued, and the switch value is already set.
+            if let refreshed, index == nil { conversations.insert(refreshed, at: 0) }
+        case let .failure(error):
+            if let index, conversations[index].useMemory == useMemory {
+                conversations[index].useMemory = !useMemory
             }
-        } catch {
             #if DEBUG
             AppLog.error(error, module: "AppState", context: ["op": "setConversationUseMemory"])
             #endif
         }
+    }
+
+    /// Waits for the queued use-memory writes and their wrap-up (for tests).
+    func waitForConversationUseMemoryWrites() async {
+        await useMemoryWriteTail?.value
     }
 
     /// Open the Settings memory page; when `editItemId` is non-nil, the memory page edits that item right after appearing
@@ -2945,5 +3218,52 @@ final class ProposeFallbackOnce {
     func markSettled() -> Bool {
         settled = true
         return !ran
+    }
+}
+
+private extension Conversation {
+    /// Summary form of the cold-start mirror (the shape `fetchConversationSummaryProjection` reads back): no bodies, the count is the override.
+    var coldStartSummary: Conversation {
+        guard messagesAreLoaded else { return self }
+        var summary = self
+        summary.messageCountOverride = displayMessageCount
+        summary.messages = []
+        summary.messagesAreLoaded = false
+        return summary
+    }
+}
+
+/// One result from the persist queue, handed back to the main thread for wrap-up: enqueueing happens synchronously on the
+/// caller's thread (keeping the order with other writes) and the main thread suspends for the result.
+nonisolated final class ConversationPersistOutcome<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var result: Result<Value, Error>?
+    private var continuation: CheckedContinuation<Result<Value, Error>, Never>?
+
+    func fulfill(_ result: Result<Value, Error>) {
+        lock.lock()
+        if let continuation {
+            self.continuation = nil
+            lock.unlock()
+            continuation.resume(returning: result)
+        } else {
+            self.result = result
+            lock.unlock()
+        }
+    }
+
+    var value: Result<Value, Error> {
+        get async {
+            await withCheckedContinuation { continuation in
+                lock.lock()
+                if let result {
+                    lock.unlock()
+                    continuation.resume(returning: result)
+                } else {
+                    self.continuation = continuation
+                    lock.unlock()
+                }
+            }
+        }
     }
 }

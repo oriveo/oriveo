@@ -225,7 +225,7 @@ final class MoonshotContinuationPersistence {
         self.recipe = recipe
     }
 
-    func save(_ record: ToolCallLoop.LegRecord) throws {
+    func save(_ record: ToolCallLoop.LegRecord) async throws {
         guard let messageID else { return }
         let encoded = try ([record.assistantMessage] + record.toolResultMessages).map(Self.jsonValue)
         completedMessages.append(contentsOf: encoded)
@@ -237,7 +237,7 @@ final class MoonshotContinuationPersistence {
         guard validation.accepted else {
             throw ProviderServiceError.invalidConfiguration(detail: "Invalid Moonshot tool-loop continuation state.")
         }
-        try RecipeContinuationRuntime.save(messageID: messageID, recipe: recipe, state: state)
+        try await RecipeContinuationRuntime.save(messageID: messageID, recipe: recipe, state: state)
     }
 
     static func jsonValue(_ message: ToolLoopMessage) throws -> MetadataClient.JSONValue {

@@ -68,6 +68,10 @@ export interface McpConfirmationRequest {
    * dialog uses this to decide whether to warn that the tool may change the user's content.
    */
   changesData: boolean;
+  /**
+   * Web results are in this reply's context and the tool is a write tool: only "this time only" is allowed; the dialog hides "this session" and explains why.
+   */
+  onceOnly?: boolean;
 }
 
 /**
@@ -402,6 +406,11 @@ export interface McpToolExecutorOptions {
   revalidate?: (serverId: string, toolName: string) => Promise<McpBridgeServerInput | null> | McpBridgeServerInput | null;
   onStep?: (update: McpToolStepUpdate) => void | Promise<void>;
   now?: () => number;
+  /**
+   * Whether web results are in this turn's context right now (SearchTurnPlan.writeToolConfirm =
+   * once_when_web_results_present). When true, write tools ignore a "this session" grant and record no new grant: every call needs user confirmation.
+   */
+  webResultsPresent?: () => boolean;
 }
 
 function abortError(): DOMException {
@@ -474,7 +483,9 @@ export class McpToolExecutor {
         }
         step.permission = verdict.permission;
         // "Ask every time" never sends tools/call without the user allowing it.
-        if (verdict.permission === 'auto' || approved || grants.isGranted(conversationId, tool.server.id, tool.snapshot.toolName)) {
+        // With web results in context, write tools accept only "this time only": instructions in external material must not change data via a session grant.
+        const onceOnly = !tool.snapshot.readOnly && this.options.webResultsPresent?.() === true;
+        if (verdict.permission === 'auto' || approved || (!onceOnly && grants.isGranted(conversationId, tool.server.id, tool.snapshot.toolName))) {
           return null;
         }
         let choice: McpConfirmationChoice;
@@ -490,6 +501,7 @@ export class McpToolExecutor {
               arguments: args,
               inputSchema: tool.snapshot.inputSchema,
               changesData: !tool.snapshot.readOnly,
+              ...(onceOnly ? { onceOnly: true } : {}),
             },
             context.signal,
           );
@@ -503,7 +515,7 @@ export class McpToolExecutor {
           throw context.signal.aborted ? abortError() : error;
         }
         if (choice === 'conversation') {
-          grants.grant(conversationId, tool.server.id, tool.snapshot.toolName);
+          if (!onceOnly) grants.grant(conversationId, tool.server.id, tool.snapshot.toolName);
         } else if (choice !== 'once') {
           // Any unrecognized return value is treated as a denial (fail closed).
           step.status = 'denied';

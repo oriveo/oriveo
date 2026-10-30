@@ -70,6 +70,14 @@ function patchComposerSlot(
   else saveCapabilityPreferences({ ...identity, scope: 'conversation_connection_model', conversationId }, next);
 }
 
+/**
+ * Whether a conversation-level web preference can be written for this conversation (a runtime identity exists): the one definition of external search `panelWritable`
+ * shared across platforms. The model options panel, pre-send and the composer chip preview all compute it from this, the same test as whether `writeComposerWebPreference` can store.
+ */
+export function composerWebPreferenceWritable(provider: Provider, model: AIModel): boolean {
+  return (relayWebPreferenceIdentity(provider, model) ?? capabilityPreferenceIdentity(provider, model)) !== null;
+}
+
 /** The user toggles the web switch; returns false when the identity is absent (cannot be stored). The relay writes the fixed identity. */
 export function writeComposerWebPreference(scope: ComposerWebPreferenceScope, next: CapabilityWebPreference): boolean {
   const identity = relayWebPreferenceIdentity(scope.provider, scope.model) ?? capabilityPreferenceIdentity(scope.provider, scope.model);

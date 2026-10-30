@@ -105,4 +105,49 @@ struct SwipeBackCoordinatorRebindTests {
         #expect(gestureB?.view == nil, "B's old recognizer should have been detached")
         #expect(coordinator.attachedGestureForTesting(window: windowB)?.view === windowB)
     }
+
+    /// The back button sits against the left edge, so one tap with a slight rightward drift starts the swipe
+    /// and also fires the button's `pop()` on release; SwiftUI then calls `setViewControllers` to preempt the
+    /// swipe's interactive transition and UIKit throws `Failed to preempt running transition`. The transition
+    /// must count as running from start until its completion animation ends, and pops are dropped meanwhile.
+    @Test("A swipe-started pop transition counts as running and drops pops until it finishes, then clears itself")
+    func swipeTransitionBlocksProgrammaticPopUntilFinished() async throws {
+        let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let nav = UINavigationController(rootViewController: UIViewController())
+        nav.pushViewController(UIViewController(), animated: false)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 400, height: 800)
+        window.rootViewController = nav
+        window.makeKeyAndVisible()
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+        }
+        try await Task.sleep(for: .milliseconds(100))
+
+        let coordinator = SwipeBackCoordinator()
+        coordinator.bindForTesting(window: window)
+        let navigation = NavigationManager()
+        navigation.isSwipeBackTransitionRunning = { coordinator.isSwipeBackTransitionRunning }
+        navigation.path = [.memory]
+        #expect(!coordinator.isSwipeBackTransitionRunning)
+
+        // What the system target starts in .began is an animated pop
+        nav.popViewController(animated: true)
+        try #require(nav.transitionCoordinator != nil, "An animated pop should have a transition coordinator")
+        coordinator.beginSwipeTransitionForTesting(window: window)
+        #expect(coordinator.isSwipeBackTransitionRunning)
+
+        navigation.pop()
+        navigation.popToRoot()
+        #expect(navigation.path == [.memory], "While the swipe transition runs, the back button / popToRoot must not change path")
+
+        let deadline = Date().addingTimeInterval(3)
+        while coordinator.isSwipeBackTransitionRunning, Date() < deadline {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        #expect(!coordinator.isSwipeBackTransitionRunning, "Must clear once the transition ends, otherwise the back button is dead forever")
+        navigation.pop()
+        #expect(navigation.path.isEmpty)
+    }
 }

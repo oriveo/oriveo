@@ -109,7 +109,7 @@ final class MemoryInboxModel {
 
     /// Undo a save: the normal item delete path on the item just created.
     func undo(itemID: String, appState: AppState) {
-        _ = try? appState.memoryItemRepository()?.remove(id: itemID)
+        appState.removeMemoryItemInBackground(id: itemID)
     }
 
     // MARK: - UI entries
@@ -169,7 +169,7 @@ final class MemoryInboxModel {
             actionTitle: L10n.tr("Undo", table: .notes)
         ) { [weak appState] in
             // Captures only appState: the undo must still work after the inbox page (and this model) is gone.
-            _ = try? appState?.memoryItemRepository()?.remove(id: item.id)
+            appState?.removeMemoryItemInBackground(id: item.id)
         }
     }
 

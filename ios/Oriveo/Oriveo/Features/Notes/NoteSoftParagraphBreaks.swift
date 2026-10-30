@@ -238,6 +238,7 @@ final class BoundedNoteUITextView: UITextView {
         }
         super.layoutSubviews()
         applyFocusTakeoverIfReady()
+        applyInitialScrollIfReady()
     }
 
     override func didMoveToWindow() {
@@ -267,6 +268,40 @@ final class BoundedNoteUITextView: UITextView {
         let location = pendingFocusSourceLocation.map(displayLocation(forSourceLocation:)) ?? textStorage.length
         selectedRange = NSRange(location: location, length: 0)
         scrollRangeToVisible(selectedRange)
+    }
+
+    private var pendingInitialScrollSourceLocation: Int?
+    private var pendingInitialSelectionSourceRange: NSRange?
+
+    /// Scrolls `sourceLocation` of the stored text to the top of the viewport on open (Select Text continues from the reading pane's current position).
+    /// Like the focus takeover, it runs only once the width and the text are in place, and lays out just the target stretch (non-contiguous layout), not the whole text.
+    /// `selecting`: also selects that source range (the pressed word when entering by long press on the reading pane); the selection handles can be dragged to extend it.
+    func requestInitialScroll(sourceLocation: Int, selecting sourceRange: NSRange? = nil) {
+        pendingInitialScrollSourceLocation = sourceLocation
+        pendingInitialSelectionSourceRange = sourceRange
+        applyInitialScrollIfReady()
+    }
+
+    private func applyInitialScrollIfReady() {
+        guard let sourceLocation = pendingInitialScrollSourceLocation, window != nil, pendingDisplayText == nil,
+              bounds.width > 0, textStorage.length > 0 else { return }
+        pendingInitialScrollSourceLocation = nil
+        let location = min(displayLocation(forSourceLocation: sourceLocation), textStorage.length - 1)
+        let characterRange = NSRange(location: location, length: 1)
+        layoutManager.ensureLayout(forCharacterRange: characterRange)
+        let glyphRange = layoutManager.glyphRange(forCharacterRange: characterRange, actualCharacterRange: nil)
+        let rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+        let top = -adjustedContentInset.top
+        let bottom = max(contentSize.height - bounds.height + adjustedContentInset.bottom, top)
+        setContentOffset(CGPoint(x: contentOffset.x, y: min(max(rect.minY + textContainerInset.top + top, top), bottom)), animated: false)
+        if let sourceRange = pendingInitialSelectionSourceRange {
+            pendingInitialSelectionSourceRange = nil
+            let start = displayLocation(forSourceLocation: sourceRange.location)
+            let end = max(displayLocation(forSourceLocation: NSMaxRange(sourceRange)), start)
+            // A non-editable text view draws its selection and handles only as first responder (no keyboard appears).
+            becomeFirstResponder()
+            selectedRange = NSRange(location: start, length: end - start)
+        }
     }
 
     /// Maps a UTF-16 offset in the stored text to a position in the display string: every soft break

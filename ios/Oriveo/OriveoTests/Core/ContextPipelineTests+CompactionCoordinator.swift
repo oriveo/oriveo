@@ -478,4 +478,39 @@ extension ContextPipelineTests {
         let inputs = try #require(ChatRequestBuilder.build(from: snapshot, assembly: assembly).compactionInputs)
         #expect(inputs.messages.map(\.id) == messages.prefix(2).map(\.id.uuidString))
     }
+
+    /// Send arrives one step late: the pre-compaction already finished and persisted its row after send assembly but before compact was called (it missed "wait for it").
+    /// The caller did not use this row during assembly → hand it back directly for sending, without summarizing the same span again and without writing a second row.
+    @Test func coordinator_pre_send_reuses_row_landed_after_assembly_without_waiting() async throws {
+        let database = try McpTestDatabase.make()
+        defer { database.cleanUp() }
+        let store = ContextCompactionStore(dbPool: database.pool)
+        let conversation = try database.insertConversation(messageCount: 0).conversation.uuidString
+        let probe = CompactionProbe()
+        probe.messages = Self.compactionMessages(10)
+        probe.outputs = [Self.validCheckpointSummary]
+        let coordinator = makeCompactionCoordinator(probe, store: store)
+        let landed = try #require(await coordinator.compact(conversationId: conversation, trigger: .preSend).row)
+
+        var lateSummaries = 0
+        let snapshot = ContextCompactionSnapshot(
+            messages: probe.messages, B: Self.compactionB, U: probe.U, rhoHi: Self.compactionRhoHi,
+            prefixTokens: 0, fixedTokens: 0, model: Self.compactionModel
+        )
+        let result = await coordinator.compact(
+            conversationId: conversation,
+            trigger: .preSend,
+            snapshot: snapshot,
+            assembledCheckpoint: .known(nil),
+            summarize: { _ in
+                lateSummaries += 1
+                return Self.validCheckpointSummary
+            }
+        )
+
+        #expect(lateSummaries == 0)
+        #expect(result.outcome == .summary)
+        #expect(result.row?.checkpointId == landed.checkpointId)
+        #expect(try store.list(conversationId: conversation).count == 1)
+    }
 }

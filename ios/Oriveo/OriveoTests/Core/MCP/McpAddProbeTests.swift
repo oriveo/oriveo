@@ -1019,10 +1019,10 @@ struct McpAddProbeTests {
         // Removing the server deletes the full address together with the record.
         let store = database.store
         let credentials = rig.credentials
-        try await MainActor.run {
-            let directory = McpServerDirectory(credentialStore: credentials, openStore: { _ in store })
-            try directory.remove(serverId: serverId, uid: "u1")
+        let directory = await MainActor.run {
+            McpServerDirectory(credentialStore: credentials, openStore: { _ in store })
         }
+        try await directory.remove(serverId: serverId, uid: "u1")
         #expect(rig.credentials.loadEndpoint(serverId: serverId, uid: "u1") == nil)
         #expect(try database.store.fetchServer(id: serverId) == nil)
     }

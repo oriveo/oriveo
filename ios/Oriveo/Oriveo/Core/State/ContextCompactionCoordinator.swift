@@ -16,6 +16,20 @@ struct ContextCompactionSnapshot {
     var model: String
 }
 
+/// The library row the caller used when assembling the request: pre-send compaction uses it to tell whether
+/// the latest library row was stored only after assembly.
+enum AssembledCheckpoint: Equatable {
+    /// The caller does not provide one (manual compaction, pre-compaction, overflow resend): only "a new row was awaited" counts.
+    case unknown
+    /// Id of the library row used at assembly time; nil = no usable row at assembly time.
+    case known(String?)
+
+    func differs(from checkpointId: String) -> Bool {
+        guard case .known(let used) = self else { return false }
+        return used != checkpointId
+    }
+}
+
 /// Context compaction coordinator: picks AI / fallback mode, calls the summary,
 /// produces and persists the checkpoint row, and hands it to the uploader when sync is bound. The circuit breaker is kept in memory per conversation and is not persisted.
 /// The summary call, snapshot reading and upload are injected as closures; the pure compact functions are unchanged.
@@ -195,6 +209,7 @@ final class ContextCompactionCoordinator {
         trigger: Trigger,
         snapshot: ContextCompactionSnapshot?,
         fallbackOnAIFailure: Bool = true,
+        assembledCheckpoint: AssembledCheckpoint = .unknown,
         summarize: @escaping (ContextCompactor.SummaryRequest) async -> String?
     ) async -> Result {
         guard let snapshot, !snapshot.messages.isEmpty else {
@@ -218,8 +233,11 @@ final class ContextCompactionCoordinator {
         defer { finishRunningCompaction(conversationId: conversationId) }
 
         let previous = latestValid(conversationId: conversationId, history: covered)
-        // Before sending: if the awaited run already stored a row and after applying it P-hat < 0.90*B, hand that row back to send with.
-        if landedWhileWaiting, trigger == .preSend, let previous,
+        // Before sending: if a new row landed after the caller assembled the request (the one awaited, or the send arrived
+        // late and pre-compaction had already finished) and after applying it P-hat < 0.90*B, hand that row back to send with.
+        // Counting only "I really waited" makes a late send on a slow device summarize the same span again.
+        if trigger == .preSend, let previous,
+           landedWhileWaiting || assembledCheckpoint.differs(from: previous.checkpointId),
            Self.fitsSendBudget(previous, snapshot: snapshot) {
             return Result(outcome: previous.kind == .summary ? .summary : .fallback, row: previous, failures: [])
         }
@@ -232,7 +250,7 @@ final class ContextCompactionCoordinator {
             case .noop:
                 return Result(outcome: .noop, row: nil, failures: [])
             case .summary(let row):
-                return settled(.summary, row: row, failures: [])
+                return await settled(.summary, row: row, failures: [])
             case .failed(let attempts):
                 failures = attempts
             case .tooLarge:
@@ -250,7 +268,7 @@ final class ContextCompactionCoordinator {
         guard let row = fallbackRow(conversationId: conversationId, snapshot: snapshot, previous: previous) else {
             return Result(outcome: .noop, row: nil, failures: failures)
         }
-        return settled(.fallback, row: row, failures: failures)
+        return await settled(.fallback, row: row, failures: failures)
     }
 
     private func latestValid(
@@ -309,12 +327,12 @@ final class ContextCompactionCoordinator {
         _ outcome: ContextCompactor.Outcome,
         row: ContextCheckpointRecord,
         failures: [[ContextCompactor.FailureReason]]
-    ) -> Result {
+    ) async -> Result {
         // The whole send was already stopped -> nothing is persisted.
         guard !Task.isCancelled else {
             return Result(outcome: .noop, row: nil, failures: failures, cancelled: true)
         }
-        guard let saved = persist(row) else {
+        guard let saved = await persist(row) else {
             return Result(outcome: .noop, row: nil, failures: failures)
         }
         return Result(outcome: outcome, row: saved, failures: failures)
@@ -461,9 +479,9 @@ final class ContextCompactionCoordinator {
     }
 
     /// Persist: if sync is bound, hand out the row and all local checkpointIds of this conversation. A persistence failure is only logged and returns nil.
-    private func persist(_ row: ContextCheckpointRecord) -> ContextCheckpointRecord? {
+    private func persist(_ row: ContextCheckpointRecord) async -> ContextCheckpointRecord? {
         do {
-            try store.save(row)
+            try await store.saveAsync(row)
         } catch {
             print("[ContextCompactionCoordinator] save failed: \(error.localizedDescription)")
             return nil

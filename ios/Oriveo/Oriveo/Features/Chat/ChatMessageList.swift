@@ -378,6 +378,7 @@ struct ChatMessageList: View, Equatable {
                     onOpenNoteReferences: openNoteReferences,
                     onCrosscheckMessage: handleCrosscheck,
                     onMcpStepAction: handleMcpStepAction,
+                    onSearchAction: handleSearchAction,
                     onOpenMemoryUsed: handleOpenMemoryUsed,
                     onSaveSelectionMessage: handleSaveSelection,
                     onAskSelectionMessage: handleAskSelection,
@@ -770,13 +771,66 @@ struct ChatMessageList: View, Equatable {
     }
 
     private func handleRegenerateMessage(_ message: ChatMessage) {
+        handleRegenerateMessage(message, searchAction: .regenerate)
+    }
+
+    private func handleRegenerateMessage(_ message: ChatMessage, searchAction: SearchRegenerateAction) {
         guard let conversationID else { return }
         Task {
             await appState.regenerateMessage(
                 messageID: message.id,
                 in: conversationID,
-                capabilitySelection: capabilitySelection
+                capabilitySelection: capabilitySelection,
+                searchRegenerateAction: searchAction
             )
+        }
+    }
+
+    /// The external search error card's buttons and the menu's "Regenerate and search again". Navigation actions resolve against
+    /// the current local services: when the service is gone, the Web search settings page opens instead.
+    private func handleSearchAction(_ message: ChatMessage, _ action: ExternalSearchCardAction) {
+        Task { @MainActor in
+            let search = WebSearchSettingsModel()
+            await search.load(appState: appState)
+            let serviceID: String? = switch action {
+            case .updateKey(let id), .topUp(let id), .checkSettings(let id), .reconfirm(let id): id
+            case .answerWith(let id, _): id
+            default: nil
+            }
+            let item = serviceID.flatMap { id in search.items.first { $0.id == id } }
+            let pricing = item.flatMap { item in
+                item.entry.flatMap { SearchCatalog.regionLinks($0, regionId: item.service.regionId).pricing }
+            }
+            switch ExternalSearchChatRoute.resolve(action, serviceExists: item != nil, pricingURL: pricing) {
+            case .serviceDetail(let id):
+                navigation.path.append(.webSearchServiceDetail(serviceID: id))
+            case .updateKey(let id):
+                WebSearchDetailLaunch.set(.updateKey, serviceID: id)
+                navigation.path.append(.webSearchServiceDetail(serviceID: id))
+            case .editCustomService(let id):
+                WebSearchDetailLaunch.set(.editCustom, serviceID: id)
+                navigation.path.append(.webSearchServiceDetail(serviceID: id))
+            case .webSearchSettings:
+                navigation.path.append(.webSearchSettings)
+            case .openURL(let url):
+                await UIApplication.shared.open(url)
+            case .searchSource:
+                guard let conversationID else { return }
+                NotificationCenter.default.post(name: .oriveoOpenSearchSourcePage, object: conversationID)
+            case .regenerateWithSearch:
+                handleRegenerateMessage(message, searchAction: .reSearch)
+            case let .pickServiceAndRegenerate(id, name):
+                guard let conversationID,
+                      let conversation = appState.conversation(for: conversationID),
+                      let provider = appState.provider(for: conversation.providerID),
+                      let model = appState.sendableModel(for: conversation, provider: provider) else { return }
+                await ModelOptionsWebSearch.pickService(
+                    serviceID: id, name: name, conversationID: conversationID,
+                    modelKey: ModelOptionsWebSearch.modelKey(provider: provider, model: model),
+                    store: SearchServiceStore(scope: appState.sessionPartitionUID)
+                )
+                handleRegenerateMessage(message, searchAction: .reSearch)
+            }
         }
     }
 

@@ -260,6 +260,7 @@ class ContextPlan private constructor(
                     recallEnvelope(d.recall, derived?.recallMax, rhoHi, recallIds)?.let(dynamicParts::add)
                     d.library?.let { library -> envelope(ContextAssembler.TAG_LIBRARY, libraryEntries(library)) }
                         ?.let(dynamicParts::add)
+                    d.web?.takeIf { it.isNotEmpty() }?.let(dynamicParts::add)
                     d.attachmentGuide?.trimWhiteSpace()?.takeIf { it.isNotEmpty() }?.let {
                         dynamicParts += "<${ContextAssembler.TAG_ATTACHMENT_GUIDE}>\n$it\n</${ContextAssembler.TAG_ATTACHMENT_GUIDE}>"
                     }

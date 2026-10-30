@@ -59,6 +59,31 @@ export default tseslint.config(
     },
   },
   {
+    // idb eagerly creates tx.done; unobserved ones surface as unhandledrejection, so openDB goes through the guarded entry.
+    files: ["apps/app/**/*.{ts,tsx}"],
+    ignores: ["apps/app/lib/infra/storage/idb-open.ts", "apps/app/**/*.test.{ts,tsx}", "apps/app/**/__tests__/**"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "idb",
+              importNames: ["openDB"],
+              message: "Import openDB from lib/infra/storage/idb-open so unobserved tx.done rejections cannot escape.",
+            },
+          ],
+          patterns: [
+            {
+              group: ["**/ports/legacy-relay-envelope*"],
+              message: "Legacy relay capability bits are decoded only in providers/relay-runtime-support.ts.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ["packages/core/src/providers/relay-runtime-support.ts"],
     rules: {
       "@typescript-eslint/no-restricted-imports": "off",

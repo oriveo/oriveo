@@ -93,6 +93,11 @@ vi.mock('../../lib/core/metadata/metadata-client', async (importOriginal) => (aw
   }),
 }));
 
+const webSearchEntry = vi.hoisted(() => ({ name: undefined as string | null | undefined }));
+vi.mock('../../lib/search/use-web-search-entry', () => ({
+  useWebSearchDefaultName: () => webSearchEntry.name,
+}));
+
 function emitMetadataVersionChange() {
   act(() => {
     metadataMock.state.version += 1;
@@ -119,12 +124,31 @@ describe('Settings', () => {
     metadataMock.state.listeners.clear();
     metadataMock.isRuntimeFeatureEnabled.mockReset();
     metadataMock.isRuntimeFeatureEnabled.mockImplementation(() => metadataMock.state.enabled);
+    webSearchEntry.name = undefined;
   });
 
   const cellOf = (entry: string) =>
     document.querySelector(`[data-settings-entry="${entry}"]`) as HTMLElement | null;
   const gridOf = (heading: string) =>
     screen.getByRole('heading', { name: heading }).parentElement?.querySelector(`.${gridStyles.grid}`) as HTMLElement | null;
+
+  it('tools and connections 1x2: web search is the first cell (search icon, badge dot); value = default service name, no service = "not set"', () => {
+    webSearchEntry.name = null;
+    const { unmount } = render(<Settings />);
+    const grid = gridOf('toolsSection');
+    expect(grid?.dataset.columns).toBe('2');
+    const entries = [...(grid?.querySelectorAll('[data-settings-entry]') ?? [])].map((el) => (el as HTMLElement).dataset.settingsEntry);
+    expect(entries).toEqual(['webSearch', 'mcp']);
+    expect(cellOf('webSearch')?.querySelector('svg[data-settings-icon="search"]')).toBeTruthy();
+    expect(cellOf('webSearch')?.querySelector(`.${gridStyles.value}`)?.textContent).toBe('entry.notSet');
+    fireEvent.click(cellOf('webSearch')!);
+    expect(mocks.routerPush).toHaveBeenCalledWith('/settings/web-search');
+    unmount();
+
+    webSearchEntry.name = 'Tavily';
+    render(<Settings />);
+    expect(cellOf('webSearch')?.querySelector(`.${gridStyles.value}`)?.textContent).toBe('Tavily');
+  });
 
   it('grid icons are the two-tone SVGs: they do not follow the theme color and have no backing plate', () => {
     render(<Settings />);
@@ -299,15 +323,15 @@ describe('Settings', () => {
       expect(entry()?.textContent).toBe('entryTitleentryCountAttention');
     });
 
-    it('with the master switch off (enabled = false from the model catalog), the whole group is hidden; it follows a config update', () => {
+    it('with the master switch off (enabled = false from the model catalog), only the MCP cell is hidden; it follows a config update', () => {
       metadataMock.state.mcpEnabled = false;
       render(<Settings />);
       expect(entry()).toBeNull();
-      expect(screen.queryByRole('heading', { name: 'toolsSection' })).toBeNull();
+      expect(gridOf('toolsSection')?.dataset.columns).toBe('1');
       metadataMock.state.mcpEnabled = true;
       emitMetadataVersionChange();
       expect(entry()).not.toBeNull();
-      expect(gridOf('toolsSection')?.dataset.columns).toBe('1');
+      expect(gridOf('toolsSection')?.dataset.columns).toBe('2');
     });
   });
 });

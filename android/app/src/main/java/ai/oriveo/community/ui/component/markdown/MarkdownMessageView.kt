@@ -551,6 +551,8 @@ private fun RenderBlocks(
     onSelectionGestureActiveChange: (Boolean) -> Unit = {},
     selectable: Boolean = true,
     emphasizedHeadings: Boolean = false,
+    /** Render only this range of blocks (indices into the full parse); null = all. The gap before the first block matches whole-document rendering. */
+    blockRange: IntRange? = null,
 ) {
     val entries = rememberMarkdownBlockEntries(text)
 
@@ -581,6 +583,7 @@ private fun RenderBlocks(
     ) {
         Column(modifier = modifier) {
             entries.forEachIndexed { index, entry ->
+                if (blockRange != null && index !in blockRange) return@forEachIndexed
                 if (index > 0) {
                     val gap = spacerHeightBetween(
                         prev = entries[index - 1].block,
@@ -1316,6 +1319,46 @@ private fun parseUnorderedListContent(line: String, startIndex: Int): String? {
     if (marker != '-' && marker != '*' && marker != '+') return null
     if (!line[startIndex + 1].isWhitespace()) return null
     return line.substring(startIndex + 2).trimStart()
+}
+
+/**
+ * Long-text chunking: splits the blocks parsed from [text] into chunks of at most [maxBlocksPerChunk] blocks (block index ranges).
+ *
+ * Putting the whole text in one non-lazy Column composes and measures every block in the first frame, so the cost grows
+ * linearly with length (Robolectric: about 1s for 1801 lines, 2-2.6s for 28.8k lines). Callers hand each chunk to
+ * [MarkdownBlockRangeView] as one LazyColumn item so only visible chunks are composed.
+ */
+fun markdownBlockChunks(text: String, maxBlocksPerChunk: Int = MARKDOWN_BLOCKS_PER_CHUNK): List<IntRange> {
+    require(maxBlocksPerChunk > 0)
+    val count = if (text.isBlank()) 0 else MarkdownRenderCache.blockEntries(normalizeLatexDelimiters(text)).size
+    return (0 until count step maxBlocksPerChunk).map { start -> start until minOf(start + maxBlocksPerChunk, count) }
+}
+
+const val MARKDOWN_BLOCKS_PER_CHUNK = 8
+
+/**
+ * Renders only the [blockRange] chunk of [text] (one entry of [markdownBlockChunks]); layout and block spacing match
+ * the settled [MarkdownMessageView] block by block. When [selectable] is false the chunk brings no selection of its own;
+ * the caller wraps one SelectionContainer around all chunks (as note detail does) so a selection can span chunks.
+ */
+@Composable
+fun MarkdownBlockRangeView(
+    text: String,
+    blockRange: IntRange,
+    modifier: Modifier = Modifier,
+    emphasizedHeadings: Boolean = false,
+    selectable: Boolean = true,
+) {
+    val normalized = remember(text) { normalizeLatexDelimiters(text) }
+    RenderBlocks(
+        text = normalized,
+        mdColors = MarkdownTheme.colors(),
+        isUserMessage = false,
+        modifier = modifier,
+        selectable = selectable,
+        emphasizedHeadings = emphasizedHeadings,
+        blockRange = blockRange,
+    )
 }
 
 /**

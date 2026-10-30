@@ -347,6 +347,10 @@ struct ChatComposerBar: View {
     @State private var opensConnectionSettingsAfterControls = false
     /// Same idea: after "Open web search settings" is tapped on a relay's web row, push the connection's web search settings page.
     @State private var opensConnectionWebSearchAfterControls = false
+    /// Model options "Add a search service": after the sheet is dismissed, push Settings > Web search; going back returns to this conversation with the draft untouched.
+    @State private var opensSearchSettingsAfterControls = false
+    /// The sub-page to push straight in the next time the model options panel opens (the error card's "Switch service"); cleared when the panel closes.
+    @State private var modelControlsInitialRoute: ModelControlsRoute?
     /// Same idea: when the relay web template is rejected and "Test capabilities" is tapped, open that model's Advanced page once the
     /// sheet is dismissed (the verdict stays on that row with the test button beside it; no test is started automatically).
     @State private var opensTestCapabilitiesAfterControls = false
@@ -755,7 +759,14 @@ struct ChatComposerBar: View {
         }
         .onChange(of: showsModelControls) { _, isOpen in
             guard !isOpen else { return }
+            modelControlsInitialRoute = nil
             syncStoredCapabilitySelection()
+        }
+        // The external search error card's "Switch service": open the panel through the same sheet as the real entry and push "Search method".
+        .onReceive(NotificationCenter.default.publisher(for: .oriveoOpenSearchSourcePage)) { note in
+            guard let target = note.object as? UUID, target == conversationID, !showsModelControls else { return }
+            modelControlsInitialRoute = .searchSource
+            showsModelControls = true
         }
         #if DEBUG
         // Short-screen acceptance on the cover display (`-AUTO_FOCUS_COMPOSER`): focus the composer to bring up the keyboard so the layout probe can measure the reading area.
@@ -988,6 +999,11 @@ struct ChatComposerBar: View {
                     appState.openRelayWebSearch(providerID: provider.id)
                     return
                 }
+                if opensSearchSettingsAfterControls {
+                    opensSearchSettingsAfterControls = false
+                    appState.navigation.attemptNavigate(to: .webSearchSettings)
+                    return
+                }
                 if opensTestCapabilitiesAfterControls {
                     opensTestCapabilitiesAfterControls = false
                     if let testedModel = currentModel {
@@ -1027,7 +1043,12 @@ struct ChatComposerBar: View {
                     onOpenTestCapabilities: {
                         opensTestCapabilitiesAfterControls = true
                         showsModelControls = false
-                    }
+                    },
+                    onOpenSearchSettings: {
+                        opensSearchSettingsAfterControls = true
+                        showsModelControls = false
+                    },
+                    initialRoute: modelControlsInitialRoute
                 )
                 .presentationDragIndicator(.visible)
             }

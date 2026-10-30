@@ -128,12 +128,15 @@ function LibrarySourceMark({ citation }: { citation: Citation }) {
   );
 }
 
-function CitationRow({
+export function CitationRow({
   citation,
   positionIndex,
+  hideSnippet = false,
 }: {
   citation: Citation;
   positionIndex: number;
+  /** External search source card rows show only number, favicon, title and domain (the snippet goes to the model only, not on screen). */
+  hideSnippet?: boolean;
 }) {
   const url = safeCitationURL(citation.url || "");
   const isLocalReference = isLibraryContextReference(citation);
@@ -168,7 +171,7 @@ function CitationRow({
             ) : null}
           </span>
         ) : null}
-        {citation.snippet ? (
+        {citation.snippet && !hideSnippet ? (
           <span className={styles.snippet}>{citation.snippet}</span>
         ) : null}
       </span>

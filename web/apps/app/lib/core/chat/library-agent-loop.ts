@@ -44,6 +44,7 @@ import {
   type ToolRegistryEntry,
 } from "@oriveo/core/tools/tool-loop-contracts";
 import { ToolRegistry } from "@oriveo/core/tools/tool-registry";
+import { TOOLS_REJECTED_STATUSES } from "@oriveo/core/search/search-turn";
 import { isDeterministicToolCallUnsupported, type ToolCallRejectionContext } from './capability-recovery-runtime';
 
 export interface LibraryAgentLegRequest {
@@ -61,6 +62,8 @@ export interface LibraryAgentLoopResult {
   toolFallbackApplied?: boolean;
   /** The first-leg rejection (status code and structured error body) that triggered the D5 resend: Relay uses it to decide whether to record a negative toolCall cache entry. */
   toolFallbackRejection?: ToolCallRejectionContext;
+  /** The first leg carrying web_search was rejected with 400 / 422; switched to pre-search and re-answered without tools (library was not searched). */
+  webSearchReplanned?: boolean;
 }
 
 /**
@@ -131,6 +134,16 @@ export interface LibraryAgentLoopOptions {
    * when the first leg called only host tools (propose / search) it still goes through the zero-tool-call fallback.
    */
   searchEntry?: ToolRegistryEntry;
+  /**
+   * When external web search is also on: new library sources share one number allocator with web results. Arguments = library source key
+   * (`<source>:<docId>`) and this loop's own sequence number; returns the actual number. Omitted = 1..n as before.
+   */
+  allocateCitationIndex?: (libraryKey: string, fallback: number) => number;
+  /**
+   * The registry includes web_search and the first leg was rejected upstream with 400 / 422 before any text (tools_rejected): returning a message list = answer this turn via pre-search
+   * without tools (not the "resend without tools" path, no tool-capability observation recorded); returning null = proceed as before.
+   */
+  onWebSearchToolsRejected?: (status: number, error: ToolLoopError) => Promise<readonly ProxyMessage[] | null>;
 }
 
 /** First leg called only propose_memory and the fallback produced evidence: interrupt the loop and switch to the fallback re-answer (an internal sentinel of the loop, never leaked). */
@@ -428,6 +441,24 @@ export async function runLibraryAgentLoop(
       };
     }
     const toolError = error instanceof ToolLoopError ? error : null;
+    const rejectedStatus = toolError?.status;
+    if (
+      options.onWebSearchToolsRejected && toolsEnabled && activeLegIndex === 0 && toolError !== null
+      && !toolError.streamStarted && rejectedStatus !== undefined && TOOLS_REJECTED_STATUSES.includes(rejectedStatus)
+    ) {
+      const replanned = await options.onWebSearchToolsRejected(rejectedStatus, toolError);
+      if (replanned) {
+        options.onText?.("");
+        const answer = await answerWithoutTools(options, limits, onProgress, replanned);
+        return {
+          text: answer.text,
+          citations: [],
+          steps: state.steps,
+          usage: mergeToolLoopUsage(latestUsage, answer.usage),
+          webSearchReplanned: true,
+        };
+      }
+    }
     const skipFallback = toolError !== null && toolError.source === "provider" && !toolError.streamStarted
       && options.onPreOutputRejection?.(toolError.toolCallRejectionContext) === true;
     const eligible = toolsEnabled
@@ -662,6 +693,7 @@ async function executeLibraryToolCall(
         state.citations,
         citationRead,
         args as LibraryReadArgs,
+        options.allocateCitationIndex,
       );
       result = citationIndex == null ? read : { ...read, citationIndex };
     }
@@ -990,6 +1022,7 @@ function addCitation(
   target: LibraryCitation[],
   result: LibraryReadResult,
   args: LibraryReadArgs,
+  allocate?: (libraryKey: string, fallback: number) => number,
 ): number | undefined {
   if (!result.url || !isTrustedLibraryURL(result.url, args.source))
     return undefined;
@@ -998,7 +1031,7 @@ function addCitation(
     (citation) => citation.docId === docId && citation.source === args.source,
   );
   if (existing) return existing.index;
-  const index = target.length + 1;
+  const index = allocate ? allocate(`${args.source}:${docId}`, target.length + 1) : target.length + 1;
   const citation = createLibraryCitation(result, args, index);
   if (!citation) return undefined;
   target.push(citation);

@@ -19,7 +19,7 @@ struct ContextCompactionActions {
         case .recompact:
             return await appState.chatManager.recompact(conversationId: conversationID)
         case .clear:
-            return appState.chatManager.clearCompaction(conversationId: conversationID)
+            return await appState.chatManager.clearCompaction(conversationId: conversationID)
         case .newChatWithSummary:
             startNewChatWithSummary()
             return nil
@@ -171,9 +171,12 @@ struct ContextCompactionDetailSheet: View {
                 .buttonStyle(OriveoSecondaryButtonStyle())
 
                 Button {
-                    let toast = appState.chatManager.clearCompaction(conversationId: conversationID)
-                    ContextCompactionActions.showToast(toast)
+                    // Dismiss first; the delete suspends for the write lock instead of waiting on the main thread, and the
+                    // toast shows once it is done.
+                    let chatManager = appState.chatManager
+                    let conversationID = conversationID
                     dismiss()
+                    Task { ContextCompactionActions.showToast(await chatManager.clearCompaction(conversationId: conversationID)) }
                 } label: {
                     Text(L10n.tr("context_compaction_action_clear", table: .chat))
                         .frame(maxWidth: .infinity)

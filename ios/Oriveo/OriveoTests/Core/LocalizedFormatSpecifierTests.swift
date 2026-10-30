@@ -40,7 +40,11 @@ struct LocalizedFormatSpecifierTests {
                 // The baseline is the English text. Symbolic keys such as
                 // `file_extraction_error_generic` keep their English under `en`; only catalogs
                 // whose keys are the English text itself fall back to the key.
-                let englishBaseline = localizedValues(in: localizations["en"]).first?.text ?? key
+                // The plural branches come from dictionary iteration in no fixed order; English one may legitimately be written as a word ("Searched once") with no specifier,
+                // and taking it as the baseline would turn every translation with %lld red, so prefer the plain string or the other branch.
+                let englishValues = localizedValues(in: localizations["en"])
+                let englishBaseline = (englishValues.first { $0.pluralCase == nil || $0.pluralCase == "other" }
+                    ?? englishValues.first)?.text ?? key
                 let expected = normalizedSpecifiers(in: englishBaseline)
 
                 for (locale, rawLocalization) in localizations where locale != "en" {

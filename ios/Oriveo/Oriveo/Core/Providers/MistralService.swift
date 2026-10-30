@@ -64,7 +64,7 @@ final class MistralService: BaseAPIService, ProviderServiceProtocol {
                 content: choice.message.rawContent?.foundationValue,
                 toolCalls: replayToolCalls
            ), let encoded = RecipeContinuationRuntime.jsonValue([replayMessage]) {
-            try RecipeContinuationRuntime.save(
+            try await RecipeContinuationRuntime.save(
                 messageID: requestOptions.localContinuationMessageID,
                 recipe: continuationRecipe,
                 state: ["assistantMessages": encoded]
@@ -204,7 +204,7 @@ final class MistralService: BaseAPIService, ProviderServiceProtocol {
                     if reachedTerminalFrame,
                        let replayMessage = replayAccumulator.completedAssistantMessage(),
                        let encoded = RecipeContinuationRuntime.jsonValue([replayMessage]) {
-                        try RecipeContinuationRuntime.save(
+                        try await RecipeContinuationRuntime.save(
                             messageID: requestOptions.localContinuationMessageID,
                             recipe: continuationRecipe,
                             state: ["assistantMessages": encoded]

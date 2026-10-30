@@ -16,6 +16,8 @@ import type {
   AIModel,
   Attachment,
   ChatMessage,
+  Citation,
+  TelemetryEventName,
   Conversation,
   Provider,
   QuoteContext,
@@ -73,6 +75,11 @@ import {
 } from './capability-recovery-runtime';
 import { deriveCostFields, mergeMessageUsageFields, roundCostOf } from './cost-fields';
 import { addMessageCost } from '../cost/cost-currency';
+import { adoptDraftSearchSource } from '../../search/external-search-context';
+import type { SearchRegenerateAction } from '@oriveo/core/search/search-route';
+import { hostMemoryToolsRegistered, prepareAgentExternalSearch, type AgentExternalSearch } from './external-search-turn';
+import { isContextOverflowFailure } from './context-pipeline/chat-context';
+import { TOOLS_REJECTED_STATUSES } from '@oriveo/core/search/search-turn';
 import { migrateDraftScopedModelControls } from './draft-scope-migration';
 import { generationParameterFallbackModelId, generationParameterProfileFingerprint, resolveGenerationParameterOverrides } from './generation-parameter-settings';
 import { createAssistantMessage, createUserMessage } from './message-factory';
@@ -125,6 +132,10 @@ export interface SendMcpToolMessageParams {
    * must hang on the assistant message created inside this function, which the caller cannot reach. In tool mode propose_memory is registered as the last registry entry.
    */
   freshUserSend?: { webSearchEnabled?: boolean };
+  /** Session web-search switch (the external search "Search method" row reads it). */
+  webSearchEnabled?: boolean;
+  /** External search regenerate basis, same as sendMessage. */
+  searchRegenerate?: { action: SearchRegenerateAction; previousCitations?: readonly Citation[] | null };
 }
 
 export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessageParams): SendHandle {
@@ -192,6 +203,10 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
     draftSessionId: params.generationParameterDraftSessionId,
     conversationId: finalConvId,
   });
+  // New conversation established: write the draft search source once under the real id.
+  if (!params.conversation && params.generationParameterDraftSessionId) {
+    adoptDraftSearchSource({ draftSessionId: params.generationParameterDraftSessionId, conversationId: finalConvId });
+  }
   // New conversation: move the servers switched on in the draft scope under the real id, so later sends
   // find them by conversation id.
   if (!params.conversation) adoptMcpDraftServers(params.generationParameterDraftSessionId, finalConvId);
@@ -221,7 +236,12 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
   }
 
   const runtimeConfig = currentMcpRuntimeConfig();
+  // External web search (shared_tool_loop): web_search joins this loop's registry, or pre-search goes into [D].
+  let searchRef: AgentExternalSearch | null = null;
   const session = createMcpSendSession({
+    // When web results are in context this turn, write tools are forced to "this time only".
+    webResultsPresent: () => searchRef?.plan.writeToolConfirm === 'once_when_web_results_present'
+      && searchRef.reply()?.webResultsPresent() === true,
     uid: sendingAccountId,
     conversationId: finalConvId,
     messageId: assistantMessage.id,
@@ -235,6 +255,9 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
     const steps = session.steps();
     return steps.length > 0 ? { toolSteps: steps } : {};
   };
+  // External search wrap-up persistence (source, facts, error card, notice); on stop, send stopped first.
+  const searchPatch = (existing: Pick<ChatMessage, 'citations' | 'capabilityResults'> = {}): Partial<ChatMessage> =>
+    searchRef?.patch(existing, controller.signal.aborted) ?? {};
 
   let latestUsage: StreamUsage | undefined;
   let retrievalCost = 0;
@@ -257,8 +280,17 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
       const outbound = filterCurrentTurnAttachments(
         withoutUnreceivableImages(outboundDraft, params.provider, params.model, attachmentScopeOptions),
         userMessage.id, params.provider, params.model, undefined, attachmentScopeOptions);
+      const agentSearch = await prepareAgentExternalSearch({
+        store, provider: params.provider, model: params.model, conversationId: finalConvId,
+        reasoningMode: params.reasoningMode, webSearchEnabled: params.webSearchEnabled === true, userText: params.text,
+        ...(params.searchRegenerate ? { searchRegenerate: params.searchRegenerate } : {}),
+        host: { library: false, mcp: true },
+        streamOptions: attachmentScopeOptions,
+      });
+      searchRef = agentSearch;
       // The assembler (purpose toolLoopLeg) produces the single system message with the MCP safety prompt at the end; every leg reuses it as is.
       const toolLoopContext = await prepareToolLoopContext(ctx, {
+        ...(agentSearch?.webDynamic ? { webDynamic: agentSearch.webDynamic } : {}),
         conversation: effectiveConversation,
         conversationId: finalConvId,
         provider: params.provider,
@@ -374,6 +406,10 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
         webSearchEnabled: params.freshUserSend?.webSearchEnabled, generationParameters,
       }) === 'tool' ? toolLoopContext.searchMemoryEntry() : undefined;
 
+      // Planned host.memoryTools = whether the loop registry really has memory tool entries (same decision as a normal send).
+      const webSearchEntry = agentSearch?.toolEntry(() => toolLoopContext.searchBudget, undefined, {
+        memoryTools: toolsEnabled && hostMemoryToolsRegistered({ propose: proposeEntry !== undefined, search: searchEntry !== undefined }),
+      });
       let legText = '';
       const onProgress = (event: ToolLoopProgressEvent): void => {
         switch (event.type) {
@@ -403,7 +439,12 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
       };
       const loopOptions = (mode: 'enabled' | 'disabled'): ToolCallLoopOptions => ({
         registry: mode === 'enabled'
-          ? new ToolRegistry([...session.entries, ...(proposeEntry ? [proposeEntry] : []), ...(searchEntry ? [searchEntry] : [])])
+          ? new ToolRegistry([
+            ...session.entries,
+            ...(proposeEntry ? [proposeEntry] : []),
+            ...(searchEntry ? [searchEntry] : []),
+            ...(webSearchEntry ? [webSearchEntry] : []),
+          ])
           : ToolRegistry.empty,
         runLeg: ({ messages, tools, toolChoice }) => {
           const transport = transportInput(toolLoopContext.planned, {
@@ -447,6 +488,22 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
         const keyAccess = error instanceof ToolLoopError && error.source === 'provider' && !error.streamStarted
           ? applyRelayToolRejection(store, params.provider, params.model, error.toolCallRejectionContext)
           : 'none';
+        // First leg with web_search gets a 400 / 422 (tools_rejected): recompute the plan and answer this round with pre-search and no tools,
+        // instead of the "resend without tools" below, and record no tool-capability observation.
+        const rejectedStatus = error instanceof ToolLoopError ? error.status : undefined;
+        const searchFallback = webSearchEntry && toolsEnabled && activeLegIndex === 0 && error instanceof ToolLoopError
+          && !error.streamStarted && rejectedStatus !== undefined && TOOLS_REJECTED_STATUSES.includes(rejectedStatus)
+          // A context overflow (recognized by the over-window check) is not a rejection of tools.
+          && !isContextOverflowFailure(error, params.provider.kind, agentOutbound.streamOptions?.relayTransport)
+          && keyAccess !== 'model_access_denied' && agentSearch
+          ? await agentSearch.replanAfterRejection(rejectedStatus, toolLoopContext.searchBudget)
+          : null;
+        if (searchFallback) {
+          store.getState().setStreamingText(finalConvId, initialText);
+          if (proposeTicket) generateMemoryCandidate(store, proposeTicket, userMessage);
+          const presearchHistory = await toolLoopContext.chatRequest({ web: searchFallback });
+          result = await new ToolCallLoop(loopOptions('disabled')).run(presearchHistory, trackLeg);
+        } else {
         // Same criterion as the library path: resend once without tools only when it is the first leg and
         // the upstream deterministically rejected `tools` before emitting any text.
         const eligible = toolsEnabled
@@ -467,6 +524,7 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
         }
         result = await new ToolCallLoop(loopOptions('disabled')).run(history, trackLeg);
         toolFallbackApplied = true;
+        }
       }
       latestUsage = result.usage;
       if (toolFallbackApplied && getActiveUIDSync() === sendingAccountId) {
@@ -494,6 +552,7 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
         costSource: roundCost.costSource,
         ...mergeMessageUsageFields(params.appendToAssistant ? assistantMessage : {}, costInfo),
         ...toolStepsPatch(),
+        ...searchPatch(assistantMessage),
         ...(result.stepLimitReached ? { toolStepLimitReached: true } : {}),
         ...(unhandled.length > 0
           ? { unhandledToolCalls: unhandled.map((call) => ({ id: call.id, name: call.function.name, arguments: call.function.arguments })) }
@@ -561,10 +620,11 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
             state: 'interrupted',
             stopReason: 'interrupted',
             ...toolStepsPatch(),
+            ...searchPatch(assistantMessage),
             ...partialCostPatch,
           });
         } else {
-          patchAssistantMessage(store, finalConvId, assistantMessage.id, toolStepsPatch());
+          patchAssistantMessage(store, finalConvId, assistantMessage.id, { ...toolStepsPatch(), ...searchPatch(currentAssistant) });
         }
         return;
       }
@@ -591,6 +651,7 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
         ...(failure.source ? { errorSource: failure.source } : {}),
         ...rejectionPatch,
         ...toolStepsPatch(),
+        ...searchPatch(assistantMessage),
         ...partialCostPatch,
       });
       const raw = error && typeof error === 'object' ? error as Record<string, unknown> : {};

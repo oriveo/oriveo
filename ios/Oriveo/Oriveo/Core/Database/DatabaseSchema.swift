@@ -16,6 +16,9 @@ enum DatabaseSchema {
             try db.execute(sql: "PRAGMA foreign_keys = ON")
             try db.execute(sql: "PRAGMA journal_mode = WAL")
             try db.execute(sql: "PRAGMA synchronous = NORMAL")
+            #if DEBUG
+            MainThreadDatabaseWriteGuard.install(on: db)
+            #endif
         }
         return configuration
     }

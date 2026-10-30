@@ -215,6 +215,80 @@ internal enum class ModelOptionsStatusMark(@StringRes val labelRes: Int?) {
 
 /** Connection facts to shape inputs. Only the connection category and protocol field are read, never a provider name or model id. */
 internal object ModelOptionsPanelInput {
+    /**
+     * Local facts -> the facts for resolveWebSearchState (the single composition entry): the panel, sending and the composer web preview all use this one function.
+     * recipeWeb is normalized from the web presentation state; [upstreamRejected] is the same fact the panel uses to show the rejection copy ([webUpstreamRejected]);
+     * for relays, relayStatus is the status id of the web switch fact (local engine / protocol undecided are recorded separately).
+     */
+    fun webSearchFacts(
+        provider: Provider,
+        model: AIModel,
+        presentation: CapabilityControlPresentation,
+        upstreamRejected: Boolean,
+        relayWeb: ModelOptionCapabilityShape.RelayWeb?,
+        toolCall: String,
+    ): ai.oriveo.community.core.search.WebSearchFacts {
+        val form = searchForm(provider)
+        // Anything other than BYOK / Codex subscription is always none
+        val recipeWeb = if (form != "byok" && form != "subscription_codex") "none" else when (presentation) {
+            CapabilityControlPresentation.AutomaticAvailable, CapabilityControlPresentation.ForceUnsupported,
+            CapabilityControlPresentation.AlwaysOn,
+            -> "auto_available"
+            CapabilityControlPresentation.Unsupported, CapabilityControlPresentation.ExternalConnectorOnly,
+            -> "unavailable"
+            CapabilityControlPresentation.CustomOnly -> "custom_only"
+            CapabilityControlPresentation.Pending, CapabilityControlPresentation.Unknown -> "none"
+        }
+        val relayStatus = if (form != "relay") null else when {
+            webProtocolUndecided(provider, model) -> "protocol_undecided"
+            relayWeb == ModelOptionCapabilityShape.RelayWeb.LocalEngine -> "local_engine"
+            relayWeb is ModelOptionCapabilityShape.RelayWebToggle -> relayWeb.status.wire
+            // No relay web fact (the first-send protocol is unavailable): treat it as protocol undecided and keep the web row as is
+            else -> "protocol_undecided"
+        }
+        return ai.oriveo.community.core.search.WebSearchFacts(
+            form = form,
+            recipeWeb = recipeWeb,
+            nativeRejected = upstreamRejected,
+            relayStatus = relayStatus,
+            toolCall = toolCall,
+        )
+    }
+
+    /** Web search is on for this conversation: relays read the switch fact (default included), everything else reads the resolved preference. */
+    fun webSearchOn(web: CapabilityWebPreference, relayWeb: ModelOptionCapabilityShape.RelayWeb?): Boolean =
+        (relayWeb as? ModelOptionCapabilityShape.RelayWebToggle)?.isOn ?: (web != CapabilityWebPreference.Off)
+
+    /** Web search was rejected by the upstream (the condition for the rejection copy at the bottom of the panel). */
+    fun webUpstreamRejected(identity: ai.oriveo.community.core.provider.ModelControlRuntimeIdentity?): Boolean =
+        identity != null && ai.oriveo.community.core.provider.ModelControlRejectionCache.isRejectedByAnySource(identity, "web", selectedTier = null)
+
+    /** Facts for sending / preview: the presentation state and relay facts are read fresh (same source as the panel); [web] is the web preference resolved for this send. */
+    fun webSearchFactsForSend(
+        provider: Provider,
+        model: AIModel,
+        finalTransport: String?,
+        web: CapabilityWebPreference,
+        identity: ai.oriveo.community.core.provider.ModelControlRuntimeIdentity?,
+        toolCall: String,
+    ): ai.oriveo.community.core.search.WebSearchFacts = webSearchFacts(
+        provider = provider,
+        model = model,
+        presentation = ai.oriveo.community.core.provider.CapabilityControlPresentationResolver
+            .presentation(provider, model, "web", ai.oriveo.community.core.data.remote.MetadataClient.instance, finalTransport),
+        upstreamRejected = webUpstreamRejected(identity),
+        relayWeb = relayWeb(provider, model, webPreference = web),
+        toolCall = toolCall,
+    )
+
+    /** The connection form used to decide the web row: derived in one place from [ProviderForm]; subscriptions are further split into Codex / Grok by provider. */
+    fun searchForm(provider: Provider): String = when (ai.oriveo.community.core.capability.truth.ProviderForm.of(provider)) {
+        ai.oriveo.community.core.capability.truth.ProviderForm.Relay -> "relay"
+        ai.oriveo.community.core.capability.truth.ProviderForm.Subscription ->
+            if (provider.kind == ProviderKind.Grok) "subscription_grok" else "subscription_codex"
+        ai.oriveo.community.core.capability.truth.ProviderForm.Official -> "byok"
+    }
+
     fun connectionCategory(kind: ProviderKind): ConnectionCategory = when (kind) {
         ProviderKind.Relay -> ConnectionCategory.CustomLLM
         else -> ConnectionCategory.Other
@@ -426,7 +500,49 @@ internal object ModelOptionsRender {
     @StringRes fun escapeRes(escape: ModelOptionCapabilityShape.Escape): Int = when (escape) {
         ModelOptionCapabilityShape.Escape.SupportedModels -> R.string.model_options_see_adjustable_models
         ModelOptionCapabilityShape.Escape.AdditionalBody -> R.string.model_options_open_additional_body
+        ModelOptionCapabilityShape.Escape.PickSearchSource -> R.string.web_search_card_change_service
+        ModelOptionCapabilityShape.Escape.OneTapEnableSearch -> R.string.web_search_card_one_tap
+        ModelOptionCapabilityShape.Escape.AddSearchService -> R.string.web_search_main_add
     }
+
+    /** Web card action (the action of webSearchCardPresentation) -> the local way forward. */
+    fun searchCardEscape(action: String): ModelOptionCapabilityShape.Escape? = when (action) {
+        "pick_source" -> ModelOptionCapabilityShape.Escape.PickSearchSource
+        "one_tap_enable" -> ModelOptionCapabilityShape.Escape.OneTapEnableSearch
+        "add_search_service" -> ModelOptionCapabilityShape.Escape.AddSearchService
+        "open_supported_models" -> ModelOptionCapabilityShape.Escape.SupportedModels
+        else -> null
+    }
+
+    /** Semantic web card copy key (the registered l10n keys) -> local copy; the three pre-existing keys map onto existing strings. */
+    @StringRes fun searchCardTextRes(key: String): Int = when (key) {
+        "card.useService" -> R.string.web_search_card_use_service
+        "card.offUseService" -> R.string.web_search_card_off_use_service
+        "card.changeService" -> R.string.web_search_card_change_service
+        "card.presearchNotice" -> R.string.web_search_card_presearch_notice
+        "card.reuseStatus" -> R.string.web_search_card_reuse_status
+        "card.reuseDetail" -> R.string.web_search_card_reuse_detail
+        "card.oneTap" -> R.string.web_search_card_one_tap
+        "card.sourceLine" -> R.string.web_search_card_source_line
+        "card.sourceLineNative" -> R.string.web_search_card_source_line_native
+        "card.fallbackNotice" -> R.string.web_search_card_fallback_notice
+        "card.armHint" -> R.string.web_search_card_arm_hint
+        // Notes about the current service's problem state reuse the settings row status copy
+        "row.needsKey" -> R.string.web_search_row_needs_key
+        "row.hostChanged" -> R.string.web_search_row_host_changed
+        "row.connectionMissing" -> R.string.web_search_row_connection_missing
+        "row.catalogUnavailable" -> R.string.web_search_row_catalog_unavailable
+        "card.cannotSearch" -> R.string.model_options_cannot_search
+        "card.supportedModels" -> R.string.model_options_see_adjustable_models
+        "card.addService" -> R.string.web_search_main_add
+        else -> error("unregistered web search card key: $key")
+    }
+
+    /** Named arguments -> placeholder order (%1$s): the fallback notice takes from, everything else only name. */
+    fun searchCardArgs(key: String, args: Map<String, String?>): List<String> =
+        (if (key == "card.fallbackNotice") listOf("from") else listOf("name"))
+            .filter { it in args }
+            .map { args[it].orEmpty() }
 
     /** [ModelOptionCapabilityShape.DisclosureStatus.ReadOnlyValue] shows the tier itself and does not go through here. */
     @StringRes fun disclosureRes(status: ModelOptionCapabilityShape.DisclosureStatus): Int = when (status) {
@@ -487,6 +603,8 @@ internal object ModelOptionsTiles {
         val levelCount: Int = 0,
         /** The whole card is tappable (explanation cards, status cards the model itself cannot do, protocol undecided). */
         val tappable: Boolean = false,
+        /** External search text and actions of the web card (a non-null status replaces [statusRes]); null means none. */
+        val searchCard: ai.oriveo.community.core.search.WebSearchCardPresentation? = null,
     )
 
     enum class Vision(@StringRes val statusRes: Int, val corner: Corner) {
@@ -598,10 +716,18 @@ internal object ModelOptionsTiles {
     ): Tile {
         val kind = if (capability == ModelOptionCapabilityShape.Capability.Web) Kind.Web else Kind.Reasoning
         return when (shape) {
-            is ModelOptionCapabilityShape.Toggle ->
-                Tile(kind, Corner.Switch, toggleBlockedNoteRes ?: ModelOptionsRender.toggleNoteRes(capability, shape.kind))
-            is ModelOptionCapabilityShape.ToggleWithTiming ->
-                Tile(kind, Corner.Switch, ModelOptionsRender.toggleNoteRes(capability, ModelOptionCapabilityShape.ToggleKind.Capability))
+            is ModelOptionCapabilityShape.Toggle -> Tile(
+                kind,
+                Corner.Switch,
+                toggleBlockedNoteRes ?: ModelOptionsRender.toggleNoteRes(capability, shape.kind),
+                searchCard = shape.searchCard,
+            )
+            is ModelOptionCapabilityShape.ToggleWithTiming -> Tile(
+                kind,
+                Corner.Switch,
+                ModelOptionsRender.toggleNoteRes(capability, ModelOptionCapabilityShape.ToggleKind.Capability),
+                searchCard = shape.searchCard,
+            )
             // Relay web switch: the status line is the test verdict / source; when greyed out the switch cannot be toggled and the UI layer wires the retest link.
             is ModelOptionCapabilityShape.RelayWebToggle ->
                 Tile(kind, Corner.Switch, ModelOptionsRender.relayWebStatusRes(shape.status))
@@ -621,10 +747,28 @@ internal object ModelOptionsTiles {
                 statusRes = ModelOptionsRender.noticeStatusRes(shape.status),
                 bodyRes = ModelOptionsRender.noticeBodyRes(shape.body),
                 tappable = shape.escape != null,
+                searchCard = shape.searchCard,
             )
             is ModelOptionCapabilityShape.Disclosure -> {
                 val tappable = shape.tappable && ModelOptionsRender.disclosureTappable(shape.status)
-                Tile(kind, if (tappable) Corner.Chevron else Corner.None, disclosureStatusRes(capability, shape), tappable = tappable)
+                Tile(
+                    kind,
+                    if (tappable) Corner.Chevron else Corner.None,
+                    disclosureStatusRes(capability, shape),
+                    tappable = tappable,
+                    searchCard = shape.searchCard,
+                )
+            }
+            // Web plus an external search service: the switch sits top right; with native search the status line reuses the original switch's, otherwise it comes from the web card text.
+            is ModelOptionCapabilityShape.ToggleWithSource -> {
+                val native = shape.native?.let { capabilityTile(capability, it, toggleBlockedNoteRes) }
+                Tile(
+                    kind = kind,
+                    corner = Corner.Switch,
+                    statusRes = native?.statusRes
+                        ?: ModelOptionsRender.toggleNoteRes(capability, ModelOptionCapabilityShape.ToggleKind.Capability),
+                    searchCard = shape.card,
+                )
             }
             ModelOptionCapabilityShape.ProtocolUndecided -> Tile(
                 kind = kind,
@@ -653,7 +797,8 @@ internal object ModelOptionsTiles {
     /** The web switch is on right now (including the "every message" timing row). */
     fun webIsOn(web: ModelOptionCapabilityShape): Boolean =
         web is ModelOptionCapabilityShape.ToggleWithTiming || (web as? ModelOptionCapabilityShape.Toggle)?.isOn == true ||
-            (web as? ModelOptionCapabilityShape.RelayWebToggle)?.isOn == true
+            (web as? ModelOptionCapabilityShape.RelayWebToggle)?.isOn == true ||
+            (web as? ModelOptionCapabilityShape.ToggleWithSource)?.isOn == true
 
     /**
      * "This turn actually sends" lists only the choices that rewrite the request right now, in the fixed order web -> thinking: web on; a non-automatic thinking tier that is selected ("off" included);

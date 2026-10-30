@@ -108,7 +108,7 @@ struct ContextShotsManifestTests {
     }
 
     @Test("shotsManifestCheckpointsAndHintThroughProduction: checkpoints cover up to a4; the 3rd-compaction hint is decided by production noteCompactionLanded")
-    func shotsManifestCheckpointsAndHintThroughProduction() throws {
+    func shotsManifestCheckpointsAndHintThroughProduction() async throws {
         defer {
             ContextLedgerStore.shotsPool = nil
             ContextCompactionStore.shotsPool = nil
@@ -122,7 +122,7 @@ struct ContextShotsManifestTests {
             #expect(latest.coversTo == chat.conversation.messages[7].id.uuidString, "\(shot.rawValue)")
             #expect((latest.summary != nil) == (shot != .contextDividerVerbatim), "\(shot.rawValue)")
 
-            try Shots.writeIsolatedPartition(staged)
+            try await Shots.writeIsolatedPartition(staged)
             let appState = AppState(seedDemoData: true)
             appState.chatManager.noteCompactionLanded(
                 conversationID: chat.conversation.id, uid: appState.sessionPartitionUID

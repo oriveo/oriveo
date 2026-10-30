@@ -19,6 +19,7 @@ import type { LanguageOption, SendShortcut } from '@oriveo/shared';
 import { MenuSelect } from '../../components/MenuSelect';
 import { FeatureBadgeDot } from '../../components/FeatureBadgeDot';
 import { FEATURE_BADGE_IDS } from '../../lib/core/feature-badges';
+import { useWebSearchDefaultName } from '../../lib/search/use-web-search-entry';
 import { trackEvent } from '../../lib/core/telemetry';
 import { APP_VERSION } from '../../lib/version';
 import { contextRowValueText } from '../../lib/core/chat/context-visibility/cap-presentation';
@@ -63,6 +64,8 @@ export function Settings() {
   const tContext = useTranslations('pages.settings.context');
   const tContextCap = useTranslations('pages.chat.contextCap');
   const tMcp = useTranslations('mcp.settings');
+  const tWebSearch = useTranslations('webSearch');
+  const webSearchDefaultName = useWebSearchDefaultName();
   // MCP entry: the master switch comes from the model catalog and the entry is hidden while it is off.
   // The subtitle shows how many servers there are and how many need attention.
   const mcpRuntimeConfig = useMcpRuntimeConfig();
@@ -128,17 +131,33 @@ export function Settings() {
     },
   ];
 
-  // Tools and connections: only MCP servers here; while the MCP master switch is off the group is not rendered.
-  const toolItems: SettingsGridItem[] = mcpRuntimeConfig.enabled
-    ? [{
-        key: 'mcp',
-        entry: 'mcp',
-        icon: <SettingsIcon name="mcp" />,
-        title: tMcp('entryTitle'),
-        value: mcpEntrySubtitle,
-        onSelect: () => router.push('/settings/mcp'),
-      }]
-    : [];
+  // Tools and connections: web search + MCP servers; while the MCP master switch is off only web search is left.
+  const toolItems: SettingsGridItem[] = [
+    {
+      key: 'webSearch',
+      entry: 'webSearch',
+      icon: <SettingsIcon name="search" />,
+      title: (
+        <>
+          {tWebSearch('entry.title')}
+          <FeatureBadgeDot id={FEATURE_BADGE_IDS.settingsWebSearch} />
+        </>
+      ),
+      // No value while loading; no service configured = "Not set"
+      value: webSearchDefaultName === undefined ? undefined : webSearchDefaultName ?? tWebSearch('entry.notSet'),
+      onSelect: () => router.push('/settings/web-search'),
+    },
+    ...(mcpRuntimeConfig.enabled
+      ? [{
+          key: 'mcp',
+          entry: 'mcp',
+          icon: <SettingsIcon name="mcp" />,
+          title: tMcp('entryTitle'),
+          value: mcpEntrySubtitle,
+          onSelect: () => router.push('/settings/mcp'),
+        }]
+      : []),
+  ];
 
   const helpItems: SettingsGridItem[] = [
     {

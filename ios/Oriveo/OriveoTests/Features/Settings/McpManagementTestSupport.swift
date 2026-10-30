@@ -168,9 +168,9 @@ struct McpUiRig {
             loadDetail: { try directory.detail(serverId: $0, uid: McpUiFixture.uid) },
             actions: { actions },
             setPermission: { permission, serverId, toolName in
-                try directory.setToolPermission(permission, serverId: serverId, toolName: toolName, uid: McpUiFixture.uid)
+                try await directory.setToolPermission(permission, serverId: serverId, toolName: toolName, uid: McpUiFixture.uid)
             },
-            remove: { try directory.remove(serverId: $0, uid: McpUiFixture.uid) },
+            remove: { try await directory.remove(serverId: $0, uid: McpUiFixture.uid) },
             restoreEndpoint: { try directory.restoreEndpoint(serverId: $0, urlString: $1, uid: McpUiFixture.uid) }
         ))
     }

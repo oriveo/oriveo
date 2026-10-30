@@ -201,6 +201,8 @@ final class UIKitRecoveryCard: UIView {
     private func configurePrimaryButton(_ button: UIButton, title: String) {
         var config = UIButton.Configuration.filled()
         config.title = title
+        // Single-line title: a wrapping title makes cell self-sizing rebuild temporary constraints for the target width.
+        config.titleLineBreakMode = .byTruncatingTail
         config.baseForegroundColor = OriveoTheme.Palette.onPrimaryUIColor
         config.baseBackgroundColor = OriveoTheme.Palette.primaryUIColor
         config.cornerStyle = .medium
@@ -219,6 +221,8 @@ final class UIKitRecoveryCard: UIView {
     private func configureSecondaryButton(_ button: UIButton, title: String) {
         var config = UIButton.Configuration.filled()
         config.title = title
+        // Single-line title: a wrapping title makes cell self-sizing rebuild temporary constraints for the target width.
+        config.titleLineBreakMode = .byTruncatingTail
         config.baseForegroundColor = UIColor(OriveoTheme.Palette.primary)
         config.baseBackgroundColor = UIColor(OriveoTheme.Palette.surfaceChrome)
         config.cornerStyle = .medium
@@ -239,6 +243,8 @@ final class UIKitRecoveryCard: UIView {
     private func configureTextButton(_ button: UIButton, title: String) {
         var config = UIButton.Configuration.plain()
         config.title = title
+        // Single-line title: a wrapping title makes cell self-sizing rebuild temporary constraints for the target width.
+        config.titleLineBreakMode = .byTruncatingTail
         config.baseForegroundColor = UIColor(OriveoTheme.Palette.primary)
         config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
             var outgoing = incoming

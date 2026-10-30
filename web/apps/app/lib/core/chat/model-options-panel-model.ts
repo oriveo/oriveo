@@ -157,7 +157,7 @@ export function modelOptionsPanelModel(facts: ModelOptionsPanelFacts): ModelOpti
       ),
     };
   const hasControl = panelCard.kind === 'rows'
-    && panelCard.rows.some((row) => row.kind === 'toggle' || row.kind === 'tiers' || row.kind === 'toggleWithTiming');
+    && panelCard.rows.some((row) => row.kind === 'toggle' || row.kind === 'tiers' || row.kind === 'toggleWithTiming' || row.kind === 'toggleWithSource');
   const mark = statusMark(facts);
   const transport = headerTransport(facts);
   const { tiles, summary, temperature, parameters } = modelOptionsTiles({
@@ -213,6 +213,7 @@ function capabilityTile(row: ModelOptionsPanelRow): ModelOptionsTile {
   switch (row.kind) {
     case 'toggle':
     case 'toggleWithTiming':
+    case 'toggleWithSource':
       return { ...base, corner: 'switch' };
     case 'tiers':
       return { ...base, corner: 'levels' };
@@ -241,7 +242,7 @@ function fileState(facts: ModelOptionsFileFacts): ModelOptionsFileState {
 function summaryItems(rows: readonly ModelOptionsPanelRow[]): ModelOptionsSummaryItem[] {
   const items: ModelOptionsSummaryItem[] = [];
   const web = rows.find((row) => row.capability === 'web');
-  if (web && (web.kind === 'toggleWithTiming' || (web.kind === 'toggle' && web.isOn))) items.push({ kind: 'webOn' });
+  if (web && (web.kind === 'toggleWithTiming' || ((web.kind === 'toggle' || web.kind === 'toggleWithSource') && web.isOn))) items.push({ kind: 'webOn' });
   const reasoning = rows.find((row) => row.capability === 'reasoning');
   if (reasoning?.kind === 'tiers' && reasoning.selection && reasoning.selection !== AUTOMATIC) {
     items.push({ kind: 'thinkingLevel', intent: reasoning.selection });

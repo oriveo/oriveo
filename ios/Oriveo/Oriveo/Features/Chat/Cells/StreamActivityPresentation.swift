@@ -14,7 +14,9 @@ extension StreamActivityCaption {
         switch self {
         case .neutral:
             return L10n.tr("Generating")
-        case .activity(.webSearch):
+        case .activity(.webSearch), .activity(.externalSearch):
+            // With external search display context the cell shows "Searching with {name}…" / "Answering from search results…" (ExternalSearchActivityTrail);
+            // this is only the fallback when there is no context.
             return L10n.tr("Searching the web", table: .chat)
         case .activity(.mcpTool):
             // Fallback without display context; with a running step the cell shows

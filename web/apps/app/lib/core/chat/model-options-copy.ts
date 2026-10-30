@@ -3,6 +3,7 @@
  * The data layer only emits semantic enums; this file is the single place where they land on next-intl.
  */
 import type { GenerationDropReason } from '@oriveo/core/providers/request-builders/generation-parameters';
+import type { WebSearchCardKey, WebSearchCardText } from '@oriveo/core/search/search-route';
 import type {
   AdvancedClusterSubtitle, AdvancedClusterSummary, AdvancedClusterTitle, AdvancedCommonFootnote,
   AdvancedFamilyNote, AdvancedModeLabel, AdvancedSectionTitle,
@@ -139,7 +140,25 @@ export const MODEL_OPTION_LINK_KEYS: Readonly<Record<ModelOptionLinkAction, stri
   // Retest exit after a stored fragment is rejected: Test again in Web Search.
   openConnectionWebSearch: 'common.modelOptionsRelayWebRetest',
   testCapabilities: 'pages.relayDetail.capabilityTest.action',
+  pickSearchSource: 'webSearch.card.changeService',
+  oneTapEnableSearch: 'webSearch.card.oneTap',
+  addSearchService: 'webSearch.main.add',
 };
+
+/**
+ * External-search copy of the web card: three reuse existing keys, the rest are under `webSearch.card.*`.
+ * A null parameter (name absent) is shown as an empty string.
+ */
+const WEB_SEARCH_CARD_EXISTING_KEYS: Readonly<Partial<Record<WebSearchCardKey, string>>> = {
+  'card.cannotSearch': 'common.modelOptionsCannotSearch',
+  'card.supportedModels': 'common.modelOptionsSeeAdjustableModels',
+  'card.addService': 'webSearch.main.add',
+};
+
+export function webSearchCardCopy(text: Pick<WebSearchCardText, 'key' | 'args'>): CopyRef {
+  const args = Object.fromEntries(Object.entries(text.args).map(([name, value]) => [name, value ?? '']));
+  return { key: WEB_SEARCH_CARD_EXISTING_KEYS[text.key] ?? `webSearch.${text.key}`, ...(Object.keys(args).length > 0 ? { args } : {}) };
+}
 export const MODEL_OPTION_WEB_TIMING_KEYS: Readonly<Record<'automatic' | 'force', string>> = {
   automatic: 'common.modelOptionsWebWhenNeeded',
   force: 'common.modelOptionsWebEveryMessage',
@@ -245,7 +264,11 @@ export function modelOptionsTileStatusCopy(tile: ModelOptionsTile): CopyRef | un
   if (tile.kind === 'vision') return { key: VISION_STATUS_KEYS[tile.state] };
   if (tile.kind === 'file') return { key: FILE_STATUS_KEYS[tile.state] };
   const row = tile.row;
+  if ('searchCard' in row && row.searchCard?.status) return webSearchCardCopy(row.searchCard.status);
   switch (row.kind) {
+    case 'toggleWithSource':
+      if (row.native) return modelOptionsTileStatusCopy({ ...tile, row: row.native });
+      return row.card.status ? webSearchCardCopy(row.card.status) : undefined;
     case 'toggle':
       if (row.relayStatus) return { key: RELAY_WEB_STATUS_KEYS[row.relayStatus] };
       return row.caption ? { key: MODEL_OPTION_CAPTION_KEYS[row.caption] } : undefined;
@@ -261,6 +284,14 @@ export function modelOptionsTileStatusCopy(tile: ModelOptionsTile): CopyRef | un
   }
 }
 
+/** Notes of the external search web card (all shown in order, multi-line, not truncated); undefined when there are none (the pre-existing body is drawn). */
+export function modelOptionsTileNotesCopy(tile: ModelOptionsTile): CopyRef[] | undefined {
+  if (tile.kind !== 'capability') return undefined;
+  const row = tile.row;
+  const notes = row.kind === 'toggleWithSource' ? row.card.notes : 'searchCard' in row ? row.searchCard?.notes : undefined;
+  return notes && notes.length > 0 ? notes.map(webSearchCardCopy) : undefined;
+}
+
 /** The small body text inside an explanation tile. */
 export function modelOptionsTileBodyCopy(tile: ModelOptionsTile): CopyRef | undefined {
   // The unsupported state of the vision tile shows the projection reason, using the same keys as the composer attachment entry (capability.input.disabled.*).
@@ -269,7 +300,10 @@ export function modelOptionsTileBodyCopy(tile: ModelOptionsTile): CopyRef | unde
   }
   if (tile.kind !== 'capability') return undefined;
   const row = tile.row;
+  // The web card notes replace the body text (provided by modelOptionsTileNotesCopy), not stacked.
+  if ('searchCard' in row && row.searchCard && row.searchCard.notes.length > 0) return undefined;
   switch (row.kind) {
+    case 'toggleWithSource': return undefined;
     case 'notice': return modelOptionNoticeBodyCopy(row.body);
     case 'chatTemplateBlocked': return { key: CHAT_TEMPLATE_THINKING_STATE_KEYS[row.state] };
     case 'protocolUndecided': return { key: MODEL_OPTION_PROTOCOL_UNDECIDED_KEYS.body };

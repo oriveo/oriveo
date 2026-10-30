@@ -176,6 +176,10 @@ final class ChatManager {
         /// Model and connection of this attempt, set with `proposeCarriedDelivery`: the two legs' costs are merged
         /// once for per-unit pricing.
         var proposeCarriedPricing: (model: AIModel, provider: Provider)?
+        /// External search of this turn: planned at send time, and applied to this message by finishSearchReply when the turn ends.
+        var externalSearch: ExternalSearchTurn?
+        /// Display context when `activity == .externalSearch` (service name, this turn's queries, and whether one is in flight).
+        var externalSearchTrail: ExternalSearchActivityTrail?
 
         /// Appends a reasoning delta in place; when messageID / sendTaskID do not match nothing is written and false is returned.
         ///
@@ -203,6 +207,8 @@ final class ChatManager {
     let contextCapRollbacks = PassthroughSubject<ContextCapSendRollback, Never>()
     /// The user just tapped "Edit" and truncated these conversations: the next sendMessage is an edit resend (telemetry attempt_kind=edit).
     private var pendingEditResendConversationIDs: Set<UUID> = []
+    /// The executor of external search requests (SearchExecutor in production; tests replace the HTTP layer).
+    var externalSearchRequester: any ExternalSearchRequesting = SearchExecutor()
     /// Conversations whose pre-send rejection check is assembling in the background: while suspended, another send in the same conversation is blocked, preventing re-entry from rapid taps.
     private var contextPreflightInFlight: Set<UUID> = []
     /// Conversations that have already shown the "third compaction" hint in this process.
@@ -256,6 +262,8 @@ final class ChatManager {
     var mcpConfirmationGate: (any McpConfirmationGate)?
     /// Gate for an expired authorization. nil in production, which uses `AppState.mcpReauthorizationCoordinator`.
     var mcpReauthorizationGate: (any McpReauthorizationGate)?
+    /// Serial tail task for Ledger settle writes (see `settleContextLedger`).
+    private var contextLedgerWriteTail: Task<Void, Never>?
     /// Resolves the Context Ledger per partition (manifest appends, rho samples and overflow-miss write-back). The production default is the original
     /// `ContextLedgerStore.forPartition`, so behaviour is unchanged; tests inject an isolated store instead of sharing the global singleton.
     var contextLedgerResolver: (String) -> ContextLedgerStore? = { uid in
@@ -423,7 +431,10 @@ final class ChatManager {
     /// The activity snapshot of the message currently streaming (nil without a session). A cell reads it once on first bind / on rebind after reuse, then follows the delta channel.
     func streamingActivity(in conversationID: UUID) -> StreamActivityState? {
         guard let session = sessions[conversationID] else { return nil }
-        return StreamActivityState(messageID: session.messageID, activity: session.activity)
+        return StreamActivityState(
+            messageID: session.messageID, activity: session.activity,
+            externalSearch: session.activity == .externalSearch ? session.externalSearchTrail : nil
+        )
     }
 
     func streamingActivityDidChange(in conversationID: UUID) -> AnyPublisher<StreamActivityState, Never> {
@@ -924,7 +935,9 @@ final class ChatManager {
             latestUserText: trimmed,
             appendsToExistingText: false,
             attemptKind: attemptKind,
-            proposeTurn: proposeMemory.map { ProposeMemoryTurn(context: $0, userMessageID: userMessage.id) }
+            proposeTurn: proposeMemory.map { ProposeMemoryTurn(context: $0, userMessageID: userMessage.id) },
+            // Resend after an edit: the question has changed, so always search again (previousResultsPersisted = false, no web sources from the old answer).
+            searchRegenerateAction: attemptKind == .edit ? .editResend : .send
         )
         return .sent(userMessage.id)
     }
@@ -1265,7 +1278,9 @@ final class ChatManager {
     func regenerateMessage(
         messageID: UUID,
         in conversationID: UUID,
-        capabilitySelection: ChatCapabilitySelection = ChatCapabilitySelection()
+        capabilitySelection: ChatCapabilitySelection = ChatCapabilitySelection(),
+        /// External search policy: a plain "Regenerate" reuses the previous results; the error card retry / the menu's "Regenerate and search again" pass re_search.
+        searchRegenerateAction: SearchRegenerateAction = .regenerate
     ) async {
         hydrateConversationMessagesIfNeeded(id: conversationID)
         guard let convIndex = conversations.firstIndex(where: { $0.id == conversationID }) else { return }
@@ -1362,7 +1377,9 @@ final class ChatManager {
             latestUserText: lastUserMessage.text,
             appendsToExistingText: false,
             explicitContinuationMessageID: [.moonshot, .openAI, .anthropic, .gemini, .deepseek, .openRouter, .grok].contains(provider.kind) ? assistantMessageID : nil,
-            attemptKind: .regenerate
+            attemptKind: .regenerate,
+            searchRegenerateAction: searchRegenerateAction,
+            searchPreviousCitations: (originalMessage.citations ?? []).filter { $0.source == Citation.externalSearchSource }
         )
     }
 
@@ -1532,7 +1549,9 @@ final class ChatManager {
             explicitContinuationMessageID: [.moonshot, .openAI, .anthropic, .gemini, .deepseek, .openRouter, .grok].contains(provider.kind) ? messageID : nil,
             localCustomFragmentDisposition: localCustomFragmentDisposition,
             capabilityRecoveryDescriptor: recoveryDescriptor,
-            attemptKind: .retry
+            attemptKind: .retry,
+            searchRegenerateAction: .regenerate,
+            searchPreviousCitations: (originalMessage.citations ?? []).filter { $0.source == Citation.externalSearchSource }
         )
     }
 
@@ -1895,10 +1914,12 @@ final class ChatManager {
         uid: String,
         trigger: ContextCompactionCoordinator.Trigger,
         inputs: ChatCompactionInputs,
-        connection: PendingCompactionConnection
+        connection: PendingCompactionConnection,
+        assembledCheckpoint: AssembledCheckpoint = .unknown
     ) async -> ContextCheckpointRecord? {
         await runCompaction(
-            conversationID: conversationID, uid: uid, trigger: trigger, inputs: inputs, connection: connection
+            conversationID: conversationID, uid: uid, trigger: trigger, inputs: inputs, connection: connection,
+            assembledCheckpoint: assembledCheckpoint
         ).row
     }
 
@@ -1908,7 +1929,8 @@ final class ChatManager {
         trigger: ContextCompactionCoordinator.Trigger,
         inputs: ChatCompactionInputs,
         connection: PendingCompactionConnection,
-        fallbackOnAIFailure: Bool = true
+        fallbackOnAIFailure: Bool = true,
+        assembledCheckpoint: AssembledCheckpoint = .unknown
     ) async -> ContextCompactionCoordinator.Result {
         let noop = ContextCompactionCoordinator.Result(outcome: .noop, row: nil, failures: [])
         guard let coordinator = compactionCoordinator(uid: uid) else { return noop }
@@ -1930,6 +1952,7 @@ final class ChatManager {
             trigger: trigger,
             snapshot: snapshot,
             fallbackOnAIFailure: fallbackOnAIFailure,
+            assembledCheckpoint: assembledCheckpoint,
             summarize: { [weak self] request in
                 guard let self else { return nil }
                 return await self.compactionSummary(
@@ -2132,10 +2155,10 @@ final class ChatManager {
 
     /// Deletes all checkpoints of this conversation. nil when the store cannot be opened or the deletion fails.
     @discardableResult
-    func clearCompaction(conversationId conversationID: UUID) -> ContextCompactionToast? {
+    func clearCompaction(conversationId conversationID: UUID) async -> ContextCompactionToast? {
         guard let store = ContextCompactionStore.forPartition(appState.sessionPartitionUID) else { return nil }
         do {
-            _ = try store.deleteAll(conversationId: conversationID.uuidString)
+            _ = try await store.deleteAllAsync(conversationId: conversationID.uuidString)
             return .cleared
         } catch {
             print("[ChatManager] checkpoint deleteAll failed: \(error.localizedDescription)")
@@ -2153,7 +2176,7 @@ final class ChatManager {
             }
             do {
                 if let latest = try store.latestValid(conversationId: conversationID.uuidString, history: history) {
-                    _ = try store.delete(
+                    _ = try await store.deleteAsync(
                         conversationId: conversationID.uuidString,
                         checkpointId: latest.checkpointId
                     )
@@ -2273,7 +2296,7 @@ final class ChatManager {
     }
 
     /// The protocol family of this request (for overflow detection). When the stream handed over a finish, finish.family wins; when it failed at the HTTP layer it is inferred from the connection and protocol.
-    private static func requestStopFamily(provider: Provider, relayTransport: RelayTransport?) -> StopFamily {
+    private nonisolated static func requestStopFamily(provider: Provider, relayTransport: RelayTransport?) -> StopFamily {
         switch provider.kind {
         case .anthropic: return .anthropic
         case .gemini: return .gemini
@@ -2319,7 +2342,7 @@ final class ChatManager {
     }
 
     /// StopFamily -> overflow classification family: an explicit mapping per family, with no rawValue fallback.
-    private static func overflowFamily(_ family: StopFamily) -> OverflowFamily {
+    private nonisolated static func overflowFamily(_ family: StopFamily) -> OverflowFamily {
         switch family {
         case .openaiChat: return .openaiChat
         case .openaiResponses: return .openaiResponses
@@ -2332,6 +2355,7 @@ final class ChatManager {
     }
 
     /// Settle the Ledger at the end: append the manifest; record a rho sample when it ends successfully, is plain text and has usage. A write failure does not affect finishing the message.
+    /// The write is queued on a serial tail task and never waits for the write lock on the main thread; rho is a read-modify-write, so serial order keeps samples from overwriting each other.
     private func settleContextLedger(
         _ attempt: ContextLedgerAttempt?,
         stopReason: StopReason?,
@@ -2340,11 +2364,44 @@ final class ChatManager {
     ) {
         guard let attempt, let ledger = contextLedgerResolver(attempt.partitionUID) else { return }
         let observed = observedInput
-        try? ledger.appendManifest(attempt.manifest(observedInput: observed, stopReason: stopReason))
+        let manifest = attempt.manifest(observedInput: observed, stopReason: stopReason)
         // Only recorded on a single-leg chat; the usage of a context_window_exceeded ending does not represent the full input, so it is not recorded.
+        var rhoSample: (key: RhoCalibrationKey, observedInput: Int, textBytes: Int)?
         if recordsSample, attempt.singleChatLeg, !attempt.hasAttachments,
            stopReason != .contextWindowExceeded, let observed, observed > 0 {
-            try? ledger.recordRhoSample(attempt.rhoKey, observedInput: observed, textBytes: attempt.textBytes)
+            rhoSample = (attempt.rhoKey, observed, attempt.textBytes)
+        }
+        let previous = contextLedgerWriteTail
+        let sample = rhoSample
+        contextLedgerWriteTail = Task {
+            await previous?.value
+            try? await ledger.settleAsync(manifest: manifest, rhoSample: sample)
+        }
+    }
+
+    #if DEBUG
+    /// Send tasks that were started and have not finished: the session is removed during failure wrap-up, yet the tail of the
+    /// task still writes (cost refresh), so `isAnyStreaming == false` does not mean writes have stopped. Tests wait here
+    /// until it is empty before deleting a partition.
+    private var sendTasksForTesting: [UUID: Task<Void, Never>] = [:]
+
+    /// Waits for all send tasks (failure wrap-up and downgraded resends included) to finish, before a test deletes a partition.
+    func waitForSendTasksForTesting() async {
+        while let (id, task) = sendTasksForTesting.first {
+            await task.value
+            sendTasksForTesting.removeValue(forKey: id)
+        }
+    }
+    #endif
+
+    /// Wait for queued Ledger settle writes to land (before test assertions).
+    func waitForContextLedgerWrites() async {
+        while let task = contextLedgerWriteTail {
+            await task.value
+            if contextLedgerWriteTail == task {
+                contextLedgerWriteTail = nil
+                return
+            }
         }
     }
 
@@ -2555,7 +2612,12 @@ final class ChatManager {
         proposeCarriedDelivery: ProposeMemoryDeferredDelivery? = nil,
         /// Thinking resend: entries search_memory returned on the first leg, placed after the automatic
         /// [D] recall entries (same recallMax fitting).
-        carriedSearchRecall: [ContextRecallEntry] = []
+        carriedSearchRecall: [ContextRecallEntry] = [],
+        /// Resend policy for external search (regenerateSearchPolicy): the stored external_search sources of the message being regenerated / resent after an edit.
+        searchRegenerateAction: SearchRegenerateAction = .send,
+        searchPreviousCitations: [Citation] = [],
+        /// An internal resend of this turn carries on from the previous attempt's external search state (the sources line and facts keep this turn's real values).
+        carriedSearchTurn: ExternalSearchTurn? = nil
     ) {
         let providerKind = provider.kind
         let apiKey = ProviderCredentialResolver.apiKey(provider: provider, modelID: model.id)
@@ -2610,9 +2672,16 @@ final class ChatManager {
         // Use a structured Task to keep Swift 6 concurrency semantics correct; the network stream read yields the main thread between await points.
         // Hold a strong reference to AppState until the sendTask finishes, so the unowned appState is not read after release in the streaming finishing phase
         // (mainly in unit tests, where AppState is a local variable released after the test case returns)
-        let sendTask = Task(priority: .userInitiated) { [weak self, appStateRetainer = appState as AppState?] in
+        let sendTask = Task(priority: .userInitiated) { [weak self, appStateRetainer = appState as AppState?, queuedCapabilitySelection = capabilitySelection] in
             guard let self else { return }
             _ = appStateRetainer // only holds a strong reference, keeping appState alive for the lifetime of the closure
+            // External search: the conversation's source and the services are computed on every send. When this turn goes through an external service the request
+            // carries no native web fields (resolveSearchTurnPath.requestHasNativeSearchFields).
+            let externalSearchRoute = await Self.externalSearchRoute(
+                queuedCapabilitySelection, appState: self.appState, provider: provider, model: model,
+                conversationID: conversationID
+            )
+            let capabilitySelection = externalSearchRoute.selection
             let services = ProviderServiceRouter.Services(session: self.providerSession)
             let openRouterService = services.openRouter
             let openAIService = services.openAI
@@ -2737,7 +2806,8 @@ final class ChatManager {
                                 modelID: resolvedModelID,
                                 window: assemblyWindow,
                                 prototype: requestSnapshot.messages.last
-                            )
+                            ),
+                            assembledCheckpoint: .known(chatCheckpoint?.checkpointId)
                         )
                     }
                     if let compactedRow {
@@ -3051,6 +3121,22 @@ final class ChatManager {
             var relayFirstRejection: RelayPreOutputRejection?
             // Judged before output as "this key has no access to the model": the failure path no longer enters the capability rejection loop.
             var relayKeyAccessDenied = false
+            // Pre-search / reuse of external results enters [D] after the snapshot is updated and the whole request is reassembled.
+            var externalSearchEvidenceApplied = false
+            @MainActor func applyExternalSearchEvidence(_ turn: ExternalSearchTurn?) async {
+                guard !externalSearchEvidenceApplied, let turn, turn.plan.reuse || turn.plan.presearch != nil else { return }
+                externalSearchEvidenceApplied = true
+                guard let content = await self.externalSearchEvidence(turn, previousCitations: searchPreviousCitations) else { return }
+                enrichedRequestSnapshot = enrichedRequestSnapshot.withWeb(content)
+                let rebuilt = await assembleRequest(enrichedRequestSnapshot)
+                planned = rebuilt.planned
+                requestOptions.maxOutputTokens = rebuilt.requestOptions.maxOutputTokens
+                requestOptions.generationParameters = ChatRequestBuilder.cappingUserMaxOutputTokens(
+                    resolvedGenerationParameters, to: requestOptions.maxOutputTokens
+                )
+                self.debugLastContextBudgetForTesting = rebuilt.budget
+                self.sessions[conversationID]?.contextAttempt = contextAttempt(for: rebuilt)
+            }
             do {
                 // Remote MCP: tools are assembled only when this conversation has servers turned on and the
                 // connection can carry tools. Otherwise the plan is empty and the send takes the plain path
@@ -3060,28 +3146,114 @@ final class ChatManager {
                     ? .empty
                     : self.prepareMcpToolPlan(conversationID: conversationID, provider: provider, model: model)
 
-                if !mcpPlan.isEmpty {
-                    self.sessions[conversationID]?.contextAttempt?.singleChatLeg = false
-                    let toolLoopBuild = await assembleToolLoopRequest(
-                        enrichedRequestSnapshot,
-                        toolSafety: McpSafetyPrompt.text
-                    )
-                    let transport = toolLoopBuild.planned.transportInput(requestOptions)
-                    try await self.runMcpToolLoop(
+                // External search send planning: the web intent comes only from route.path of resolveWebSearchState;
+                // outside the external path (native / relay / none) externalSearch is nil and the outbound request and behavior are as before.
+                let externalSearch: ExternalSearchTurn? = textContinuationOnly ? nil : externalSearchRoute.service.flatMap { searchService in
+                    self.planExternalSearchTurn(
+                        service: searchService,
                         conversationID: conversationID,
                         assistantMessageID: assistantMessageID,
                         sendTaskID: sendTaskID,
-                        initialText: initialText,
                         provider: provider,
                         model: model,
-                        accessToken: effectiveAPIKey,
-                        resolvedModelID: resolvedModelID,
-                        transport: transport,
-                        reasoningMode: capabilitySelection.reasoningMode,
-                        plan: mcpPlan
+                        capabilitySelection: capabilitySelection,
+                        mcp: !mcpPlan.isEmpty,
+                        regenerateAction: searchRegenerateAction,
+                        previousCitations: searchPreviousCitations,
+                        userText: latestUserText,
+                        window: assemblyWindow,
+                        rhoHi: ContextLedgerStore.currentRhoHi(for: rhoKey, in: rhoLedger),
+                        carrying: carriedSearchTurn
                     )
-                    self.appState.conversationManager.refreshConversationCost(for: conversationID)
-                    return
+                }
+                let webSearchEntry = self.externalWebSearchEntry(
+                    externalSearch, conversationID: conversationID, sendTaskID: sendTaskID
+                )
+                // The first leg carrying web_search is rejected by the upstream with 400 / 422: when switching to pre-search, this turn resends from the ordinary path below without tools.
+                do {
+                    await applyExternalSearchEvidence(externalSearch)
+
+                    if !mcpPlan.isEmpty {
+                        self.sessions[conversationID]?.contextAttempt?.singleChatLeg = false
+                        let toolLoopBuild = await assembleToolLoopRequest(
+                            enrichedRequestSnapshot,
+                            toolSafety: McpSafetyPrompt.text
+                        )
+                        let transport = toolLoopBuild.planned.transportInput(requestOptions)
+                        try await self.runMcpToolLoop(
+                            conversationID: conversationID,
+                            assistantMessageID: assistantMessageID,
+                            sendTaskID: sendTaskID,
+                            initialText: initialText,
+                            provider: provider,
+                            model: model,
+                            accessToken: effectiveAPIKey,
+                            resolvedModelID: resolvedModelID,
+                            transport: transport,
+                            reasoningMode: capabilitySelection.reasoningMode,
+                            plan: mcpPlan,
+                            webSearchEntry: webSearchEntry
+                        )
+                        self.appState.conversationManager.refreshConversationCost(for: conversationID)
+                        return
+                    }
+
+                    // The tool path with only external search on: the generic loop (web_search plus the memory tools), not the ordinary streaming below.
+                    if let webSearchEntry, let externalSearch {
+                        self.sessions[conversationID]?.contextAttempt?.singleChatLeg = false
+                        try await self.runExternalSearchToolLoop(
+                            conversationID: conversationID,
+                            assistantMessageID: assistantMessageID,
+                            sendTaskID: sendTaskID,
+                            initialText: initialText,
+                            provider: provider,
+                            model: model,
+                            accessToken: effectiveAPIKey,
+                            resolvedModelID: resolvedModelID,
+                            transport: planned.transportInput(requestOptions),
+                            reasoningMode: capabilitySelection.reasoningMode,
+                            toolHost: externalSearch.plan.toolHost,
+                            webSearchEntry: webSearchEntry
+                        )
+                        self.appState.conversationManager.refreshConversationCost(for: conversationID)
+                        return
+                    }
+                } catch let rejected as ExternalSearchToolsRejected {
+                    try Task.checkCancellation()
+                    let modelKey = ModelOptionsWebSearch.modelKey(provider: provider, model: model)
+                    guard let searchService = externalSearchRoute.service,
+                          let replanned = self.planExternalSearchTurn(
+                              service: searchService,
+                              conversationID: conversationID,
+                              assistantMessageID: assistantMessageID,
+                              sendTaskID: sendTaskID,
+                              provider: provider,
+                              model: model,
+                              capabilitySelection: capabilitySelection,
+                              mcp: !mcpPlan.isEmpty,
+                              regenerateAction: searchRegenerateAction,
+                              previousCitations: searchPreviousCitations,
+                              userText: latestUserText,
+                              window: assemblyWindow,
+                              rhoHi: ContextLedgerStore.currentRhoHi(for: rhoKey, in: rhoLedger),
+                              upstreamRejection: SearchUpstreamRejection(status: rejected.status, leg: 0)
+                          ),
+                          replanned.plan.presearch != nil else {
+                        throw rejected.underlying
+                    }
+                    // Remembered in-process per "conversation x modelKey", so later sends pre-search directly (toolsRejectedBefore).
+                    ExternalSearchToolsRejections.shared.insert(conversationID: conversationID, modelKey: modelKey)
+                    // Every tool on this leg was rejected: the memory tools are not attached again this turn either (the same policy as a resend without tools).
+                    if let turn = self.proposeTurn(in: conversationID, sendTaskID: sendTaskID) {
+                        self.sessions[conversationID]?.proposeTurn = nil
+                        turn.context?.onDegraded(turn.userMessageID, assistantMessageID)
+                    }
+                    self.applyToolLoopText(
+                        "", initialText: initialText, conversationID: conversationID,
+                        assistantMessageID: assistantMessageID, sendTaskID: sendTaskID
+                    )
+                    externalSearchEvidenceApplied = false
+                    await applyExternalSearchEvidence(replanned)
                 }
 
                 // propose_memory: attached only on the plain path as the last item of tools with tool_choice auto;
@@ -4770,6 +4942,10 @@ final class ChatManager {
                     }
                     self.sessions[conversationID]?.contextAttempt = nil
                     self.sessions[conversationID]?.proposeTurn = nil
+                    // Web results already obtained this turn are reused by the resend (rebuilt with reuse: no new request).
+                    let searchCarry = self.internalResendSearchCarry(
+                        conversationID: conversationID, action: searchRegenerateAction, previous: searchPreviousCitations
+                    )
                     self.queueAssistantResponse(
                         conversationID: conversationID,
                         assistantMessageID: assistantMessageID,
@@ -4787,7 +4963,10 @@ final class ChatManager {
                         overflowRetryCheckpoint: overflowRetryCheckpoint,
                         isProposeDegradeResend: true,
                         proposeCarriedDelivery: carried,
-                        carriedSearchRecall: searchRecall
+                        carriedSearchRecall: searchRecall,
+                        searchRegenerateAction: searchCarry.action,
+                        searchPreviousCitations: searchCarry.citations,
+                        carriedSearchTurn: searchCarry.turn
                     )
                     return
                 }
@@ -4831,6 +5010,10 @@ final class ChatManager {
                     self.sessions[conversationID]?.contextAttempt = nil
                     self.sessions[conversationID]?.proposeTurn = nil
                     turn.context?.onDegraded(turn.userMessageID, assistantMessageID)
+                    // Web results already obtained this turn are reused by the resend (rebuilt with reuse: no new request).
+                    let searchCarry = self.internalResendSearchCarry(
+                        conversationID: conversationID, action: searchRegenerateAction, previous: searchPreviousCitations
+                    )
                     self.queueAssistantResponse(
                         conversationID: conversationID,
                         assistantMessageID: assistantMessageID,
@@ -4846,7 +5029,10 @@ final class ChatManager {
                         attemptKind: attemptKind,
                         overflowFallbackB: overflowFallbackB,
                         overflowRetryCheckpoint: overflowRetryCheckpoint,
-                        isProposeDegradeResend: true
+                        isProposeDegradeResend: true,
+                        searchRegenerateAction: searchCarry.action,
+                        searchPreviousCitations: searchCarry.citations,
+                        carriedSearchTurn: searchCarry.turn
                     )
                     return
                 }
@@ -4868,8 +5054,17 @@ final class ChatManager {
                     )
                     if contextOverflowed, let attempt = session.contextAttempt {
                         if attempt.singleChatLeg, let pHat = attempt.estimatedInput, let U = attempt.U, pHat < U {
-                            try? self.contextLedgerResolver(attempt.partitionUID)?
-                                .recordRhoOverflowMiss(attempt.rhoKey)
+                            // The fallback resend must read the raised rho: queue the write on the Ledger tail and await it.
+                            if let ledger = self.contextLedgerResolver(attempt.partitionUID) {
+                                let previous = self.contextLedgerWriteTail
+                                let rhoKey = attempt.rhoKey
+                                let write = Task {
+                                    await previous?.value
+                                    try? await ledger.recordRhoOverflowMissAsync(rhoKey)
+                                }
+                                self.contextLedgerWriteTail = write
+                                await write.value
+                            }
                         }
                         // Output started = this attempt received a body, reasoning or image delta.
                         let outputStarted = (Self.hasAnswerContent(session.text) && session.text != session.baselineText)
@@ -4923,6 +5118,10 @@ final class ChatManager {
                                 attempt, stopReason: .contextWindowExceeded, observedInput: nil, recordsSample: false
                             )
                             self.sessions[conversationID]?.contextAttempt = nil
+                            // Web results already obtained this turn are reused by the resend (rebuilt with reuse: no new request).
+                            let searchCarry = self.internalResendSearchCarry(
+                                conversationID: conversationID, action: searchRegenerateAction, previous: searchPreviousCitations
+                            )
                             self.queueAssistantResponse(
                                 conversationID: conversationID,
                                 assistantMessageID: assistantMessageID,
@@ -4937,7 +5136,10 @@ final class ChatManager {
                                 capabilityRecoveryDescriptor: capabilityRecoveryDescriptor,
                                 attemptKind: attemptKind,
                                 overflowFallbackB: attempt.estimatedInput ?? 0,
-                                overflowRetryCheckpoint: overflowRow
+                                overflowRetryCheckpoint: overflowRow,
+                                searchRegenerateAction: searchCarry.action,
+                                searchPreviousCitations: searchCarry.citations,
+                                carriedSearchTurn: searchCarry.turn
                             )
                             return
                         }
@@ -5116,6 +5318,13 @@ final class ChatManager {
 
         // Fill the sendTask reference back into the matching session (serialized on the @MainActor)
         sessions[conversationID]?.sendTask = sendTask
+        #if DEBUG
+        sendTasksForTesting[sendTaskID] = sendTask
+        Task { @MainActor [weak self] in
+            await sendTask.value
+            self?.sendTasksForTesting.removeValue(forKey: sendTaskID)
+        }
+        #endif
     }
 
     // MARK: - Remote MCP
@@ -5174,8 +5383,18 @@ final class ChatManager {
                     update, conversationID: conversationID, messageID: assistantMessageID,
                     sendTaskID: sendTaskID, uid: uid
                 )
+            },
+            webResultsPresent: { [weak self] in
+                await self?.externalSearchForcesOnceConfirm(conversationID: conversationID, sendTaskID: sendTaskID) ?? false
             }
         )
+    }
+
+    /// MCP write confirmation: plan.writeToolConfirm == once_when_web_results_present and web results are already in this turn.
+    private func externalSearchForcesOnceConfirm(conversationID: UUID, sendTaskID: UUID) -> Bool {
+        guard sessions[conversationID]?.sendTaskID == sendTaskID,
+              let turn = sessions[conversationID]?.externalSearch else { return false }
+        return turn.plan.writeToolConfirm == "once_when_web_results_present" && turn.webResultsPresent
     }
 
     /// One status callback from the executor -> the message's `toolSteps` (persisted with the message, summary only) + the local per-step payload
@@ -5189,12 +5408,11 @@ final class ChatManager {
     ) async {
         if let payload = update.payload, let store = try? appState.mcpServerDirectory.store(for: uid) {
             // A failure to store only affects the "step detail" (shown as detail not on this device); it does not affect the execution or the answer of this step.
-            await Task.detached(priority: .userInitiated) {
-                try? store.saveStepPayload(
-                    messageID: messageID, stepID: update.id, serverId: update.serverId,
-                    arguments: payload.arguments, resultPrefix: payload.resultPrefix
-                )
-            }.value
+            // Awaits the write lock instead of blocking the main thread.
+            try? await store.saveStepPayloadAsync(
+                messageID: messageID, stepID: update.id, serverId: update.serverId,
+                arguments: payload.arguments, resultPrefix: payload.resultPrefix
+            )
         }
         guard let conversationIndex = conversations.firstIndex(where: { $0.id == conversationID }),
               let messageIndex = conversations[conversationIndex].messages.firstIndex(where: { $0.id == messageID })
@@ -5208,9 +5426,6 @@ final class ChatManager {
             guard update.status != .running,
                   existing.contains(where: { $0.id == update.id && $0.status == .running }) else { return }
         }
-        if update.status == .needsAuth {
-            markMcpServerNeedsAuth(update.serverId, uid: uid)
-        }
         let merged = McpToolStep.merging(update, into: existing)
         if merged != existing {
             var updated = conversations[conversationIndex]
@@ -5219,11 +5434,17 @@ final class ChatManager {
         }
         // Activity status line: set while any step is running and cleared once all have left running.
         // Write the message first and then publish the activity: the cell's text is read from that step in the message.
-        guard ownsSession else { return }
-        if merged.contains(where: { $0.status == .running }) {
-            recordStreamActivity(.mcpTool, in: conversationID, messageID: messageID, sendTaskID: sendTaskID)
-        } else if sessions[conversationID]?.activity == .mcpTool {
-            clearStreamActivity(in: conversationID)
+        if ownsSession {
+            if merged.contains(where: { $0.status == .running }) {
+                recordStreamActivity(.mcpTool, in: conversationID, messageID: messageID, sendTaskID: sendTaskID)
+            } else if sessions[conversationID]?.activity == .mcpTool {
+                clearStreamActivity(in: conversationID)
+            }
+        }
+        // The suspending write goes last: the message is edited by index and the activity published per conversation
+        // above, before the suspension, so nothing touches state that may be stale afterwards.
+        if update.status == .needsAuth {
+            await markMcpServerNeedsAuth(update.serverId, uid: uid)
         }
     }
 
@@ -5238,12 +5459,13 @@ final class ChatManager {
 
     /// The loop found that this server needs to sign in again: record the local connection state as needsAuth, from which the tool panel offers "Re-authorize",
     /// and later sends leave its tools out until a sign-in succeeds.
-    private func markMcpServerNeedsAuth(_ serverId: UUID, uid: String) {
+    /// The write awaits the write lock instead of blocking the main thread.
+    private func markMcpServerNeedsAuth(_ serverId: UUID, uid: String) async {
         guard let store = try? appState.mcpServerDirectory.store(for: uid) else { return }
         var state = (try? store.fetchConnectionState(serverId: serverId)) ?? McpConnectionState(serverId: serverId)
         guard state.status != .needsAuth else { return }
         state.status = .needsAuth
-        try? store.saveConnectionState(state)
+        try? await store.saveConnectionStateAsync(state)
     }
 
     /// Shows the text a tool loop leg has produced so far.
@@ -5270,6 +5492,322 @@ final class ChatManager {
         }
     }
 
+    // MARK: - External search
+
+    /// Computed once before sending: when this turn goes through an external service, the native / relay web fields are suppressed
+    /// (the outbound request is otherwise unchanged), and the service facts of this turn's external search are returned.
+    /// When the path is not external (native / relay / none) service is nil and everything after it behaves as before.
+    static func externalSearchRoute(
+        _ selection: ChatCapabilitySelection, appState: AppState, provider: Provider, model: AIModel, conversationID: UUID
+    ) async -> (selection: ChatCapabilitySelection, service: ExternalSearchServiceContext?) {
+        let route = await ModelOptionsWebSearch.sendState(
+            appState: appState, provider: provider, model: model, conversationID: conversationID,
+            webOn: selection.webSearchEnabled
+        )
+        let next = route.state.nativeFieldsSuppressed ? selection.withoutNativeWebSearch : selection
+        let service = await ExternalSearchTurn.serviceContext(
+            state: route.state, search: route.search, toolCall: route.facts.toolCall
+        )
+        return (next, service)
+    }
+
+    /// Send planning (planSearchTurn): attaches this turn's external search state to the session. A planning failure (input outside the contract) is treated as no external search.
+    private func planExternalSearchTurn(
+        service: ExternalSearchServiceContext,
+        conversationID: UUID,
+        assistantMessageID: UUID,
+        sendTaskID: UUID,
+        provider: Provider,
+        model: AIModel,
+        capabilitySelection: ChatCapabilitySelection,
+        mcp: Bool,
+        regenerateAction: SearchRegenerateAction,
+        previousCitations: [Citation],
+        userText: String,
+        window: ContextWindowInput,
+        rhoHi: Double,
+        upstreamRejection: SearchUpstreamRejection? = nil,
+        carrying carried: ExternalSearchTurn? = nil
+    ) -> ExternalSearchTurn? {
+        guard sessions[conversationID]?.sendTaskID == sendTaskID else { return nil }
+        let modelKey = ModelOptionsWebSearch.modelKey(provider: provider, model: model)
+        let transport = ToolCallCapabilityPolicy.finalTransportKindName(provider: provider, model: model)
+            ?? TransportKind.openaiChat.rawValue
+        let turn = proposeTurn(in: conversationID, sendTaskID: sendTaskID)
+        let windowTokens = ContextBudget.window(window).B.map(Double.init)
+        let input = SearchTurnPlanInput(
+            path: service.path,
+            service: service.service,
+            toolCall: service.toolCall,
+            host: SearchToolHostInput(
+                path: service.path,
+                library: false,
+                mcp: mcp,
+                memoryTools: turn?.context != nil || turn?.search != nil,
+                nativeMoonshotLoop: provider.kind == .moonshot,
+                serverMaxSteps: mcpRuntimeConfigProvider().effectiveMaxSteps
+            ),
+            thinking: SearchTurnThinking(
+                // This turn's outbound request really carries a reasoning parameter (the same reasoning outbound gate as the leg runner), and the level is not fast.
+                on: externalSearchThinkingOn(provider: provider, model: model, reasoningMode: capabilitySelection.reasoningMode),
+                protocolID: ExternalSearchTurn.thinkingProtocolID(transport: transport, providerKind: provider.kind),
+                // The tool loop here sends the complete assistant / tool message blocks back on every leg, so the continuation state is complete.
+                continuationStateAvailable: true
+            ),
+            upstreamRejection: upstreamRejection,
+            toolsRejectedBefore: ExternalSearchToolsRejections.shared.contains(conversationID: conversationID, modelKey: modelKey),
+            regenerateAction: regenerateAction,
+            previousResultsPersisted: previousCitations.contains { $0.source == Citation.externalSearchSource },
+            userText: userText,
+            windowTokens: windowTokens,
+            today: ExternalSearchTurn.today()
+        )
+        guard let plan = try? SearchTurn.planSearchTurn(input) else { return nil }
+        let searchTurn = carried.flatMap { plan.reuse ? ExternalSearchTurn(plan: plan, carrying: $0, requester: externalSearchRequester) : nil }
+            ?? ExternalSearchTurn(
+                plan: plan, context: service, windowTokens: windowTokens, rhoHi: rhoHi, priorBatches: [],
+                requester: externalSearchRequester
+            )
+        searchTurn.onActivity = { [weak self] activity in
+            self?.applyExternalSearchActivity(
+                activity, fallbackServiceName: service.service.name,
+                conversationID: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID
+            )
+        }
+        searchTurn.emitPlanTelemetry()
+        sessions[conversationID]?.externalSearch = searchTurn
+        return searchTurn
+    }
+
+    /// thinking.on of planSearchTurn: works out "which level of reasoning goes out" from this connection's leg runner (OutboundReasoning; no request is sent).
+    /// When no leg runner can be built (this connection has no tool loop) it goes by the selected level.
+    private func externalSearchThinkingOn(provider: Provider, model: AIModel, reasoningMode: ReasoningMode) -> Bool {
+        let modelID = ModelResolver.resolvedProviderModelIdentifier(model.id, providerKind: provider.kind)
+        guard let pair = try? ToolLoopLegRunnerFactory.make(
+            provider: provider, model: model, modelID: modelID, reasoningMode: reasoningMode,
+            requestOptions: ChatRequestOptions(), accessToken: nil, toolCallMemory: toolCallMemory
+        ), let reporter = pair.runner as? any ToolLoopOutboundReasoningReporting else {
+            return reasoningMode != .fast
+        }
+        let identity = CapabilityEvidenceRequestIdentity.make(
+            provider: provider,
+            model: model,
+            partitionID: appState.sessionPartitionUID,
+            hasExplicitValue: true,
+            effectiveTransport: provider.kind == .relay
+                ? RelayEndpointResolver.effectiveTransport(provider: provider, model: model).rawValue
+                : nil
+        )
+        let mode = CapabilityEvidenceRequestContext.$current.withValue(identity) { reporter.outboundReasoningMode() }
+        return OutboundReasoning.thinkingOn(mode)
+    }
+
+    /// The external search resend policy of an internal resend of this turn (overflow resend / memory-degrade resend): when web results were
+    /// already obtained this turn they are rebuilt with the reuse event and no request is sent again; otherwise the policy of this send is kept.
+    nonisolated static func internalResendSearchCarry(
+        turnCitations: [SearchWebCitation], action: SearchRegenerateAction, previous: [Citation]
+    ) -> (action: SearchRegenerateAction, citations: [Citation]) {
+        let web = turnCitations.filter { $0.source == Citation.externalSearchSource }
+        guard !web.isEmpty else { return (action, previous) }
+        return (.regenerate, web.map(Citation.init(web:)))
+    }
+
+    private func internalResendSearchCarry(
+        conversationID: UUID, action: SearchRegenerateAction, previous: [Citation]
+    ) -> (action: SearchRegenerateAction, citations: [Citation], turn: ExternalSearchTurn?) {
+        let turn = sessions[conversationID]?.externalSearch
+        let carry = Self.internalResendSearchCarry(turnCitations: turn?.state.citations ?? [], action: action, previous: previous)
+        // Only when web results were already obtained this turn does it carry on from the previous attempt; otherwise it is planned again with this send's policy.
+        let carried = (turn?.state.citations.isEmpty == false) ? turn : nil
+        return (carry.action, carry.citations, carried)
+    }
+
+    /// The web_search entry when plan.requestHasWebSearchTool (the definition comes from plan.webSearchTool).
+    private func externalWebSearchEntry(
+        _ turn: ExternalSearchTurn?, conversationID: UUID, sendTaskID: UUID
+    ) -> ExternalWebSearchToolEntry? {
+        guard let turn, turn.plan.requestHasWebSearchTool, let tool = turn.plan.webSearchTool else { return nil }
+        return ExternalWebSearchToolEntry(tool: tool) { [weak self] query, count in
+            await self?.runExternalWebSearch(turn, query: query, count: count, conversationID: conversationID, sendTaskID: sendTaskID)
+                ?? (SearchTransport.toolMessages["unavailable"] ?? "")
+        }
+    }
+
+    private func runExternalWebSearch(
+        _ turn: ExternalSearchTurn, query: String?, count: Int?, conversationID: UUID, sendTaskID: UUID
+    ) async -> String {
+        guard sessions[conversationID]?.sendTaskID == sendTaskID else { return SearchTransport.toolMessages["unavailable"] ?? "" }
+        return await turn.search(query: query, count: count)
+    }
+
+    /// The [D] section for pre-search / resend reuse (plan.presearch / plan.reuse); nil when neither applies.
+    private func externalSearchEvidence(_ turn: ExternalSearchTurn, previousCitations: [Citation]) async -> String? {
+        if turn.plan.reuse {
+            let web = previousCitations.compactMap(\.webCitation)
+            // Internal resend: the envelope only feeds [D] and the original reply state is unchanged (no "reusing the previous search");
+            // only when the user taps "Regenerate" does the reuse event run.
+            return turn.carriesPriorAttempt ? turn.reuseEnvelope(web) : turn.reuse(web)
+        }
+        if turn.plan.presearch != nil { return await turn.presearch() }
+        return nil
+    }
+
+    /// The first leg carrying web_search got a 400 / 422: hand back to the send task to recompute the plan from upstreamRejection (no resend without tools).
+    /// - family: the stop family of this outbound request; when given, overflow is ruled out first (a 400 / 422 that the existing overflow classifier
+    ///   recognises as context too long goes to overflow recovery and does not count as the tools being rejected).
+    nonisolated static func externalSearchToolsRejection(
+        _ error: any Error, webSearchRegistered: Bool, family: StopFamily? = nil
+    ) -> ExternalSearchToolsRejected? {
+        guard webSearchRegistered, let status = toolRejectionStatusCode(error), SearchTurn.toolsRejectedStatuses.contains(status) else {
+            return nil
+        }
+        if let family, toolRejectionIsContextOverflow(error, status: status, family: family) { return nil }
+        if let rejected = error as? ToolsRejectedByUpstreamError {
+            // Only the first leg counts; toolCall other than supported is judged by planSearchTurn (with supported, the recomputation yields no pre-search and the error is reported as usual).
+            guard (rejected.legIndex ?? 0) == 0 else { return nil }
+            return ExternalSearchToolsRejected(status: status, underlying: rejected.underlying)
+        }
+        return ExternalSearchToolsRejected(status: status, underlying: error)
+    }
+
+    /// finishSearchReply -> assistant message: external sources (in the same list as other citations, the number goes into index), message facts, error card and notice.
+    nonisolated static func applyExternalSearchFinish(_ finish: SearchReplyFinish, serviceID: String, to message: inout ChatMessage) {
+        let web = finish.citations.map(Citation.init(web:))
+        if !web.isEmpty {
+            message.citations = (message.citations ?? []).filter { $0.source != Citation.externalSearchSource } + web
+        }
+        let base = message.capabilityExecution
+        message.capabilityExecution = CapabilityExecutionResult(
+            states: base?.states ?? [:],
+            recoveryDescriptors: base?.recoveryDescriptors,
+            externalSearch: ExternalSearchMessageRecord(finish: finish, serviceID: serviceID)
+        )
+    }
+
+    /// The generic tool loop when only external search is on (MCP is off): web_search and the memory tools share one loop and no trailing leg is added.
+    /// Step count / circuit breaker / fixed phrases follow plan.toolHost.
+    private func runExternalSearchToolLoop(
+        conversationID: UUID,
+        assistantMessageID: UUID,
+        sendTaskID: UUID,
+        initialText: String,
+        provider: Provider,
+        model: AIModel,
+        accessToken: String,
+        resolvedModelID: String,
+        transport: TransportInput,
+        reasoningMode: ReasoningMode,
+        toolHost: SearchToolHost,
+        webSearchEntry: ExternalWebSearchToolEntry
+    ) async throws {
+        let legPair = try ToolLoopLegRunnerFactory.make(
+            provider: provider,
+            model: model,
+            modelID: resolvedModelID,
+            reasoningMode: reasoningMode,
+            requestOptions: transport.options,
+            accessToken: provider.authMode == .subscription ? accessToken : nil,
+            toolCallMemory: toolCallMemory,
+            session: providerSession
+        )
+        let messages = transport.toolLoopMessages(history: try OpenAIChatToolLoopLegRunner.messages(
+            from: transport.messages,
+            providerKind: provider.kind,
+            model: model,
+            isChatSend: true,
+            dynamicText: transport.options.dynamicText
+        ))
+        // The protocol this relay leg actually goes out on (the same source as the wire choice); nil for a non-relay connection.
+        let relaySentTransport: RelayTransport? = provider.kind == .relay
+            ? (RelayEndpointResolver.explicitTransport(provider: provider, model: model) ?? .openaiChatCompletions)
+            : nil
+        let manager = self
+        let memoryEntries: [(any ToolRegistryEntry)?] = [
+            proposeMemoryLoopEntry(conversationID: conversationID, assistantMessageID: assistantMessageID, sendTaskID: sendTaskID),
+            searchMemoryLoopEntry(conversationID: conversationID, sendTaskID: sendTaskID),
+        ]
+        let entries: [any ToolRegistryEntry] = memoryEntries.compactMap { $0 } + [webSearchEntry]
+        let breaker: Int = switch toolHost.consecutiveFailureBreaker {
+        case .count(let value)?: value
+        case .off?, nil: Int.max
+        }
+        let loop = ToolCallLoop(
+            registry: ToolRegistry(entries: entries),
+            legRunner: legPair.runner,
+            adapter: legPair.adapter,
+            limits: ToolCallLoop.Limits(
+                maxSteps: toolHost.maxSteps ?? ToolCallLoop.Limits.defaultMaxSteps,
+                maxConsecutiveToolFailures: breaker
+            ),
+            // neutral: a neutral tone with the error code tool_loop_stopped, the same fixed phrases as MCP.
+            prompts: McpToolBridge.prompts,
+            onUnhandledToolCalls: { calls in
+                await manager.recordUnhandledToolCalls(
+                    calls, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID,
+                    provider: provider, model: model
+                )
+            }
+        )
+        let legText = ToolLoopLegText()
+        let result: ToolCallLoop.Result
+        do {
+            result = try await loop.run(messages: messages) { event in
+                switch event {
+                case let .legStarted(index):
+                    await legText.reset()
+                    if index > 0 {
+                        await manager.applyToolLoopText(
+                            "", initialText: initialText, conversationID: conversationID,
+                            assistantMessageID: assistantMessageID, sendTaskID: sendTaskID
+                        )
+                    }
+                case let .textDelta(delta):
+                    let text = await legText.append(delta)
+                    await manager.applyToolLoopText(
+                        text, initialText: initialText, conversationID: conversationID,
+                        assistantMessageID: assistantMessageID, sendTaskID: sendTaskID
+                    )
+                case let .reasoningDelta(delta):
+                    await manager.appendReasoning(
+                        delta, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID
+                    )
+                case .usage, .toolCallsAccepted:
+                    break
+                }
+            }
+        } catch {
+            try Task.checkCancellation()
+            // A 400 / 422 for context overflow does not count as a rejection: the original error goes to the outer overflow recovery.
+            let family = Self.requestStopFamily(provider: provider, relayTransport: relaySentTransport)
+            if let rejected = Self.externalSearchToolsRejection(error, webSearchRegistered: true, family: family) { throw rejected }
+            throw (error as? ToolsRejectedByUpstreamError)?.underlying ?? error
+        }
+        try Task.checkCancellation()
+        guard sessions[conversationID]?.messageID == assistantMessageID,
+              sessions[conversationID]?.sendTaskID == sendTaskID else { throw CancellationError() }
+        if result.receivedStructuredToolCalls {
+            rememberToolCallCapability(provider: provider, model: model, observedToolCall: true, reason: .structuredToolCalls)
+        }
+        applyToolLoopText(
+            result.text,
+            initialText: initialText,
+            conversationID: conversationID,
+            assistantMessageID: assistantMessageID,
+            sendTaskID: sendTaskID
+        )
+        completeStreamingMessage(
+            conversationID: conversationID,
+            messageID: assistantMessageID,
+            expectedSendTaskID: sendTaskID,
+            estimatedCost: resolvedMultiLegCost(result.usage, model: model, provider: provider, conversationID: conversationID),
+            state: .delivered,
+            usageMetrics: ChatDeliveredUsageMetrics(
+                promptTokens: result.usage?.promptTokens ?? 0, completionTokens: result.usage?.completionTokens ?? 0
+            ),
+            streamFinish: result.finish
+        )
+    }
+
     /// The tool loop when only MCP is on (the Library agent is off). The leg runner and the adapter that feeds results back are chosen as a pair from the connection's outbound protocol,
     /// with the same factory as the Library (four wire protocols).
     private func runMcpToolLoop(
@@ -5283,7 +5821,8 @@ final class ChatManager {
         resolvedModelID: String,
         transport: TransportInput,
         reasoningMode: ReasoningMode,
-        plan: McpToolPlan
+        plan: McpToolPlan,
+        webSearchEntry: (any ToolRegistryEntry)? = nil
     ) async throws {
         let legPair = try ToolLoopLegRunnerFactory.make(
             provider: provider,
@@ -5326,7 +5865,8 @@ final class ChatManager {
             proposeEntry: proposeMemoryLoopEntry(
                 conversationID: conversationID, assistantMessageID: assistantMessageID, sendTaskID: sendTaskID
             ),
-            searchEntry: searchMemoryLoopEntry(conversationID: conversationID, sendTaskID: sendTaskID)
+            searchEntry: searchMemoryLoopEntry(conversationID: conversationID, sendTaskID: sendTaskID),
+            webSearchEntry: webSearchEntry
         )
         let legText = ToolLoopLegText()
         let result: ToolCallLoop.Result
@@ -5360,8 +5900,19 @@ final class ChatManager {
             // Only a deterministic 4xx on the first leg where no structured tool_calls were seen means "this connection does not support tools" (the same criterion as the Library):
             // resend once without tools this time; a connection eligible for the tool-capability memory records false, and the next entry no longer carries MCP tools.
             // A rejection on leg N>0 or after tool_calls were seen is not a capability fact and goes to the error card as an ordinary failure.
-            guard rejected.qualifiesAsConnectionUnsupported else { throw rejected.underlying }
             try Task.checkCancellation()
+            // The external search rejection test looks only at the leg number and status code, and runs before the tool-capability test.
+            let family = Self.requestStopFamily(provider: provider, relayTransport: relaySentTransport)
+            if webSearchEntry != nil, SearchTurn.toolsRejectedStatuses.contains(rejected.statusCode),
+               Self.toolRejectionIsContextOverflow(rejected, status: rejected.statusCode, family: family) {
+                throw rejected.underlying
+            }
+            if let searchRejected = Self.externalSearchToolsRejection(
+                rejected, webSearchRegistered: webSearchEntry != nil, family: family
+            ) {
+                throw searchRejected
+            }
+            guard rejected.qualifiesAsConnectionUnsupported else { throw rejected.underlying }
             if recordRelayToolsRejectionKeyDenial(rejected, provider: provider, model: model) {
                 throw rejected.underlying
             }
@@ -5967,6 +6518,25 @@ final class ChatManager {
         return true
     }
 
+    /// Whether the rejection body of a 400 / 422 is a context overflow (the same classifier as overflow recovery).
+    nonisolated static func toolRejectionIsContextOverflow(_ error: any Error, status: Int, family: StopFamily) -> Bool {
+        let body: String
+        if let rejected = error as? ToolsRejectedByUpstreamError {
+            if let raw = rejected.rawBody {
+                body = raw
+            } else if case let .upstream(_, detail) = rejected.underlying {
+                body = detail
+            } else {
+                return false
+            }
+        } else if case let ProviderServiceError.upstream(_, detail) = error {
+            body = detail
+        } else {
+            return false
+        }
+        return ContextOverflowClassifier.classify(family: overflowFamily(family), status: status, body: body).overflow
+    }
+
     /// The upstream status code carried by a "tools not supported" error (an annotated rejection or a bare `.upstream`).
     nonisolated static func toolRejectionStatusCode(_ error: any Error) -> Int? {
         if let rejected = error as? ToolsRejectedByUpstreamError { return rejected.statusCode }
@@ -6444,6 +7014,7 @@ final class ChatManager {
         var carriedImageData: [UUID: Data] = [:]
         var streamingAttCount = 0
         var carriedCitations: [Citation] = []
+        var carriedSearchTurn: ExternalSearchTurn?
         // The reasoning text and duration accumulated while streaming: snapshot before completeStreamingMessage,
         // so after removeSession releases the session the code below can still write the message back from local variables.
         var carriedReasoningText: String?
@@ -6458,6 +7029,7 @@ final class ChatManager {
             streamingAttCount = collected.count
             carriedImageData = session.pendingImageData
             carriedCitations = session.citations
+            carriedSearchTurn = session.externalSearch
             let trimmedReasoning = session.reasoningText.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmedReasoning.isEmpty {
                 carriedReasoningText = session.reasoningText
@@ -6564,6 +7136,14 @@ final class ChatManager {
            !execution.states.isEmpty {
             updated.messages[mi].capabilityExecution = execution
         }
+        // External search wrap-up: a user stop sends stopped first; sources, facts, the error card and the notice are applied to this message.
+        if let carriedSearchTurn {
+            Self.applyExternalSearchFinish(
+                carriedSearchTurn.finish(stopped: state == .interrupted),
+                serviceID: carriedSearchTurn.context.service.id,
+                to: &updated.messages[mi]
+            )
+        }
         updated.messages[mi].stopReason = stopReason ?? Self.completionStopReason(
             state: state,
             finish: streamFinish,
@@ -6598,7 +7178,7 @@ final class ChatManager {
             if state == .delivered, let acknowledgement {
                 Task {
                     do {
-                        _ = try RecipeContinuationRuntime.acknowledgeExplicitConsumption(acknowledgement)
+                        _ = try await RecipeContinuationRuntime.acknowledgeExplicitConsumption(acknowledgement)
                     } catch {
                         print("[ChatManager] continuation acknowledgement failed: \(error.localizedDescription)")
                     }
@@ -6794,6 +7374,11 @@ final class ChatManager {
             if !session.citations.isEmpty {
                 updated.messages[mi].citations = session.citations
             }
+            if let searchTurn = session.externalSearch {
+                Self.applyExternalSearchFinish(
+                    searchTurn.finish(stopped: false), serviceID: searchTurn.context.service.id, to: &updated.messages[mi]
+                )
+            }
             // The reasoning text accumulated before the failure is persisted too; the duration falls back to endedAt (or the failure time).
             let trimmedReasoning = session.reasoningText.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmedReasoning.isEmpty {
@@ -6816,6 +7401,8 @@ final class ChatManager {
         // already matched an exact Server locator may replace it with rejected.
         if let execution = terminalExecution ?? CapabilityExecutionRuntime.current?.terminalResult(),
            execution.states.values.contains(.rejected) {
+            var execution = execution
+            execution.externalSearch = updated.messages[mi].capabilityExecution?.externalSearch
             updated.messages[mi].capabilityExecution = execution
         }
         updated.messages[mi].stopReason = resolvedStopReason
@@ -6976,6 +7563,49 @@ final class ChatManager {
               sessions[conversationID]?.activity != activity else { return }
         sessions[conversationID]?.activity = activity
         activitySubjects[conversationID]?.send(StreamActivityState(messageID: messageID, activity: activity))
+    }
+
+    /// The send (activity non-nil) / deliver (nil) of applySearchEvent -> streaming activity: send appends the query and marks it in flight;
+    /// deliver clears the in-flight mark but keeps the activity (it shows "Answering from the search results..." until the first character), and the first body / reasoning delta clears the activity as usual.
+    private func applyExternalSearchActivity(
+        _ activity: SearchActivity?, fallbackServiceName: String, conversationID: UUID, messageID: UUID, sendTaskID: UUID
+    ) {
+        guard sessions[conversationID]?.sendTaskID == sendTaskID else { return }
+        var trail = sessions[conversationID]?.externalSearchTrail
+            ?? ExternalSearchActivityTrail(serviceName: activity?.serviceName ?? fallbackServiceName)
+        if let activity {
+            trail.send(serviceName: activity.serviceName, query: activity.query)
+        } else {
+            guard trail.inFlight else { return }
+            trail.deliver()
+        }
+        sessions[conversationID]?.externalSearchTrail = trail
+        publishExternalSearchActivity(in: conversationID, messageID: messageID, sendTaskID: sendTaskID)
+    }
+
+    #if DEBUG
+    /// Screenshots only: opens a streaming session for the assistant message of an in-memory conversation and feeds the activity of the production send effect through the same entry.
+    func debugStageExternalSearchActivity(conversationID: UUID, assistantMessageID: UUID, activities: [SearchActivity?]) {
+        _testingBeginStreamingSession(conversationID: conversationID, assistantMessageID: assistantMessageID)
+        guard let sendTaskID = sessions[conversationID]?.sendTaskID else { return }
+        for activity in activities {
+            applyExternalSearchActivity(
+                activity, fallbackServiceName: activity?.serviceName ?? "",
+                conversationID: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID
+            )
+        }
+    }
+    #endif
+
+    /// External search activity (also published when only the display context changes under the same activity: a chip is appended, in flight -> delivered).
+    private func publishExternalSearchActivity(in conversationID: UUID, messageID: UUID, sendTaskID: UUID) {
+        guard let session = sessions[conversationID], session.messageID == messageID, session.sendTaskID == sendTaskID else {
+            return
+        }
+        sessions[conversationID]?.activity = .externalSearch
+        activitySubjects[conversationID]?.send(StreamActivityState(
+            messageID: messageID, activity: .externalSearch, externalSearch: session.externalSearchTrail
+        ))
     }
 
     private func clearStreamActivity(in conversationID: UUID) {

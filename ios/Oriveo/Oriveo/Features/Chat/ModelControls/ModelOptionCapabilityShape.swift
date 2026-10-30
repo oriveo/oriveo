@@ -14,6 +14,12 @@ nonisolated enum ModelOptionCapabilityAction: Hashable, Sendable, CaseIterable {
     case openConnectionWebSearch
     /// The relay model's Advanced page (re-test after the template is rejected; the test button is on that page and no test starts automatically).
     case openTestCapabilities
+    /// The "Search method" sheet.
+    case pickSearchSource
+    /// One-tap enable: connect a search service with the key of an existing connection (prefilled in the add flow).
+    case oneTapEnableSearch
+    /// The add flow in Settings > Web search (coming back keeps the draft and does not turn anything on automatically).
+    case addSearchService
 }
 
 /// **What to draw** for one capability (web search / thinking) in the model options panel.
@@ -36,6 +42,8 @@ nonisolated enum ModelOptionCapabilityShape: Equatable, Sendable {
     case disclosure(Disclosure)
     /// The protocol is undecided: this item and the whole card collapse into that one thing.
     case protocolUndecided(Callout)
+    /// The web switch plus a source sub-row ("Search method: ..." / "Switch service"); the copy comes from webSearchCardPresentation.
+    case toggleWithSource(Toggle, Source)
 
     nonisolated enum Capability: String, Sendable {
         case web
@@ -82,6 +90,10 @@ nonisolated enum ModelOptionCapabilityShape: Equatable, Sendable {
         let link: Link?
         /// false = dimmed and not tappable (relay web search overridden off or rejected).
         var isEnabled: Bool = true
+        /// Primary button external search appends to the switch (when native search is withdrawn / rejected and the device has no service: add / one-tap enable); the shape and status line stay unchanged.
+        var cta: Link? = nil
+        /// A line of explanation that comes with the cta (one-tap enable: "You can search with your X key").
+        var detail: String? = nil
     }
 
     nonisolated struct Tiers: Equatable, Sendable {
@@ -109,6 +121,16 @@ nonisolated enum ModelOptionCapabilityShape: Equatable, Sendable {
         let status: String
         let body: String
         let link: Link?
+        /// Primary button ("Add a search service" / one-tap enable when there is no external search service); when present, `link` is the secondary way out.
+        var cta: Link? = nil
+    }
+
+    /// The source sub-row of the web card: a tappable "Search method: ..." / "Switch service" under the switch, plus a line of explanation (fallback notice / search first, then answer).
+    nonisolated struct Source: Equatable, Sendable {
+        let link: Link
+        let detail: String?
+        /// The timing line kept when the source is the model's own and the configuration says "search on every message".
+        var timing: Timing? = nil
     }
 
     nonisolated struct Disclosure: Equatable, Sendable {
@@ -159,6 +181,8 @@ nonisolated enum ModelOptionCapabilityShape: Equatable, Sendable {
         var showsThinking: Bool = false
         /// Facts for the relay web search row; nil = not a relay connection.
         var relayWeb: RelayWeb? = nil
+        /// Combined result for the web card (resolveWebSearchState); nil = external search has not been read on this device yet (the web row is byte-for-byte the same as before).
+        var webSearchState: WebSearchState? = nil
     }
 
     /// Value of `showsThinking`: the catalog's explicit truth wins, and the legacy `capabilities` array is the fallback.
@@ -242,6 +266,13 @@ extension ModelOptionCapabilityShape {
 
     @MainActor
     static func resolve(_ input: Input) -> Self {
+        let base = resolveBase(input)
+        guard input.capability == .web, let state = input.webSearchState else { return base }
+        return externalWebShape(state, base: base)
+    }
+
+    @MainActor
+    private static func resolveBase(_ input: Input) -> Self {
         // The thinking row of a local connection is decided by the write-path table first, regardless of the catalog
         // presentation (the same holds when it inherits an official tier set). Android and Web use the same order.
         if input.connection == .custom, input.capability != .web, let local = input.localEngineThinking {
@@ -577,6 +608,129 @@ extension ModelOptionCapabilityShape {
                 ? ModelControlIntentLabel.text(automaticIntent)
                 : L10n.tr("Uses the model’s default", table: .chat)
         }
+    }
+}
+
+// MARK: - External search
+
+extension ModelOptionCapabilityShape {
+    /// Drawn according to the shapeMode of resolveWebSearchState: existing = the previous shape; existing_with_actions =
+    /// the previous shape plus the card's detail / actions; search_notice = a new notice; toggle_with_source = a switch
+    /// (reading toggleOn) plus a source sub-row. Read-only, rejected and similar conditions are not judged again here:
+    /// shapeMode decides them all.
+    @MainActor
+    static func externalWebShape(_ state: WebSearchState, base: Self) -> Self {
+        let card = state.card
+        let cta = card.cta.map(link(_:))
+        let secondary = card.secondary.map(link(_:))
+        // Notes are all shown in order: one per line, left to the card's multi-line layout, never truncated.
+        let detail = card.notes.isEmpty ? nil : card.notes.map(text(_:)).joined(separator: "\n")
+        switch state.shapeMode {
+        case .existing:
+            return base
+        case .existingWithActions:
+            switch base {
+            case let .notice(notice):
+                // The detail replaces the body; the two are not stacked.
+                return .notice(.init(status: notice.status, body: detail ?? notice.body, link: secondary ?? notice.link, cta: cta))
+            case let .disclosure(disclosure):
+                return .notice(.init(status: disclosure.status, body: detail ?? "", link: secondary, cta: cta))
+            case let .toggle(toggle):
+                return .toggle(toggle.appending(cta: cta, secondary: secondary, detail: detail))
+            case let .toggleWithTiming(toggle, timing):
+                return .toggleWithTiming(toggle.appending(cta: cta, secondary: secondary, detail: detail), timing)
+            case .tiers, .protocolUndecided, .toggleWithSource:
+                return base
+            }
+        case .searchNotice:
+            return .notice(.init(
+                status: card.status.map(text(_:)) ?? "", body: detail ?? "", link: secondary, cta: cta
+            ))
+        case .toggleWithSource:
+            guard let link = card.link.map(link(_:)) else { return base }
+            let target = ToggleTarget.capabilityPreference(
+                on: CapabilityWebPreference.automatic.rawValue, off: CapabilityWebPreference.off.rawValue
+            )
+            switch (state.route.row, base) {
+            case let (.toggleWithSourcePicker, .toggle(toggle)):
+                return .toggleWithSource(toggle.showing(isOn: state.toggleOn), .init(link: link, detail: detail))
+            case let (.toggleWithSourcePicker, .toggleWithTiming(toggle, timing)):
+                let usesNative = state.source.method != .external
+                return .toggleWithSource(
+                    toggle.showing(isOn: state.toggleOn), .init(link: link, detail: detail, timing: usesNative ? timing : nil)
+                )
+            default:
+                // An external row (native search not possible): the switch reads toggleOn, and the status line is "Search with X" / "Off · can search with X".
+                return .toggleWithSource(
+                    .init(isOn: state.toggleOn, caption: card.status.map(text(_:)), target: target, link: nil),
+                    .init(link: link, detail: detail)
+                )
+            }
+        }
+    }
+
+    private static func action(_ action: WebSearchRoute.Action) -> ModelOptionCapabilityAction {
+        switch action {
+        case .addSearchService: return .addSearchService
+        case .openSupportedModels: return .openSupportedModels
+        case .oneTapEnable: return .oneTapEnableSearch
+        case .pickSource: return .pickSearchSource
+        }
+    }
+
+    @MainActor
+    private static func link(_ value: WebSearchCardPresentation.ActionText) -> Link {
+        .init(title: webSearchCardText(key: value.key, args: value.args), action: action(value.action))
+    }
+
+    @MainActor
+    private static func text(_ value: WebSearchCardPresentation.Text) -> String {
+        webSearchCardText(key: value.key, args: value.args)
+    }
+
+    /// Copy keys that take placeholders, with their argument names (in %1$@ %2$@ order).
+    private static let placeholderArgs: [String: [String]] = [
+        "card.useService": ["name"], "card.offUseService": ["name"], "card.reuseStatus": ["name"],
+        "card.reuseDetail": ["name"], "card.sourceLine": ["name"], "card.fallbackNotice": ["from"],
+        "card.armHint": ["name"],
+        "picker.nativeSub": ["model"],
+    ]
+
+    /// card.* / picker.* / row.* -> this app's copy keys (three existing keys are mapped; row.* reuses the settings page's row states).
+    /// Keys with placeholders are always formatted, a missing argument becomes an empty string, and the raw template is never shown.
+    @MainActor
+    static func webSearchCardText(key: String, args: [String: String] = [:]) -> String {
+        switch key {
+        case "card.cannotSearch": return L10n.tr("This model can’t search the web", table: .chat)
+        case "card.supportedModels": return L10n.tr("See which models can be adjusted", table: .chat)
+        case "card.addService": return WebSearchCopy.tr("main.add")
+        default:
+            guard let names = placeholderArgs[key] else { return WebSearchCopy.tr(key) }
+            let values = names.map { args[$0] ?? "" }
+            return values.count == 2
+                ? WebSearchCopy.format(key, values[0], values[1])
+                : WebSearchCopy.format(key, values[0])
+        }
+    }
+}
+
+extension ModelOptionCapabilityShape.Toggle {
+    /// The switch shows toggleOn from resolveWebSearchState; everything else is unchanged.
+    func showing(isOn: Bool) -> Self {
+        var next = Self(isOn: isOn, caption: caption, target: target, link: link, isEnabled: isEnabled)
+        next.cta = cta
+        next.detail = detail
+        return next
+    }
+
+    /// Appends the external search actions: the switch, status line and target stay as they are; an existing secondary way out (relay re-test) is kept first.
+    func appending(
+        cta: ModelOptionCapabilityShape.Link?, secondary: ModelOptionCapabilityShape.Link?, detail: String?
+    ) -> Self {
+        var next = Self(isOn: isOn, caption: caption, target: target, link: link ?? secondary, isEnabled: isEnabled)
+        next.cta = cta
+        next.detail = detail
+        return next
     }
 }
 

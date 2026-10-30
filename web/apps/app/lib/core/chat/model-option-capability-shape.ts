@@ -1,10 +1,26 @@
 import type { AIModel, Provider, RelayRequestedConfig } from '@oriveo/shared';
 import { effectiveTransport } from '@oriveo/core/providers/relay-effective';
 import { resolveModelCapabilityEvidence } from './capability-evidence';
-import { nearestAcceptedReasoningTier } from './capability-recovery-runtime';
+import { providerFormOf } from '../capability/truth/provider-form';
+import { capabilityRejectionIsDormant, nearestAcceptedReasoningTier, type CapabilityRecoveryIdentity } from './capability-recovery-runtime';
 import type { CapabilityControlPresentation } from './capability-control-presentation';
 import { resolveModelControlStatus, type ModelControlStatus } from './model-control-capability-layout';
 import { resolveRelayWebPresentation, type RelayWebFacts, type RelayWebStatusId } from './relay-web-probe-records';
+import {
+  resolveWebSearchState,
+  type OneTapTarget,
+  type RecipeWebState,
+  type RelayWebStatus,
+  type ToolCallSupport,
+  type WebRouteAction,
+  type WebRouteForm,
+  type WebSearchCardActionText,
+  type WebSearchCardText,
+  type WebSearchFacts,
+  type WebSearchPath,
+  type WebSearchState,
+} from '@oriveo/core/search/search-route';
+import type { SearchServiceStatus } from '@oriveo/core/search/search-settings';
 
 /**
  * What shape each row of the "Model options" capability card (web search / thinking) takes.
@@ -24,7 +40,13 @@ export type ModelOptionLinkAction =
   /** Web search settings page of a Relay connection. */
   | 'openConnectionWebSearch'
   /** The relay model's "Advanced" page (where capability tests live): the retest exit after the template is rejected. */
-  | 'testCapabilities';
+  | 'testCapabilities'
+  /** Web card "Search method" sheet. */
+  | 'pickSearchSource'
+  /** One-tap enable: the connect page prefills with the reused connection. */
+  | 'oneTapEnableSearch'
+  /** Settings add-search-service flow. */
+  | 'addSearchService';
 
 export type ModelOptionCapabilityInput = {
   capability: ModelOptionCapability;
@@ -49,9 +71,45 @@ export type ModelOptionCapabilityInput = {
    * preference already resolved through the default layer), shaped by the fixture presentationCases, not by the verdict state.
    */
   relayWeb?: ModelOptionRelayWeb;
+  /**
+   * Local external search service context: only meaningful for the web row. Omitted = no external search; the shape is the same as before.
+   */
+  externalSearch?: ModelOptionExternalSearch;
 };
 
 export type ModelOptionRelayWeb = RelayWebFacts;
+
+/** Local facts the web card needs for external search services (handed as-is to `resolveWebSearchState`; no decisions are made here). */
+export type ModelOptionExternalSearch = {
+  /** Connection form (`webSearchRouteForm(provider)`). */
+  form: WebRouteForm;
+  /** `<connection id>:<model id>`. */
+  modelKey: string;
+  currentProviderKind: string | null;
+  /** Local services (storage order); names already passed through searchServiceDisplayName, status is searchServiceRowState.status. */
+  services: ReadonlyArray<{ id: string; name: string; status: SearchServiceStatus }>;
+  defaultServiceId: string | null;
+  /** Value of conversationSource (new conversation = the in-memory value). */
+  stored: unknown;
+  /** "One-tap enable" target (`oneTapReuseTarget`) and that service's display name. */
+  oneTap: { target: OneTapTarget; serviceName: string } | null;
+  /** Tri-state of catalog tool calls (`tool_call` evidence). */
+  toolCall: ToolCallSupport;
+  /** Native web search was rejected (`webSearchNativeRejected`). */
+  nativeRejected?: boolean;
+  /** Whether a session-level preference can be written for this conversation (`composerWebPreferenceWritable`, defined identically on all three clients). */
+  panelWritable: boolean;
+};
+
+/** Semantic copy for the external-search part of the web card (non-existing output of `webSearchCardPresentation`, excluding the toggle). */
+export type ModelOptionSearchCard = {
+  status: WebSearchCardText | null;
+  /** Explanations under the status row, all shown in order (they replace the previous body text, not stacked). */
+  notes: WebSearchCardText[];
+  link: WebSearchCardActionText | null;
+  cta: WebSearchCardActionText | null;
+  secondary: WebSearchCardActionText | null;
+};
 
 /** Connection-level channel + model-level thinking declaration. */
 export type ModelOptionLocalEngine = {
@@ -116,6 +174,8 @@ export type ModelOptionCapabilityShape =
     disabled?: boolean;
     /** Status row of relay web search (replaces the caption). */
     relayStatus?: RelayWebStatusId;
+    /** Action added to the web row when there is no external service (see `ModelOptionSearchCard`). */
+    searchCard?: ModelOptionSearchCard;
   }
   | {
     kind: 'toggleWithTiming';
@@ -123,6 +183,25 @@ export type ModelOptionCapabilityShape =
     isOn: true;
     target: ModelOptionToggleTarget;
     timing: { options: readonly ['automatic', 'force']; selection: 'automatic' | 'force' };
+    searchCard?: ModelOptionSearchCard;
+  }
+  | {
+    /** Web toggle + source sub-row (`toggle_with_source_picker` / `toggle_external` / `toggle_external_presearch_notice`). */
+    kind: 'toggleWithSource';
+    capability: 'web';
+    isOn: boolean;
+    target: ModelOptionToggleTarget;
+    /** Native row kept when the model can search natively (status copy and timing segments follow it); omitted when it cannot. */
+    native?: Extract<ModelOptionCapabilityShape, { kind: 'toggle' | 'toggleWithTiming' }>;
+    card: ModelOptionSearchCard;
+    /** This turn's web path (`resolveWebSearchState().route.path`). */
+    path: WebSearchPath;
+    /** This turn goes external: native / relay web fields are stripped from the request. */
+    nativeFieldsSuppressed: boolean;
+    /** external: on = pick_service (serviceId), off = disarm, neither writes session web search; conversation_web: writes session web search. */
+    controls: 'external' | 'conversation_web';
+    /** Current service (`resolveWebSearchState().source.serviceId`). */
+    serviceId: string | null;
   }
   | {
     kind: 'tiers';
@@ -140,12 +219,14 @@ export type ModelOptionCapabilityShape =
     status: ModelOptionNoticeStatus;
     body: ModelOptionNoticeBody;
     link?: ModelOptionLinkAction;
+    searchCard?: ModelOptionSearchCard;
   }
   | {
     kind: 'disclosure';
     capability: ModelOptionCapability;
     status: ModelOptionDisclosureStatus;
     link?: ModelOptionLinkAction;
+    searchCard?: ModelOptionSearchCard;
   }
   | { kind: 'protocolUndecided'; capability: ModelOptionCapability; link: 'openConnectionProtocol' };
 
@@ -161,6 +242,12 @@ const AUTOMATIC = 'automatic';
 const REASONING_TIER_ORDER = ['off', 'low', 'balanced', 'deep', 'max'] as const;
 
 export function resolveModelOptionCapabilityShape(input: ModelOptionCapabilityInput): ModelOptionCapabilityShape {
+  const base = resolveBaseCapabilityShape(input);
+  if (input.capability !== 'web' || !input.externalSearch) return base;
+  return withExternalSearch(input, base);
+}
+
+function resolveBaseCapabilityShape(input: ModelOptionCapabilityInput): ModelOptionCapabilityShape {
   const { capability, status } = input;
   if (status === 'fixedByConnection') {
     return { kind: 'disclosure', capability, status: { kind: 'fixedByConnection' } };
@@ -410,6 +497,146 @@ function chatTemplateShape(input: ModelOptionCapabilityInput): ModelOptionCapabi
     kind: 'toggle', capability: 'reasoning', isOn: input.chatTemplateThinkingIsOn,
     target: { kind: 'chatTemplateThinking' }, caption: 'chatTemplateThinking', link: 'openAdditionalRequestBody',
   };
+}
+
+/**
+ * Connection form of the web row (the form input mapping of external search services): by `providerFormOf`; among subscriptions, Grok always has web on as its own item,
+ * other subscriptions (Codex) and BYOK share the same basis in routing.
+ */
+export function webSearchRouteForm(provider: Pick<Provider, 'kind' | 'authMode'>): WebRouteForm {
+  switch (providerFormOf(provider)) {
+    case 'relay': return 'relay';
+    case 'subscription': return provider.kind === 'grok' ? 'subscription_grok' : 'subscription_codex';
+    case 'official': return 'byok';
+  }
+}
+
+/** Native web search rejected (dormant): the chat page shows the rejection copy (webRuntimeRejected), and the pre-send route reads the same decision. */
+export function webSearchNativeRejected(identity: CapabilityRecoveryIdentity | undefined): boolean {
+  return identity ? capabilityRejectionIsDormant(identity, 'web', 'provider_recipe') : false;
+}
+
+/** Control state -> recipe web control (facts.recipeWeb). */
+function recipeWebOf(status: ModelControlStatus): RecipeWebState {
+  switch (status) {
+    case 'automaticAvailable':
+    case 'forceUnsupported':
+    case 'alwaysOn':
+      return 'auto_available';
+    case 'unsupported':
+    case 'externalConnectorOnly':
+      return 'unavailable';
+    case 'customOnly':
+      return 'custom_only';
+    default:
+      return 'none';
+  }
+}
+
+/**
+ * Normalize this client's facts into the facts of `resolveWebSearchState`: the panel, sending and the composer web chip preview all take facts only through here.
+ * Relay status = web-probe presentation statusId (local engine / undecided protocol recorded separately); relay missing facts = null (no external search).
+ */
+export function webSearchFacts(input: {
+  form: WebRouteForm;
+  status: ModelControlStatus;
+  relayWeb?: ModelOptionRelayWeb;
+  protocolUndecided: boolean;
+  nativeRejected: boolean;
+  toolCall: ToolCallSupport;
+}): WebSearchFacts | null {
+  const { form, status, relayWeb } = input;
+  if (form === 'relay') {
+    if (!relayWeb) return null;
+    const relayStatus: RelayWebStatus = relayWeb.localEngine ? 'local_engine'
+      : input.protocolUndecided ? 'protocol_undecided'
+        : resolveRelayWebPresentation(relayWeb, null).statusId;
+    return { form, relayStatus, toolCall: input.toolCall };
+  }
+  return {
+    form,
+    // Non-BYOK / subscription Codex do not read recipeWeb; always none.
+    recipeWeb: form === 'byok' || form === 'subscription_codex' ? recipeWebOf(status) : 'none',
+    nativeRejected: input.nativeRejected,
+    managedWebAvailable: status === 'automaticAvailable',
+    toolCall: input.toolCall,
+  };
+}
+
+/** Web card action (route semantic name) -> panel outcome. */
+export const WEB_ROUTE_LINK_ACTIONS: Readonly<Record<WebRouteAction, ModelOptionLinkAction>> = {
+  pick_source: 'pickSearchSource',
+  one_tap_enable: 'oneTapEnableSearch',
+  add_search_service: 'addSearchService',
+  open_supported_models: 'openSupportedModels',
+};
+
+/** Web combined result of the panel (shape resolution and the "Search method" pane both read it); no external search or missing facts = null. */
+export function modelOptionWebSearchState(input: ModelOptionCapabilityInput, base?: ModelOptionCapabilityShape): WebSearchState | null {
+  const external = input.externalSearch;
+  if (input.capability !== 'web' || !external) return null;
+  const facts = webSearchFacts({
+    form: external.form,
+    status: input.status,
+    ...(input.relayWeb ? { relayWeb: input.relayWeb } : {}),
+    protocolUndecided: input.protocolUndecided,
+    nativeRejected: external.nativeRejected === true,
+    toolCall: external.toolCall,
+  });
+  if (!facts) return null;
+  const shape = base ?? resolveBaseCapabilityShape(input);
+  const webOn = shape.kind === 'toggle' || shape.kind === 'toggleWithTiming'
+    ? shape.isOn
+    : input.selectedIntent === AUTOMATIC || input.selectedIntent === 'force';
+  return resolveWebSearchState({
+    facts,
+    panelWritable: external.panelWritable,
+    webOn,
+    modelKey: external.modelKey,
+    currentProviderKind: external.currentProviderKind,
+    services: external.services,
+    defaultServiceId: external.defaultServiceId,
+    stored: external.stored,
+    oneTapTarget: external.oneTap?.target ?? null,
+    oneTapServiceName: external.oneTap?.serviceName ?? null,
+  });
+}
+
+/** Web row with external search: rendered by `resolveWebSearchState().shapeMode`, no separate judgment. */
+function withExternalSearch(input: ModelOptionCapabilityInput, base: ModelOptionCapabilityShape): ModelOptionCapabilityShape {
+  const state = modelOptionWebSearchState(input, base);
+  if (!state || state.card.existing) return base;
+  const { card } = state;
+  const searchCard: ModelOptionSearchCard = {
+    status: card.status, notes: card.notes, link: card.link, cta: card.cta, secondary: card.secondary,
+  };
+  switch (state.shapeMode) {
+    case 'existing':
+      return base;
+    case 'existing_with_actions':
+    case 'search_notice': {
+      if (base.kind !== 'toggle' && base.kind !== 'toggleWithTiming' && base.kind !== 'notice' && base.kind !== 'disclosure') return base;
+      if (state.shapeMode === 'existing_with_actions') return { ...base, searchCard };
+      // New notice: status row and actions all come from card; the previous outcome is no longer layered on.
+      const { link: _link, ...rest } = base as typeof base & { link?: ModelOptionLinkAction };
+      return { ...rest, searchCard } as ModelOptionCapabilityShape;
+    }
+    case 'toggle_with_source': {
+      const native = state.route.row === 'toggle_with_source_picker' && (base.kind === 'toggle' || base.kind === 'toggleWithTiming') ? base : undefined;
+      return {
+        kind: 'toggleWithSource',
+        capability: 'web',
+        isOn: state.toggleOn,
+        target: { kind: 'capabilityPreference', on: AUTOMATIC, off: 'off' },
+        ...(native ? { native } : {}),
+        card: searchCard,
+        path: state.route.path,
+        nativeFieldsSuppressed: state.nativeFieldsSuppressed,
+        controls: state.toggleControls === 'external' ? 'external' : 'conversation_web',
+        serviceId: state.source.serviceId,
+      };
+    }
+  }
 }
 
 export function resolveModelOptionCapabilityCard(input: {

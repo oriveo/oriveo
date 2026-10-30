@@ -26,10 +26,12 @@ nonisolated final class NoteRuntimeBridge: @unchecked Sendable {
         return NoteStore(dbPool: pool)
     }
 
-    func softDeleteNoteFolder(for uid: String, id: UUID, deletedAt: Date, updatedAt: Date) throws -> [UUID] {
+    /// Soft-deletes on the store instance the caller fixed (a background write never reopens by uid through the
+    /// shared manager); the test replacement hook is still called by uid.
+    func softDeleteNoteFolder(in store: NoteStore, uid: String, id: UUID, deletedAt: Date, updatedAt: Date) throws -> [UUID] {
         if let softDeleteNoteFolderHandler {
             return try softDeleteNoteFolderHandler(uid, id, deletedAt, updatedAt)
         }
-        return try makeStore(for: uid).softDeleteNoteFolder(id: id, deletedAt: deletedAt, updatedAt: updatedAt)
+        return try store.softDeleteNoteFolder(id: id, deletedAt: deletedAt, updatedAt: updatedAt)
     }
 }

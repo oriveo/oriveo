@@ -27,10 +27,12 @@ struct SettingsHomeGridItem: Identifiable {
     /// accessibilityIdentifier of the former list row (kept for UI tests; set on the button, while the outer container carries `_tile`).
     var legacyIdentifier: String? = nil
     var showsFeatureBadge: Bool = false
+    /// Explicit icon asset name when it does not match the key derivation (the web search cell key is `webSearch`, icon `SettingsSearch`).
+    var iconAssetName: String? = nil
     let action: @MainActor () -> Void
 
     var id: String { key }
-    var iconAsset: String { SettingsHomeIcon.assetName(key) }
+    var iconAsset: String { iconAssetName ?? SettingsHomeIcon.assetName(key) }
     var tileIdentifier: String { "settings_\(key)_tile" }
 }
 

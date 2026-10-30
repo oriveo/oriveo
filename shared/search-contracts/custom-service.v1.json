@@ -1,0 +1,1803 @@
+{
+  "schema": "oriveo.search.custom-service/v1",
+  "$comment": "Custom services: form validation (addressClass comes from the existing local / LAN address classification: public | lan | unresolved), key binding source, manual mapping validation, the \"same as X\" snapshot, SearXNG protocol replay, and behavior when the catalog is unavailable. Expectations come from the reference implementation of the transport.",
+  "constants": {
+    "protocols": [
+      "searxng",
+      "same_as",
+      "manual"
+    ],
+    "searxng": {
+      "kind": "json_http/v1",
+      "method": "GET",
+      "auth": {
+        "kind": "bearer"
+      },
+      "query": {
+        "field": "q",
+        "in": "query",
+        "maxChars": 400
+      },
+      "count": null,
+      "static": {
+        "in": "query",
+        "params": {
+          "format": "json"
+        }
+      },
+      "response": {
+        "results": "results",
+        "title": [
+          "title"
+        ],
+        "url": [
+          "url"
+        ],
+        "snippet": [
+          "content"
+        ],
+        "date": [
+          "publishedDate"
+        ],
+        "html": true
+      },
+      "errors": [
+        {
+          "status": 403,
+          "class": "searxng_json_disabled"
+        }
+      ]
+    },
+    "timeoutSec": 20,
+    "webAllowedPorts": [
+      80,
+      443,
+      8080,
+      8443
+    ]
+  },
+  "validateCases": [
+    {
+      "caseId": "form.https_public_ok",
+      "input": {
+        "name": "我的搜索",
+        "address": "https://search.example.com",
+        "protocol": "searxng",
+        "platform": "ios",
+        "addressClass": "public"
+      },
+      "expect": {
+        "ok": true,
+        "errors": [],
+        "warnings": [],
+        "origin": "https://search.example.com",
+        "requestPath": "/search"
+      }
+    },
+    {
+      "caseId": "form.http_public_rejected_mobile",
+      "input": {
+        "name": "x",
+        "address": "http://search.example.com",
+        "protocol": "searxng",
+        "platform": "android",
+        "addressClass": "public"
+      },
+      "expect": {
+        "ok": false,
+        "errors": [
+          "http_public_not_allowed"
+        ],
+        "warnings": [],
+        "origin": "http://search.example.com",
+        "requestPath": null
+      }
+    },
+    {
+      "caseId": "form.http_lan_ok_mobile_with_warning",
+      "input": {
+        "name": "NAS",
+        "address": "http://192.168.1.20:8080/",
+        "protocol": "searxng",
+        "platform": "ios",
+        "addressClass": "lan"
+      },
+      "expect": {
+        "ok": true,
+        "errors": [],
+        "warnings": [
+          "cleartext_lan"
+        ],
+        "origin": "http://192.168.1.20:8080",
+        "requestPath": "/search"
+      }
+    },
+    {
+      "caseId": "form.http_lan_rejected_web",
+      "input": {
+        "name": "NAS",
+        "address": "http://192.168.1.20:8080",
+        "protocol": "searxng",
+        "platform": "web",
+        "addressClass": "lan"
+      },
+      "expect": {
+        "ok": false,
+        "errors": [
+          "http_not_allowed_on_web",
+          "private_address_on_web"
+        ],
+        "warnings": [],
+        "origin": "http://192.168.1.20:8080",
+        "requestPath": null
+      }
+    },
+    {
+      "caseId": "form.https_lan_rejected_web",
+      "input": {
+        "name": "NAS",
+        "address": "https://nas.local",
+        "protocol": "searxng",
+        "platform": "web",
+        "addressClass": "lan"
+      },
+      "expect": {
+        "ok": false,
+        "errors": [
+          "private_address_on_web"
+        ],
+        "warnings": [],
+        "origin": "https://nas.local",
+        "requestPath": null
+      }
+    },
+    {
+      "caseId": "form.https_public_ok_web",
+      "input": {
+        "name": "Mine",
+        "address": "https://search.example.com/searxng/",
+        "protocol": "searxng",
+        "platform": "web",
+        "addressClass": "public"
+      },
+      "expect": {
+        "ok": true,
+        "errors": [],
+        "warnings": [],
+        "origin": "https://search.example.com",
+        "requestPath": "/searxng/search"
+      }
+    },
+    {
+      "caseId": "form.unresolved",
+      "input": {
+        "name": "x",
+        "address": "https://nowhere.invalid",
+        "protocol": "searxng",
+        "platform": "ios",
+        "addressClass": "unresolved"
+      },
+      "expect": {
+        "ok": false,
+        "errors": [
+          "address_unresolved"
+        ],
+        "warnings": [],
+        "origin": "https://nowhere.invalid",
+        "requestPath": null
+      }
+    },
+    {
+      "caseId": "form.name_empty",
+      "input": {
+        "name": "   ",
+        "address": "https://a.example",
+        "protocol": "searxng",
+        "platform": "ios",
+        "addressClass": "public"
+      },
+      "expect": {
+        "ok": false,
+        "errors": [
+          "name_empty"
+        ],
+        "warnings": [],
+        "origin": "https://a.example",
+        "requestPath": null
+      }
+    },
+    {
+      "caseId": "form.name_too_long",
+      "input": {
+        "name": "一一一一一一一一一一一一一一一一一一一一一一一一一一一一一一一一一一一一一一一一一",
+        "address": "https://a.example",
+        "protocol": "searxng",
+        "platform": "ios",
+        "addressClass": "public"
+      },
+      "expect": {
+        "ok": false,
+        "errors": [
+          "name_too_long"
+        ],
+        "warnings": [],
+        "origin": "https://a.example",
+        "requestPath": null
+      }
+    },
+    {
+      "caseId": "form.userinfo_rejected",
+      "input": {
+        "name": "x",
+        "address": "https://user:pw@a.example",
+        "protocol": "searxng",
+        "platform": "ios",
+        "addressClass": "public"
+      },
+      "expect": {
+        "ok": false,
+        "errors": [
+          "address_invalid"
+        ],
+        "warnings": [],
+        "origin": null,
+        "requestPath": null
+      }
+    },
+    {
+      "caseId": "form.ftp_rejected",
+      "input": {
+        "name": "x",
+        "address": "ftp://a.example",
+        "protocol": "searxng",
+        "platform": "ios",
+        "addressClass": "public"
+      },
+      "expect": {
+        "ok": false,
+        "errors": [
+          "scheme_not_allowed"
+        ],
+        "warnings": [],
+        "origin": "ftp://a.example",
+        "requestPath": null
+      }
+    },
+    {
+      "caseId": "form.query_string_rejected",
+      "input": {
+        "name": "x",
+        "address": "https://a.example/search?q=1",
+        "protocol": "searxng",
+        "platform": "ios",
+        "addressClass": "public"
+      },
+      "expect": {
+        "ok": false,
+        "errors": [
+          "address_has_query"
+        ],
+        "warnings": [],
+        "origin": "https://a.example",
+        "requestPath": null
+      }
+    },
+    {
+      "caseId": "form.non_ascii_host_rejected",
+      "input": {
+        "name": "x",
+        "address": "https://搜索.example",
+        "protocol": "searxng",
+        "platform": "ios",
+        "addressClass": "public"
+      },
+      "expect": {
+        "ok": false,
+        "errors": [
+          "address_invalid"
+        ],
+        "warnings": [],
+        "origin": null,
+        "requestPath": null
+      }
+    },
+    {
+      "caseId": "form.same_as_ok",
+      "input": {
+        "name": "Tavily 兼容",
+        "address": "https://proxy.example/search",
+        "protocol": "same_as",
+        "presetId": "tavily",
+        "catalogAvailable": true,
+        "presetActive": true,
+        "platform": "android",
+        "addressClass": "public"
+      },
+      "expect": {
+        "ok": true,
+        "errors": [],
+        "warnings": [],
+        "origin": "https://proxy.example",
+        "requestPath": "/search"
+      }
+    },
+    {
+      "caseId": "form.same_as_catalog_unavailable",
+      "input": {
+        "name": "Tavily 兼容",
+        "address": "https://proxy.example/search",
+        "protocol": "same_as",
+        "presetId": "tavily",
+        "catalogAvailable": false,
+        "presetActive": false,
+        "platform": "android",
+        "addressClass": "public"
+      },
+      "expect": {
+        "ok": false,
+        "errors": [
+          "preset_unavailable"
+        ],
+        "warnings": [],
+        "origin": "https://proxy.example",
+        "requestPath": null
+      }
+    },
+    {
+      "caseId": "form.manual_ok",
+      "input": {
+        "name": "博查兼容",
+        "address": "https://api.example.com/v1/web-search",
+        "protocol": "manual",
+        "manual": {
+          "method": "POST",
+          "auth": {
+            "kind": "bearer"
+          },
+          "query": {
+            "field": "query",
+            "in": "body"
+          },
+          "count": {
+            "field": "count",
+            "in": "body"
+          },
+          "static": {
+            "in": "body",
+            "params": {
+              "summary": true
+            }
+          },
+          "response": {
+            "results": "data.webPages.value",
+            "title": [
+              "name"
+            ],
+            "url": [
+              "url"
+            ],
+            "snippet": [
+              "summary",
+              "snippet"
+            ],
+            "site": [
+              "siteName"
+            ],
+            "date": [
+              "datePublished"
+            ]
+          }
+        },
+        "platform": "web",
+        "addressClass": "public"
+      },
+      "expect": {
+        "ok": true,
+        "errors": [],
+        "warnings": [],
+        "origin": "https://api.example.com",
+        "requestPath": "/v1/web-search"
+      }
+    },
+    {
+      "caseId": "form.manual_template_rejected",
+      "input": {
+        "name": "x",
+        "address": "https://api.example.com/s",
+        "protocol": "manual",
+        "manual": {
+          "method": "POST",
+          "auth": {
+            "kind": "bearer"
+          },
+          "query": {
+            "field": "query",
+            "in": "body"
+          },
+          "count": {
+            "field": "count",
+            "in": "body"
+          },
+          "static": {
+            "in": "body",
+            "params": {
+              "token": "{{env.KEY}}"
+            }
+          },
+          "response": {
+            "results": "data.webPages.value",
+            "title": [
+              "name"
+            ],
+            "url": [
+              "url"
+            ],
+            "snippet": [
+              "summary",
+              "snippet"
+            ],
+            "site": [
+              "siteName"
+            ],
+            "date": [
+              "datePublished"
+            ]
+          }
+        },
+        "platform": "ios",
+        "addressClass": "public"
+      },
+      "expect": {
+        "ok": false,
+        "errors": [
+          "template_rejected"
+        ],
+        "warnings": [],
+        "origin": "https://api.example.com",
+        "requestPath": null
+      }
+    },
+    {
+      "caseId": "form.manual_expression_path_rejected",
+      "input": {
+        "name": "x",
+        "address": "https://api.example.com/s",
+        "protocol": "manual",
+        "manual": {
+          "method": "POST",
+          "auth": {
+            "kind": "bearer"
+          },
+          "query": {
+            "field": "query",
+            "in": "body"
+          },
+          "count": {
+            "field": "count",
+            "in": "body"
+          },
+          "static": {
+            "in": "body",
+            "params": {
+              "summary": true
+            }
+          },
+          "response": {
+            "results": "data[0].items",
+            "title": [
+              "name"
+            ],
+            "url": [
+              "url"
+            ],
+            "snippet": [
+              "summary",
+              "snippet"
+            ],
+            "site": [
+              "siteName"
+            ],
+            "date": [
+              "datePublished"
+            ]
+          }
+        },
+        "platform": "ios",
+        "addressClass": "public"
+      },
+      "expect": {
+        "ok": false,
+        "errors": [
+          "results_path_invalid"
+        ],
+        "warnings": [],
+        "origin": "https://api.example.com",
+        "requestPath": null
+      }
+    },
+    {
+      "caseId": "form.manual_blocked_header",
+      "input": {
+        "name": "x",
+        "address": "https://api.example.com/s",
+        "protocol": "manual",
+        "manual": {
+          "method": "POST",
+          "auth": {
+            "kind": "header",
+            "name": "Host"
+          },
+          "query": {
+            "field": "query",
+            "in": "body"
+          },
+          "count": {
+            "field": "count",
+            "in": "body"
+          },
+          "static": {
+            "in": "body",
+            "params": {
+              "summary": true
+            }
+          },
+          "response": {
+            "results": "data.webPages.value",
+            "title": [
+              "name"
+            ],
+            "url": [
+              "url"
+            ],
+            "snippet": [
+              "summary",
+              "snippet"
+            ],
+            "site": [
+              "siteName"
+            ],
+            "date": [
+              "datePublished"
+            ]
+          }
+        },
+        "platform": "ios",
+        "addressClass": "public"
+      },
+      "expect": {
+        "ok": false,
+        "errors": [
+          "header_name_invalid"
+        ],
+        "warnings": [],
+        "origin": "https://api.example.com",
+        "requestPath": null
+      }
+    },
+    {
+      "caseId": "form.manual_get_with_body",
+      "input": {
+        "name": "x",
+        "address": "https://api.example.com/s",
+        "protocol": "manual",
+        "manual": {
+          "method": "GET",
+          "auth": {
+            "kind": "bearer"
+          },
+          "query": {
+            "field": "query",
+            "in": "body"
+          },
+          "count": {
+            "field": "count",
+            "in": "body"
+          },
+          "static": {
+            "in": "body",
+            "params": {
+              "summary": true
+            }
+          },
+          "response": {
+            "results": "data.webPages.value",
+            "title": [
+              "name"
+            ],
+            "url": [
+              "url"
+            ],
+            "snippet": [
+              "summary",
+              "snippet"
+            ],
+            "site": [
+              "siteName"
+            ],
+            "date": [
+              "datePublished"
+            ]
+          }
+        },
+        "platform": "ios",
+        "addressClass": "public"
+      },
+      "expect": {
+        "ok": false,
+        "errors": [
+          "get_has_body"
+        ],
+        "warnings": [],
+        "origin": "https://api.example.com",
+        "requestPath": null
+      }
+    },
+    {
+      "caseId": "form.manual_too_many_static",
+      "input": {
+        "name": "x",
+        "address": "https://api.example.com/s",
+        "protocol": "manual",
+        "manual": {
+          "method": "POST",
+          "auth": {
+            "kind": "bearer"
+          },
+          "query": {
+            "field": "query",
+            "in": "body"
+          },
+          "count": {
+            "field": "count",
+            "in": "body"
+          },
+          "static": {
+            "in": "body",
+            "params": {
+              "p0": 0,
+              "p1": 1,
+              "p2": 2,
+              "p3": 3,
+              "p4": 4,
+              "p5": 5,
+              "p6": 6,
+              "p7": 7,
+              "p8": 8,
+              "p9": 9,
+              "p10": 10
+            }
+          },
+          "response": {
+            "results": "data.webPages.value",
+            "title": [
+              "name"
+            ],
+            "url": [
+              "url"
+            ],
+            "snippet": [
+              "summary",
+              "snippet"
+            ],
+            "site": [
+              "siteName"
+            ],
+            "date": [
+              "datePublished"
+            ]
+          }
+        },
+        "platform": "ios",
+        "addressClass": "public"
+      },
+      "expect": {
+        "ok": false,
+        "errors": [
+          "too_many_static_params"
+        ],
+        "warnings": [],
+        "origin": "https://api.example.com",
+        "requestPath": null
+      }
+    },
+    {
+      "caseId": "form.web_port_not_allowed",
+      "input": {
+        "name": "我的搜索",
+        "address": "https://search.example.com:9443",
+        "protocol": "searxng",
+        "platform": "web",
+        "addressClass": "public"
+      },
+      "expect": {
+        "ok": false,
+        "errors": [
+          "port_not_allowed_on_web"
+        ],
+        "warnings": [],
+        "origin": "https://search.example.com:9443",
+        "requestPath": null
+      }
+    },
+    {
+      "caseId": "form.web_port_8443_ok",
+      "input": {
+        "name": "我的搜索",
+        "address": "https://search.example.com:8443",
+        "protocol": "searxng",
+        "platform": "web",
+        "addressClass": "public"
+      },
+      "expect": {
+        "ok": true,
+        "errors": [],
+        "warnings": [],
+        "origin": "https://search.example.com:8443",
+        "requestPath": "/search"
+      }
+    },
+    {
+      "caseId": "form.ios_any_port_ok",
+      "input": {
+        "name": "我的搜索",
+        "address": "https://search.example.com:9443",
+        "protocol": "searxng",
+        "platform": "ios",
+        "addressClass": "public"
+      },
+      "expect": {
+        "ok": true,
+        "errors": [],
+        "warnings": [],
+        "origin": "https://search.example.com:9443",
+        "requestPath": "/search"
+      }
+    },
+    {
+      "caseId": "mapping.static_path_prefix_conflict",
+      "input": {
+        "name": "博查兼容",
+        "address": "https://api.example.com/v1/web-search",
+        "protocol": "manual",
+        "manual": {
+          "method": "POST",
+          "auth": {
+            "kind": "bearer"
+          },
+          "query": {
+            "field": "query",
+            "in": "body"
+          },
+          "count": {
+            "field": "count",
+            "in": "body"
+          },
+          "static": {
+            "in": "body",
+            "params": {
+              "opts": true,
+              "opts.lang": "en"
+            }
+          },
+          "response": {
+            "results": "data.webPages.value",
+            "title": [
+              "name"
+            ],
+            "url": [
+              "url"
+            ],
+            "snippet": [
+              "summary",
+              "snippet"
+            ],
+            "site": [
+              "siteName"
+            ],
+            "date": [
+              "datePublished"
+            ]
+          }
+        },
+        "platform": "web",
+        "addressClass": "public"
+      },
+      "expect": {
+        "ok": false,
+        "errors": [
+          "path_conflict"
+        ],
+        "warnings": [],
+        "origin": "https://api.example.com",
+        "requestPath": null
+      }
+    },
+    {
+      "caseId": "mapping.static_duplicates_query_field",
+      "input": {
+        "name": "博查兼容",
+        "address": "https://api.example.com/v1/web-search",
+        "protocol": "manual",
+        "manual": {
+          "method": "POST",
+          "auth": {
+            "kind": "bearer"
+          },
+          "query": {
+            "field": "query",
+            "in": "body"
+          },
+          "count": {
+            "field": "count",
+            "in": "body"
+          },
+          "static": {
+            "in": "body",
+            "params": {
+              "query": "x"
+            }
+          },
+          "response": {
+            "results": "data.webPages.value",
+            "title": [
+              "name"
+            ],
+            "url": [
+              "url"
+            ],
+            "snippet": [
+              "summary",
+              "snippet"
+            ],
+            "site": [
+              "siteName"
+            ],
+            "date": [
+              "datePublished"
+            ]
+          }
+        },
+        "platform": "web",
+        "addressClass": "public"
+      },
+      "expect": {
+        "ok": false,
+        "errors": [
+          "path_conflict"
+        ],
+        "warnings": [],
+        "origin": "https://api.example.com",
+        "requestPath": null
+      }
+    }
+  ],
+  "bindingCases": [
+    {
+      "caseId": "bind.path_change_keeps_key",
+      "input": {
+        "old": "https://a.example/v1/search",
+        "next": "https://a.example/v2/search"
+      },
+      "expect": {
+        "oldOrigin": "https://a.example",
+        "nextOrigin": "https://a.example",
+        "clearsKey": false
+      }
+    },
+    {
+      "caseId": "bind.host_change_clears_key",
+      "input": {
+        "old": "https://a.example/search",
+        "next": "https://b.example/search"
+      },
+      "expect": {
+        "oldOrigin": "https://a.example",
+        "nextOrigin": "https://b.example",
+        "clearsKey": true
+      }
+    },
+    {
+      "caseId": "bind.port_change_clears_key",
+      "input": {
+        "old": "https://a.example/search",
+        "next": "https://a.example:8443/search"
+      },
+      "expect": {
+        "oldOrigin": "https://a.example",
+        "nextOrigin": "https://a.example:8443",
+        "clearsKey": true
+      }
+    },
+    {
+      "caseId": "bind.default_port_equivalent",
+      "input": {
+        "old": "https://a.example/search",
+        "next": "https://A.EXAMPLE:443/search"
+      },
+      "expect": {
+        "oldOrigin": "https://a.example",
+        "nextOrigin": "https://a.example",
+        "clearsKey": false
+      }
+    },
+    {
+      "caseId": "bind.scheme_change_clears_key",
+      "input": {
+        "old": "http://192.168.1.2:8080",
+        "next": "https://192.168.1.2:8080"
+      },
+      "expect": {
+        "oldOrigin": "http://192.168.1.2:8080",
+        "nextOrigin": "https://192.168.1.2:8080",
+        "clearsKey": true
+      }
+    }
+  ],
+  "snapshotCases": [
+    {
+      "caseId": "snapshot.tavily",
+      "input": {
+        "serviceId": "tavily",
+        "regionId": "global"
+      },
+      "expect": {
+        "kind": "json_http/v1",
+        "method": "POST",
+        "auth": {
+          "kind": "bearer"
+        },
+        "query": {
+          "field": "query",
+          "in": "body"
+        },
+        "count": {
+          "field": "max_results",
+          "in": "body"
+        },
+        "static": {
+          "in": "body",
+          "params": {
+            "search_depth": "basic"
+          }
+        },
+        "response": {
+          "results": "results",
+          "title": [
+            "title"
+          ],
+          "url": [
+            "url"
+          ],
+          "snippet": [
+            "content"
+          ],
+          "html": false
+        },
+        "errors": [
+          {
+            "status": 432,
+            "class": "insufficient_balance"
+          },
+          {
+            "status": 433,
+            "class": "insufficient_balance"
+          }
+        ],
+        "snapshotOf": {
+          "serviceId": "tavily",
+          "region": "global"
+        }
+      }
+    },
+    {
+      "caseId": "snapshot.zhipu_intl_region_static",
+      "input": {
+        "serviceId": "zhipu",
+        "regionId": "intl"
+      },
+      "expect": {
+        "kind": "json_http/v1",
+        "method": "POST",
+        "auth": {
+          "kind": "bearer"
+        },
+        "query": {
+          "field": "search_query",
+          "in": "body"
+        },
+        "count": {
+          "field": "count",
+          "in": "body",
+          "max": 50
+        },
+        "static": {
+          "in": "body",
+          "params": {
+            "search_intent": false,
+            "search_engine": "search-prime"
+          }
+        },
+        "response": {
+          "results": "search_result",
+          "title": [
+            "title"
+          ],
+          "url": [
+            "link"
+          ],
+          "snippet": [
+            "content"
+          ],
+          "site": [
+            "media"
+          ],
+          "date": [
+            "publish_date"
+          ],
+          "html": false
+        },
+        "errors": [
+          {
+            "status": 429,
+            "match": {
+              "path": "error.code",
+              "equals": "1113"
+            },
+            "class": "insufficient_balance"
+          },
+          {
+            "status": 429,
+            "match": {
+              "path": "error.code",
+              "equals": "1316"
+            },
+            "class": "insufficient_balance"
+          },
+          {
+            "status": 429,
+            "match": {
+              "path": "error.code",
+              "equals": "1317"
+            },
+            "class": "insufficient_balance"
+          }
+        ],
+        "snapshotOf": {
+          "serviceId": "zhipu",
+          "region": "intl"
+        }
+      }
+    }
+  ],
+  "requestCases": [
+    {
+      "caseId": "request.searxng_root_address",
+      "input": {
+        "protocol": "searxng",
+        "address": "https://search.example.com",
+        "query": "oriveo web search",
+        "count": 5,
+        "key": null
+      },
+      "expect": {
+        "method": "GET",
+        "url": "https://search.example.com/search?q=oriveo%20web%20search&format=json",
+        "headers": {
+          "Accept": "application/json"
+        },
+        "body": null
+      }
+    },
+    {
+      "caseId": "request.searxng_subpath_with_key",
+      "input": {
+        "protocol": "searxng",
+        "address": "http://192.168.1.20:8080/searxng/",
+        "query": "联网 搜索",
+        "count": 3,
+        "key": "tok"
+      },
+      "expect": {
+        "method": "GET",
+        "url": "http://192.168.1.20:8080/searxng/search?q=%E8%81%94%E7%BD%91%20%E6%90%9C%E7%B4%A2&format=json",
+        "headers": {
+          "Accept": "application/json",
+          "Authorization": "Bearer tok"
+        },
+        "body": null
+      }
+    },
+    {
+      "caseId": "request.manual_post",
+      "input": {
+        "protocol": "manual",
+        "address": "https://api.example.com/v1/web-search",
+        "manual": {
+          "method": "POST",
+          "auth": {
+            "kind": "bearer"
+          },
+          "query": {
+            "field": "query",
+            "in": "body"
+          },
+          "count": {
+            "field": "count",
+            "in": "body"
+          },
+          "static": {
+            "in": "body",
+            "params": {
+              "summary": true
+            }
+          },
+          "response": {
+            "results": "data.webPages.value",
+            "title": [
+              "name"
+            ],
+            "url": [
+              "url"
+            ],
+            "snippet": [
+              "summary",
+              "snippet"
+            ],
+            "site": [
+              "siteName"
+            ],
+            "date": [
+              "datePublished"
+            ]
+          }
+        },
+        "query": "oriveo",
+        "count": 4,
+        "key": "k"
+      },
+      "expect": {
+        "method": "POST",
+        "url": "https://api.example.com/v1/web-search",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer k"
+        },
+        "body": {
+          "query": "oriveo",
+          "count": 4,
+          "summary": true
+        }
+      }
+    },
+    {
+      "caseId": "request.same_as_tavily_snapshot",
+      "input": {
+        "protocol": "same_as",
+        "presetId": "tavily",
+        "regionId": "global",
+        "address": "https://proxy.example/tavily/search",
+        "query": "oriveo",
+        "count": 5,
+        "key": "k"
+      },
+      "expect": {
+        "method": "POST",
+        "url": "https://proxy.example/tavily/search",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer k"
+        },
+        "body": {
+          "query": "oriveo",
+          "max_results": 5,
+          "search_depth": "basic"
+        }
+      }
+    }
+  ],
+  "responseCases": [
+    {
+      "caseId": "response.searxng_p1_recorded",
+      "input": {
+        "protocol": "searxng",
+        "count": 5,
+        "source": "p1_sample",
+        "sampleRef": "samples/searxng.v1.json#normal",
+        "body": {
+          "query": "[text:17]",
+          "number_of_results": null,
+          "results": [
+            {
+              "title": "[text:43]",
+              "content": "[text:344]",
+              "publishedDate": null,
+              "score": 1,
+              "category": "general",
+              "url": "https://oriveoai.com/…",
+              "engine": "brave"
+            },
+            {
+              "title": "[text:15]",
+              "content": "[text:247]",
+              "publishedDate": null,
+              "score": 0.5,
+              "category": "general",
+              "url": "https://github.com/…",
+              "engine": "brave"
+            },
+            {
+              "title": "[text:21]",
+              "content": "[text:204]",
+              "publishedDate": null,
+              "score": 0.3333333333333333,
+              "category": "general",
+              "url": "https://byoklist.com/…",
+              "engine": "brave"
+            },
+            {
+              "title": "[text:66]",
+              "content": "[text:353]",
+              "publishedDate": null,
+              "score": 0.25,
+              "category": "general",
+              "url": "https://github.com/…",
+              "engine": "brave"
+            },
+            {
+              "title": "[text:59]",
+              "content": "[text:458]",
+              "publishedDate": "2026-10-10T20:31:59",
+              "score": 0.1111111111111111,
+              "category": "general",
+              "url": "https://www.appbrain.com/…",
+              "engine": "brave"
+            },
+            {
+              "title": "[text:70]",
+              "content": "[text:141]",
+              "publishedDate": "2026-10-08T00:00:00",
+              "score": 0.1,
+              "category": "general",
+              "url": "https://hermes-ai.net/…",
+              "engine": "brave"
+            }
+          ],
+          "answers": [],
+          "corrections": [],
+          "infoboxes": [],
+          "suggestions": [],
+          "unresponsive_engines": [
+            [
+              "duckduckgo",
+              "CAPTCHA"
+            ],
+            [
+              "google cse",
+              "too many requests"
+            ],
+            [
+              "wikipedia",
+              "too many requests"
+            ]
+          ]
+        }
+      },
+      "expect": {
+        "kind": "results",
+        "results": [
+          {
+            "title": "[text:43]",
+            "url": "https://oriveoai.com/…",
+            "snippet": "[text:344]"
+          },
+          {
+            "title": "[text:15]",
+            "url": "https://github.com/…",
+            "snippet": "[text:247]"
+          },
+          {
+            "title": "[text:21]",
+            "url": "https://byoklist.com/…",
+            "snippet": "[text:204]"
+          },
+          {
+            "title": "[text:59]",
+            "url": "https://www.appbrain.com/…",
+            "snippet": "[text:458]",
+            "date": "2026-10-10T20:31:59"
+          },
+          {
+            "title": "[text:70]",
+            "url": "https://hermes-ai.net/…",
+            "snippet": "[text:141]",
+            "date": "2026-10-08T00:00:00"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "response.searxng_docs_shape",
+      "input": {
+        "protocol": "searxng",
+        "count": 5,
+        "source": "docs",
+        "body": {
+          "query": "oriveo",
+          "number_of_results": 0,
+          "results": [
+            {
+              "url": "https://searxng.org/",
+              "title": "SearXNG",
+              "content": "A privacy-respecting, <b>hackable</b> metasearch engine",
+              "engine": "duckduckgo",
+              "publishedDate": null,
+              "score": 1.2
+            },
+            {
+              "url": "https://docs.searxng.org/dev/search_api.html",
+              "title": "Search API",
+              "content": "",
+              "engine": "google",
+              "publishedDate": "2026-01-01T00:00:00"
+            }
+          ],
+          "answers": [],
+          "suggestions": []
+        }
+      },
+      "expect": {
+        "kind": "results",
+        "results": [
+          {
+            "title": "SearXNG",
+            "url": "https://searxng.org/",
+            "snippet": "A privacy-respecting, hackable metasearch engine"
+          },
+          {
+            "title": "Search API",
+            "url": "https://docs.searxng.org/dev/search_api.html",
+            "snippet": "",
+            "date": "2026-01-01T00:00:00"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "response.manual_nested_path",
+      "input": {
+        "protocol": "manual",
+        "manual": {
+          "method": "POST",
+          "auth": {
+            "kind": "bearer"
+          },
+          "query": {
+            "field": "query",
+            "in": "body"
+          },
+          "count": {
+            "field": "count",
+            "in": "body"
+          },
+          "static": {
+            "in": "body",
+            "params": {
+              "summary": true
+            }
+          },
+          "response": {
+            "results": "data.webPages.value",
+            "title": [
+              "name"
+            ],
+            "url": [
+              "url"
+            ],
+            "snippet": [
+              "summary",
+              "snippet"
+            ],
+            "site": [
+              "siteName"
+            ],
+            "date": [
+              "datePublished"
+            ]
+          }
+        },
+        "count": 5,
+        "source": "derived",
+        "body": {
+          "data": {
+            "webPages": {
+              "value": [
+                {
+                  "name": "N",
+                  "url": "https://n.example/",
+                  "summary": "S",
+                  "siteName": "n",
+                  "datePublished": "2026-10-01"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "expect": {
+        "kind": "results",
+        "results": [
+          {
+            "title": "N",
+            "url": "https://n.example/",
+            "snippet": "S",
+            "site": "n",
+            "date": "2026-10-01"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "response.zero_count_truncates_at_default_5",
+      "input": {
+        "protocol": "searxng",
+        "count": 0,
+        "source": "p1_sample",
+        "sampleRef": "samples/searxng.v1.json#normal",
+        "body": {
+          "query": "[text:17]",
+          "number_of_results": null,
+          "results": [
+            {
+              "title": "[text:43]",
+              "content": "[text:344]",
+              "publishedDate": null,
+              "score": 1,
+              "category": "general",
+              "url": "https://oriveoai.com/…",
+              "engine": "brave"
+            },
+            {
+              "title": "[text:15]",
+              "content": "[text:247]",
+              "publishedDate": null,
+              "score": 0.5,
+              "category": "general",
+              "url": "https://github.com/…",
+              "engine": "brave"
+            },
+            {
+              "title": "[text:21]",
+              "content": "[text:204]",
+              "publishedDate": null,
+              "score": 0.3333333333333333,
+              "category": "general",
+              "url": "https://byoklist.com/…",
+              "engine": "brave"
+            },
+            {
+              "title": "[text:66]",
+              "content": "[text:353]",
+              "publishedDate": null,
+              "score": 0.25,
+              "category": "general",
+              "url": "https://github.com/…",
+              "engine": "brave"
+            },
+            {
+              "title": "[text:59]",
+              "content": "[text:458]",
+              "publishedDate": "2026-10-10T20:31:59",
+              "score": 0.1111111111111111,
+              "category": "general",
+              "url": "https://www.appbrain.com/…",
+              "engine": "brave"
+            },
+            {
+              "title": "[text:70]",
+              "content": "[text:141]",
+              "publishedDate": "2026-10-08T00:00:00",
+              "score": 0.1,
+              "category": "general",
+              "url": "https://hermes-ai.net/…",
+              "engine": "brave"
+            }
+          ],
+          "answers": [],
+          "corrections": [],
+          "infoboxes": [],
+          "suggestions": [],
+          "unresponsive_engines": [
+            [
+              "duckduckgo",
+              "CAPTCHA"
+            ],
+            [
+              "google cse",
+              "too many requests"
+            ],
+            [
+              "wikipedia",
+              "too many requests"
+            ]
+          ]
+        }
+      },
+      "expect": {
+        "kind": "results",
+        "results": [
+          {
+            "title": "[text:43]",
+            "url": "https://oriveoai.com/…",
+            "snippet": "[text:344]"
+          },
+          {
+            "title": "[text:15]",
+            "url": "https://github.com/…",
+            "snippet": "[text:247]"
+          },
+          {
+            "title": "[text:21]",
+            "url": "https://byoklist.com/…",
+            "snippet": "[text:204]"
+          },
+          {
+            "title": "[text:59]",
+            "url": "https://www.appbrain.com/…",
+            "snippet": "[text:458]",
+            "date": "2026-10-10T20:31:59"
+          },
+          {
+            "title": "[text:70]",
+            "url": "https://hermes-ai.net/…",
+            "snippet": "[text:141]",
+            "date": "2026-10-08T00:00:00"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "response.negative_count_truncates_at_default_5",
+      "input": {
+        "protocol": "searxng",
+        "count": -1,
+        "source": "p1_sample",
+        "sampleRef": "samples/searxng.v1.json#normal",
+        "body": {
+          "query": "[text:17]",
+          "number_of_results": null,
+          "results": [
+            {
+              "title": "[text:43]",
+              "content": "[text:344]",
+              "publishedDate": null,
+              "score": 1,
+              "category": "general",
+              "url": "https://oriveoai.com/…",
+              "engine": "brave"
+            },
+            {
+              "title": "[text:15]",
+              "content": "[text:247]",
+              "publishedDate": null,
+              "score": 0.5,
+              "category": "general",
+              "url": "https://github.com/…",
+              "engine": "brave"
+            },
+            {
+              "title": "[text:21]",
+              "content": "[text:204]",
+              "publishedDate": null,
+              "score": 0.3333333333333333,
+              "category": "general",
+              "url": "https://byoklist.com/…",
+              "engine": "brave"
+            },
+            {
+              "title": "[text:66]",
+              "content": "[text:353]",
+              "publishedDate": null,
+              "score": 0.25,
+              "category": "general",
+              "url": "https://github.com/…",
+              "engine": "brave"
+            },
+            {
+              "title": "[text:59]",
+              "content": "[text:458]",
+              "publishedDate": "2026-10-10T20:31:59",
+              "score": 0.1111111111111111,
+              "category": "general",
+              "url": "https://www.appbrain.com/…",
+              "engine": "brave"
+            },
+            {
+              "title": "[text:70]",
+              "content": "[text:141]",
+              "publishedDate": "2026-10-08T00:00:00",
+              "score": 0.1,
+              "category": "general",
+              "url": "https://hermes-ai.net/…",
+              "engine": "brave"
+            }
+          ],
+          "answers": [],
+          "corrections": [],
+          "infoboxes": [],
+          "suggestions": [],
+          "unresponsive_engines": [
+            [
+              "duckduckgo",
+              "CAPTCHA"
+            ],
+            [
+              "google cse",
+              "too many requests"
+            ],
+            [
+              "wikipedia",
+              "too many requests"
+            ]
+          ]
+        }
+      },
+      "expect": {
+        "kind": "results",
+        "results": [
+          {
+            "title": "[text:43]",
+            "url": "https://oriveoai.com/…",
+            "snippet": "[text:344]"
+          },
+          {
+            "title": "[text:15]",
+            "url": "https://github.com/…",
+            "snippet": "[text:247]"
+          },
+          {
+            "title": "[text:21]",
+            "url": "https://byoklist.com/…",
+            "snippet": "[text:204]"
+          },
+          {
+            "title": "[text:59]",
+            "url": "https://www.appbrain.com/…",
+            "snippet": "[text:458]",
+            "date": "2026-10-10T20:31:59"
+          },
+          {
+            "title": "[text:70]",
+            "url": "https://hermes-ai.net/…",
+            "snippet": "[text:141]",
+            "date": "2026-10-08T00:00:00"
+          }
+        ]
+      }
+    }
+  ],
+  "catalogUnavailableCases": [
+    {
+      "caseId": "catalog_down.saved_custom_still_usable",
+      "input": {
+        "protocol": "searxng",
+        "saved": true,
+        "catalogAvailable": false
+      },
+      "expect": {
+        "usable": true,
+        "creatable": true
+      }
+    },
+    {
+      "caseId": "catalog_down.saved_same_as_snapshot_usable",
+      "input": {
+        "protocol": "same_as",
+        "saved": true,
+        "catalogAvailable": false
+      },
+      "expect": {
+        "usable": true,
+        "creatable": false
+      }
+    },
+    {
+      "caseId": "catalog_down.new_same_as_blocked",
+      "input": {
+        "protocol": "same_as",
+        "saved": false,
+        "catalogAvailable": false
+      },
+      "expect": {
+        "usable": false,
+        "creatable": false
+      }
+    },
+    {
+      "caseId": "catalog_down.presets_hidden",
+      "input": {
+        "protocol": "preset",
+        "saved": true,
+        "catalogAvailable": false
+      },
+      "expect": {
+        "usable": false,
+        "creatable": false,
+        "presentation": "presets_unavailable"
+      }
+    }
+  ],
+  "keyCases": [
+    {
+      "caseId": "key.trims_surrounding_whitespace",
+      "input": {
+        "raw": "  sk-abc123\n"
+      },
+      "expect": {
+        "ok": true,
+        "key": "sk-abc123"
+      }
+    },
+    {
+      "caseId": "key.empty_after_trim",
+      "input": {
+        "raw": " \t "
+      },
+      "expect": {
+        "ok": false,
+        "error": "key_empty"
+      }
+    },
+    {
+      "caseId": "key.inner_space_rejected",
+      "input": {
+        "raw": "sk-abc 123"
+      },
+      "expect": {
+        "ok": false,
+        "error": "key_invalid"
+      }
+    },
+    {
+      "caseId": "key.control_char_rejected",
+      "input": {
+        "raw": "sk-abc\u0000123"
+      },
+      "expect": {
+        "ok": false,
+        "error": "key_invalid"
+      }
+    },
+    {
+      "caseId": "key.non_ascii_rejected",
+      "input": {
+        "raw": "tvly-密钥"
+      },
+      "expect": {
+        "ok": false,
+        "error": "key_invalid"
+      }
+    },
+    {
+      "caseId": "key.too_long_rejected",
+      "input": {
+        "raw": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+      },
+      "expect": {
+        "ok": false,
+        "error": "key_invalid"
+      }
+    },
+    {
+      "caseId": "key.not_a_string",
+      "input": {
+        "raw": null
+      },
+      "expect": {
+        "ok": false,
+        "error": "key_empty"
+      }
+    }
+  ]
+}

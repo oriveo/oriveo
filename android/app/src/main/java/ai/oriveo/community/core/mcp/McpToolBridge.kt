@@ -58,6 +58,8 @@ data class McpConfirmationRequest(
     val toolTitle: String,
     val arguments: JsonElement,
     val inputSchema: JsonElement,
+    /** Web results are in this turn's context: only "just this once" is offered; the dialog hides "for this conversation" and adds a line explaining why. */
+    val onceOnly: Boolean = false,
 )
 
 /**
@@ -373,6 +375,11 @@ class McpToolExecutor(
      * "not usable" (fail closed).
      */
     private val revalidate: (suspend (McpPlannedTool) -> McpToolRevalidation)? = null,
+    /**
+     * True when web results entered this turn's context and plan.writeToolConfirm is once_when_web_results_present:
+     * every tool that needs confirmation is approved just this once, ignoring conversation-wide grants and recording none.
+     */
+    private val forceOnceConfirmation: () -> Boolean = { false },
 ) {
     private val clientsLock = Mutex()
     private val clients = mutableMapOf<String, McpClient>()
@@ -481,8 +488,9 @@ class McpToolExecutor(
         clearance.permission = currentPermission(tool, step)
         // "Ask every time" never sends tools/call without the user's approval. A tool that was "run
         // automatically" at assembly time and is "ask every time" by now has to ask as well.
+        val onceOnly = forceOnceConfirmation()
         val needsConfirmation = clearance.permission != McpToolPermission.Auto && !clearance.approved &&
-            !grants.isGranted(conversationId, tool.server.id, tool.snapshot.toolName)
+            (onceOnly || !grants.isGranted(conversationId, tool.server.id, tool.snapshot.toolName))
         if (!needsConfirmation) return null
         val choice = try {
             gate.requestConfirmation(
@@ -495,6 +503,7 @@ class McpToolExecutor(
                     toolTitle = tool.snapshot.title,
                     arguments = arguments,
                     inputSchema = tool.snapshot.inputSchema,
+                    onceOnly = onceOnly,
                 ),
             ).also { currentCoroutineContext().ensureActive() }
         } catch (error: CancellationException) {
@@ -523,7 +532,8 @@ class McpToolExecutor(
                 // The tool may have been changed while the user was looking at the dialog: re-check first, and
                 // record "allow all" only if it is still usable.
                 clearance.permission = currentPermission(tool, step)
-                grants.grant(conversationId, tool.server.id, tool.snapshot.toolName)
+                // With web results in context the approval counts for this call only; no conversation-wide grant is recorded.
+                if (!onceOnly) grants.grant(conversationId, tool.server.id, tool.snapshot.toolName)
             }
             // The dialog may have been open for a long time: take one more look before letting the call through.
             McpConfirmationChoice.Once -> clearance.permission = currentPermission(tool, step)

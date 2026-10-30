@@ -196,18 +196,18 @@ struct ContextCompactionUITests {
         return row
     }
 
-    @Test func clear_deletes_all() throws {
+    @Test func clear_deletes_all() async throws {
         let (state, conversationID, history) = makeFixture()
         let store = try #require(ContextCompactionStore.forPartition(state.sessionPartitionUID))
         _ = try seed(store, conversationID: conversationID, history: history, coversTo: 1, createdAt: 1_000)
         _ = try seed(store, conversationID: conversationID, history: history, coversTo: 3, createdAt: 2_000)
 
-        #expect(state.chatManager.clearCompaction(conversationId: conversationID) == .cleared)
+        #expect(await state.chatManager.clearCompaction(conversationId: conversationID) == .cleared)
 
         #expect(try store.list(conversationId: conversationID.uuidString).isEmpty)
 
         // No row to delete: still report cleared.
-        #expect(state.chatManager.clearCompaction(conversationId: conversationID) == .cleared)
+        #expect(await state.chatManager.clearCompaction(conversationId: conversationID) == .cleared)
     }
 
     @Test func recompact_drops_latest_then_manual() async throws {

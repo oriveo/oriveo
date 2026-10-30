@@ -49,12 +49,8 @@ struct BackupServiceTests {
     }
 
     @MainActor
-    private func cleanupAppState(_ state: AppState, removing uids: [String]) {
-        state.flushConversationPersistQueue()
-        DatabaseManager.shared.close()
-        for uid in uids {
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
+    private func cleanupAppState(_ state: AppState, removing uids: [String]) async {
+        await TestPartitionCleanup.remove(uids)
     }
 
     private func makeMessage(
@@ -356,7 +352,6 @@ struct BackupServiceTests {
         _ = try ConversationRuntimeBridge().replaceAllConversations([conversation], uid: uid)
 
         let state = makeAppState(sessionUID: uid)
-        defer { cleanupAppState(state, removing: [uid]) }
 
         let listed = try #require(state.conversations.first { $0.id == conversation.id })
         #expect(listed.messages.isEmpty, "Cold-start memory should be a summary without bodies")
@@ -375,6 +370,7 @@ struct BackupServiceTests {
         let exportedConversation = try #require(parsed.data.conversations.first { $0.id == conversation.id })
         #expect(exportedConversation.messages.map(\.text).contains(body))
         #expect(exportedConversation.messages.count == 2)
+        await cleanupAppState(state, removing: [uid])
     }
 
     @Test("Parse Unrecognized Format")
@@ -1052,7 +1048,6 @@ struct BackupServiceTests {
         DatabaseManager.shared.close()
 
         let appState = makeAppState(sessionUID: uid)
-        defer { cleanupAppState(appState, removing: [uid]) }
 
         appState.providers = []
         appState.conversations = []
@@ -1076,6 +1071,7 @@ struct BackupServiceTests {
             #expect(stored.messages.count == 1)
             #expect(stored.messages.first?.text == "backup request")
         }
+        await cleanupAppState(appState, removing: [uid])
     }
 
     @Test("replaceAll No Longer Auto-Creates A Hidden Temporary .oriveo Backup")
@@ -1157,7 +1153,6 @@ struct BackupServiceTests {
         DatabaseManager.shared.close()
 
         let appState = makeAppState(sessionUID: uid)
-        defer { cleanupAppState(appState, removing: [uid]) }
 
         appState.providers = [existingProvider]
         appState.conversations = [existingConversation]
@@ -1187,6 +1182,7 @@ struct BackupServiceTests {
         #expect(result.skillsRequiringKnowledgeReupload == 1)
         #expect(appState.skillManager.userSkills.map(\.id) == [importedSkill.id])
         #expect(appState.skillManager.userSkills.first?.knowledgeBase == nil)
+        await cleanupAppState(appState, removing: [uid])
     }
 
     @Test("replaceAll Restores Images To The Bound Partition Not The activeUID Partition")
@@ -1238,8 +1234,6 @@ struct BackupServiceTests {
             appState.flushConversationPersistQueue()
             DatabaseManager.shared.close()
             AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: activeUID))
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: targetUID))
         }
 
         appState.providers = []
@@ -1256,6 +1250,7 @@ struct BackupServiceTests {
 
         #expect(FileManager.default.fileExists(atPath: targetImageURL.path))
         #expect(FileManager.default.fileExists(atPath: activeImageURL.path) == false)
+        await TestPartitionCleanup.remove(activeUID, targetUID)
     }
 
     @Test("replaceAll Aborts When The Authoritative Store Read Fails Instead Of Silently Falling Back")
@@ -1279,13 +1274,11 @@ struct BackupServiceTests {
         DatabaseManager.shared.close()
 
         let appState = makeAppState(sessionUID: uid)
-        defer { cleanupAppState(appState, removing: [uid]) }
 
         DatabaseManager.shared.close()
-        try Data("not-a-valid-sqlite".utf8).write(
-            to: AppSessionStore.databasePath(for: uid),
-            options: .atomic
-        )
+        // Overwrite in place (no .atomic): an atomic write swaps in a new file, and the old connection AppState still holds hits the
+        // unlinked vnode with a disk I/O error; writing in place keeps one inode, so every connection reads "not a SQLite database".
+        try Data("not-a-valid-sqlite".utf8).write(to: AppSessionStore.databasePath(for: uid))
 
         await #expect(throws: (any Error).self) {
             _ = try await BackupService.executeImport(
@@ -1296,6 +1289,7 @@ struct BackupServiceTests {
                 appState: appState
             )
         }
+        await cleanupAppState(appState, removing: [uid])
     }
 
     @Test("replaceAll Aborts And Rolls Back Image Directories If The Session Rebinds During Import")
@@ -1341,7 +1335,6 @@ struct BackupServiceTests {
         let appState = makeAppState(sessionUID: targetUID)
         defer {
             BackupService.testingHooks = .init()
-            cleanupAppState(appState, removing: [targetUID, reboundUID])
         }
 
         var hookInvoked = false
@@ -1377,6 +1370,7 @@ struct BackupServiceTests {
         }
         #expect(hookInvoked == true)
         #expect(appState.sessionPartitionUID == reboundUID)
+        await cleanupAppState(appState, removing: [targetUID, reboundUID])
     }
 
     @Test("replaceAll Restores The Old Image Directory If Commit Fails After Images Switched")
@@ -1421,7 +1415,6 @@ struct BackupServiceTests {
         let appState = makeAppState(sessionUID: targetUID)
         defer {
             BackupService.testingHooks = .init()
-            cleanupAppState(appState, removing: [targetUID])
         }
 
         var hookInvoked = false
@@ -1453,6 +1446,7 @@ struct BackupServiceTests {
             let store = try makeStore(uid: targetUID)
             #expect(try store.fetchConversationThread(id: importedConversation.id) == nil)
         }
+        await cleanupAppState(appState, removing: [targetUID])
     }
 
 
@@ -1491,7 +1485,6 @@ struct BackupServiceTests {
 
         DatabaseManager.shared.close()
         let appState = makeAppState(sessionUID: targetUID)
-        defer { cleanupAppState(appState, removing: [targetUID]) }
 
         let result = try await BackupService.executeImport(
             backupFile: backupFile,
@@ -1508,6 +1501,7 @@ struct BackupServiceTests {
         #expect(result.skippedImages == 0)
         #expect(ImageStore.loadImageData(for: localImageID, partitionUID: targetUID) == imageData)
         #expect(ImageStore.loadThumbnailData(for: localImageID, partitionUID: targetUID) == thumbData)
+        await cleanupAppState(appState, removing: [targetUID])
     }
 
     @Test("Restore iOS/Android-Style Archive (attachment.id Names) Recovers Images")
@@ -1700,7 +1694,6 @@ struct BackupServiceTests {
         DatabaseManager.shared.close()
 
         let appState = makeAppState(sessionUID: uid)
-        defer { cleanupAppState(appState, removing: [uid]) }
 
         appState.providers = []
         appState.conversations = []
@@ -1716,6 +1709,7 @@ struct BackupServiceTests {
 
         let restored = try #require(appState.providers.first(where: { $0.kind == .zhipu }))
         #expect(restored.catalogModels.isEmpty)
+        await cleanupAppState(appState, removing: [uid])
     }
 
     @Test("merge Of A Legacy Backup Does Not Rehydrate Local Official Provider catalogModels")
@@ -1862,7 +1856,6 @@ struct BackupServiceTests {
         let backupFile = try makeBackupFile(data: backupData)
 
         let appState = makeAppState(sessionUID: uid)
-        defer { cleanupAppState(appState, removing: [uid]) }
 
         appState.providers = [existingProvider]
         appState.conversations = []
@@ -1886,6 +1879,7 @@ struct BackupServiceTests {
         #expect(restored.relayRequested?.queryParams == nil)
         #expect(restored.models.contains(where: { $0.id == "gpt-5.4" }))
         #expect(restored.catalogModels.contains(where: { $0.id == "gpt-5.4" }))
+        await cleanupAppState(appState, removing: [uid])
     }
 
 

@@ -272,6 +272,7 @@ extension AssistantMessageCell {
             streamQuietTimer.cancel()
         }
         streamActivity = own?.activity
+        externalSearchTrail = own?.activity == .externalSearch ? own?.externalSearch : nil
         refreshStreamActivityPresentation()
     }
 
@@ -287,6 +288,7 @@ extension AssistantMessageCell {
             quiet: streamQuietTimer.isQuiet
         )
         let text = streamActivityText(for: presentation)
+        applySearchQueryChips(presentation == .hidden || streamActivity != .externalSearch ? nil : externalSearchTrail)
         guard presentation != streamActivityPresentation || text != presentedStreamActivityText else { return }
         streamActivityPresentation = presentation
         presentedStreamActivityText = text
@@ -313,6 +315,7 @@ extension AssistantMessageCell {
         case let .statusLine(value): caption = value
         }
         if caption == .activity(.mcpTool), let runningToolStepCaption { return runningToolStepCaption }
+        if caption == .activity(.externalSearch), let externalSearchTrail { return externalSearchTrail.caption }
         return caption.localizedText
     }
 
@@ -366,6 +369,16 @@ extension AssistantMessageCell {
         requestStreamingSelfSizeInvalidate()
     }
 
+    /// Search-term chips: shown or hidden along with the external search activity (whether the status row or the dot indicator carries the text); collapsed when there are no queries.
+    private func applySearchQueryChips(_ trail: ExternalSearchActivityTrail?) {
+        let shown = trail.flatMap { $0.queries.isEmpty ? nil : $0 }
+        guard searchQueryChips.apply(shown) || searchQueryChipsHost.isHidden != (shown == nil) else { return }
+        UIView.performWithoutAnimation {
+            searchQueryChipsHost.isHidden = shown == nil
+        }
+        requestStreamingSelfSizeInvalidate()
+    }
+
     private func setStreamActivityLineHostHidden(_ hidden: Bool) {
         // No animation: inside the batch animation context of a reconfigure, toggling `isHidden`
         // on an arranged subview is implicitly animated by UIStackView. The only entrance
@@ -390,6 +403,9 @@ extension AssistantMessageCell {
     func resetStreamActivityForReuse() {
         streamQuietTimer.cancel()
         streamActivity = nil
+        externalSearchTrail = nil
+        searchQueryChips.apply(nil)
+        searchQueryChipsHost.isHidden = true
         streamSessionEnded = false
         streamActivityPresentation = .hidden
         streamActivityLine.dismiss()

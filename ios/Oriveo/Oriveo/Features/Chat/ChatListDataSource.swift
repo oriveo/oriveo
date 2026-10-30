@@ -15,6 +15,8 @@ final class ChatListDataSource: NSObject, UICollectionViewDataSource {
         var onCrosscheck: (ChatMessage) -> Void = { _ in }
         /// Actions on the MCP step block (re-authorize / skip this step).
         var onMcpStepAction: (ChatMessage, McpToolStepAction) -> Void = { _, _ in }
+        /// Button on the external search error card / "Regenerate and search again" in the menu.
+        var onSearchAction: (ChatMessage, ExternalSearchCardAction) -> Void = { _, _ in }
         /// Opens the "memory used" sheet for this assistant reply.
         var onOpenMemoryUsed: (ChatMessage) -> Void = { _ in }
         /// Saves a selected piece of text from an assistant reply as a note (within a single block).
@@ -166,6 +168,7 @@ final class ChatListDataSource: NSObject, UICollectionViewDataSource {
             onCrosscheck: { context.onCrosscheck(message) },
             onOpenMemoryUsed: { context.onOpenMemoryUsed(message) },
             onToolStepAction: { action in context.onMcpStepAction(message, action) },
+            onSearchAction: { action in context.onSearchAction(message, action) },
             onSaveSelection: { text in context.onSaveSelection(message, text) },
             onAskSelection: message.state == .generating
                 || message.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

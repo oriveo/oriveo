@@ -159,6 +159,9 @@ private val fullScreenRoutes = setOf(
     AppRoute.ThemeSettings::class,
     AppRoute.VoiceSettings::class,
     AppRoute.McpServers::class,
+    AppRoute.WebSearchSettings::class,
+    AppRoute.WebSearchFromChat::class,
+    AppRoute.WebSearchService::class,
     AppRoute.McpAddServer::class,
     AppRoute.McpServerDetail::class,
     AppRoute.Backup::class,
@@ -414,6 +417,9 @@ fun OriveoNavHost(
                     onNavigateToMcpServers = {
                         navController.navigate(AppRoute.McpServers) { launchSingleTop = true }
                     },
+                    onNavigateToWebSearch = {
+                        navController.navigate(AppRoute.WebSearchSettings) { launchSingleTop = true }
+                    },
                     onNavigateToBackup = {
                         PageTrace.begin("Backup")
                         navController.navigate(AppRoute.Backup)
@@ -454,9 +460,17 @@ fun OriveoNavHost(
                         PageTrace.begin("ProviderDetail")
                         navController.navigate(AppRoute.ProviderDetail(providerID))
                     },
+                    onNavigateToWebSearchFromChat = { conversationId, oneTap ->
+                        navController.navigate(
+                            AppRoute.WebSearchFromChat(conversationId, oneTap?.serviceId, oneTap?.regionId, oneTap?.connectionRef, oneTap?.connectionName),
+                        ) { launchSingleTop = true }
+                    },
                     onNavigateToConnectionWebSearch = { providerID ->
                         PageTrace.begin("ProviderDetail")
                         navController.navigate(AppRoute.ProviderDetail(providerID, initialLayer = AppRoute.ProviderDetail.LAYER_WEB_SEARCH))
+                    },
+                    onNavigateToWebSearchService = { serviceId, edit ->
+                        navController.navigate(AppRoute.WebSearchService(serviceId, edit)) { launchSingleTop = true }
                     },
                     onNavigateToRelayModelAdvanced = { providerID, modelID ->
                         PageTrace.begin("ProviderDetail")
@@ -735,6 +749,30 @@ fun OriveoNavHost(
                     onAddConnection = {
                         navController.navigate(AppRoute.ProviderSetup(ProviderSetupEntryPoint.Providers))
                     },
+                )
+            }
+            composable<AppRoute.WebSearchSettings> {
+                ai.oriveo.community.feature.settings.websearch.WebSearchSettingsScreen(
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable<AppRoute.WebSearchFromChat> { backStackEntry ->
+                val route = backStackEntry.toRoute<AppRoute.WebSearchFromChat>()
+                ai.oriveo.community.feature.settings.websearch.WebSearchFromChatScreen(
+                    oneTap = route.serviceId?.let {
+                        ai.oriveo.community.feature.settings.websearch.PresetDraft(it, route.regionId, route.connectionRef, route.connectionName)
+                    },
+                    onBack = { navController.popBackStack() },
+                    // After it passes, return to chat; the input box reopens the model options panel
+                    onEnabled = { navController.popBackStack() },
+                )
+            }
+            composable<AppRoute.WebSearchService> { backStackEntry ->
+                val route = backStackEntry.toRoute<AppRoute.WebSearchService>()
+                ai.oriveo.community.feature.settings.websearch.WebSearchServiceScreen(
+                    serviceId = route.serviceId,
+                    edit = route.edit,
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable<AppRoute.McpServers> {

@@ -97,11 +97,11 @@ struct MemoryItemListPresentationTests {
     }
 
     @Test("Disabled items stay in their group with a \"Disabled\" marker; pinned items carry a pin marker")
-    func pausedBadge() throws {
+    func pausedBadge() async throws {
         let (repository, _) = try Self.makeRepository()
-        let paused = try repository.create(kind: .instruction, content: "Always answer in Arabic")
-        try repository.setStatus(id: paused.id, status: .paused)
-        let pinned = try repository.create(kind: .instruction, content: "Use SI units", pinned: true)
+        let paused = try await repository.create(kind: .instruction, content: "Always answer in Arabic")
+        try await repository.setStatus(id: paused.id, status: .paused)
+        let pinned = try await repository.create(kind: .instruction, content: "Use SI units", pinned: true)
 
         let presentation = MemoryItemListPresentation.resolve(items: repository.list(), deviceId: Self.thisDevice)
         let rows = try #require(presentation.sections.first { $0.group == .instructions }).rows
@@ -152,7 +152,7 @@ struct MemoryItemListPresentationTests {
     }
 
     @Test("Editor category is a four-way choice: creating writes each group's representative kind; an unchanged category keeps the original kind; a changed category writes the new group's representative kind, and saving changes the kind through the repository")
-    func editorCategoryMapping() throws {
+    func editorCategoryMapping() async throws {
         #expect(MemoryItemGroup.about.kind(keeping: nil) == .identity)
         #expect(MemoryItemGroup.about.kind(keeping: .fact) == .fact)
         #expect(MemoryItemGroup.about.kind(keeping: .identity) == .identity)
@@ -170,14 +170,14 @@ struct MemoryItemListPresentationTests {
         #expect(MemoryItemEditorState.create(category: .projects).kind == .project)
 
         let (repository, _) = try Self.makeRepository()
-        let fact = try repository.create(kind: .fact, content: "I live in Berlin")
+        let fact = try await repository.create(kind: .fact, content: "I live in Berlin")
         var editor = try #require(MemoryItemEditorState.edit(itemId: fact.id, in: repository.list()))
         #expect(editor.category == .about)
         #expect(editor.kind == .fact)
 
         editor.category = .preferences
         editor.text = "Prefer metric units"
-        try repository.update(id: fact.id, content: editor.trimmedText, kind: editor.kind)
+        try await repository.update(id: fact.id, content: editor.trimmedText, kind: editor.kind)
         let stored = try #require(repository.list().first { $0.id == fact.id })
         #expect(stored.kind == .preference)
         #expect(stored.content == "Prefer metric units")
@@ -213,11 +213,11 @@ struct MemoryItemListPresentationTests {
     }
 
     @Test("Opening with editItemId edits that item directly: case-insensitive, brings out the original text and category; does not open when not found or already deleted")
-    func editItemIdOpensEditor() throws {
+    func editItemIdOpensEditor() async throws {
         let (repository, _) = try Self.makeRepository()
-        let target = try repository.create(kind: .constraint, content: "Never use emojis")
-        let removed = try repository.create(kind: .preference, content: "Dark mode")
-        try repository.remove(id: removed.id)
+        let target = try await repository.create(kind: .constraint, content: "Never use emojis")
+        let removed = try await repository.create(kind: .preference, content: "Dark mode")
+        try await repository.remove(id: removed.id)
 
         let editor = try #require(MemoryItemEditorState.edit(itemId: target.id.uppercased(), in: repository.list()))
         #expect(editor.mode == .edit(id: target.id))
@@ -363,7 +363,7 @@ struct MemoryItemListPresentationTests {
     }
 
     @Test("Editor: L3 kind has only Decision / Event, default Decision, the date is stored as 00:00:00Z of that day; the L2 kind options do not contain decision / event")
-    func editorEpisodicKindsAndDate() throws {
+    func editorEpisodicKindsAndDate() async throws {
         let l2 = MemoryItemEditorState.create()
         #expect(l2.isEpisodic == false)
         #expect(l2.occurredAt == nil)
@@ -382,7 +382,7 @@ struct MemoryItemListPresentationTests {
         #expect(l3.kind == .event)
 
         let (repository, _) = try Self.makeRepository()
-        let created = try repository.create(
+        let created = try await repository.create(
             kind: l3.kind, content: "Flew to Lisbon", layer: l3.layer, occurredAt: l3.occurredAt
         )
         #expect(created.layer == .episodic)
@@ -394,7 +394,7 @@ struct MemoryItemListPresentationTests {
         #expect(editor.occurredAt == "2026-05-03T00:00:00.000Z")
         editor.occurredDate = try #require(calendar.date(from: DateComponents(year: 2026, month: 6, day: 9)))
         editor.episodicKind = .decision
-        try repository.update(id: created.id, content: editor.trimmedText, kind: editor.kind, occurredAt: editor.occurredAt)
+        try await repository.update(id: created.id, content: editor.trimmedText, kind: editor.kind, occurredAt: editor.occurredAt)
         let stored = try #require(repository.list().first { $0.id == created.id })
         #expect(stored.kind == .decision)
         #expect(stored.occurredAt == "2026-06-09T00:00:00.000Z")
@@ -403,10 +403,10 @@ struct MemoryItemListPresentationTests {
     }
 
     @Test("The raw text view does not contain episodic items")
-    func rawViewExcludesEpisodic() throws {
+    func rawViewExcludesEpisodic() async throws {
         let (repository, _) = try Self.makeRepository()
-        try repository.create(kind: .preference, content: "Prefer metric units")
-        try repository.create(kind: .decision, content: "Chose Lisbon for the offsite", layer: .episodic)
+        try await repository.create(kind: .preference, content: "Prefer metric units")
+        try await repository.create(kind: .decision, content: "Chose Lisbon for the offsite", layer: .episodic)
 
         let raw = MemoryRawEditorState(items: repository.list())
         #expect(raw.text.contains("Prefer metric units"))

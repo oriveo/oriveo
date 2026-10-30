@@ -350,6 +350,51 @@ class RequestPreferenceContractTest {
             ref to owner
         }.toMap()
 
+    @Test
+    fun `external search result facts match the search fixture and never count as recipe evidence`() {
+        val contract = Json.parseToJsonElement(contractText("request_preference_contract.v2.json")) as JsonObject
+        val vocabulary = contract.getValue("vocabulary") as JsonObject
+        val external = (contract.getValue("resultFacts") as JsonObject).getValue("externalSearch") as JsonObject
+        val searchPath = generateSequence(Paths.get("").toAbsolutePath()) { it.parent }
+            .map { it.resolve("shared/search-contracts/result-facts.v1.json") }
+            .first(Files::exists)
+        val constants = (Json.parseToJsonElement(String(Files.readAllBytes(searchPath), Charsets.UTF_8)) as JsonObject)
+            .getValue("constants") as JsonObject
+        fun strings(e: JsonElement?) = (e as JsonArray).map { it.jsonPrimitive.content }
+
+        // Preference contract and search fixture share the same constants
+        assertEquals(constants.getValue("source").jsonPrimitive.content, external.getValue("source").jsonPrimitive.content)
+        assertEquals(constants.getValue("evidenceKind").jsonPrimitive.content, external.getValue("evidenceKind").jsonPrimitive.content)
+        assertEquals(strings(constants["states"]), strings(external["states"]))
+        // Vocabulary: source and local execution evidence include external search; observed evidence does not
+        assertTrue("external_search" in strings(vocabulary["resultSources"]))
+        assertTrue("external_search_result" in strings(vocabulary["localExecutionEvidenceKinds"]))
+        assertFalse("external_search_result" in strings(vocabulary["observationEvidenceKinds"]))
+        // This app's constants equal them
+        assertEquals(external.getValue("source").jsonPrimitive.content, RequestPreferenceResolver.EXTERNAL_SEARCH_RESULT_SOURCE)
+        assertEquals(external.getValue("evidenceKind").jsonPrimitive.content, RequestPreferenceResolver.EXTERNAL_SEARCH_EVIDENCE_KIND)
+        assertEquals(strings(external["states"]), RequestPreferenceResolver.EXTERNAL_SEARCH_STATES)
+        // Production path: external search evidence must not promote a recipe result to observed
+        val classified = RequestPreferenceResolver.classifyResult(
+            RequestPreferenceResolver.ResultIntent(
+                wireApplied = true,
+                providerAccepted = true,
+                evidenceKinds = listOf(RequestPreferenceResolver.EXTERNAL_SEARCH_EVIDENCE_KIND),
+            ),
+        )
+        assertEquals("unconfirmed", classified.state)
+        // Message facts produced by the combined entry point use the same source / evidence
+        val facts = ai.oriveo.community.core.search.summarizeSearchFacts(
+            path = "external_tool",
+            webOn = true,
+            calls = listOf(ai.oriveo.community.core.search.SearchCallFact("results", 2)),
+            serviceName = "DeepSeek",
+        )
+        assertEquals("observed", facts.state)
+        assertEquals(RequestPreferenceResolver.EXTERNAL_SEARCH_RESULT_SOURCE, facts.source)
+        assertEquals(RequestPreferenceResolver.EXTERNAL_SEARCH_EVIDENCE_KIND, facts.evidenceKind)
+    }
+
     // ------------------------------------------------------------------
     // Fixture lookup: walk up from the module directory until the shared contract folder appears
     // ------------------------------------------------------------------

@@ -367,26 +367,41 @@ final class ConversationStore: @unchecked Sendable {
         }
     }
 
-    /// Mark leftover `.generating` assistants as `.interrupted`. Cold-start memory no longer
-    /// carries message bodies, so this has to be SQL rather than a scan of `Conversation.messages`.
-    nonisolated func sanitizeStaleGeneratingMessages() throws {
-        try write { db in
-            // Being killed mid-generation is not a user stop: record stopReason in the same pass — incomplete when there is text, error otherwise.
-            try db.execute(
-                sql: """
-                    UPDATE message
-                    SET state = ?,
-                        stopReason = CASE WHEN trim(text, ' ' || char(9) || char(10) || char(13)) <> '' THEN ? ELSE ? END
-                    WHERE role = ? AND state = ?
-                    """,
-                arguments: [
-                    ChatMessageState.interrupted.rawValue,
-                    StopReason.incomplete.rawValue,
-                    StopReason.error.rawValue,
-                    ChatRole.assistant.rawValue,
-                    ChatMessageState.generating.rawValue
-                ]
+    /// Cold-start recovery (read only): ids of `.generating` assistant messages left over from the last run.
+    /// Cold-start memory no longer carries message bodies, so this has to be SQL rather than a scan of `Conversation.messages`.
+    nonisolated func staleGeneratingMessageIDs() throws -> [String] {
+        try dbPool.read { db in
+            try String.fetchAll(
+                db,
+                sql: "SELECT id FROM message WHERE role = ? AND state = ?",
+                arguments: [ChatRole.assistant.rawValue, ChatMessageState.generating.rawValue]
             )
+        }
+    }
+
+    /// Marks the leftovers read by `staleGeneratingMessageIDs()` as `.interrupted` (only rows that are still `.generating`).
+    /// Being killed mid-generation is not a user stop: stopReason is recorded in the same pass — incomplete when there is text, error otherwise.
+    nonisolated func sanitizeStaleGeneratingMessages(messageIDs: [String]) throws {
+        guard !messageIDs.isEmpty else { return }
+        try write { db in
+            for start in stride(from: 0, to: messageIDs.count, by: 500) {
+                let chunk = Array(messageIDs[start..<min(start + 500, messageIDs.count)])
+                try db.execute(
+                    sql: """
+                        UPDATE message
+                        SET state = ?,
+                            stopReason = CASE WHEN trim(text, ' ' || char(9) || char(10) || char(13)) <> '' THEN ? ELSE ? END
+                        WHERE role = ? AND state = ? AND id IN (\(chunk.map { _ in "?" }.joined(separator: ",")))
+                        """,
+                    arguments: StatementArguments([
+                        ChatMessageState.interrupted.rawValue,
+                        StopReason.incomplete.rawValue,
+                        StopReason.error.rawValue,
+                        ChatRole.assistant.rawValue,
+                        ChatMessageState.generating.rawValue
+                    ] + chunk)
+                )
+            }
         }
     }
 
@@ -425,12 +440,17 @@ final class ConversationStore: @unchecked Sendable {
                 }
             }
 
+            // A whole-table write visits every conversation: FTS5 lookup by conversationID is a full scan and an
+            // UPDATE re-tokenizes the entire messageText, so doing it per conversation holds the write lock for
+            // seconds. Read the current index once and leave unchanged entries alone.
+            let searchIndexEntries = try Self.searchIndexEntriesByConversation(db: db)
             for conversation in conversations {
                 try upsertConversation(
                     conversation,
                     into: db,
                     referencedFileIDs: &referencedFileIDs,
-                    imageCandidates: &imageCandidates
+                    imageCandidates: &imageCandidates,
+                    searchIndexEntries: searchIndexEntries
                 )
             }
 
@@ -1426,6 +1446,44 @@ final class ConversationStore: @unchecked Sendable {
         )
     }
 
+    /// Current FTS index row per conversation (rowid + title); conversations with several rows are not collected
+    /// (the original path rebuilds and dedupes them). Nil when the table does not exist. Only the first two
+    /// columns are read so messageText is never materialized.
+    nonisolated struct SearchIndexEntry: Sendable {
+        let rowid: Int64
+        let title: String
+    }
+
+    nonisolated static func searchIndexEntriesByConversation(db: Database) throws -> [String: SearchIndexEntry]? {
+        guard try db.tableExists("search_index") else { return nil }
+        var entries: [String: SearchIndexEntry] = [:]
+        var duplicated = Set<String>()
+        let rows = try Row.fetchCursor(db, sql: "SELECT rowid, conversationID, title FROM search_index")
+        while let row = try rows.next() {
+            guard let conversationID: String = row["conversationID"] else { continue }
+            if entries[conversationID] != nil { duplicated.insert(conversationID) }
+            entries[conversationID] = SearchIndexEntry(rowid: row["rowid"], title: row["title"] ?? "")
+        }
+        for conversationID in duplicated { entries[conversationID] = nil }
+        return entries
+    }
+
+    /// The index row already matches the given title and text: rebuilding would tokenize the whole text twice, so skip.
+    nonisolated static func searchIndexMatches(
+        db: Database,
+        entry: SearchIndexEntry?,
+        title: String,
+        messages: [ChatMessage]
+    ) throws -> Bool {
+        guard let entry, entry.title == title else { return false }
+        let stored = try String.fetchOne(
+            db,
+            sql: "SELECT messageText FROM search_index WHERE rowid = ?",
+            arguments: [entry.rowid]
+        )
+        return stored == messages.map(\.text).joined(separator: " ")
+    }
+
     /// Writes that change the title without touching message bodies (renaming a summary projection)
     /// still need title search to follow. When the index row is missing it is rebuilt from the stored
     /// messages, so a metadata-only write never drops the conversation from search.
@@ -1829,6 +1887,37 @@ final class ConversationStore: @unchecked Sendable {
                         recoveryPrimaryAction = excluded.recoveryPrimaryAction,
                         stopReason = excluded.stopReason,
                         memoryItemIds = excluded.memoryItemIds
+                    -- Skip rows whose values are all unchanged: a same-value UPDATE still writes the whole page
+                    -- (long text included) to the WAL and stretches the write lock during a whole-table write.
+                    WHERE
+                        message.text IS NOT excluded.text
+                        OR message.quoteContext IS NOT excluded.quoteContext
+                        OR message.estimatedCost IS NOT excluded.estimatedCost
+                        OR message.state IS NOT excluded.state
+                        OR message.errorTitle IS NOT excluded.errorTitle
+                        OR message.errorDetail IS NOT excluded.errorDetail
+                        OR message.sortOrder IS NOT excluded.sortOrder
+                        OR message.servedModelID IS NOT excluded.servedModelID
+                        OR message.citations IS NOT excluded.citations
+                        OR message.reasoningText IS NOT excluded.reasoningText
+                        OR message.reasoningDurationMs IS NOT excluded.reasoningDurationMs
+                        OR message.cachedInputTokens IS NOT excluded.cachedInputTokens
+                        OR message.cacheCreation5mTokens IS NOT excluded.cacheCreation5mTokens
+                        OR message.cacheCreation1hTokens IS NOT excluded.cacheCreation1hTokens
+                        OR message.costSource IS NOT excluded.costSource
+                        OR message.nonUsdCostCurrency IS NOT excluded.nonUsdCostCurrency
+                        OR message.nonUsdCostAmount IS NOT excluded.nonUsdCostAmount
+                        OR message.nonUsdCostSource IS NOT excluded.nonUsdCostSource
+                        OR message.inputTokens IS NOT excluded.inputTokens
+                        OR message.outputTokens IS NOT excluded.outputTokens
+                        OR message.cacheCreationInputTokens IS NOT excluded.cacheCreationInputTokens
+                        OR message.capabilityExecution IS NOT excluded.capabilityExecution
+                        OR message.unhandledToolCalls IS NOT excluded.unhandledToolCalls
+                        OR message.toolSteps IS NOT excluded.toolSteps
+                        OR message.toolFallbackNotice IS NOT excluded.toolFallbackNotice
+                        OR message.recoveryPrimaryAction IS NOT excluded.recoveryPrimaryAction
+                        OR message.stopReason IS NOT excluded.stopReason
+                        OR message.memoryItemIds IS NOT excluded.memoryItemIds
                     """,
                 arguments: [
                     message.id.uuidString,
@@ -1935,7 +2024,8 @@ final class ConversationStore: @unchecked Sendable {
         into db: Database,
         referencedFileIDs: inout Set<String>,
         imageCandidates: inout Set<String>,
-        deletingMessageIDs: Set<UUID> = []
+        deletingMessageIDs: Set<UUID> = [],
+        searchIndexEntries: [String: SearchIndexEntry]? = nil
     ) throws {
         let convIDString = conversation.id.uuidString
         let collectsImages = imagePartitionUID != nil
@@ -1973,7 +2063,11 @@ final class ConversationStore: @unchecked Sendable {
                 arguments: StatementArguments(cols.arguments)
             )
             if conversation.messages.isEmpty {
-                try Self.updateSearchIndexTitle(db: db, conversationID: convIDString, title: conversation.title)
+                // Skip when the known index row already has this title (a same-value UPDATE re-tokenizes the whole
+                // text); unknown, missing or renamed rows are still created or updated.
+                if searchIndexEntries?[convIDString]?.title != conversation.title {
+                    try Self.updateSearchIndexTitle(db: db, conversationID: convIDString, title: conversation.title)
+                }
             } else {
                 // Messages arrived without the full thread loaded: add and update only, and keep
                 // every other stored message.
@@ -2051,6 +2145,37 @@ final class ConversationStore: @unchecked Sendable {
                         recoveryPrimaryAction = excluded.recoveryPrimaryAction,
                         stopReason = excluded.stopReason,
                         memoryItemIds = excluded.memoryItemIds
+                    -- Skip rows whose values are all unchanged: a same-value UPDATE still writes the whole page
+                    -- (long text included) to the WAL and stretches the write lock during a whole-table write.
+                    WHERE
+                        message.text IS NOT excluded.text
+                        OR message.quoteContext IS NOT excluded.quoteContext
+                        OR message.estimatedCost IS NOT excluded.estimatedCost
+                        OR message.state IS NOT excluded.state
+                        OR message.errorTitle IS NOT excluded.errorTitle
+                        OR message.errorDetail IS NOT excluded.errorDetail
+                        OR message.sortOrder IS NOT excluded.sortOrder
+                        OR message.servedModelID IS NOT excluded.servedModelID
+                        OR message.citations IS NOT excluded.citations
+                        OR message.reasoningText IS NOT excluded.reasoningText
+                        OR message.reasoningDurationMs IS NOT excluded.reasoningDurationMs
+                        OR message.cachedInputTokens IS NOT excluded.cachedInputTokens
+                        OR message.cacheCreation5mTokens IS NOT excluded.cacheCreation5mTokens
+                        OR message.cacheCreation1hTokens IS NOT excluded.cacheCreation1hTokens
+                        OR message.costSource IS NOT excluded.costSource
+                        OR message.nonUsdCostCurrency IS NOT excluded.nonUsdCostCurrency
+                        OR message.nonUsdCostAmount IS NOT excluded.nonUsdCostAmount
+                        OR message.nonUsdCostSource IS NOT excluded.nonUsdCostSource
+                        OR message.inputTokens IS NOT excluded.inputTokens
+                        OR message.outputTokens IS NOT excluded.outputTokens
+                        OR message.cacheCreationInputTokens IS NOT excluded.cacheCreationInputTokens
+                        OR message.capabilityExecution IS NOT excluded.capabilityExecution
+                        OR message.unhandledToolCalls IS NOT excluded.unhandledToolCalls
+                        OR message.toolSteps IS NOT excluded.toolSteps
+                        OR message.toolFallbackNotice IS NOT excluded.toolFallbackNotice
+                        OR message.recoveryPrimaryAction IS NOT excluded.recoveryPrimaryAction
+                        OR message.stopReason IS NOT excluded.stopReason
+                        OR message.memoryItemIds IS NOT excluded.memoryItemIds
                     """,
                 arguments: [
                     message.id.uuidString,
@@ -2151,12 +2276,20 @@ final class ConversationStore: @unchecked Sendable {
             }
         }
 
-        try Self.rebuildSearchIndex(
+        // Do not rebuild the search index when both title and body are unchanged.
+        if try !Self.searchIndexMatches(
             db: db,
-            conversationID: convIDString,
+            entry: searchIndexEntries?[convIDString],
             title: conversation.title,
             messages: conversation.messages
-        )
+        ) {
+            try Self.rebuildSearchIndex(
+                db: db,
+                conversationID: convIDString,
+                title: conversation.title,
+                messages: conversation.messages
+            )
+        }
     }
 }
 

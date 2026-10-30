@@ -31,6 +31,18 @@ final class AssistantMessageCell: UICollectionViewCell {
     var citationsBlock: CitationsBlock?
     /// Citations of the currently bound message; used to attach the block once the final streaming render finishes.
     var boundCitations: [Citation] = []
+    /// Title of the external search sources card (the stored sourcesLine); when non-nil the citations block becomes
+    /// the sources card, and the title shows even with 0 sources.
+    var boundSearchHeader: SearchSourcesHeaderPresentation?
+    /// Resident slot for the external search error card: after the citations, before the reply notice; hidden when there is no card.
+    let searchErrorCard = UIKitSearchErrorCard()
+    /// Search query chips below the external search activity line, and their resident slot.
+    let searchQueryChips = UIKitSearchQueryChips()
+    let searchQueryChipsHost = UIView()
+    /// External search activity context of the currently bound message (transient, from the activity channel).
+    var externalSearchTrail: ExternalSearchActivityTrail?
+    /// Actions of the external search card / menu.
+    var onSearchAction: ((ExternalSearchCardAction) -> Void)?
     let citationsHost = UIView()
 
     // Stream activity status line: directly below the body text, above the tool-call card,
@@ -166,6 +178,24 @@ final class AssistantMessageCell: UICollectionViewCell {
         streaming ? max(current, natural) : 0
     }
 
+    /// The self-size target width: only finite positive values pass (clamped to `maxFittingWidth`);
+    /// otherwise the first usable fallback from the same sources, and 1pt as a last resort.
+    nonisolated static func sanitizedFittingWidth(proposed: CGFloat, fallbacks: [CGFloat]) -> CGFloat {
+        let usable = ([proposed] + fallbacks).first { $0.isFinite && $0 > 0 } ?? 1
+        return min(max(usable, 1), maxFittingWidth)
+    }
+
+    /// A width no screen or split view can reach; an astronomical width in a required constraint also
+    /// drives the layout engine to inf.
+    nonisolated static let maxFittingWidth: CGFloat = 100_000
+
+    /// When the measured height is not finite, fall back to the previous height (1pt at worst) instead
+    /// of reporting inf/NaN to the layout.
+    nonisolated static func sanitizedFittedHeight(_ fitted: CGFloat, fallback: CGFloat) -> CGFloat {
+        if fitted.isFinite { return max(ceil(fitted), 1) }
+        return fallback.isFinite ? max(ceil(fallback), 1) : 1
+    }
+
     let streamingCodeRenderer = AssistantStreamingCodeRenderer()
 
     var streamingTableRenderer: AssistantStreamingTableRenderer?
@@ -216,6 +246,7 @@ final class AssistantMessageCell: UICollectionViewCell {
         onCrosscheck: (() -> Void)? = nil,
         onOpenMemoryUsed: (() -> Void)? = nil,
         onToolStepAction: ((McpToolStepAction) -> Void)? = nil,
+        onSearchAction: ((ExternalSearchCardAction) -> Void)? = nil,
         onSaveSelection: ((String) -> Void)? = nil,
         onAskSelection: ((QuoteSelectionContent) -> Void)? = nil,
         onReplaceSelection: ((String) -> Void)? = nil,
@@ -226,6 +257,7 @@ final class AssistantMessageCell: UICollectionViewCell {
         onIgnoreMemorySuggestion: (() -> Void)? = nil
     ) {
         self.onToolStepAction = onToolStepAction
+        self.onSearchAction = onSearchAction
         configureCompactionSeparator(model.compactionSeparator, onTap: onOpenCompactionDetail)
         let previousMessageID = boundMessageID
         let previousMessageState = currentMessageState
@@ -364,7 +396,16 @@ final class AssistantMessageCell: UICollectionViewCell {
         // pace, while citations can be attached as soon as they are written to message.citations.
         // The data itself is kept so retry / edit can still map citations back to documents.
         boundCitations = model.message.citations ?? []
+        boundSearchHeader = ExternalSearchChatPresentation.sourcesHeader(model.message)
         refreshCitationsBlock(parentViewController: parentViewController)
+        configureSearchErrorCard(
+            isGenerating
+                ? nil
+                : ExternalSearchChatPresentation.errorCard(
+                    model.message, isLastAssistant: model.message.role == .assistant && model.isLastInConversation,
+                    serviceExists: { WebSearchLocalServices.contains($0) }
+                )
+        )
         configureReplyNotice(isGenerating ? nil : model.replyNotice)
 
         if model.showMetadata {
@@ -376,6 +417,10 @@ final class AssistantMessageCell: UICollectionViewCell {
                 leadingInset: Self.assistantBodyLeadingInset,
                 onRetry: onRetry,
                 onContinue: onContinue,
+                onRegenerateWithSearch: ExternalSearchChatPresentation.offersRegenerateWithSearch(model.message)
+                    && onSearchAction != nil
+                    ? { [weak self] in self?.onSearchAction?(.regenerateWithSearch) }
+                    : nil,
                 onSaveNote: onSaveNote,
                 onOpenNoteReferences: onOpenNoteReferences,
                 onCrosscheck: onCrosscheck,

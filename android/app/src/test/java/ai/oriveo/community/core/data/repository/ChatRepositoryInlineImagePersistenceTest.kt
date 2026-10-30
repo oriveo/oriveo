@@ -7,6 +7,7 @@ import ai.oriveo.community.core.model.ChatMessageState
 import ai.oriveo.community.core.model.Conversation
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderConnectionState
+import ai.oriveo.community.core.model.ProviderChatResult
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.StreamEvent
 import ai.oriveo.community.core.provider.ProviderService
@@ -73,6 +74,29 @@ class ChatRepositoryInlineImagePersistenceTest {
         assertTrue(failed.text.contains("Want another one?"))
         assertEquals(listOf("IMG-1"), failed.attachments.orEmpty().map { it.localImageId })
         assertTrue(failed.attachments.orEmpty().all { it.base64Data == null })
+    }
+
+    // Completion extracts inline images the same way as the failure path: base64 wrapped at 76 columns must become an attachment, never stay in the persisted text
+    @Test
+    fun `completed stream with line wrapped inline image never writes base64 into text`() = runTest {
+        val finalMessages = mutableListOf<ChatMessage>()
+        coEvery { conversationRepository.updateMessage(any(), capture(finalMessages)) } returns Unit
+        val wrapped = imageBase64.chunked(76).joinToString("\n")
+        val body = "Here is your picture:\n![generated](data:image/png;base64,$wrapped)\nWant another one?"
+
+        send(
+            flow {
+                emit(StreamEvent.Delta(body))
+                emit(StreamEvent.Done(ProviderChatResult(text = body)))
+            },
+        )
+
+        val delivered = finalMessages.last()
+        assertEquals(ChatMessageState.Delivered, delivered.state)
+        assertFalse(delivered.text.contains("data:image"))
+        assertTrue(delivered.text.contains("Want another one?"))
+        assertEquals(listOf("IMG-1"), delivered.attachments.orEmpty().map { it.localImageId })
+        assertTrue(delivered.attachments.orEmpty().all { it.base64Data == null })
     }
 
     private fun provider() = Provider(

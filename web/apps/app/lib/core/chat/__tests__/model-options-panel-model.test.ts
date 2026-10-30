@@ -18,6 +18,14 @@ import type { ModelOptionCapabilityInput } from '../model-option-capability-shap
 import { resolveGenerationParameterOverridesWithSources, saveGenerationParameterOverrides } from '../generation-parameter-settings';
 import { generationParameterRows } from '../generation-parameter-rows';
 import { localEngineGenerationProfile } from '../local-engine-profiles';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { SEARCH_CATALOG_SNAPSHOT_VIEW } from '@oriveo/core/search/catalog-snapshot';
+import type { CatalogEntry } from '@oriveo/core/search/search-catalog';
+import { buildSearchServiceView } from '../../../search/search-settings-data';
+import { externalSearchFacts } from '../../../search/external-search-context';
+import type { StoredPresetSearchService } from '../../../search/search-service-store';
+import { modelOptionsTileStatusCopy } from '../model-options-copy';
 import {
   modelOptionsPanelModel,
   reasoningTierAfterTap,
@@ -268,5 +276,42 @@ describe('thinking tier rejected by upstream', () => {
     const row = out.card.kind === 'rows' ? out.card.rows[1] : undefined;
     expect(row).toMatchObject({ kind: 'tiers', selection: 'max', rejected: [] });
     expect(out.notes.reasoning).toEqual([{ kind: 'note', textKey: 'common.capabilityControlUpstreamRejected', tone: 'warning' }]);
+  });
+});
+
+describe('web card wired to the external search service', () => {
+  it('one selectable service + a model without native web → production resolution yields toggleWithSource, status = "Search with DeepSeek"', () => {
+    const catalog = {
+      available: true,
+      entries: (SEARCH_CATALOG_SNAPSHOT_VIEW as { data: { services: CatalogEntry[] } }).data.services,
+      withdrawn: [],
+    };
+    const deepseek = catalog.entries.find((entry) => entry.id === 'deepseek')!;
+    const record: StoredPresetSearchService = {
+      id: 'svc-1', kind: 'preset', serviceId: 'deepseek', name: 'DeepSeek', regionId: 'cn',
+      boundHost: deepseek.regions[0].host, connectionRef: null, createdAt: 1, updatedAt: 1,
+    };
+    const view = buildSearchServiceView(record, { hasKey: true, keyTail: 'abcd' }, catalog, []);
+    const { input } = externalSearchFacts({
+      data: { catalog, connections: [], snapshot: { services: [view], defaultId: 'svc-1' } },
+      // External search was turned on once for this conversation x this model.
+      stored: { methods: { 'p1:m1': 'external' }, serviceId: 'svc-1', serviceName: 'DeepSeek', notice: null },
+      modelKey: 'p1:m1',
+      form: 'byok',
+      currentProviderKind: 'openai',
+      toolCall: 'supported',
+      panelWritable: true,
+    });
+    const out = modelOptionsPanelModel(facts({
+      web: capability({ capability: 'web', status: 'unsupported', selectedIntent: 'automatic', externalSearch: input }),
+    }));
+    const web = out.card.kind === 'rows' ? out.card.rows.find((row) => row.capability === 'web') : undefined;
+    expect(web).toMatchObject({ kind: 'toggleWithSource', isOn: true, path: 'external_tool' });
+    const tile = out.tiles.find((t) => t.kind === 'capability' && t.capability === 'web')!;
+    const status = modelOptionsTileStatusCopy(tile) as { key: string; args?: Record<string, string> };
+    const en = JSON.parse(readFileSync(join(process.cwd(), 'messages', 'en.json'), 'utf8')) as { webSearch: { card: Record<string, string> } };
+    expect(status.key).toBe('webSearch.card.useService');
+    expect(en.webSearch.card.useService.replace('{name}', String(status.args?.name))).toBe('Search with DeepSeek');
+    expect(out.summary).toContainEqual({ kind: 'webOn' });
   });
 });

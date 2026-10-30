@@ -89,6 +89,8 @@ class HomeViewModel(
     private val generationParameterSettingsStore: GenerationParameterSettingsStore? = null,
     private val capabilityPreferenceStore: ai.oriveo.community.core.model.CapabilityPreferenceStore? = null,
     private val localCustomFragmentStore: LocalCapabilityCustomFragmentStore? = null,
+    /** External search: deleting a conversation also deletes its search source; null (tests etc.) skips it. */
+    private val searchServiceStore: ai.oriveo.community.core.search.SearchServiceStore? = null,
     /** Record of the one-time notice that the new-chat preferred model was retired; null (tests etc.) shows no notice. */
     private val modelRetiredHintStore: ai.oriveo.community.core.provider.ModelRetiredHintStore? = null,
     /** Provider first-use disclosure for the home waveform key; null means no disclosure gate (tests). */
@@ -535,6 +537,9 @@ class HomeViewModel(
                 generationParameterSettingsStore?.removeScopes(conversationID = id)
                 capabilityPreferenceStore?.removeScopes(conversationID = id)
                 localCustomFragmentStore?.removeScopes(conversationID = id)
+                searchServiceStore?.let { store ->
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { store.removeConversationSource(id) }
+                }
             } catch (_: Exception) { }
         }
     }
@@ -554,6 +559,9 @@ class HomeViewModel(
                 ids.forEach { generationParameterSettingsStore?.removeScopes(conversationID = it) }
                 ids.forEach { capabilityPreferenceStore?.removeScopes(conversationID = it) }
                 ids.forEach { localCustomFragmentStore?.removeScopes(conversationID = it) }
+                searchServiceStore?.let { store ->
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { ids.forEach(store::removeConversationSource) }
+                }
             } catch (_: Exception) {
             }
         }
@@ -570,6 +578,9 @@ class HomeViewModel(
                 ids.forEach { generationParameterSettingsStore?.removeScopes(conversationID = it) }
                 ids.forEach { capabilityPreferenceStore?.removeScopes(conversationID = it) }
                 ids.forEach { localCustomFragmentStore?.removeScopes(conversationID = it) }
+                searchServiceStore?.let { store ->
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { ids.forEach(store::removeConversationSource) }
+                }
             } catch (_: Exception) {
             }
         }

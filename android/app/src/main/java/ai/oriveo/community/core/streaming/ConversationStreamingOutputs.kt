@@ -37,6 +37,10 @@ data class ConversationStreamingOutputs(
      */
     val streamingActivity: MutableStateFlow<StreamActivity?> = MutableStateFlow(null),
     /**
+     * Display context for [StreamActivity.ExternalSearch] (service name + query). External search appends a query per call and, after deliver, only flips in-flight off; transient, never persisted.
+     */
+    val streamingExternalSearch: MutableStateFlow<ai.oriveo.community.core.search.ExternalSearchActivityState?> = MutableStateFlow(null),
+    /**
      * A system interrupt (stop-all, passive stop) requested before cancel.
      * Cancellation finalizers read it: system interrupts record transport_error semantics
      * (incomplete with text, otherwise error) instead of interrupted, which is reserved for

@@ -69,64 +69,84 @@ nonisolated final class McpServerStore: @unchecked Sendable {
     ///   collides with a server already present must not delete it.
     @discardableResult
     func addServer(_ addition: McpServerAddition, maxServers: Int) throws -> McpServerRecord {
-        try dbPool.write { db in
-            try Self.requireCapacity(maxServers, in: db)
-            try Self.requireAbsent(addition.id, in: db)
-            let existingSlugs = Set(try String.fetchAll(db, sql: "SELECT slug FROM mcp_server"))
-            let record = McpServerRecord(
-                id: addition.id,
-                name: addition.name,
-                slug: McpSlug.unique(name: addition.name, existing: existingSlugs),
-                url: addition.url,
-                authKind: addition.authKind,
-                localOnly: addition.localOnly,
-                iconURL: addition.iconURL,
-                createdAt: addition.createdAt,
-                updatedAt: addition.createdAt
-            )
-            try Self.insertServerRow(record, in: db)
-            for snapshot in addition.snapshots {
-                try Self.insertSnapshot(snapshot, in: db)
-            }
-            for (toolName, permission) in addition.permissions {
-                try Self.upsertPermission(permission, serverId: addition.id, toolName: toolName, in: db)
-            }
-            try Self.upsertConnectionState(addition.connectionState, in: db)
-            return record
+        try dbPool.write { db in try Self.addServerRows(addition, maxServers: maxServers, in: db) }
+    }
+
+    /// Same as `addServer`, but awaits the write lock without occupying the calling thread: waiting for it
+    /// synchronously on the main thread queues behind whole-table writes for seconds.
+    @discardableResult
+    func addServerAsync(_ addition: McpServerAddition, maxServers: Int) async throws -> McpServerRecord {
+        try await dbPool.write { db in try Self.addServerRows(addition, maxServers: maxServers, in: db) }
+    }
+
+    private static func addServerRows(_ addition: McpServerAddition, maxServers: Int, in db: Database) throws -> McpServerRecord {
+        try Self.requireCapacity(maxServers, in: db)
+        try Self.requireAbsent(addition.id, in: db)
+        let existingSlugs = Set(try String.fetchAll(db, sql: "SELECT slug FROM mcp_server"))
+        let record = McpServerRecord(
+            id: addition.id,
+            name: addition.name,
+            slug: McpSlug.unique(name: addition.name, existing: existingSlugs),
+            url: addition.url,
+            authKind: addition.authKind,
+            localOnly: addition.localOnly,
+            iconURL: addition.iconURL,
+            createdAt: addition.createdAt,
+            updatedAt: addition.createdAt
+        )
+        try Self.insertServerRow(record, in: db)
+        for snapshot in addition.snapshots {
+            try Self.insertSnapshot(snapshot, in: db)
         }
+        for (toolName, permission) in addition.permissions {
+            try Self.upsertPermission(permission, serverId: addition.id, toolName: toolName, in: db)
+        }
+        try Self.upsertConnectionState(addition.connectionState, in: db)
+        return record
     }
 
     /// Applies an edit to a server record (by id). The slug never changes after creation, so it is not updated.
     func updateServer(_ record: McpServerRecord) throws {
-        try dbPool.write { db in
-            try db.execute(
-                sql: """
-                    UPDATE mcp_server
-                    SET name = ?, url = ?, authKind = ?, localOnly = ?, iconURL = ?,
-                        updatedAt = ?, schemaVersion = ?
-                    WHERE id = ?
-                    """,
-                arguments: [
-                    record.name,
-                    Self.storedURL(for: record),
-                    record.authKind.rawValue,
-                    record.localOnly ? 1 : 0,
-                    record.iconURL,
-                    record.updatedAt.timeIntervalSince1970,
-                    record.schemaVersion,
-                    record.id.uuidString,
-                ]
-            )
-        }
+        try dbPool.write { db in try Self.updateServerRows(record, in: db) }
+    }
+
+    /// Same as `updateServer`, awaiting the write lock instead of blocking the calling thread.
+    func updateServerAsync(_ record: McpServerRecord) async throws {
+        try await dbPool.write { db in try Self.updateServerRows(record, in: db) }
+    }
+
+    private static func updateServerRows(_ record: McpServerRecord, in db: Database) throws {
+        try db.execute(
+            sql: """
+                UPDATE mcp_server
+                SET name = ?, url = ?, authKind = ?, localOnly = ?, iconURL = ?,
+                    updatedAt = ?, schemaVersion = ?
+                WHERE id = ?
+                """,
+            arguments: [
+                record.name,
+                Self.storedURL(for: record),
+                record.authKind.rawValue,
+                record.localOnly ? 1 : 0,
+                record.iconURL,
+                record.updatedAt.timeIntervalSince1970,
+                record.schemaVersion,
+                record.id.uuidString,
+            ]
+        )
     }
 
     /// Deletes a server record and everything kept for it on this device: connection state, tool snapshots,
     /// permissions, conversation switches and step payloads. Its "allow for this conversation" grants are void
     /// as well. The caller clears the credentials through `McpCredentialStore`.
     func deleteServer(id: UUID) throws {
-        try dbPool.write { db in
-            try Self.deleteServerRows(id: id, in: db)
-        }
+        try dbPool.write { db in try Self.deleteServerRows(id: id, in: db) }
+        McpConversationGrants.shared.revoke(serverId: id)
+    }
+
+    /// Same as `deleteServer`, awaiting the write lock instead of blocking the calling thread.
+    func deleteServerAsync(id: UUID) async throws {
+        try await dbPool.write { db in try Self.deleteServerRows(id: id, in: db) }
         McpConversationGrants.shared.revoke(serverId: id)
     }
 
@@ -134,6 +154,13 @@ nonisolated final class McpServerStore: @unchecked Sendable {
 
     func saveConnectionState(_ state: McpConnectionState) throws {
         try dbPool.write { db in
+            try Self.upsertConnectionState(state, in: db)
+        }
+    }
+
+    /// Same as `saveConnectionState`, awaiting the write lock instead of blocking the calling thread.
+    func saveConnectionStateAsync(_ state: McpConnectionState) async throws {
+        try await dbPool.write { db in
             try Self.upsertConnectionState(state, in: db)
         }
     }
@@ -207,11 +234,31 @@ nonisolated final class McpServerStore: @unchecked Sendable {
         permissions: [String: McpToolPermission]
     ) throws {
         try dbPool.write { db in
-            try Self.replaceSnapshots(serverId: serverId, snapshots: snapshots, in: db)
-            try db.execute(sql: "DELETE FROM mcp_tool_permission WHERE serverId = ?", arguments: [serverId.uuidString])
-            for (toolName, permission) in permissions {
-                try Self.upsertPermission(permission, serverId: serverId, toolName: toolName, in: db)
-            }
+            try Self.replaceToolCatalogRows(serverId: serverId, snapshots: snapshots, permissions: permissions, in: db)
+        }
+    }
+
+    /// Same as `replaceToolCatalog`, awaiting the write lock instead of blocking the calling thread.
+    func replaceToolCatalogAsync(
+        serverId: UUID,
+        snapshots: [McpToolSnapshot],
+        permissions: [String: McpToolPermission]
+    ) async throws {
+        try await dbPool.write { db in
+            try Self.replaceToolCatalogRows(serverId: serverId, snapshots: snapshots, permissions: permissions, in: db)
+        }
+    }
+
+    private static func replaceToolCatalogRows(
+        serverId: UUID,
+        snapshots: [McpToolSnapshot],
+        permissions: [String: McpToolPermission],
+        in db: Database
+    ) throws {
+        try replaceSnapshots(serverId: serverId, snapshots: snapshots, in: db)
+        try db.execute(sql: "DELETE FROM mcp_tool_permission WHERE serverId = ?", arguments: [serverId.uuidString])
+        for (toolName, permission) in permissions {
+            try upsertPermission(permission, serverId: serverId, toolName: toolName, in: db)
         }
     }
 
@@ -239,6 +286,13 @@ nonisolated final class McpServerStore: @unchecked Sendable {
         }
     }
 
+    /// Same as `setToolPermission`, awaiting the write lock instead of blocking the calling thread.
+    func setToolPermissionAsync(_ permission: McpToolPermission, serverId: UUID, toolName: String) async throws {
+        try await dbPool.write { db in
+            try Self.upsertPermission(permission, serverId: serverId, toolName: toolName, in: db)
+        }
+    }
+
     // MARK: - Conversation switches
     //
     // `conversationId` holds the conversation id's `uuidString`, spelled exactly like `conversation.id`:
@@ -259,31 +313,53 @@ nonisolated final class McpServerStore: @unchecked Sendable {
     /// the draft id and moved over as a whole once the conversation is created.
     func moveConversationSwitches(from draftId: UUID, to conversationId: UUID) throws {
         guard draftId != conversationId else { return }
-        try dbPool.write { db in
-            try db.execute(
-                sql: "UPDATE OR REPLACE mcp_conversation_switch SET conversationId = ? WHERE conversationId = ?",
-                arguments: [conversationId.uuidString, draftId.uuidString]
-            )
-        }
+        try dbPool.write { db in try Self.moveConversationSwitchRows(from: draftId, to: conversationId, in: db) }
+    }
+
+    /// Same as `moveConversationSwitches`, awaiting the write lock (the send path runs on the main thread).
+    func moveConversationSwitchesAsync(from draftId: UUID, to conversationId: UUID) async throws {
+        guard draftId != conversationId else { return }
+        try await dbPool.write { db in try Self.moveConversationSwitchRows(from: draftId, to: conversationId, in: db) }
+    }
+
+    private static func moveConversationSwitchRows(from draftId: UUID, to conversationId: UUID, in db: Database) throws {
+        try db.execute(
+            sql: "UPDATE OR REPLACE mcp_conversation_switch SET conversationId = ? WHERE conversationId = ?",
+            arguments: [conversationId.uuidString, draftId.uuidString]
+        )
     }
 
     func setServerEnabled(_ enabled: Bool, conversationId: UUID, serverId: UUID) throws {
         try dbPool.write { db in
-            if enabled {
-                try db.execute(
-                    sql: """
-                        INSERT INTO mcp_conversation_switch (conversationId, serverId, enabledAt)
-                        VALUES (?, ?, ?)
-                        ON CONFLICT(conversationId, serverId) DO NOTHING
-                        """,
-                    arguments: [conversationId.uuidString, serverId.uuidString, Date().timeIntervalSince1970]
-                )
-            } else {
-                try db.execute(
-                    sql: "DELETE FROM mcp_conversation_switch WHERE conversationId = ? AND serverId = ?",
-                    arguments: [conversationId.uuidString, serverId.uuidString]
-                )
-            }
+            try Self.setServerEnabledRows(enabled, conversationId: conversationId, serverId: serverId, enabledAt: Date(), in: db)
+        }
+    }
+
+    /// Same as `setServerEnabled`, awaiting the write lock (the tool panel switch runs on the main thread).
+    func setServerEnabledAsync(_ enabled: Bool, conversationId: UUID, serverId: UUID) async throws {
+        let enabledAt = Date()
+        try await dbPool.write { db in
+            try Self.setServerEnabledRows(enabled, conversationId: conversationId, serverId: serverId, enabledAt: enabledAt, in: db)
+        }
+    }
+
+    private static func setServerEnabledRows(
+        _ enabled: Bool, conversationId: UUID, serverId: UUID, enabledAt: Date, in db: Database
+    ) throws {
+        if enabled {
+            try db.execute(
+                sql: """
+                    INSERT INTO mcp_conversation_switch (conversationId, serverId, enabledAt)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(conversationId, serverId) DO NOTHING
+                    """,
+                arguments: [conversationId.uuidString, serverId.uuidString, enabledAt.timeIntervalSince1970]
+            )
+        } else {
+            try db.execute(
+                sql: "DELETE FROM mcp_conversation_switch WHERE conversationId = ? AND serverId = ?",
+                arguments: [conversationId.uuidString, serverId.uuidString]
+            )
         }
     }
 
@@ -291,12 +367,16 @@ nonisolated final class McpServerStore: @unchecked Sendable {
     /// are kept and quarantined tools stay quarantined; it can be turned back on from the tool panel of any
     /// conversation.
     func disableServerInAllConversations(serverId: UUID) throws {
-        try dbPool.write { db in
-            try db.execute(
-                sql: "DELETE FROM mcp_conversation_switch WHERE serverId = ?",
-                arguments: [serverId.uuidString]
-            )
-        }
+        try dbPool.write { db in try Self.disableServerRows(serverId: serverId, in: db) }
+    }
+
+    /// Same as `disableServerInAllConversations`, awaiting the write lock instead of blocking the calling thread.
+    func disableServerInAllConversationsAsync(serverId: UUID) async throws {
+        try await dbPool.write { db in try Self.disableServerRows(serverId: serverId, in: db) }
+    }
+
+    private static func disableServerRows(serverId: UUID, in db: Database) throws {
+        try db.execute(sql: "DELETE FROM mcp_conversation_switch WHERE serverId = ?", arguments: [serverId.uuidString])
     }
 
     // MARK: - Step payloads
@@ -317,32 +397,65 @@ nonisolated final class McpServerStore: @unchecked Sendable {
         arguments: String?,
         resultPrefix: String?
     ) throws {
+        let createdAt = Date()
         try dbPool.write { db in
-            if let serverId {
-                let exists = try Bool.fetchOne(
-                    db, sql: "SELECT EXISTS(SELECT 1 FROM mcp_server WHERE id = ?)", arguments: [serverId.uuidString]
-                ) ?? false
-                guard exists else { return }
-            }
-            try db.execute(
-                sql: """
-                    INSERT INTO mcp_step_payload (messageID, stepID, serverId, arguments, resultPrefix, createdAt)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(messageID, stepID) DO UPDATE SET
-                        serverId = COALESCE(excluded.serverId, serverId),
-                        arguments = COALESCE(excluded.arguments, arguments),
-                        resultPrefix = COALESCE(excluded.resultPrefix, resultPrefix)
-                    """,
-                arguments: [
-                    messageID.uuidString,
-                    stepID,
-                    serverId?.uuidString,
-                    Self.capped(arguments, bytes: Self.maxStepArgumentsBytes),
-                    Self.capped(resultPrefix, bytes: Self.maxStepResultPrefixBytes),
-                    Date().timeIntervalSince1970,
-                ]
+            try Self.saveStepPayloadRows(
+                messageID: messageID, stepID: stepID, serverId: serverId,
+                arguments: arguments, resultPrefix: resultPrefix, createdAt: createdAt, in: db
             )
         }
+    }
+
+    /// Same as `saveStepPayload`, awaiting the write lock instead of blocking the calling thread.
+    func saveStepPayloadAsync(
+        messageID: UUID,
+        stepID: String,
+        serverId: UUID? = nil,
+        arguments: String?,
+        resultPrefix: String?
+    ) async throws {
+        let createdAt = Date()
+        try await dbPool.write { db in
+            try Self.saveStepPayloadRows(
+                messageID: messageID, stepID: stepID, serverId: serverId,
+                arguments: arguments, resultPrefix: resultPrefix, createdAt: createdAt, in: db
+            )
+        }
+    }
+
+    private static func saveStepPayloadRows(
+        messageID: UUID,
+        stepID: String,
+        serverId: UUID?,
+        arguments: String?,
+        resultPrefix: String?,
+        createdAt: Date,
+        in db: Database
+    ) throws {
+        if let serverId {
+            let exists = try Bool.fetchOne(
+                db, sql: "SELECT EXISTS(SELECT 1 FROM mcp_server WHERE id = ?)", arguments: [serverId.uuidString]
+            ) ?? false
+            guard exists else { return }
+        }
+        try db.execute(
+            sql: """
+                INSERT INTO mcp_step_payload (messageID, stepID, serverId, arguments, resultPrefix, createdAt)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(messageID, stepID) DO UPDATE SET
+                    serverId = COALESCE(excluded.serverId, serverId),
+                    arguments = COALESCE(excluded.arguments, arguments),
+                    resultPrefix = COALESCE(excluded.resultPrefix, resultPrefix)
+                """,
+            arguments: [
+                messageID.uuidString,
+                stepID,
+                serverId?.uuidString,
+                Self.capped(arguments, bytes: Self.maxStepArgumentsBytes),
+                Self.capped(resultPrefix, bytes: Self.maxStepResultPrefixBytes),
+                createdAt.timeIntervalSince1970,
+            ]
+        )
     }
 
     func fetchStepPayload(messageID: UUID, stepID: String) throws -> (arguments: String?, resultPrefix: String?)? {

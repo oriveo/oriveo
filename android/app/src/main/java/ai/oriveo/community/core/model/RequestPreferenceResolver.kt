@@ -341,6 +341,14 @@ object RequestPreferenceResolver {
         "provider_tool_result", "citation", "grounding", "thinking_block", "reasoning_usage",
     )
 
+    /**
+     * Message facts for external search (contract resultFacts.externalSearch): a search run on this device with the user's own key, not recipe evidence --
+     * [EXTERNAL_SEARCH_EVIDENCE_KIND] is not among the observed evidence, so it never promotes the recipe owner to observed.
+     */
+    const val EXTERNAL_SEARCH_RESULT_SOURCE = "external_search"
+    const val EXTERNAL_SEARCH_EVIDENCE_KIND = "external_search_result"
+    val EXTERNAL_SEARCH_STATES: List<String> = listOf("not_requested", "observed", "unconfirmed", "failed")
+
     data class ResultIntent(
         val wireApplied: Boolean,
         val providerAccepted: Boolean,

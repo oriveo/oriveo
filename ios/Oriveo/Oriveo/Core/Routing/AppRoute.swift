@@ -40,6 +40,12 @@ enum AppRoute: Hashable {
     case voiceSettings
     /// Settings > Appearance > Theme: follow system, light / dark, and the dark palette.
     case themeSettings
+    /// Settings > Tools & connections > Web search: my search services, adding one, and the default.
+    case webSearchSettings
+    /// Details of one saved search service (key, default, test, pricing, delete).
+    case webSearchServiceDetail(serviceID: String)
+    /// Search service details > Advanced: results per request.
+    case webSearchResultCount(serviceID: String)
     /// MCP server management ("MCP servers" in Settings, "Manage MCP servers" in the chat tool panel).
     case mcpServers
     /// Add an MCP server ("Add" on the list page, "Add MCP server" in the empty tool panel).

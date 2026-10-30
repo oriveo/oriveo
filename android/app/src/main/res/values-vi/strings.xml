@@ -84,7 +84,7 @@
     <string name="message_failed">Gửi không thành công</string>
     <string name="message_failed_body">Yêu cầu không hoàn thành rõ ràng. Hãy thử lại ngay bây giờ hoặc chỉnh sửa tin nhắn cuối cùng của người dùng trước khi gửi lại.</string>
     <string name="message_interrupted">Phản hồi bị gián đoạn</string>
-    <string name="message_interrupted_body">Đã giữ lại phản hồi một phần. Nhấn Tiếp tục tạo để tiếp tục từ nơi đã dừng, hoặc tái sinh để yêu cầu câu trả lời đầy đủ mới.</string>
+    <string name="message_interrupted_body">Đã giữ lại phản hồi một phần. Nhấn Tiếp tục tạo để tiếp tục từ nơi đã dừng, hoặc Tạo lại để yêu cầu câu trả lời đầy đủ mới.</string>
     <string name="web_search">Tìm kiếm web</string>
     <string name="export_conversation">Xuất cuộc trò chuyện</string>
     <string name="chat_export_markdown_ready">Bảng chia sẻ đã được mở để xuất Markdown.</string>

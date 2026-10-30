@@ -121,7 +121,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
             continuationKind: "replay_blocks", parser: { ["gemini_google_search_v1", "gemini_thinking_v1"].contains($0) }
         )
         if let blocks = Self.geminiReplayBlocks(from: data), let encoded = RecipeContinuationRuntime.jsonValue(blocks) {
-            try RecipeContinuationRuntime.save(
+            try await RecipeContinuationRuntime.save(
                 messageID: requestOptions.localContinuationMessageID, recipe: continuationRecipe,
                 state: ["blocks": encoded]
             )
@@ -367,7 +367,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
                         continuationKind: "replay_blocks", parser: { ["gemini_google_search_v1", "gemini_thinking_v1"].contains($0) }
                     )
                     if let blocks = latestReplayBlocks, let encoded = RecipeContinuationRuntime.jsonValue(blocks) {
-                        try RecipeContinuationRuntime.save(
+                        try await RecipeContinuationRuntime.save(
                             messageID: requestOptions.localContinuationMessageID, recipe: continuationRecipe,
                             state: ["blocks": encoded]
                         )

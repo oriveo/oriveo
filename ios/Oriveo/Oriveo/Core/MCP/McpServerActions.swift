@@ -149,10 +149,11 @@ nonisolated final class McpServerActions: Sendable {
         }
     }
 
-    private func saveStatus(_ serverId: UUID, _ status: McpConnectionStatus, session: McpSession? = nil) {
+    /// The write awaits the write lock instead of blocking the main thread (the management page probes on the main thread).
+    private func saveStatus(_ serverId: UUID, _ status: McpConnectionStatus, session: McpSession? = nil) async {
         let current = try? store.fetchConnectionState(serverId: serverId)
         // Failing to write the state does not affect this action's result; the next probe writes it again.
-        try? store.saveConnectionState(McpConnectionState(
+        try? await store.saveConnectionStateAsync(McpConnectionState(
             serverId: serverId,
             status: status,
             lastSuccessAt: status == .connected ? now() : current?.lastSuccessAt,
@@ -168,10 +169,10 @@ nonisolated final class McpServerActions: Sendable {
         do {
             return (try await client.listTools(), false)
         } catch let error as McpClientError where error.code == .needsAuth {
-            saveStatus(serverId, .needsAuth)
+            await saveStatus(serverId, .needsAuth)
             return (nil, true)
         } catch {
-            saveStatus(serverId, .unreachable)
+            await saveStatus(serverId, .unreachable)
             return (nil, false)
         }
     }
@@ -186,10 +187,10 @@ nonisolated final class McpServerActions: Sendable {
         case .gone: return .gone
         case .needsAddress: return .needsAddress
         case .unreachable:
-            saveStatus(serverId, .unreachable)
+            await saveStatus(serverId, .unreachable)
             return .unreachable
         case .needsAuth:
-            saveStatus(serverId, .needsAuth)
+            await saveStatus(serverId, .needsAuth)
             return .needsAuth
         case .connected(let client, let session):
             let listed = await listTools(client, serverId: serverId)
@@ -197,8 +198,8 @@ nonisolated final class McpServerActions: Sendable {
             do {
                 guard (try? store.fetchServer(id: serverId)) != nil else { return .gone }
                 do {
-                    let changes = try saveCatalog(serverId: serverId, definitions: definitions)
-                    saveStatus(serverId, .connected, session: session)
+                    let changes = try await saveCatalog(serverId: serverId, definitions: definitions)
+                    await saveStatus(serverId, .connected, session: session)
                     if !changes.isEmpty {
                         // A tool whose definition changed (or disappeared) loses any earlier "allow for this
                         // conversation" grant.
@@ -212,14 +213,14 @@ nonisolated final class McpServerActions: Sendable {
         }
     }
 
-    private func saveCatalog(serverId: UUID, definitions: [McpToolDefinition]) throws -> [McpToolChange] {
+    private func saveCatalog(serverId: UUID, definitions: [McpToolDefinition]) async throws -> [McpToolChange] {
         let existing = try store.fetchToolSnapshots(serverId: serverId)
         let incoming = McpToolCatalog.snapshots(
             serverId: serverId, definitions: definitions, runtimeConfig: runtimeConfig, existing: existing, now: now()
         )
         let names = Set(incoming.map(\.toolName))
         let permissions = try store.fetchToolPermissions(serverId: serverId).filter { names.contains($0.key) }
-        try store.replaceToolCatalog(serverId: serverId, snapshots: incoming, permissions: permissions)
+        try await store.replaceToolCatalogAsync(serverId: serverId, snapshots: incoming, permissions: permissions)
         return McpToolCatalog.changes(existing: existing, incoming: incoming)
     }
 
@@ -230,13 +231,13 @@ nonisolated final class McpServerActions: Sendable {
         switch await connectSaved(serverId) {
         case .gone, .needsAddress: return nil
         case .unreachable:
-            saveStatus(serverId, .unreachable)
+            await saveStatus(serverId, .unreachable)
             return .unreachable
         case .needsAuth:
-            saveStatus(serverId, .needsAuth)
+            await saveStatus(serverId, .needsAuth)
             return .needsAuth
         case .connected(_, let session):
-            saveStatus(serverId, .connected, session: session)
+            await saveStatus(serverId, .connected, session: session)
             return .connected
         }
     }
@@ -295,10 +296,10 @@ nonisolated final class McpServerActions: Sendable {
         case .gone: return .gone
         case .needsAddress: return .needsAddress
         case .unreachable:
-            saveStatus(serverId, .unreachable)
+            await saveStatus(serverId, .unreachable)
             return .unreachable
         case .needsAuth:
-            saveStatus(serverId, .needsAuth)
+            await saveStatus(serverId, .needsAuth)
             return .needsAuth
         case .connected(let client, let session):
             let listed = await listTools(client, serverId: serverId)
@@ -333,11 +334,11 @@ nonisolated final class McpServerActions: Sendable {
                             permissions[toolName] = permission
                         }
                     }
-                    try store.replaceToolCatalog(serverId: serverId, snapshots: next, permissions: permissions)
+                    try await store.replaceToolCatalogAsync(serverId: serverId, snapshots: next, permissions: permissions)
                     // The new definition is what was confirmed, so "allow for this conversation" grants given under
                     // the old definition do not carry over.
                     grants.revoke(serverId: serverId)
-                    saveStatus(serverId, .connected, session: session)
+                    await saveStatus(serverId, .connected, session: session)
                     return .confirmed(stillPending: next.filter { $0.pendingReview }.map { $0.toolName })
                 } catch {
                     return .unreachable
@@ -347,8 +348,8 @@ nonisolated final class McpServerActions: Sendable {
     }
 
     /// "Pause this server": turns it off in every conversation; quarantined tools stay quarantined.
-    func pause(serverId: UUID) throws {
-        try store.disableServerInAllConversations(serverId: serverId)
+    func pause(serverId: UUID) async throws {
+        try await store.disableServerInAllConversationsAsync(serverId: serverId)
     }
 
     // MARK: Re-authorization
@@ -361,7 +362,7 @@ nonisolated final class McpServerActions: Sendable {
         case .needsAddress: return .needsAddress
         case .unreachable: return .unreachable
         case .connected(_, let session):
-            saveStatus(serverId, .connected, session: session)
+            await saveStatus(serverId, .connected, session: session)
             await onReauthorized(serverId)
             return .connected
         case .needsAuth(let client, let url):

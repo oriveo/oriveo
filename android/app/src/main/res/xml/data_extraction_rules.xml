@@ -21,6 +21,9 @@
         <exclude domain="database" path="message_continuations.db-shm" />
         <!-- Recordings waiting for transcription and the recycle area: kept on this device only and deleted once transcribed or discarded, so they are not carried over by backup or device transfer. -->
         <exclude domain="file" path="voice/" />
+        <!-- External search service list and keys (encrypted), catalog cache and anti-rollback watermark: stay on this device only, not carried over by backup / device transfer. -->
+        <exclude domain="sharedpref" path="oriveo_search_services.xml" />
+        <exclude domain="sharedpref" path="oriveo_search_catalog.v1.xml" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="oriveo_secure_keys.xml" />
@@ -38,5 +41,8 @@
         <exclude domain="database" path="message_continuations.db-shm" />
         <!-- Recordings waiting for transcription and the recycle area: kept on this device only and deleted once transcribed or discarded, so they are not carried over by backup or device transfer. -->
         <exclude domain="file" path="voice/" />
+        <!-- External search service list and keys (encrypted), catalog cache and anti-rollback watermark: stay on this device only, not carried over by backup / device transfer. -->
+        <exclude domain="sharedpref" path="oriveo_search_services.xml" />
+        <exclude domain="sharedpref" path="oriveo_search_catalog.v1.xml" />
     </device-transfer>
 </data-extraction-rules>

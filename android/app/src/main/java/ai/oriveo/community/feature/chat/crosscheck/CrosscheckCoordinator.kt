@@ -22,6 +22,9 @@ import ai.oriveo.community.feature.modelpicker.isModelTransportSupportedForModel
 import ai.oriveo.community.feature.providers.detail.comparePickerModels
 import ai.oriveo.community.feature.providers.detail.sortedProvidersForModelPicker
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -111,10 +114,25 @@ class CrosscheckCoordinator(
     private val scope: CoroutineScope,
     private val providerRepository: ProviderRepository,
     private val appLanguageTag: suspend () -> String = { currentSystemLanguageTag() },
+    /**
+     * Dispatcher used to collect the stream; it must not be the caller's main-thread scope. When the upstream
+     * SSE fills the channel on IO, `collect` takes elements on the fast path without suspending, so on Main the
+     * loop would keep rebuilding `sb.toString()` (O(n) per delta) and never yield a frame during generation.
+     */
+    private val streamDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
     private val _state = MutableStateFlow(CrosscheckState())
     val state: StateFlow<CrosscheckState> = _state.asStateFlow()
     private var job: Job? = null
+
+    // The stream is collected on [streamDispatcher] while cancel / reset write state on the caller's thread:
+    // one lock plus a run counter so a cancelled run cannot write stale text back after a reset.
+    private val stateLock = Any()
+    private var run = 0
+
+    private fun publishIfCurrent(runId: Int, update: (CrosscheckState) -> CrosscheckState) {
+        synchronized(stateLock) { if (run == runId) _state.value = update(_state.value) }
+    }
 
     fun start(
         originalQuestion: String,
@@ -124,7 +142,10 @@ class CrosscheckCoordinator(
         model: AIModel,
     ) {
         cancel()
-        _state.value = CrosscheckState(isStreaming = true, text = "")
+        val runId = synchronized(stateLock) {
+            _state.value = CrosscheckState(isStreaming = true, text = "")
+            run
+        }
         job = scope.launch {
             try {
                 val runtimeModelId = ProviderSelectionSnapshot.selectedModel(provider, model.id)?.id ?: model.id
@@ -148,7 +169,7 @@ class CrosscheckCoordinator(
                 val transport = planned.transportInput(requestOptions)
                 val service = providerRepository.serviceFor(provider, model)
                 val sb = StringBuilder()
-                service.sendMessageStream(
+                val stream = service.sendMessageStream(
                     apiKey = ProviderCredentialResolver.apiKey(provider, runtimeModelId),
                     modelID = runtimeModelId,
                     messages = transport.messages,
@@ -157,41 +178,47 @@ class CrosscheckCoordinator(
                     reasoningMode = ReasoningMode.Automatic,
                     webSearchEnabled = false,
                     requestOptions = transport.options,
-                ).collect { event ->
+                )
+                // StateFlow is thread-safe and conflates: the UI takes the latest value each frame,
+                // so there is no need to hop back to Main per delta.
+                withContext(streamDispatcher) { stream.collect { event ->
                     when (event) {
                         is StreamEvent.Delta -> {
                             sb.append(event.text)
-                            _state.value = _state.value.copy(text = sb.toString())
+                            val text = sb.toString()
+                            publishIfCurrent(runId) { it.copy(text = text) }
                         }
                         is StreamEvent.Done -> {
                             if (sb.isEmpty() && event.result.text.isNotBlank()) {
                                 sb.append(event.result.text)
-                                _state.value = _state.value.copy(text = sb.toString())
+                                val text = sb.toString()
+                                publishIfCurrent(runId) { it.copy(text = text) }
                             }
                         }
                         else -> Unit
                     }
-                }
-                _state.value = CrosscheckState(isStreaming = false, text = sb.toString().trim(), done = true)
+                } }
+                val text = sb.toString().trim()
+                publishIfCurrent(runId) { CrosscheckState(isStreaming = false, text = text, done = true) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _state.value = _state.value.copy(
-                    isStreaming = false,
-                    error = e.message?.takeIf { it.isNotBlank() } ?: "error",
-                )
+                publishIfCurrent(runId) {
+                    it.copy(isStreaming = false, error = e.message?.takeIf { msg -> msg.isNotBlank() } ?: "error")
+                }
             }
         }
     }
 
     fun cancel() {
+        synchronized(stateLock) { run++ }
         job?.cancel()
         job = null
     }
 
     fun reset() {
         cancel()
-        _state.value = CrosscheckState()
+        synchronized(stateLock) { _state.value = CrosscheckState() }
     }
 
     companion object {

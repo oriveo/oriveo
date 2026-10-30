@@ -566,7 +566,7 @@ final class McpAddCoordinator: Sendable {
         do {
             // A single write transaction covers everything; a failure rolls it all back, and a primary-key
             // collision with an existing server leaves that server untouched.
-            try store.addServer(
+            try await store.addServerAsync(
                 McpServerAddition(
                     id: serverId,
                     name: Self.resolveName(draft.name, session: review.session, endpoint: endpoint),
@@ -616,7 +616,7 @@ final class McpAddCoordinator: Sendable {
                 try await probe.storePastedToken(token, serverId: serverId, uid: uid)
             }
         } catch {
-            try? store.deleteServer(id: serverId)
+            try? await store.deleteServerAsync(id: serverId)
             discardCredentials(serverId: serverId, uid: uid)
             return .saveFailed
         }

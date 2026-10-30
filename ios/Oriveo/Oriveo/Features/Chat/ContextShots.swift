@@ -88,7 +88,7 @@ enum ContextShots {
         var confirmPrompt: ContextCapConfirmPresentation.Prompt?
         do {
             staged = try stage(shot, manifestData: manifestData())
-            try writeIsolatedPartition(staged)
+            try await writeIsolatedPartition(staged)
             chat = try await install(staged, into: appState)
             if let chat, chat.overlay == .confirm {
                 confirmPrompt = try self.confirmPrompt(chat, in: appState)
@@ -790,12 +790,28 @@ enum ContextShots {
     // MARK: - Isolated partitions
 
     /// Create a database in a temporary directory with only these two tables, write into it through the production `appendManifest` / `save`, and then hand it to the two stores' injection points.
-    static func writeIsolatedPartition(_ staged: Staged) throws {
+    /// Building and filling the database run in the background (the main thread never waits for the write lock); once built it is
+    /// handed to the two stores' injection points on the caller's thread.
+    static func writeIsolatedPartition(_ staged: Staged) async throws {
+        let conversationId = staged.chat?.conversation.id.uuidString
+        let manifests = staged.manifests
+        let checkpoints = staged.checkpoints
+        let pool = try await Task.detached(priority: .userInitiated) {
+            try buildIsolatedPartition(conversationId: conversationId, manifests: manifests, checkpoints: checkpoints)
+        }.value
+        ContextLedgerStore.shotsPool = pool
+        ContextCompactionStore.shotsPool = pool
+    }
+
+    private nonisolated static func buildIsolatedPartition(
+        conversationId: String?,
+        manifests: [ContextManifest],
+        checkpoints: [ContextCheckpointRecord]
+    ) throws -> DatabasePool {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("context-shots", isDirectory: true)
         try? FileManager.default.removeItem(at: directory)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let pool = try DatabasePool(path: directory.appendingPathComponent("context.sqlite").path)
-        let conversationId = staged.chat?.conversation.id.uuidString
         try pool.write { db in
             // Both tables have a foreign key to conversation(id): the isolated database creates only that column and holds the one row of the sample conversation.
             try db.execute(sql: "CREATE TABLE conversation (id TEXT PRIMARY KEY NOT NULL)")
@@ -806,11 +822,10 @@ enum ContextShots {
             try ContextCompactionStore.createTables(in: db)
         }
         let ledger = ContextLedgerStore(dbPool: pool)
-        for manifest in staged.manifests { try ledger.appendManifest(manifest) }
+        for manifest in manifests { try ledger.appendManifest(manifest) }
         let compaction = ContextCompactionStore(dbPool: pool)
-        for record in staged.checkpoints { try compaction.save(record) }
-        ContextLedgerStore.shotsPool = pool
-        ContextCompactionStore.shotsPool = pool
+        for record in checkpoints { try compaction.save(record) }
+        return pool
     }
 
     private static func waitUntil(_ condition: () -> Bool) async -> Bool {

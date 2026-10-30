@@ -20,6 +20,7 @@ import ai.oriveo.community.feature.settings.ContextSettingsViewModel
 import ai.oriveo.community.feature.settings.ThemeSettingsViewModel
 import ai.oriveo.community.feature.settings.SettingsViewModel
 import ai.oriveo.community.feature.settings.VoiceSettingsViewModel
+import ai.oriveo.community.feature.settings.websearch.WebSearchSettingsViewModel
 import ai.oriveo.community.core.model.GenerationParameterSettingsStore
 import ai.oriveo.community.core.model.GenerationParameterPresetStore
 import kotlinx.coroutines.Dispatchers
@@ -102,6 +103,7 @@ val viewModelModule = module {
             memoryCandidates = get(),
             memoryAccountId = { ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID },
             readAloudController = get(),
+            modelControlsWebSearch = getOrNull(),
         )
     }
     viewModel {
@@ -145,6 +147,7 @@ val viewModelModule = module {
             voiceDisclosure = ai.oriveo.community.feature.chat.voice.PreferencesVoiceEntryDisclosure(
                 preferences = get(),
             ),
+            searchServiceStore = get(),
         )
     }
     viewModel {
@@ -219,6 +222,7 @@ val viewModelModule = module {
     viewModelOf(::ContextSettingsViewModel)
     viewModelOf(::ThemeSettingsViewModel)
     viewModelOf(::VoiceSettingsViewModel)
+    viewModelOf(::WebSearchSettingsViewModel)
     viewModel { (conversationId: String) ->
         val generationParameters = GenerationParameterSettingsStore.from(androidContext())
         ai.oriveo.community.feature.chat.ContextCapViewModel.forConversation(

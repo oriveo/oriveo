@@ -58,6 +58,15 @@ struct AppRouteDestination: View {
         case .themeSettings:
             ThemeSettingsView()
                 .oriveoNavigationChrome()
+        case .webSearchSettings:
+            WebSearchSettingsView()
+                .oriveoNavigationChrome()
+        case let .webSearchServiceDetail(serviceID):
+            WebSearchDetailView(serviceID: serviceID)
+                .oriveoNavigationChrome()
+        case let .webSearchResultCount(serviceID):
+            WebSearchResultCountView(serviceID: serviceID)
+                .oriveoNavigationChrome()
         case .voiceSettings:
             VoiceSettingsView(appState: appState)
                 .oriveoNavigationChrome()

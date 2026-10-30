@@ -517,7 +517,7 @@ struct ModelOptionCapabilityShapeTests {
                 case let .disclosure(disclosure):
                     #expect(!disclosure.status.isEmpty)
                     #expect(disclosure.action != nil, "\(capability)/\(presentation) has no way forward")
-                case .toggle, .tiers, .toggleWithTiming, .protocolUndecided:
+                case .toggle, .tiers, .toggleWithTiming, .toggleWithSource, .protocolUndecided:
                     Issue.record("\(capability)/\(presentation) must not be \(shape)")
                 }
             }

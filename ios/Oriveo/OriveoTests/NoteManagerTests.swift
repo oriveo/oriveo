@@ -1,4 +1,5 @@
 import Foundation
+import GRDB
 import Testing
 @testable import Oriveo
 
@@ -317,21 +318,29 @@ struct NoteManagerTests {
         #expect(state.noteFolders.first?.sortOrder == 1000)
     }
 
-    @Test("Failed Local Folder-Delete Transaction Keeps The Mirror And Does Not Falsely Report Cloud Deletion")
+    @Test("A failed local folder-delete transaction rolls the mirror back: the folder and the cascaded note membership both come back")
     @MainActor
-    func deleteFolderLocalFailureKeepsMirror() {
+    func deleteFolderLocalFailureKeepsMirror() async throws {
         let state = makeNotesAppState()
-        let folder = NoteTestFactories.makeFolder(name: "Keep")
+        let folder = try #require(state.noteManager.createNoteFolder(name: "Keep"))
+        let filed = try #require(state.noteManager.createBlankNote(folderID: folder.id))
+        await state.noteManager.waitForPendingWrites()
         let bridge = NoteRuntimeBridge(softDeleteNoteFolderHandler: { _, _, _, _ in
             throw TestError.localDeleteFailed
         })
         state.noteManager = NoteManager(bridge: bridge)
         state.noteManager.bind(to: state)
-        state.noteFolders = [folder]
+        await state.noteManager.reloadFromStore()?.value
 
         state.noteManager.deleteNoteFolder(id: folder.id)
+        #expect(state.noteFolders.isEmpty, "the mirror changes first")
+        #expect(state.noteSummaries.first { $0.id == filed.id }?.noteFolderID == nil)
+        await state.noteManager.waitForPendingWrites()
+        await state.noteManager.reloadFromStore()?.value
 
-        #expect(state.noteFolders.map(\.id) == [folder.id])
+        #expect(state.noteFolders.map(\.id) == [folder.id], "a failed write rolls back")
+        #expect(state.noteSummaries.first { $0.id == filed.id }?.noteFolderID == folder.id, "the cascaded membership rolls back too")
+        #expect(state.noteManager.note(id: filed.id)?.noteFolderID == folder.id)
     }
 
     @Test(
@@ -339,7 +348,7 @@ struct NoteManagerTests {
         arguments: [ImportMode.importNewOnly, ImportMode.merge, ImportMode.replaceAll]
     )
     @MainActor
-    func importNullsDanglingNoteFolder(mode: ImportMode) {
+    func importNullsDanglingNoteFolder(mode: ImportMode) async {
         let state = makeNotesAppState()
         let tombstoneFolder = NoteTestFactories.makeFolder(
             name: "Deleted",
@@ -349,11 +358,11 @@ struct NoteManagerTests {
         let noteInTombstone = NoteTestFactories.makeNote(title: "in tombstone", noteFolderID: tombstoneFolder.id)
         let noteDangling = NoteTestFactories.makeNote(title: "dangling", noteFolderID: danglingFolderID)
 
-        state.noteManager.importNotes(
+        await state.noteManager.importNotes(
             [noteInTombstone, noteDangling],
             folders: [tombstoneFolder],
             mode: mode
-        )
+        ).value
 
         #expect(!state.noteFolders.contains { $0.id == tombstoneFolder.id })
         #expect(state.noteManager.note(id: noteInTombstone.id)?.noteFolderID == nil)
@@ -365,12 +374,12 @@ struct NoteManagerTests {
         arguments: [ImportMode.importNewOnly, ImportMode.merge, ImportMode.replaceAll]
     )
     @MainActor
-    func importKeepsValidNoteFolder(mode: ImportMode) {
+    func importKeepsValidNoteFolder(mode: ImportMode) async {
         let state = makeNotesAppState()
         let activeFolder = NoteTestFactories.makeFolder(name: "Keep")
         let note = NoteTestFactories.makeNote(title: "valid", noteFolderID: activeFolder.id)
 
-        state.noteManager.importNotes([note], folders: [activeFolder], mode: mode)
+        await state.noteManager.importNotes([note], folders: [activeFolder], mode: mode).value
 
         #expect(state.noteFolders.contains { $0.id == activeFolder.id })
         #expect(state.noteManager.note(id: note.id)?.noteFolderID == activeFolder.id)
@@ -378,7 +387,7 @@ struct NoteManagerTests {
 
     @Test("merge: When A Backup Tombstones The Active Folder A Local Note Points To, noteFolderID Cascades To Nil (Matches Android/Web)")
     @MainActor
-    func mergeCascadesClearsLocalDanglingReference() {
+    func mergeCascadesClearsLocalDanglingReference() async {
         let state = makeNotesAppState()
         let folderID = UUID()
         let activeFolder = NoteTestFactories.makeFolder(
@@ -391,7 +400,7 @@ struct NoteManagerTests {
             noteFolderID: folderID,
             updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
-        state.noteManager.importNotes([noteA], folders: [activeFolder], mode: .replaceAll)
+        await state.noteManager.importNotes([noteA], folders: [activeFolder], mode: .replaceAll).value
         #expect(state.noteManager.note(id: noteA.id)?.noteFolderID == folderID)
 
         let tombstoneFolder = NoteTestFactories.makeFolder(
@@ -400,9 +409,71 @@ struct NoteManagerTests {
             updatedAt: Date(timeIntervalSince1970: 1_700_000_100),
             deletedAt: Date(timeIntervalSince1970: 1_700_000_100)
         )
-        state.noteManager.importNotes([], folders: [tombstoneFolder], mode: .merge)
+        await state.noteManager.importNotes([], folders: [tombstoneFolder], mode: .merge).value
 
         #expect(!state.noteFolders.contains { $0.id == folderID })
         #expect(state.noteManager.note(id: noteA.id)?.noteFolderID == nil)
+    }
+
+    // MARK: - Writes never wait for the write lock on the main thread (mirror first, then serial background writes)
+
+    @Test("With the write lock held by a long transaction the write entry points return at once; queued writes land in enqueue order and reads see database + in-flight writes")
+    @MainActor
+    func queuedWrites_landInOrder_whileWriterBusy() async throws {
+        let state = makeNotesAppState()
+        let pool = try DatabaseManager.shared.openIfNeeded(for: state.sessionPartitionUID)
+        // Simulate a whole-table write holding the write lock: a background thread holds it and the main thread must not wait.
+        let holding = DispatchSemaphore(value: 0)
+        let release = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            try? pool.writeWithoutTransaction { _ in
+                holding.signal()
+                _ = release.wait(timeout: .now() + 10)
+            }
+        }
+        // Do not block the main thread waiting: anything that comes back to it would stall as well.
+        await Task.detached { holding.wait() }.value
+
+        let started = Date()
+        let note = try #require(state.noteManager.createNote(from: NoteDraft(body: "First", captureKind: .blank)))
+        _ = state.noteManager.updateBody(id: note.id, body: "Second")
+        _ = state.noteManager.updateTitle(id: note.id, title: "Manual")
+        state.noteManager.deleteNote(id: note.id)
+        #expect(Date().timeIntervalSince(started) < 1, "the write entry points do not wait for the write lock")
+        #expect(state.noteManager.note(id: note.id)?.title == "Manual")
+        #expect(state.noteManager.note(id: note.id)?.body == "Second")
+        #expect(state.noteManager.note(id: note.id)?.deletedAt != nil)
+        #expect(state.trashedNoteSummaries.map(\.id) == [note.id], "the mirror takes effect at once")
+
+        release.signal()
+        await state.noteManager.waitForPendingWrites()
+        let stored = try #require(try NoteStore(dbPool: pool).fetchNote(id: note.id))
+        #expect(stored.title == "Manual")
+        #expect(stored.body == "Second")
+        #expect(stored.deletedAt != nil, "the last write (move to trash) lands last")
+    }
+
+    @Test("A failed write rolls the mirror back and shows a warning")
+    @MainActor
+    func failedWrite_rollsBackMirror() async throws {
+        let state = makeNotesAppState()
+        let note = try #require(state.noteManager.createNote(from: NoteDraft(title: "Kept", body: "Body", captureKind: .blank)))
+        await state.noteManager.waitForPendingWrites()
+
+        state.noteManager._testingFailWrites = true
+        _ = state.noteManager.updateTitle(id: note.id, title: "Lost")
+        #expect(state.noteSummaries.first { $0.id == note.id }?.title == "Lost", "the mirror changes first")
+        state.noteManager.deleteNote(id: note.id)
+        let created = try #require(state.noteManager.createNote(from: NoteDraft(body: "Never stored", captureKind: .blank)))
+        state.noteManager._testingFailWrites = false
+        await state.noteManager.waitForPendingWrites()
+        await state.noteManager.reloadFromStore()?.value
+
+        #expect(state.noteSummaries.first { $0.id == note.id }?.title == "Kept", "rolled back to the stored value")
+        #expect(state.trashedNoteSummaries.isEmpty, "moving to the trash rolls back too")
+        #expect(!state.noteSummaries.contains { $0.id == created.id }, "a failed create leaves the mirror")
+        #expect(state.noteManager.note(id: note.id)?.title == "Kept")
+        #expect(state.noteManager.note(id: created.id) == nil)
+        #expect(ToastManager.shared.current?.style == .warning)
     }
 }

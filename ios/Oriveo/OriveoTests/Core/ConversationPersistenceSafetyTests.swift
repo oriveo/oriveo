@@ -18,8 +18,6 @@ struct ConversationPersistenceSafetyTests {
         defer {
             DatabaseManager.shared.close()
             AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: sourceUID))
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: targetUID))
         }
 
         DatabaseManager.shared.close()
@@ -40,6 +38,7 @@ struct ConversationPersistenceSafetyTests {
         #expect(sourceSnapshot.selectedTab == state.selectedTab)
         #expect(sourceSnapshot.providers.isEmpty)
         #expect(sourceSnapshot.conversations == nil)
+        await TestPartitionCleanup.remove(sourceUID, targetUID)
     }
 
     @Test("deinit cancels pending debounced persist before the scheduled write fires")
@@ -53,7 +52,6 @@ struct ConversationPersistenceSafetyTests {
         defer {
             DatabaseManager.shared.close()
             AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
         }
 
         DatabaseManager.shared.close()
@@ -73,18 +71,14 @@ struct ConversationPersistenceSafetyTests {
         try await Task.sleep(nanoseconds: 500_000_000)
 
         #expect(FileManager.default.fileExists(atPath: snapshotURL.path) == false)
+        await TestPartitionCleanup.remove(uid)
     }
 
     @Test("loadSession falls back to recovery projection when SQLite becomes unreadable")
     @MainActor
-    func loadSessionFallsBackToRecoveryProjection() throws {
+    func loadSessionFallsBackToRecoveryProjection() async throws {
         let uid = "persist-recovery-\(UUID().uuidString)"
         let conversation = TestFactories.makeConversation(title: "Recovered Conversation")
-
-        defer {
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
 
         DatabaseManager.shared.close()
 
@@ -92,23 +86,24 @@ struct ConversationPersistenceSafetyTests {
         _ = try state.conversationRuntimeBridge.replaceAllConversations([conversation], uid: uid)
         state.conversations = [conversation]
         state.persistSessionNow()
+        // Drain the old instance's background reads and writes first, then overwrite in place (no .atomic): an atomic write swaps in
+        // a new file, and the old connection hits the unlinked vnode with a disk I/O error.
+        await state.drainPendingWrites()
 
         DatabaseManager.shared.close()
-        try Data("not-a-valid-sqlite".utf8).write(
-            to: AppSessionStore.databasePath(for: uid),
-            options: .atomic
-        )
+        try Data("not-a-valid-sqlite".utf8).write(to: AppSessionStore.databasePath(for: uid))
 
         let recovered = AppState(sessionUID: uid)
 
         #expect(recovered.conversations.count == 1)
         #expect(recovered.conversations.first?.id == conversation.id)
         #expect(recovered.conversations.first?.title == "Recovered Conversation")
+        await TestPartitionCleanup.remove(uid)
     }
 
     @Test("loadSession merges fresher recovery projection even when SQLite is readable")
     @MainActor
-    func loadSessionMergesFresherRecoveryProjectionWhenSQLiteIsReadable() throws {
+    func loadSessionMergesFresherRecoveryProjectionWhenSQLiteIsReadable() async throws {
         let uid = "persist-recovery-merge-\(UUID().uuidString)"
         let conversationID = UUID()
         let staleMessage = TestFactories.makeMessage(role: .user, text: "stale")
@@ -130,11 +125,6 @@ struct ConversationPersistenceSafetyTests {
             updatedAt: freshUpdatedAt
         )
 
-        defer {
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
-
         DatabaseManager.shared.close()
 
         let bridge = ConversationRuntimeBridge()
@@ -150,8 +140,11 @@ struct ConversationPersistenceSafetyTests {
         #expect(restored.updatedAt == freshUpdatedAt)
         // Cold-start memory stays a summary; the recovered bodies must actually be written back to the database.
         #expect(!restored.messagesAreLoaded)
+        // The recovery write is queued on the persist queue (the main thread never waits for the write lock): wait for it before reading the database directly.
+        recovered.flushConversationPersistQueue()
         let stored = try #require(try bridge.fetchConversationProjection(id: conversationID, uid: uid))
         #expect(stored.messages.map(\.text) == ["stale", "fresh user", "fresh assistant"])
+        await TestPartitionCleanup.remove(uid)
     }
 
     /// A deleted conversation must not come back.
@@ -171,11 +164,6 @@ struct ConversationPersistenceSafetyTests {
         let recoveryURL = AppSessionStore.recoverySnapshotPath(for: uid)
         let kept = TestFactories.makeConversation(title: "Kept")
         let deleted = TestFactories.makeConversation(title: "Deleted On Purpose")
-
-        defer {
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
 
         DatabaseManager.shared.close()
 
@@ -212,20 +200,16 @@ struct ConversationPersistenceSafetyTests {
         // `replaceAllConversations`, so the database must not hold it either.
         let persisted = try state.conversationRuntimeBridge.loadLegacyProjection(uid: uid, hydrateFilePayloads: false)
         #expect(persisted.map(\.id) == [kept.id], "deleted conversation was written back to the store")
+        await TestPartitionCleanup.remove(uid)
     }
 
     /// Fail closed when the journal cannot be read: not recovering beats resurrecting.
     @Test("An unreadable deletion journal drops the whole recovery projection")
     @MainActor
-    func unreadableDeletionJournalDropsRecoveryProjection() throws {
+    func unreadableDeletionJournalDropsRecoveryProjection() async throws {
         let uid = "persist-journal-unreadable-\(UUID().uuidString)"
         let kept = TestFactories.makeConversation(title: "Kept")
         let onlyInSnapshot = TestFactories.makeConversation(title: "Only In Snapshot")
-
-        defer {
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
 
         DatabaseManager.shared.close()
 
@@ -240,7 +224,7 @@ struct ConversationPersistenceSafetyTests {
             path: AppSessionStore.databasePath(for: uid).path,
             configuration: DatabaseSchema.makeConfiguration()
         )
-        try pool.write { db in
+        try await pool.write { db in
             try db.execute(sql: "DROP TABLE conversation_deletion_journal")
         }
         try pool.close()
@@ -248,6 +232,7 @@ struct ConversationPersistenceSafetyTests {
         let relaunched = AppState(sessionUID: uid)
 
         #expect(relaunched.conversations.map(\.id) == [kept.id])
+        await TestPartitionCleanup.remove(uid)
     }
 
     @Test("Conversation changes no longer trigger a full recovery snapshot write")
@@ -259,11 +244,6 @@ struct ConversationPersistenceSafetyTests {
             title: "Hot Path",
             messages: [TestFactories.makeMessage(role: .user, text: "latest body")]
         )
-
-        defer {
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
 
         DatabaseManager.shared.close()
 
@@ -289,6 +269,7 @@ struct ConversationPersistenceSafetyTests {
             FileManager.default.fileExists(atPath: recoveryURL.path) == false,
             "conversations changes must not trigger a full-store recovery snapshot write"
         )
+        await TestPartitionCleanup.remove(uid)
     }
 
     @Test("Backgrounding still forces a full recovery snapshot (fallback so nothing is lost)")
@@ -300,11 +281,6 @@ struct ConversationPersistenceSafetyTests {
             title: "Lifecycle Recovery",
             messages: [TestFactories.makeMessage(role: .user, text: "latest body")]
         )
-
-        defer {
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
 
         DatabaseManager.shared.close()
 
@@ -319,11 +295,12 @@ struct ConversationPersistenceSafetyTests {
         }
         let recovery = try decodeRecoverySnapshot(at: recoveryURL)
         #expect(recovery.conversations.contains { $0.id == conversation.id })
+        await TestPartitionCleanup.remove(uid)
     }
 
     @Test("loadSession sanitizes stale .generating assistant messages into .interrupted on relaunch")
     @MainActor
-    func loadSessionSanitizesStaleGeneratingMessages() throws {
+    func loadSessionSanitizesStaleGeneratingMessages() async throws {
         let previousUID = AppSessionStore.activeUID
         let uid = "sanitize-stale-\(UUID().uuidString)"
         let conversationID = UUID()
@@ -333,7 +310,6 @@ struct ConversationPersistenceSafetyTests {
         defer {
             DatabaseManager.shared.close()
             AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
         }
 
         DatabaseManager.shared.close()
@@ -369,6 +345,7 @@ struct ConversationPersistenceSafetyTests {
         #expect(recoveredAssistant.state == .interrupted)
         #expect(recoveredAssistant.text == "Partial reply before crash")
         #expect(recoveredUser.state == .delivered)
+        await TestPartitionCleanup.remove(uid)
     }
 
     @Test("queueAssistantResponse persists previous streaming partial as .interrupted before starting new send")
@@ -560,17 +537,12 @@ struct ConversationPersistenceSafetyTests {
 
     @Test("upsertConversationProjection writes through store and updates the in-memory mirror")
     @MainActor
-    func upsertConversationProjectionWritesThroughStore() throws {
+    func upsertConversationProjectionWritesThroughStore() async throws {
         let uid = "projection-upsert-\(UUID().uuidString)"
         let conversation = TestFactories.makeConversation(
             title: "Original",
             messages: [TestFactories.makeMessage(role: .user, text: "projection prompt", estimatedCost: 0.2)]
         )
-
-        defer {
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
 
         DatabaseManager.shared.close()
 
@@ -585,11 +557,12 @@ struct ConversationPersistenceSafetyTests {
         let stored = try #require(try makeStore(uid: uid).fetchConversationThread(id: conversation.id))
         #expect(stored.summary.title == "projection prompt")
         #expect(abs(stored.summary.estimatedCost - 0.2) < 0.000_001)
+        await TestPartitionCleanup.remove(uid)
     }
 
     @Test("upsertConversationProjection stays bound to the AppState partition after activeUID changes")
     @MainActor
-    func upsertConversationProjectionStaysBoundToOriginalPartition() throws {
+    func upsertConversationProjectionStaysBoundToOriginalPartition() async throws {
         let previousUID = AppSessionStore.activeUID
         let sourceUID = "projection-bound-source-\(UUID().uuidString)"
         let targetUID = "projection-bound-target-\(UUID().uuidString)"
@@ -601,8 +574,6 @@ struct ConversationPersistenceSafetyTests {
         defer {
             DatabaseManager.shared.close()
             AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: sourceUID))
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: targetUID))
         }
 
         DatabaseManager.shared.close()
@@ -618,21 +589,17 @@ struct ConversationPersistenceSafetyTests {
 
         #expect(stored.summary.title == "bound body")
         #expect(try targetStore.fetchConversationCount() == 0)
+        await TestPartitionCleanup.remove(sourceUID, targetUID)
     }
 
     @Test("setConversationUseMemory writes through store and updates the in-memory mirror")
     @MainActor
-    func setConversationUseMemoryWritesThroughStore() throws {
+    func setConversationUseMemoryWritesThroughStore() async throws {
         let uid = "projection-memory-\(UUID().uuidString)"
         let conversation = TestFactories.makeConversation(
             title: "Memory Projection",
             messages: [TestFactories.makeMessage(role: .user, text: "remember this", estimatedCost: 0.1)]
         )
-
-        defer {
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
 
         DatabaseManager.shared.close()
 
@@ -641,26 +608,24 @@ struct ConversationPersistenceSafetyTests {
         state.flushConversationPersistQueue()
 
         state.setConversationUseMemory(conversation.id, useMemory: false)
+        #expect(state.conversations.first?.useMemory == false, "The mirror changes first, without waiting for the write")
+        await state.waitForConversationUseMemoryWrites()
 
         let stored = try #require(try makeStore(uid: uid).fetchConversationThread(id: conversation.id))
         #expect(state.conversations.first?.id == conversation.id)
         #expect(state.conversations.first?.useMemory == false)
         #expect(stored.summary.useMemory == false)
+        await TestPartitionCleanup.remove(uid)
     }
 
     @Test("setConversationUseMemory reads authoritative store when the mirror cache is empty")
     @MainActor
-    func setConversationUseMemoryReadsAuthoritativeStoreWhenMirrorIsEmpty() throws {
+    func setConversationUseMemoryReadsAuthoritativeStoreWhenMirrorIsEmpty() async throws {
         let uid = "projection-memory-authoritative-\(UUID().uuidString)"
         let conversation = TestFactories.makeConversation(
             title: "Authoritative Memory Projection",
             messages: [TestFactories.makeMessage(role: .user, text: "store only memory toggle", estimatedCost: 0.1)]
         )
-
-        defer {
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
 
         DatabaseManager.shared.close()
 
@@ -670,16 +635,18 @@ struct ConversationPersistenceSafetyTests {
         #expect(state.conversations.isEmpty)
 
         state.setConversationUseMemory(conversation.id, useMemory: false)
+        await state.waitForConversationUseMemoryWrites()
 
         let stored = try #require(try makeStore(uid: uid).fetchConversationThread(id: conversation.id))
         #expect(state.conversations.first?.id == conversation.id)
         #expect(state.conversations.first?.useMemory == false)
         #expect(stored.summary.useMemory == false)
+        await TestPartitionCleanup.remove(uid)
     }
 
     @Test("selectModel writes through fine-grained model update and preserves thread content")
     @MainActor
-    func selectModelWritesThroughFineGrainedModelUpdate() throws {
+    func selectModelWritesThroughFineGrainedModelUpdate() async throws {
         let uid = "projection-select-model-\(UUID().uuidString)"
         let provider = TestFactories.makeProvider(
             models: [
@@ -692,11 +659,6 @@ struct ConversationPersistenceSafetyTests {
             modelID: "gpt-4o",
             messages: [TestFactories.makeMessage(role: .user, text: "keep thread intact")]
         )
-
-        defer {
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
 
         DatabaseManager.shared.close()
 
@@ -721,6 +683,7 @@ struct ConversationPersistenceSafetyTests {
 
         #expect(stored.summary.modelID == "gpt-4o-mini")
         #expect(stored.messages.map(\.id) == conversation.messages.map(\.id))
+        await TestPartitionCleanup.remove(uid)
     }
 
     @Test("v25/v26 local tool-call columns round-trip through ConversationStore")
@@ -754,7 +717,7 @@ struct ConversationPersistenceSafetyTests {
 
     @Test("replaceConversationProjection stays bound to the AppState partition after activeUID changes")
     @MainActor
-    func replaceConversationProjectionStaysBoundToOriginalPartition() throws {
+    func replaceConversationProjectionStaysBoundToOriginalPartition() async throws {
         let previousUID = AppSessionStore.activeUID
         let sourceUID = "projection-replace-source-\(UUID().uuidString)"
         let targetUID = "projection-replace-target-\(UUID().uuidString)"
@@ -766,8 +729,6 @@ struct ConversationPersistenceSafetyTests {
         defer {
             DatabaseManager.shared.close()
             AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: sourceUID))
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: targetUID))
         }
 
         DatabaseManager.shared.close()
@@ -784,11 +745,12 @@ struct ConversationPersistenceSafetyTests {
         #expect(stored.summary.title == "Replace Projection")
         #expect(stored.messages.first?.text == "replace body")
         #expect(try targetStore.fetchConversationCount() == 0)
+        await TestPartitionCleanup.remove(sourceUID, targetUID)
     }
 
     @Test("persistSessionNow does not overwrite the authoritative store from a stale legacy mirror")
     @MainActor
-    func persistSessionNowDoesNotOverwriteAuthoritativeStoreFromStaleMirror() throws {
+    func persistSessionNowDoesNotOverwriteAuthoritativeStoreFromStaleMirror() async throws {
         let uid = "persist-no-backwrite-\(UUID().uuidString)"
         let authoritativeConversation = TestFactories.makeConversation(
             title: "Authoritative",
@@ -799,11 +761,6 @@ struct ConversationPersistenceSafetyTests {
             title: "Stale Mirror",
             messages: [TestFactories.makeMessage(role: .user, text: "stale body", estimatedCost: 0.1)]
         )
-
-        defer {
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
 
         DatabaseManager.shared.close()
 
@@ -817,11 +774,12 @@ struct ConversationPersistenceSafetyTests {
         #expect(stored.summary.title == "authoritative body")
         #expect(stored.messages.first?.text == "authoritative body")
         #expect(state.conversations.first?.title == "Stale Mirror")
+        await TestPartitionCleanup.remove(uid)
     }
 
     @Test("lifecycle persistence drains queued conversation writes before relaunch")
     @MainActor
-    func lifecyclePersistenceDrainsQueuedConversationWritesBeforeRelaunch() throws {
+    func lifecyclePersistenceDrainsQueuedConversationWritesBeforeRelaunch() async throws {
         let uid = "persist-lifecycle-\(UUID().uuidString)"
         let message = TestFactories.makeMessage(role: .user, text: "today message")
         var conversation = TestFactories.makeConversation(
@@ -829,11 +787,6 @@ struct ConversationPersistenceSafetyTests {
             messages: [message]
         )
         conversation.updatedAt = Date()
-
-        defer {
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
 
         DatabaseManager.shared.close()
 
@@ -853,6 +806,7 @@ struct ConversationPersistenceSafetyTests {
             "After lifecycle persistence, updatedAt read back on restart must keep the same sort time"
         )
         #expect(restored.displayMessageCount == 1)
+        await TestPartitionCleanup.remove(uid)
     }
 
     @Test("makeConfiguration waits on SQLITE_BUSY instead of failing immediately")

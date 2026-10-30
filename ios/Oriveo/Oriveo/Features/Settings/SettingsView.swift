@@ -41,6 +41,8 @@ struct SettingsView: View {
     /// Whether the catalog leaves remote MCP switched on, and the data for the row's subtitle.
     @State private var mcpEntryEnabled = MetadataClient.shared.syncMcpRuntimeConfig().enabled
     @State private var mcpEntrySummary: McpSettingsEntrySummary?
+    /// Value of the Web search tile (display name of the default service); re-read when coming back from the Web search page.
+    @State private var webSearchDefaultName: String?
     /// Value of the Voice tile: the read-aloud engine name, re-read when coming back from the voice page.
     @State private var voiceEngineName: String?
 
@@ -89,14 +91,16 @@ struct SettingsView: View {
                 .padding(.top, 20)
 
                 // MARK: - Tools & connections
-                // With the feature switched off in the catalog the entry is hidden; existing configuration is kept.
-                if mcpEntryEnabled {
-                    McpSettingsSection(
-                        mcpSummary: mcpEntrySummary,
-                        onOpenMcpServers: { navigation.attemptNavigate(to: .mcpServers) }
-                    )
-                    .padding(.top, 34)
-                }
+                // With remote MCP switched off in the catalog only its tile is hidden; existing configuration is kept.
+                McpSettingsSection(
+                    mcpEnabled: mcpEntryEnabled,
+                    mcpSummary: mcpEntrySummary,
+                    webSearchDefaultName: webSearchDefaultName,
+                    webSearchShowsBadge: WebSearchSettingsModel.entryShowsBadge,
+                    onOpenWebSearch: { navigation.attemptNavigate(to: .webSearchSettings) },
+                    onOpenMcpServers: { navigation.attemptNavigate(to: .mcpServers) }
+                )
+                .padding(.top, 34)
 
                 // MARK: - General (theme, language, backup)
                 VStack(alignment: .leading, spacing: 4) {
@@ -171,6 +175,7 @@ struct SettingsView: View {
         .onAppear {
             // Also when coming back from MCP management: the count in the subtitle has to follow.
             syncMcpEntry()
+            Task { webSearchDefaultName = await WebSearchSettingsModel.defaultServiceName(appState: appState) }
             // Also when coming back from the voice page: the read-aloud engine name has to follow.
             voiceEngineName = VoiceSettingsModel.engineDisplayName(for: VoiceEngineSettings().selection(for: .tts))
         }

@@ -684,6 +684,15 @@ struct ChatCapabilitySelection: Hashable, Codable, Sendable {
     /// Process-local typed intent. Compatibility fields above serve legacy providers only.
     var typedPreferences: CapabilityPreferenceValues?
 
+    /// This turn goes through external search (nativeFieldsSuppressed): the request carries no native / relay web-search fields for this turn.
+    /// Only this request-level choice changes; nothing is written back to the per-conversation preference store.
+    nonisolated var withoutNativeWebSearch: Self {
+        var next = self
+        next.webSearchEnabled = false
+        next.typedPreferences?.web = .off
+        return next
+    }
+
     nonisolated init() {
         reasoningMode = .automatic
         // Fresh conversations must omit web intent by default. Existing enabled

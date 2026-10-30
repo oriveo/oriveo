@@ -216,7 +216,7 @@ nonisolated enum ChatRequestBuilder {
                 useMemory: false,
                 instructions: snapshot.conversation?.instructions
             ),
-            history: messages.map(contextMessage)
+            history: messages.map { contextMessage($0) }
         ))
         return PlannedChatRequest.projectingImageGeneration(plan, history: messages)
     }
@@ -234,7 +234,7 @@ nonisolated enum ChatRequestBuilder {
             window: window,
             conversation: ContextConversation(id: "", useMemory: false),
             purposeSystem: purposeSystem,
-            history: history.map(contextMessage)
+            history: history.map { contextMessage($0) }
         ))
         return PlannedChatRequest.projectingPurpose(plan, history: history)
     }
@@ -422,7 +422,8 @@ nonisolated enum ChatRequestBuilder {
             recall: useMemory ? snapshot.recall : [],
             library: snapshot.library,
             attachmentGuide: hasFileAttachments ? AttachmentInjector.systemPromptGuidance : nil,
-                delivery: snapshot.delivery
+            delivery: snapshot.delivery,
+            web: snapshot.web
         )
 
         let input = ContextAssembleInput(
@@ -498,7 +499,8 @@ nonisolated enum ChatRequestBuilder {
             for attachment in message.attachments ?? [] where sources.attachments[attachment.id.uuidString] == nil {
                 sources.attachments[attachment.id.uuidString] = attachment
             }
-            contextMessages.append(contextMessage(message))
+            // The message being continued carries on from its own text, so no search record is appended to it.
+            contextMessages.append(contextMessage(message, appendsSearchedRecord: message.id != keepAssistantID))
         }
         var current: ContextMessage?
         if isContinue {
@@ -516,7 +518,7 @@ nonisolated enum ChatRequestBuilder {
         )
     }
 
-    static func contextMessage(_ message: ChatMessage) -> ContextMessage {
+    static func contextMessage(_ message: ChatMessage, appendsSearchedRecord: Bool = true) -> ContextMessage {
         let state: ContextMessageState = switch message.state {
         case .delivered: .delivered
         case .generating: .generating
@@ -531,10 +533,17 @@ nonisolated enum ChatRequestBuilder {
             }
             return ContextAttachmentRef(id: attachment.id.uuidString, kind: kind)
         }
+        // Compact record of external searches on a past assistant message: only the query, title and URL,
+        // attached after the text with a blank line.
+        var text = message.text
+        if appendsSearchedRecord, message.role == .assistant,
+           let line = SearchTurn.searchedRecordLine((message.citations ?? []).compactMap(\.webCitation)) {
+            text = text.isEmpty ? line : text + "\n\n" + line
+        }
         return ContextMessage(
             id: message.id.uuidString,
             role: message.role == .user ? .user : .assistant,
-            text: message.text,
+            text: text,
             state: state,
             attachments: attachments
         )

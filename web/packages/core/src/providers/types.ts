@@ -68,7 +68,13 @@ export type ToolConfirmationReason = 'sensitive' | 'high_cost' | 'broad_read';
  * only ever comes from a frame observed on the wire, never from the user's settings or the model
  * name.
  */
-export type StreamActivity = 'web_search' | 'mcp_tool';
+export type StreamActivity = 'web_search' | 'mcp_tool' | 'external_search';
+
+/** Display context of the `external_search` activity (send effect): which service and what is being searched. Not persisted. */
+export interface StreamActivityExternalSearch {
+  serviceName: string;
+  query: string;
+}
 
 export type StreamEvent =
   | { type: 'delta'; content: string; managedSequence?: number }

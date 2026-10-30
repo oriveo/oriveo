@@ -631,8 +631,9 @@ struct ContextUsagePanelSheet: View {
                     }
                     if actions.contains(.clear) {
                         Button {
-                            let toast = appState.chatManager.clearCompaction(conversationId: conversationID)
-                            ContextCompactionActions.showToast(toast)
+                            let chatManager = appState.chatManager
+                            let conversationID = conversationID
+                            Task { ContextCompactionActions.showToast(await chatManager.clearCompaction(conversationId: conversationID)) }
                         } label: {
                             Text(L10n.tr("context_compaction_action_clear", table: .chat))
                                 .frame(maxWidth: .infinity)

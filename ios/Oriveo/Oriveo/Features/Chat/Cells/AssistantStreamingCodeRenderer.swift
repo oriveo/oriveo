@@ -86,16 +86,18 @@ final class AssistantStreamingCodeRenderer {
                 : view.bounds.width
             let targetWidth = ChatCardStableWidth.anchor(for: view)
                 ?? (measuredWidth > 0 ? measuredWidth : hostFallbackWidth - ChatCardStableWidth.contentChrome)
-            let fittingSize = textView.sizeThatFits(CGSize(
-                width: targetWidth,
-                height: .greatestFiniteMagnitude
-            ))
-            let newHeight = min(fittingSize.height, Self.maxHeight)
-            if abs(textViewHeightConstraint.constant - newHeight) > 0.5 {
-                textViewHeightConstraint.constant = newHeight
-            }
-            if fittingSize.height > Self.maxHeight {
-                isHeightCapped = true
+            // The anchor width is negative while the collection view is not laid out yet (0 - chrome); non-finite or non-positive widths and measurements never reach a constraint.
+            let fittingHeight = targetWidth.isFinite && targetWidth > 0
+                ? textView.sizeThatFits(CGSize(width: targetWidth, height: .greatestFiniteMagnitude)).height
+                : .nan
+            if fittingHeight.isFinite {
+                let newHeight = min(max(fittingHeight, 0), Self.maxHeight)
+                if abs(textViewHeightConstraint.constant - newHeight) > 0.5 {
+                    textViewHeightConstraint.constant = newHeight
+                }
+                if fittingHeight > Self.maxHeight {
+                    isHeightCapped = true
+                }
             }
         }
 

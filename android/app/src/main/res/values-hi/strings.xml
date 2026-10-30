@@ -62,7 +62,7 @@
     <string name="stop">रोकें</string>
     <string name="type_a_message">एक संदेश टाइप करें...</string>
     <string name="ai_is_answering">AI उत्तर दे रहा है...</string>
-    <string name="regenerate">पुनः जेनरेट</string>
+    <string name="regenerate">दोबारा जेनरेट करें</string>
     <string name="continue_generating">जनरेट करना जारी रखें</string>
     <string name="edit_message">संदेश संपादित करें</string>
     <string name="model_switcher">मॉडल</string>
@@ -84,7 +84,7 @@
     <string name="message_failed">भेजना विफल</string>
     <string name="message_failed_body">अनुरोध साफ़-साफ़ ख़त्म नहीं हुआ. इसे अभी पुनः प्रयास करें या दोबारा भेजने से पहले अंतिम उपयोगकर्ता संदेश को संपादित करें।</string>
     <string name="message_interrupted">प्रतिक्रिया बाधित</string>
-    <string name="message_interrupted_body">आंशिक उत्तर सुरक्षित रखा गया है। जहां रुका था वहां से जारी रखने के लिए जनरेट करना जारी रखें टैप करें, या नया पूर्ण उत्तर पाने के लिए पुनः जेनरेट टैप करें।</string>
+    <string name="message_interrupted_body">आंशिक उत्तर सुरक्षित रखा गया है। जहां रुका था वहां से जारी रखने के लिए जनरेट करना जारी रखें टैप करें, या नया पूर्ण उत्तर पाने के लिए दोबारा जेनरेट करें टैप करें।</string>
     <string name="web_search">वेब खोज</string>
     <string name="export_conversation">निर्यात वार्तालाप</string>
     <string name="chat_export_markdown_ready">Markdown निर्यात के लिए शेयर शीट खोली गई।</string>

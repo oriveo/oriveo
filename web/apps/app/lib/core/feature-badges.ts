@@ -10,6 +10,7 @@ import { safeLocalStorage } from '../infra/storage/web-storage';
 
 export const FEATURE_BADGE_IDS = {
   settingsMemory: 'settings.memory.2026-10',
+  settingsWebSearch: 'settings.webSearch.2026-10',
 } as const;
 
 export type FeatureBadgeId = (typeof FEATURE_BADGE_IDS)[keyof typeof FEATURE_BADGE_IDS];

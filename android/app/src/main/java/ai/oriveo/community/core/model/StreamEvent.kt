@@ -59,6 +59,12 @@ enum class StreamActivity {
      * does not travel with the activity.
      */
     McpTool,
+
+    /**
+     * This device is sending a request to the user's external search service (external search service contract, activity.kind = external_search).
+     * The service name and query are passed along with [ai.oriveo.community.core.streaming.ConversationStreamingOutputs.streamingExternalSearch].
+     */
+    ExternalSearch,
 }
 
 @kotlinx.serialization.Serializable

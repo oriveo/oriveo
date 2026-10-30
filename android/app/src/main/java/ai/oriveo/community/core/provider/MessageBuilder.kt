@@ -659,13 +659,16 @@ object MessageBuilder {
     /**
      * Extracts base64 inline images from Markdown text.
      * Returns list of (mimeType, base64Data) and cleaned text.
+     * The base64 payload may contain line breaks / whitespace (upstreams that wrap at 76 columns).
+     * If it is not accepted, completion cannot extract the image and the whole data URI stays in the text
+     * written to the database; a single image can push the row past the CursorWindow limit.
      */
     fun extractInlineImages(text: String): Pair<String, List<Pair<String, String>>> {
-        val regex = Regex("""!\[.*?]\((data:image/([^;]+);base64,([A-Za-z0-9+/=]+))\)""")
+        val regex = Regex("""!\[.*?]\((data:image/([^;]+);base64,([A-Za-z0-9+/=\s]+))\)""")
         val images = mutableListOf<Pair<String, String>>()
         val cleaned = regex.replace(text) { match ->
             val mime = "image/${match.groupValues[2]}"
-            val data = match.groupValues[3]
+            val data = match.groupValues[3].filterNot { it.isWhitespace() }
             images.add(mime to data)
             "" // remove from text
         }

@@ -123,17 +123,22 @@ public struct ContextDynamicInput: Hashable, Sendable {
     public var attachmentGuide: String?
     /// nil is byte-identical to the field being absent; .voice appends <oriveo-delivery> at the very end of [D].
     public var delivery: ContextDelivery?
+    /// Result segment from external web search pre-search / resend reuse: the `<oriveo-web>` envelope or fixed
+    /// sentence produced by finish, placed verbatim right after `<oriveo-library>`. nil is byte-identical to the field being absent.
+    public var web: String?
 
     public init(
         recall: [ContextRecallEntry] = [],
         library: [ContextLibraryEntry]? = nil,
         attachmentGuide: String? = nil,
-        delivery: ContextDelivery? = nil
+        delivery: ContextDelivery? = nil,
+        web: String? = nil
     ) {
         self.recall = recall
         self.library = library
         self.attachmentGuide = attachmentGuide
         self.delivery = delivery
+        self.web = web
     }
 }
 
@@ -470,6 +475,10 @@ public enum ContextAssembler {
                     if let text = envelope("oriveo-library", entries: entries) {
                         dynamicParts.append(text)
                     }
+                }
+                // The external search segment is built by SearchTurn (already escaped inside the envelope); no further escaping or wrapping here.
+                if let web = nonEmpty(trimmed(dynamic.web ?? "")) {
+                    dynamicParts.append(web)
                 }
                 if let guide = nonEmpty(trimmed(dynamic.attachmentGuide ?? "")) {
                     dynamicParts.append("<oriveo-attachment-guide>\n\(guide)\n</oriveo-attachment-guide>")

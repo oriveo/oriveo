@@ -3,12 +3,42 @@
  *
  * Flow: store update -> stream execution -> sync notification -> attachment upload
  */
-import type { ChatMessage, Conversation, AIModel, Provider, Attachment, ReasoningMode, QuoteContext } from '@oriveo/shared';
+import type { ChatMessage, Citation, Conversation, AIModel, Provider, Attachment, ReasoningMode, QuoteContext } from '@oriveo/shared';
 import { PROVIDER_REQUEST_FAILED_TITLE } from '../providers/error-i18n';
 import type { CapabilityPreferenceInput, GenerationParameterOverrides } from '@oriveo/core/providers/request-builders/types';
 import { networkError, type ProviderError } from '../providers/errors';
 import { mapErrorKindKey, readStream } from '../../utils/chat-stream-utils';
 import { buildOutboundChatHistory, filterOutboundAttachments } from './outbound-history';
+import { loadExternalSearchSendContext } from './external-search-send';
+import {
+  createExternalSearchExecutor,
+  createWebSearchEntry,
+  planExternalSearchTurn,
+  rememberToolsRejected,
+  hostMemoryToolsRegistered,
+  searchThinkingOn,
+  searchThinkingProtocol,
+  setExternalSearchActivity,
+  clearExternalSearchActivity,
+  startExternalSearchReply,
+  toolsRejectedBefore,
+  externalSearchMessagePatch,
+  type ExternalSearchReply,
+} from './external-search-turn';
+import { TOOLS_REJECTED_STATUSES, type SearchTurnPlan } from '@oriveo/core/search/search-turn';
+import type { SearchRegenerateAction } from '@oriveo/core/search/search-route';
+import { HOST_PROMPTS } from '@oriveo/core/search/search-tool-host';
+import { ToolCallLoop } from '@oriveo/core/tools/tool-call-loop';
+import { ToolLoopError, type ToolRegistryEntry } from '@oriveo/core/tools/tool-loop-contracts';
+import { ToolRegistry } from '@oriveo/core/tools/tool-registry';
+import { effectiveMaxSteps } from '@oriveo/core/mcp/mcp-types';
+import { currentMcpRuntimeConfig } from '../mcp/mcp-store';
+import { externalSearchModelKey } from '../../search/external-search-context';
+import { createProposeMemoryEntry, currentMemoryCandidateRepository } from './propose-memory-entry';
+import { createSearchMemoryEntry } from './search-memory-runtime';
+import type { TelemetryEventName } from '@oriveo/shared';
+import { searchConnectionsFromProviders } from '../../search/search-settings-data';
+import { adoptDraftSearchSource } from '../../search/external-search-context';
 import { type AssembleDynamic, type ContextPlan, type LibraryEntry } from '@oriveo/core/context/assemble';
 import { recallForTurn } from '../memory/memory-recall-runtime';
 import { CONTEXT_BUDGET_CONSTANTS } from '@oriveo/core/context/budget';
@@ -221,6 +251,8 @@ function resolveMcpDelegation(params: Parameters<typeof sendMessage>[1]): SendMc
     ...(params.omitAdditionalBody ? { omitAdditionalBody: true } : {}),
     ...(params.attemptKind ? { attemptKind: params.attemptKind } : {}),
     ...(params.onSendConfirmed ? { onSendConfirmed: params.onSendConfirmed } : {}),
+    ...(params.webSearchEnabled != null ? { webSearchEnabled: params.webSearchEnabled } : {}),
+    ...(params.searchRegenerate ? { searchRegenerate: params.searchRegenerate } : {}),
   };
 }
 
@@ -289,6 +321,8 @@ export function sendMessage(
     excludeCapabilityOwners?: Array<'web' | 'reasoning' | 'generation'>;
     /** Entry point that started this attempt (telemetry attempt_kind); defaults to send. */
     attemptKind?: ChatAttemptKind;
+    /** External search regenerate basis: regenerate / edit-resend / re-search + the source of the message being regenerated; omitted = new send. */
+    searchRegenerate?: { action: SearchRegenerateAction; previousCitations?: readonly Citation[] | null };
     /**
      * Called once after the pre-send confirmation passes (including when none is needed) and before transport (for example the remote delete of an edit-and-resend);
      * not called when the confirmation is cancelled; if the send fails before the gate it is called at wrap-up, matching the old "always happens" behaviour.
@@ -331,6 +365,7 @@ export function sendMessage(
     capabilityRecipeResendOwners = [],
     excludeCapabilityOwners = [],
     attemptKind = 'send',
+    searchRegenerate,
   } = params;
   const sendConfirmed = onceCallback(params.onSendConfirmed);
 
@@ -448,9 +483,21 @@ export function sendMessage(
     draftSessionId: generationParameterDraftSessionId,
     conversationId: finalConvId,
   });
+  // New conversation created: the search source picked in model options while in draft is written once under the real id; this turn's outbound waits for it to be stored before reading the source.
+  if (!conversation && generationParameterDraftSessionId) {
+    adoptDraftSearchSource({ draftSessionId: generationParameterDraftSessionId, conversationId: finalConvId });
+  }
 
   // Wire protocol of this (most recent) attempt's outbound request: the overflow family is taken from it, not from the connection kind.
   let requestRelayTransport: StreamOptions['relayTransport'];
+  // This turn's external search (handed over at the start of runChatOutbound): wrap-up persistence follows it; on user stop send stopped first.
+  let externalSearchReply: ExternalSearchReply | undefined;
+  const externalSearchPatch = (existing: Pick<ChatMessage, 'citations' | 'capabilityResults'>): Partial<ChatMessage> => {
+    clearExternalSearchActivity(finalConvId);
+    if (!externalSearchReply) return {};
+    if (abortRequested) externalSearchReply.stop();
+    return externalSearchMessagePatch(externalSearchReply.finish(), externalSearchReply.turn.binding.service, existing);
+  };
   const done = (async () => {
     try {
       if (directContextDocuments.length > 0 || serverResearch) {
@@ -540,6 +587,8 @@ export function sendMessage(
         ...(memoryTicket && proposeMemoryMode === 'tool'
           ? { proposeMemory: { ticket: memoryTicket, userMessage: userMsg } }
           : {}),
+        ...(searchRegenerate ? { searchRegenerate } : {}),
+        onExternalSearchReply: (reply) => { externalSearchReply = reply; },
       });
       const { pipeline, promptContext, libraryContext, relayStreamOptions } = outbound;
 
@@ -547,6 +596,10 @@ export function sendMessage(
         // The request went out: stream-runner writes the final message state, so here we only add the memory item ids injected this time.
         if (outbound.memoryIds.length > 0) {
           patchAssistantMessage(store, finalConvId, assistantMsg.id, { memoryItemIds: outbound.memoryIds });
+        }
+        if (externalSearchReply) {
+          const guarded = store.getState().conversations.find((c) => c.id === finalConvId)?.messages.find((m) => m.id === assistantMsg.id);
+          patchAssistantMessage(store, finalConvId, assistantMsg.id, externalSearchPatch(guarded ?? {}));
         }
         // Guard hit: stream-runner already wrote citations back, so the transaction must not overwrite the final message state.
         // The request did go out, so still report this attempt's sent (the outcome is the stopped event from the stop side, not reported here).
@@ -640,6 +693,7 @@ export function sendMessage(
         ...(researchSteps ? { researchSteps } : {}),
         attachments: mergedAttachments.length > 0 ? mergedAttachments : undefined,
         ...(mergedCitations && mergedCitations.length > 0 ? { citations: mergedCitations } : {}),
+        ...externalSearchPatch({ citations: mergedCitations, capabilityResults: capabilityResults.length > 0 ? capabilityResults : undefined }),
         costSource: roundCost.costSource,
         ...mergeMessageUsageFields(appendToAssistant ? assistantMsg : {}, costInfo),
       }, outbound.memoryIds, Boolean(appendToAssistant));
@@ -831,6 +885,10 @@ export function sendMessage(
         .find((c) => c.id === finalConvId)?.messages
         .find((m) => m.id === assistantMsg.id);
       const alreadyTerminal = guardMsg?.state === 'interrupted' || guardMsg?.state === 'failed';
+      // Stop / failure also persist the external search's source, facts and error card (requests already sent still count).
+      if (alreadyTerminal && guardMsg && externalSearchReply) {
+        patchAssistantMessage(store, finalConvId, assistantMsg.id, externalSearchPatch(guardMsg));
+      }
       const partialText = partialState.streamingTexts[finalConvId] || guardMsg?.text || '';
       const partialReasoning = (partialState.streamingReasoningTexts[finalConvId] ?? '').trim();
       const errorKindKey = mapErrorKindKey(pe.kind);
@@ -902,6 +960,7 @@ export function sendMessage(
         ...(err && typeof err === 'object' && isCapabilityRecoveryDescriptor((err as { capabilityRecovery?: unknown }).capabilityRecovery)
           ? { capabilityRecovery: (err as { capabilityRecovery: NonNullable<ChatMessage['capabilityRecovery']> }).capabilityRecovery } : {}),
         ...(p5Failure ? { capabilityResults: failureCapabilityResults } : {}),
+        ...externalSearchPatch({ capabilityResults: p5Failure ? failureCapabilityResults : undefined }),
       };
       // Incremental upsert against the latest messages in the store rather than the prevMessages snapshot, so concurrent sends do not overwrite each other.
       const failedConv = store.getState().conversations.find((c) => c.id === finalConvId);
@@ -994,6 +1053,10 @@ export interface ChatOutboundRequest<L extends { entries: LibraryEntry[] }> {
   onSendConfirmed?: () => void;
   /** This round's propose_memory is in tool mode: the suggestion strip ticket and this round's user message (candidate source, and the fallback run on degradation). */
   proposeMemory?: { ticket: MemorySuggestionTicket; userMessage: ChatMessage };
+  /** External search regenerate basis: entry action + source of the message being regenerated; omitted = new send. */
+  searchRegenerate?: { action: SearchRegenerateAction; previousCitations?: readonly Citation[] | null };
+  /** This turn's external search is handed to the caller at the very start: wrap-up (including stop / failure) is persisted by the caller per it. */
+  onExternalSearchReply?: (reply: ExternalSearchReply) => void;
 }
 
 export interface ChatOutboundResult<L> {
@@ -1032,7 +1095,18 @@ export async function runChatOutbound<L extends { entries: LibraryEntry[] }>(
     capabilityRecipeResendOwners = [],
     excludeCapabilityOwners = [],
   } = req.optionInputs;
-  const effectiveWebSearchEnabled = req.libraryActive ? false : req.webSearchEnabled;
+  // Only when this turn goes external (resolveWebSearchState().nativeFieldsSuppressed) are native / relay web fields stripped; otherwise unchanged from before.
+  // The external row's switch ignores session web search: computed once either way (returns at zero cost when there is no local service).
+  const searchConnections = searchConnectionsFromProviders(store.getState().providers ?? []);
+  const externalSearchContext = !req.libraryActive && !providerControlsAreManaged(provider)
+    && !excludeCapabilityOwners.includes('web')
+    ? await loadExternalSearchSendContext({
+      provider, model, conversationId, reasoningMode, webOn: req.webSearchEnabled === true,
+      connections: searchConnections,
+    })
+    : null;
+  const externalSearchDropsNativeWeb = externalSearchContext?.state.nativeFieldsSuppressed === true;
+  const effectiveWebSearchEnabled = req.libraryActive || externalSearchDropsNativeWeb ? false : req.webSearchEnabled;
 
   const attachmentScopeOptions = buildProviderStreamOptions(
     provider,
@@ -1116,7 +1190,7 @@ export async function runChatOutbound<L extends { entries: LibraryEntry[] }>(
     : undefined) : undefined;
   const resolvedCapabilityPreferences = storedCapabilityPreferences ? {
     ...storedCapabilityPreferences,
-    ...(excludeCapabilityOwners.includes('web') ? { web: 'off' as const } : {}),
+    ...(excludeCapabilityOwners.includes('web') || externalSearchDropsNativeWeb ? { web: 'off' as const } : {}),
     ...(excludeCapabilityOwners.includes('reasoning') ? { reasoningIntent: undefined } : {}),
   } : undefined;
   const preliminaryBaseOptions = clientControlsAllowed ? buildProviderStreamOptions(
@@ -1177,7 +1251,9 @@ export async function runChatOutbound<L extends { entries: LibraryEntry[] }>(
 
   // The plan of this request and the assembly it used: overflow recovery, rho write-back and the manifest all follow it.
   const chatUserMaxOutput = userMaxOutputOf(generationParameters);
-  const planOptions = { provider, model, dynamic: contextDynamic, userMaxOutput: chatUserMaxOutput };
+  const planOptions: { provider: Provider; model: AIModel; dynamic: AssembleDynamic; userMaxOutput: typeof chatUserMaxOutput } = {
+    provider, model, dynamic: contextDynamic, userMaxOutput: chatUserMaxOutput,
+  };
   // The rho key is the model id actually sent on the wire.
   const wireAssembly = await withChatRhoModel(contextAssembly, provider, model, chatWireModelIdOf(model, providerStreamOptions));
   // An image generation model uses purpose imageGeneration: it sends only plan.imagePrompt plus the last user message's attachments,
@@ -1197,6 +1273,8 @@ export async function runChatOutbound<L extends { entries: LibraryEntry[] }>(
   // For a chat send, first apply the latest stored row under the current history before assembly (image generation / continuation do not).
   const usesCheckpointRows = !imageGeneration && planAssembly.input.purpose === 'chat';
   let storedRowApplied = false;
+  // Checkpoint id applied at assembly: pre-send compaction uses it to recognize a row that landed after assembly (null = no row at assembly time).
+  let assembledCheckpointId: string | null = null;
   // A deterministic fallback (pre-send / overflow resend) carries the non-empty summary of the current checkpoint winner, or null when there is none.
   let storedSummary: string | null = null;
   // Assembly obtained by applying a stored row -> that row's checkpointId (written into the manifest, from which post-compaction usage judges cleared_since);
@@ -1220,6 +1298,7 @@ export async function runChatOutbound<L extends { entries: LibraryEntry[] }>(
       chatPlan = assembleChatPlan(applied, planOptions);
       chatPlanAssembly = applied;
       storedRowApplied = true;
+      assembledCheckpointId = stored.checkpointId;
     }
   }
   // Compact through the coordinator (AI / fallback decided by the compaction rules) and persist, returning an assembly rebuilt from the new row; noop / failure returns null.
@@ -1242,7 +1321,10 @@ export async function runChatOutbound<L extends { entries: LibraryEntry[] }>(
           instructions: planAssembly.input.conversation.instructions ?? '', signal,
         }),
       });
-      row = (await coordinator.compact(conversationId, trigger, { signal: compactionController.signal })).row ?? null;
+      row = (await coordinator.compact(conversationId, trigger, {
+        signal: compactionController.signal,
+        ...(trigger === 'preSend' ? { assembledCheckpointId } : {}),
+      })).row ?? null;
     } catch (error) {
       // A compaction failure does not block the send: treat it as noop.
       console.error(`[ContextCompaction] ${trigger} compaction failed:`, error);
@@ -1389,7 +1471,109 @@ export async function runChatOutbound<L extends { entries: LibraryEntry[] }>(
     return { transport, blockedByFiles, fingerprint, stateful: decision.kind === 'stateful', planned };
   };
 
+  // First prepare an outbound from the plan without web content: the memory-tool registration decision needs to know whether this outbound has a native file part,
+  // and the external search plan's host.memoryTools needs the registration result. Web content goes only into [D] and does not change attachments.
   let attempt = await prepareAttempt(chatPlan, chatPlanAssembly);
+
+  // Tool mode new sends attach propose_memory with tool_choice auto (a normal send has no other client tools, so it is the last item).
+  const proposeMemory = req.purpose === 'chat' && !imageGeneration ? req.proposeMemory : undefined;
+  // This outbound carries a native file part, and once this route attaches a client tool it no longer accepts native files -> memory runs as fallback this turn.
+  const nativeFilesBlockToolLoop = req.purpose === 'chat' && !imageGeneration
+    && messagesCarryFilePart(attempt.transport.messages)
+    && nativeFileModeOf(await resolveAttachmentLine({
+      provider, model, streamOptions: attachmentScopeOptions, toolLoop: true,
+    })) === 'off';
+  // When the effective generation params include json_schema, run as fallback this turn: do not attach propose; candidates go through the v1 memory split.
+  const proposeFallback = proposeMemory !== undefined
+    && !memoryToolsConnectionSupported(
+      provider, model, effectiveWebSearchEnabled, generationParameters, nativeFilesBlockToolLoop,
+    );
+  if (proposeMemory && proposeFallback) generateMemoryCandidate(store, proposeMemory.ticket, proposeMemory.userMessage);
+  let proposeToolsAttached = proposeMemory !== undefined && !proposeFallback;
+  // In tool mode, a chat request attaches search_memory after propose_memory (retries / regeneration attach it too).
+  const searchMode = req.purpose === 'chat' && !imageGeneration
+    && resolveSearchMemoryMode({
+      store, conversationId, provider, model, webSearchEnabled: effectiveWebSearchEnabled, generationParameters,
+      nativeFilesBlockToolLoop,
+    }) === 'tool';
+  let searchToolsAttached = searchMode;
+  // excludeIds takes the current plan's [D] recall; tool_result is trimmed by this request's recallMax / rhoHi.
+  const searchTurn = searchMode
+    ? createSearchMemoryTurn({
+      store,
+      conversationId,
+      folderId: req.conversation?.folderID ?? null,
+      recallIds: () => planRecallIds(chatPlan, recall),
+      recallMax: () => planRecallMax(chatPlan),
+      rhoHi: () => chatPlanAssembly.input.rhoHi ?? CONTEXT_BUDGET_CONSTANTS.rho0,
+    })
+    : undefined;
+  // External web search: after the refusal preflight and compaction pass, plan this turn before assembling the request; pre-search / reused content goes into [D].
+  const searchModelKey = externalSearchModelKey(provider.id, model.id);
+  const searchPlanInput = (rejection: { status: number; leg: number } | null) => ({
+    toolCall: resolveModelCapabilityEvidence({ key: 'tool_call', provider, model }).support,
+    host: {
+      library: false,
+      mcp: false,
+      // The registry this turn really has memory tool entries (same decision as the library / MCP path).
+      memoryTools: hostMemoryToolsRegistered({ propose: proposeToolsAttached, search: searchToolsAttached }),
+      nativeMoonshotLoop: false,
+      serverMaxSteps: effectiveMaxSteps(currentMcpRuntimeConfig()),
+      // Web's generic loop replays providerContinuation on every leg (tool_loop continuation table).
+      continuationKind: 'tool_loop',
+    },
+    thinking: {
+      on: searchThinkingOn(reasoningMode, excludeCapabilityOwners.includes('reasoning')),
+      protocol: searchThinkingProtocol(provider, attemptWireProtocol),
+      continuationStateAvailable: true,
+    },
+    ...(req.searchRegenerate ? { regenerate: req.searchRegenerate } : {}),
+    userText: req.latestUserText,
+    B: chatPlan.budget.B ?? null,
+    upstreamRejection: rejection,
+    toolsRejectedBefore: toolsRejectedBefore(conversationId, searchModelKey),
+  });
+  const webSearchTurn = req.purpose === 'chat' && !imageGeneration && !chatPlan.reject
+    ? planExternalSearchTurn(externalSearchContext, searchPlanInput(null))
+    : null;
+  const searchExecutor = webSearchTurn && externalSearchContext
+    ? createExternalSearchExecutor(webSearchTurn.binding, { uid: externalSearchContext.data.uid, connections: searchConnections })
+    : null;
+  const startSearch = (plan: SearchTurnPlan): ExternalSearchReply | null => {
+    if (!webSearchTurn || !searchExecutor) return null;
+    clearExternalSearchActivity(conversationId);
+    for (const t of plan.telemetry) trackEvent(t.event as TelemetryEventName, t.props);
+    const reply = startExternalSearchReply({
+      turn: webSearchTurn,
+      plan,
+      B: chatPlan.budget.B ?? null,
+      rhoHi: chatPlanAssembly.input.rhoHi ?? CONTEXT_BUDGET_CONSTANTS.rho0,
+      execute: searchExecutor,
+      onActivity: (detail) => {
+        setExternalSearchActivity(conversationId, detail);
+        store.getState().setStreamingActivity(conversationId, detail ? 'external_search' : null);
+      },
+      track: (event, props) => trackEvent(event, props),
+    });
+    req.onExternalSearchReply?.(reply);
+    return reply;
+  };
+  // Pre-search / reuse: same event loop, deliver.content goes verbatim as the segment right after <oriveo-library> in [D].
+  const applySearchDynamic = async (reply: ExternalSearchReply): Promise<boolean> => {
+    const plan = reply.turn.plan;
+    let web: string | null = null;
+    if (plan.reuse) web = reply.reuse(req.searchRegenerate?.previousCitations) || null;
+    else if (plan.presearch) web = await reply.search(plan.presearch.query, plan.presearch.count);
+    if (!web) return false;
+    planOptions.dynamic = { ...planOptions.dynamic, web };
+    chatPlan = assembleChatPlan(chatPlanAssembly, planOptions);
+    return true;
+  };
+  let searchReply = webSearchTurn ? startSearch(webSearchTurn.plan) : null;
+  // [D] changed: re-prepare the outbound from the plan with web content (attachments / file part same as above).
+  if (searchReply && !searchReply.turn.plan.requestHasWebSearchTool && await applySearchDynamic(searchReply)) {
+    attempt = await prepareAttempt(chatPlan, chatPlanAssembly);
+  }
   req.onRelayTransport(attempt.transport.options?.relayTransport);
 
   // Outbound facts after the final facade gate: web search counts as "used" only if the web configuration really went into this request.
@@ -1406,39 +1590,6 @@ export async function runChatOutbound<L extends { entries: LibraryEntry[] }>(
     });
   }
 
-  // In tool mode a fresh send attaches propose_memory with tool_choice auto (a plain send has no other client tool, so it is the last entry).
-  const proposeMemory = req.purpose === 'chat' && !imageGeneration ? req.proposeMemory : undefined;
-  // This round's outbound carries a native file part, and this wire does not accept native files once client tools are attached -> memory runs in fallback mode this round.
-  const nativeFilesBlockToolLoop = req.purpose === 'chat' && !imageGeneration
-    && messagesCarryFilePart(attempt.transport.messages)
-    && nativeFileModeOf(await resolveAttachmentLine({
-      provider, model, streamOptions: attachmentScopeOptions, toolLoop: true,
-    })) === 'off';
-  // When the effective generation parameters carry json_schema, this round runs in fallback mode: do not attach propose, and the candidate goes through the v1 memory split.
-  const proposeFallback = proposeMemory !== undefined
-    && !memoryToolsConnectionSupported(
-      provider, model, effectiveWebSearchEnabled, generationParameters, nativeFilesBlockToolLoop,
-    );
-  if (proposeMemory && proposeFallback) generateMemoryCandidate(store, proposeMemory.ticket, proposeMemory.userMessage);
-  let proposeToolsAttached = proposeMemory !== undefined && !proposeFallback;
-  // In tool mode a chat request attaches search_memory after propose_memory (retries and regenerations attach it the same way).
-  const searchMode = req.purpose === 'chat' && !imageGeneration
-    && resolveSearchMemoryMode({
-      store, conversationId, provider, model, webSearchEnabled: effectiveWebSearchEnabled, generationParameters,
-      nativeFilesBlockToolLoop,
-    }) === 'tool';
-  let searchToolsAttached = searchMode;
-  // excludeIds takes the [D] recall of the current plan; tool_result is trimmed by this request's recallMax / rhoHi.
-  const searchTurn = searchMode
-    ? createSearchMemoryTurn({
-      store,
-      conversationId,
-      folderId: req.conversation?.folderID ?? null,
-      recallIds: () => planRecallIds(chatPlan, recall),
-      recallMax: () => planRecallMax(chatPlan),
-      rhoHi: () => chatPlanAssembly.input.rhoHi ?? CONTEXT_BUDGET_CONSTANTS.rho0,
-    })
-    : undefined;
   // Ids of search results handed to the model and actually used (tail-leg wrap-up or a resend after empty text with thinking), merged into memoryIds.
   let searchMemoryIds: string[] = [];
   const hostMemoryTools = (): ProxyToolDefinition[] => [
@@ -1510,7 +1661,103 @@ export async function runChatOutbound<L extends { entries: LibraryEntry[] }>(
     };
     recordToolCallFallback(provider, model, identity, rejection, options?.relayTransport);
   };
+  // Current leg of the tool loop (legStarted from 0): rejection fallback only recognizes the first leg.
+  let webSearchLoopLegIndex = 0;
+  // External search tool path (search only): generic ToolCallLoop, memory tools join the same loop and no tail leg is added (generic_tool_loop).
+  const runWebSearchToolLoop = async (reply: ExternalSearchReply): Promise<StreamPipelineResult> => {
+    const toolHost = reply.turn.plan.toolHost;
+    if (!toolHost.webSearchRegistered) throw new Error('web_search tool path without registered host');
+    const entries: ToolRegistryEntry[] = [];
+    if (proposeToolsAttached && proposeMemory) {
+      entries.push(createProposeMemoryEntry({
+        ticket: proposeMemory.ticket,
+        store,
+        repo: currentMemoryCandidateRepository(store),
+        userText: proposeMemory.userMessage.text ?? '',
+        ids: { conversationId, messageId: proposeMemory.userMessage.id, folderId: req.conversation?.folderID ?? null },
+      }));
+    }
+    if (searchToolsAttached && searchTurn) entries.push(createSearchMemoryEntry(searchTurn));
+    entries.push(createWebSearchEntry(reply));
+    proposeToolsAttached = false;
+    searchToolsAttached = false;
+    const controller = new AbortController();
+    req.setAbortFn(() => controller.abort());
+    const agentOutbound = await prepareAgentSubscriptionOutbound(store, provider, model, attempt.transport.options);
+    const unhandled: CompletedToolCall[] = [];
+    let legText = '';
+    try {
+      const result = await new ToolCallLoop({
+        registry: new ToolRegistry(entries),
+        runLeg: ({ messages, tools, toolChoice }) => {
+          const transport = transportInput(attempt.planned, { options: agentOutbound.streamOptions, toolLeg: { messages, tools } });
+          return sendLibraryAgentLeg(
+            provider.kind, agentOutbound.apiKey, model.id, transport.messages, transport.tools,
+            requestBaseURLText(provider), transport.options, toolChoice,
+          );
+        },
+        signal: controller.signal,
+        limits: {
+          maxSteps: toolHost.maxSteps,
+          maxConsecutiveToolFailures: toolHost.consecutiveFailureBreaker === 'off' ? Number.POSITIVE_INFINITY : toolHost.consecutiveFailureBreaker,
+        },
+        stoppedErrorCode: HOST_PROMPTS[toolHost.prompts].stoppedErrorCode,
+        onUnhandledToolCalls: (calls) => {
+          unhandled.push(...calls.map((call) => ({ id: call.id, name: call.function.name, arguments: call.function.arguments })));
+        },
+      }).run(attempt.transport.messages as ProxyMessage[], (event) => {
+        if (event.type === 'legStarted') {
+          legText = '';
+          webSearchLoopLegIndex = event.legIndex;
+        }
+        else if (event.type === 'textDelta') {
+          legText += event.text;
+          store.getState().setStreamingActivity(conversationId, null);
+          store.getState().setStreamingText(conversationId, appendText(req.initialText, legText));
+        } else if (event.type === 'reasoningDelta') store.getState().appendStreamingReasoningText(conversationId, event.text);
+        else if (event.type === 'toolCallsAccepted') store.getState().setStreamingText(conversationId, req.initialText);
+      });
+      return {
+        outcome: req.isAbortRequested() ? 'guarded' : 'completed',
+        fullText: appendText(req.initialText, result.text),
+        reasoningText: (store.getState().streamingReasoningTexts[conversationId] ?? '').trim(),
+        citations: undefined,
+        usage: result.usage,
+        imageAttachments: [],
+        capabilityResults: [],
+        unhandledToolCalls: unhandled,
+        ...(result.finish ? { finish: result.finish } : {}),
+      };
+    } finally {
+      req.setAbortFn(null);
+    }
+  };
+  // The first leg with web_search is rejected by upstream with 400 / 422 (before any text): recompute the plan; if it switches to pre-search, resend this turn as pre-search.
+  // A 400 / 422 from the second leg on is a normal error: no switching, no new reply state. Context-too-long recognized by the overflow check is excluded first and goes to overflow recovery.
+  const runSearchToolPath = async (reply: ExternalSearchReply): Promise<StreamPipelineResult> => {
+    try {
+      return await runWebSearchToolLoop(reply);
+    } catch (error) {
+      const status = error instanceof ToolLoopError ? error.status : undefined;
+      if (req.isAbortRequested() || !(error instanceof ToolLoopError) || error.streamStarted || webSearchLoopLegIndex !== 0
+        || isContextOverflowFailure(error, provider.kind, attempt.transport.options?.relayTransport)
+        || status === undefined || !TOOLS_REJECTED_STATUSES.includes(status) || !webSearchTurn) throw error;
+      const replanned = planExternalSearchTurn(externalSearchContext, searchPlanInput({ status, leg: 0 }));
+      if (!replanned || !replanned.plan.presearch) throw error;
+      rememberToolsRejected(conversationId, searchModelKey);
+      const fallback = startSearch(replanned.plan);
+      if (!fallback) throw error;
+      searchReply = fallback;
+      // Tools removed from this turn: propose_memory runs fallback this turn (same as resend without tools).
+      if (proposeMemory) generateMemoryCandidate(store, proposeMemory.ticket, proposeMemory.userMessage);
+      store.getState().setStreamingText(conversationId, req.initialText);
+      await applySearchDynamic(fallback);
+      attempt = await prepareAttempt(chatPlan, chatPlanAssembly);
+      return runPipeline();
+    }
+  };
   const runFirstLeg = async (): Promise<StreamPipelineResult> => {
+    if (searchReply?.turn.plan.requestHasWebSearchTool) return runSearchToolPath(searchReply);
     try {
       return await runPipeline();
     } catch (error) {
@@ -1670,6 +1917,13 @@ export async function runChatOutbound<L extends { entries: LibraryEntry[] }>(
   };
   // Resend once with the recovered assembly (only once); if it fails again, record one failed attempt and throw as is.
   const resendAfterOverflow = async (recoveryAssembly: ChatContextAssembly): Promise<StreamPipelineResult> => {
+    // Internal automatic resend within this turn (reuse): if the tool path already has web results this turn, already-produced sources are rebuilt into an envelope per reuse and put in [D];
+    // the resend registers no tools and sends no search request; message facts and sources remain those real searches of this turn (numbering matches the envelope).
+    // Content from pre-search / reuse / rejection fallback is already in planOptions.dynamic.web; the recovery plan carries it as-is.
+    if (searchReply?.turn.plan.requestHasWebSearchTool && searchReply.webResultsPresent()) {
+      const web = searchReply.replayEnvelope();
+      if (web) planOptions.dynamic = { ...planOptions.dynamic, web };
+    }
     const recoveryPlan = assembleChatPlan(recoveryAssembly, planOptions);
     // The checkpoint changed: a stateful continuation falls back to the full plan by fingerprint.
     attempt = await prepareAttempt(recoveryPlan, recoveryAssembly);

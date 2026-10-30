@@ -28,6 +28,22 @@ const mocks = vi.hoisted(() => ({
   reportSendCompletion: vi.fn(),
   toolRememberedFalse: vi.fn((_identity: unknown) => false),
   recordToolFalse: vi.fn((_identity: unknown) => undefined),
+  searchContext: vi.fn(async (_input: unknown): Promise<unknown> => null),
+  forwardSearch: vi.fn(),
+  searchKey: vi.fn(async (_uid: string, _id: string): Promise<string | null> => "tv-key-0000"),
+}));
+// External web search: local sources and forwarding are supplied by each case (no service by default = behavior unchanged).
+vi.mock("./external-search-send", () => ({
+  loadExternalSearchSendContext: (input: unknown) => mocks.searchContext(input),
+}));
+vi.mock("../../search/search-settings-data", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../search/search-settings-data")>()),
+  forwardSearch: (...args: unknown[]) => mocks.forwardSearch(...args),
+}));
+
+vi.mock("../../search/search-service-store", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../search/search-service-store")>()),
+  readSearchServiceKey: (uid: string, id: string) => mocks.searchKey(uid, id),
 }));
 
 vi.mock("../../utils/chat-stream-utils", () => ({
@@ -202,6 +218,9 @@ beforeEach(() => {
   mocks.toolRememberedFalse.mockReset();
   mocks.toolRememberedFalse.mockReturnValue(false);
   mocks.recordToolFalse.mockReset();
+  mocks.searchContext.mockReset();
+  mocks.searchContext.mockResolvedValue(null);
+  mocks.forwardSearch.mockReset();
 });
 
 describe("sendLibraryMessage", () => {
@@ -772,5 +791,92 @@ describe("Library message recovery", () => {
     expect(messages[1].researchSteps).toEqual([
       expect.objectContaining({ id: "step-1", step: 1 }),
     ]);
+  });
+});
+
+describe("library + external web search (shared tool loop)", () => {
+  const view = {
+    record: { id: "svc-tv", kind: "preset", serviceId: "tavily", name: "Tavily", regionId: "global", boundHost: "api.tavily.com", connectionRef: null, createdAt: 1, updatedAt: 1 },
+    name: "Tavily",
+    keySource: "own",
+    hasKey: true,
+    keyTail: "0000",
+    row: { status: "ready", label: "preset", keySource: "own", connectionName: null },
+    resultCount: 5,
+  };
+  const searchContext = {
+    state: { route: { path: "external_tool" }, source: { method: "external", serviceId: "svc-tv", notice: null, nextStored: null, changed: false } },
+    data: { uid: "guest", catalog: { available: true, entries: [], withdrawn: [] }, connections: [], snapshot: { services: [view], defaultId: "svc-tv" } },
+  };
+
+  it("registry includes web_search, web numbering follows library numbering, sources and facts are persisted", async () => {
+    mocks.searchContext.mockResolvedValue(searchContext);
+    mocks.forwardSearch.mockResolvedValue({
+      ok: true,
+      latencyMs: 400,
+      results: [
+        { title: "Web A", url: "https://a.example/", snippet: "a" },
+        { title: "Web B", url: "https://b.example/", snippet: "b" },
+      ],
+    });
+    let webContent = "";
+    let laterLibraryIndex = 0;
+    mocks.runLoop.mockImplementation(async (options: {
+      additionalEntries?: Array<{ name: string; execute: (call: unknown, ctx: unknown) => Promise<{ content: string }> }>;
+      allocateCitationIndex?: (key: string, fallback: number) => number;
+    }) => {
+      const web = options.additionalEntries?.find((entry) => entry.name === "web_search");
+      expect(web).toBeDefined();
+      // The library reads one document first (search state not open yet → uses this loop's number 1, then enters the allocator via priorBatches)
+      expect(options.allocateCitationIndex?.("notion:doc-1", 1)).toBe(1);
+      webContent = (await web!.execute(
+        { id: "c1", type: "function", function: { name: "web_search", arguments: JSON.stringify({ query: "roadmap" }) } },
+        { callID: "c1", stepNumber: 2, legIndex: 1, signal: new AbortController().signal },
+      )).content;
+      // The library reads another document after the search: shares the allocator with web results, numbered after the web results
+      laterLibraryIndex = options.allocateCitationIndex!("notion:doc-2", 2);
+      return {
+        text: "Answer [1] [2]",
+        citations: [{ url: "https://www.notion.so/doc-1", title: "Doc 1", source: "notion", docId: "doc-1", index: 1 }],
+        steps: [],
+      };
+    });
+    const { store, handle } = start({ reasoningMode: "fast" });
+    await handle.done;
+
+    expect([...webContent.matchAll(/<result id="(\d+)"/g)].map((m) => Number(m[1]))).toEqual([2, 3]);
+    expect(laterLibraryIndex).toBe(4);
+    const assistant = store.getState().conversations[0].messages.find((message) => message.id === handle.msgId);
+    expect(assistant?.citations?.map((c) => [c.source, c.index])).toEqual([["notion", 1], ["external_search", 2], ["external_search", 3]]);
+    expect(assistant?.citations?.[1]).toMatchObject({ serviceId: "svc-tv", serviceName: "Tavily", query: "roadmap" });
+    expect(assistant?.capabilityResults).toEqual([expect.objectContaining({ source: "external_search", state: "observed", sourceCount: 2 })]);
+    expect(vi.mocked(trackEvent)).toHaveBeenCalledWith("search_executed", expect.objectContaining({ service: "tavily", path: "tool" }));
+  });
+
+  it("first leg with web_search rejected (400): switch to pre-search, query = original text, re-answer without tools, persist the tools_rejected notice", async () => {
+    mocks.searchContext.mockResolvedValue(searchContext);
+    mocks.forwardSearch.mockResolvedValue({
+      ok: true,
+      latencyMs: 300,
+      results: [{ title: "Web A", url: "https://a.example/", snippet: "a" }],
+    });
+    mocks.runLoop.mockImplementation(async (options: {
+      additionalEntries?: Array<{ name: string }>;
+      onWebSearchToolsRejected?: (status: number) => Promise<unknown[] | null>;
+    }) => {
+      expect(options.additionalEntries?.some((entry) => entry.name === "web_search")).toBe(true);
+      const replanned = await options.onWebSearchToolsRejected!(400);
+      expect(replanned).not.toBeNull();
+      return { text: "Answer [1]", citations: [], steps: [], webSearchReplanned: true };
+    });
+    const { store, handle } = start({ reasoningMode: "fast", conversation: { ...conversation(), id: "conv-rejected" } });
+    await handle.done;
+
+    expect(mocks.forwardSearch).toHaveBeenCalledTimes(1);
+    expect(mocks.forwardSearch.mock.calls[0][0]).toMatchObject({ query: "Find the roadmap", key: "tv-key-0000" });
+    const assistant = store.getState().conversations[0].messages.find((message) => message.id === handle.msgId);
+    expect(assistant?.searchNotice).toBe("tools_rejected");
+    expect(assistant?.citations?.filter((c) => c.source === "external_search").map((c) => c.index)).toEqual([1]);
+    expect(vi.mocked(trackEvent)).toHaveBeenCalledWith("search_executed", expect.objectContaining({ service: "tavily", path: "presearch" }));
   });
 });

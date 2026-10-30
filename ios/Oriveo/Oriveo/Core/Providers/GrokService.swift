@@ -97,7 +97,7 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
             }
             let response = try decoder.decode(GrokResponsesResponse.self, from: data)
             let text = response.resolvedText.trimmingCharacters(in: .whitespacesAndNewlines)
-            try RecipeContinuationRuntime.save(
+            try await RecipeContinuationRuntime.save(
                 messageID: requestOptions.localContinuationMessageID,
                 recipe: Self.responsesPreviousIDRecipe(
                     modelID: modelID, reasoningMode: reasoningMode,
@@ -594,7 +594,7 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
 
         for ev in OpenAIResponsesStrategy.flushToolCalls(ctx: &ctx) { continuation.yield(ev) }
         let breakdown = Self.parseResponsesUsage(lastUsage)
-        try RecipeContinuationRuntime.save(
+        try await RecipeContinuationRuntime.save(
             messageID: requestOptions.localContinuationMessageID,
             recipe: Self.responsesPreviousIDRecipe(
                 modelID: modelID, reasoningMode: reasoningMode,

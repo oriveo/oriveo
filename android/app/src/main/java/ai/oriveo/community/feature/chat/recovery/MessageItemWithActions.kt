@@ -182,6 +182,7 @@ internal fun MessageItemWithActions(
                 streamingReasoningActive = streamingReasoningActive,
                 streamingActivity = streamingActivity,
                 isLiveStream = isLiveStream,
+                isLastMessage = isLastMessage,
                 showMetadata = showMetadata,
                 providerNameOverride = providerNameOverride,
                 modelNameOverride = modelNameOverride,
@@ -464,6 +465,17 @@ internal fun MessageItemWithActions(
                         onClick = { showMenu = false; onRegenerate() },
                         leadingIcon = { Icon(Icons.Outlined.Refresh, contentDescription = null) },
                     )
+                    // A message with external search sources gets an extra "regenerate with a new search" item (regenerate.action = re_search)
+                    val searchHost = ai.oriveo.community.feature.chat.components.LocalExternalSearchChatHost.current
+                    if (searchHost != null &&
+                        ai.oriveo.community.feature.chat.components.ExternalSearchChatPresentation.offersRegenerateWithSearch(message.citations)
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.web_search_chat_regenerate_with_search)) },
+                            onClick = { showMenu = false; searchHost.regenerateWithSearch(message.id) },
+                            leadingIcon = { Icon(Icons.Outlined.Refresh, contentDescription = null) },
+                        )
+                    }
 
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.notes_chat_crosscheck_action)) },

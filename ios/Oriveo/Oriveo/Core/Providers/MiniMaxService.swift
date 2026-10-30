@@ -142,7 +142,7 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
                 reasoningDetails: replayDetails,
                 toolCalls: replayToolCalls
            ), let encoded = RecipeContinuationRuntime.jsonValue([replayMessage]) {
-            try RecipeContinuationRuntime.save(
+            try await RecipeContinuationRuntime.save(
                 messageID: requestOptions.localContinuationMessageID,
                 recipe: continuationRecipe,
                 state: ["assistantMessages": encoded]
@@ -329,7 +329,7 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
                     if reachedTerminalFrame,
                        let replayMessage = replayAccumulator.completedAssistantMessage(),
                        let encoded = RecipeContinuationRuntime.jsonValue([replayMessage]) {
-                        try RecipeContinuationRuntime.save(
+                        try await RecipeContinuationRuntime.save(
                             messageID: requestOptions.localContinuationMessageID,
                             recipe: continuationRecipe,
                             state: ["assistantMessages": encoded]
@@ -558,7 +558,7 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
             }
         }
         if let value = RecipeContinuationRuntime.jsonValue(finalizedBlocks) {
-            try RecipeContinuationRuntime.save(
+            try await RecipeContinuationRuntime.save(
                 messageID: requestOptions.localContinuationMessageID,
                 recipe: recipe, state: ["blocks": value]
             )
@@ -678,7 +678,7 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
                     if terminal, replayStateValid,
                        let finalized = Self.finalizedAnthropicWebBlocks(blocks, inputs: inputFragments),
                        let value = RecipeContinuationRuntime.jsonValue(finalized) {
-                        try RecipeContinuationRuntime.save(
+                        try await RecipeContinuationRuntime.save(
                             messageID: requestOptions.localContinuationMessageID,
                             recipe: recipe, state: ["blocks": value]
                         )

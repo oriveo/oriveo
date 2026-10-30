@@ -2,8 +2,8 @@
 
 import { decidedTransport } from '@oriveo/core/providers/relay-effective';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useTranslations } from 'next-intl';
-import { Check, ChevronRight, Lock, RefreshCw, Settings2 } from 'lucide-react';
+import { useLocale, useTranslations } from 'next-intl';
+import { Check, ChevronRight, Lock, Plus, RefreshCw, Settings2 } from 'lucide-react';
 import type { AIModel, Provider, ReasoningMode } from '@oriveo/shared';
 import { BackButton, CloseButton } from '@oriveo/ui';
 import type { ReasoningIntent } from '@oriveo/core/providers/request-preference/types';
@@ -29,7 +29,9 @@ import {
   modelOptionLocalEngine,
   modelOptionConnection,
   modelOptionReasoningFacts,
+  modelOptionWebSearchState,
   resolveModelOptionCapabilityShape,
+  webSearchRouteForm,
   type ModelOptionCapabilityInput,
   type ModelOptionLinkAction,
 } from '../../lib/core/chat/model-option-capability-shape';
@@ -77,6 +79,22 @@ import {
 } from '../../lib/core/chat/model-control-capability-layout';
 import { getCapabilityRuntime, refreshMetadata } from '../../lib/core/metadata/metadata-client';
 import { getProviderInstanceDisplayName } from '../../lib/core/providers/provider-display';
+import { composerWebPreferenceWritable } from '../../lib/core/chat/composer-web-preference';
+import { resolveModelCapabilityEvidence } from '../../lib/core/chat/capability-evidence';
+import { updateSearchSource, type SearchSourceEvent, type ToolCallSupport } from '@oriveo/core/search/search-route';
+import {
+  SEARCH_SERVICES_CHANGED_EVENT,
+  externalSearchFacts,
+  externalSearchModelKey,
+  loadExternalSearchData,
+  readConversationSearchSource,
+  writeConversationSearchSource,
+  type ExternalSearchData,
+} from '../../lib/search/external-search-context';
+import { searchConnectionsFromProviders } from '../../lib/search/search-settings-data';
+import { ModelProviderLogo, SearchServiceLogo, searchServiceRowSubtitle } from '../../app/settings/web-search/WebSearchParts';
+import webSearchStyles from '../../app/settings/web-search/WebSearch.module.css';
+import type { ChatSearchServiceSheetRequest } from './ChatSearchServiceSheet';
 import styles from './InputComposer.module.css';
 
 /**
@@ -111,7 +129,9 @@ type Pane =
   | { kind: 'main' }
   | { kind: 'advanced' }
   | { kind: 'customFields' }
-  | { kind: 'supportedModels'; capability: CustomFragmentOwner };
+  | { kind: 'supportedModels'; capability: CustomFragmentOwner }
+  /** "Search method" sheet. */
+  | { kind: 'searchSource' };
 
 /**
  * DOM id of the popover container. The composer chip that mounts it points here with
@@ -163,8 +183,14 @@ export type ModelOptionsPopoverProps = {
   onOpenRelayModelAdvanced?: () => void;
   onFindModelsSupportingParameter?: (parameterId: string) => void;
   onOverrideChange?: (hasOverride: boolean) => void;
-  /** Pane to open straight into (used by the error card's "edit" action). */
-  initialPane?: 'customFields';
+  /** Pane to open straight into (used by the error card's "edit" action; screenshots also use it to open "search method" directly). */
+  initialPane?: 'customFields' | 'searchSource';
+  /** "Turn on in one tap / add a search service" on the web search card: the host opens the connect sheet in place. */
+  onOpenSearchServiceSheet?: (request: ChatSearchServiceSheetRequest) => void;
+  /** Draft conversation id of this page: while a new conversation has no id yet, the search source is kept in memory under it. */
+  searchDraftSessionId?: string;
+  /** In-memory data for screenshots: when given, the partition store and the catalog are not read (never passed in production). */
+  externalSearchSource?: { data: ExternalSearchData; stored: unknown; toolCall?: ToolCallSupport; panelWritable?: boolean };
   onClose: () => void;
 };
 
@@ -204,8 +230,13 @@ export function ModelOptionsPopover({
   onFindModelsSupportingParameter,
   onOverrideChange,
   initialPane,
+  onOpenSearchServiceSheet,
+  searchDraftSessionId,
+  externalSearchSource,
   onClose,
 }: ModelOptionsPopoverProps) {
+  const locale = useLocale();
+  const tWebSearch = useTranslations('webSearch');
   const tCommon = useTranslations('common');
   const tReasoning = useTranslations('pages.chat.reasoning');
   const tr = useCallback((key: ModelControlMessageKey, values?: Record<string, string | number>) => (
@@ -214,7 +245,9 @@ export function ModelOptionsPopover({
       : tReasoning(key.slice('pages.chat.reasoning.'.length), values)
   ), [tCommon, tReasoning]);
 
-  const [pane, setPane] = useState<Pane>(initialPane === 'customFields' ? { kind: 'customFields' } : { kind: 'main' });
+  const [pane, setPane] = useState<Pane>(
+    initialPane === 'customFields' ? { kind: 'customFields' } : initialPane === 'searchSource' ? { kind: 'searchSource' } : { kind: 'main' },
+  );
   const containerRef = useRef<HTMLElement>(null);
   const backRef = useRef<HTMLButtonElement>(null);
   /**
@@ -509,6 +542,64 @@ export function ModelOptionsPopover({
     supportsChatTemplate: chatTemplateThinkingApplies(finalTransport),
   } as const;
   const localEngine = provider?.kind === 'relay' ? modelOptionLocalEngine(provider, model) : undefined;
+
+  /**
+   * Local external search services: read once when the panel opens, the model changes, or the service list changes (broadcast after the connect sheet saves);
+   * this conversation's source is read via resolveSearchSource and written back only when `changed`.
+   */
+  const searchModelKey = provider && model ? externalSearchModelKey(provider.id, model.id) : '';
+  const [searchServicesRevision, setSearchServicesRevision] = useState(0);
+  useEffect(() => {
+    const refresh = () => setSearchServicesRevision((revision) => revision + 1);
+    window.addEventListener(SEARCH_SERVICES_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(SEARCH_SERVICES_CHANGED_EVENT, refresh);
+  }, []);
+  const [searchState, setSearchState] = useState<{ data: ExternalSearchData; stored: unknown } | null>(
+    externalSearchSource ? { data: externalSearchSource.data, stored: externalSearchSource.stored } : null,
+  );
+  useEffect(() => {
+    if (externalSearchSource || !searchModelKey) return;
+    let cancelled = false;
+    const providers = tryGetVanillaStore()?.getState().providers ?? [];
+    void loadExternalSearchData(searchConnectionsFromProviders(providers))
+      .then(async (data) => ({
+        data,
+        stored: (await readConversationSearchSource({
+          data, conversationId, ...(searchDraftSessionId ? { draftSessionId: searchDraftSessionId } : {}), modelKey: searchModelKey,
+        })).stored,
+      }))
+      .then((next) => {
+        if (!cancelled) setSearchState(next);
+      }, () => {});
+    return () => { cancelled = true; };
+  }, [conversationId, externalSearchSource, searchDraftSessionId, searchModelKey, searchServicesRevision]);
+  const searchFacts = searchState && provider && model
+    ? externalSearchFacts({
+      data: searchState.data,
+      stored: searchState.stored,
+      modelKey: searchModelKey,
+      form: webSearchRouteForm(provider),
+      currentProviderKind: provider.kind,
+      toolCall: externalSearchSource?.toolCall ?? resolveModelCapabilityEvidence({ key: 'tool_call', provider, model }).support,
+      nativeRejected: webRuntimeRejected,
+      panelWritable: externalSearchSource?.panelWritable ?? composerWebPreferenceWritable(provider, model),
+    })
+    : null;
+  const applySearchSourceEvent = useCallback((event: SearchSourceEvent) => {
+    if (!searchState) return;
+    const { data, stored } = searchState;
+    // Sample data (in memory) does not write the partition store; it only changes the panel opened this time.
+    if (externalSearchSource) {
+      setSearchState({ data, stored: updateSearchSource({ stored, modelKey: searchModelKey, event }) });
+      return;
+    }
+    // With no conversation id, write the in-memory draft; never persist under the draft id.
+    void writeConversationSearchSource({
+      uid: data.uid, conversationId, ...(searchDraftSessionId ? { draftSessionId: searchDraftSessionId } : {}),
+      stored, modelKey: searchModelKey, event,
+    }).then((next) => setSearchState({ data, stored: next }), () => {});
+  }, [conversationId, externalSearchSource, searchDraftSessionId, searchModelKey, searchState]);
+
   const webInput: ModelOptionCapabilityInput = {
     ...sharedCapabilityInput,
     capability: 'web',
@@ -518,7 +609,22 @@ export function ModelOptionsPopover({
     isWritable: canPersist && !webFacts.isActive,
     // Relay web search is a chat switch: its shape, the outbound path and the badge read the same facts (first-send protocol fragment, local probe record, user override).
     ...(provider && providerFormOf(provider) === 'relay' ? { relayWeb: relayWebModelOptionFacts(provider, model) } : {}),
+    ...(searchFacts ? { externalSearch: searchFacts.input } : {}),
   };
+  /** Web combined result (resolveWebSearchState): shape, "Search method" row and source all read it. */
+  const webSearchState = modelOptionWebSearchState(webInput);
+  /** When the model options truly close (unmount) and a fallback notice exists, mark it as seen (acknowledge_notice); switching model inside the panel does not count. */
+  const pendingNoticeRef = useRef<(() => void) | null>(null);
+  pendingNoticeRef.current = webSearchState?.source.notice ? () => applySearchSourceEvent({ type: 'acknowledge_notice' }) : null;
+  useEffect(() => () => { pendingNoticeRef.current?.(); }, []);
+  /** Context needed to send pick_service for the new service after the connect sheet saves successfully. */
+  const armRequest = () => ({
+    modelKey: searchModelKey,
+    knownServiceIds: (searchState?.data.snapshot.services ?? []).map((view) => view.record.id),
+    ...(conversationId ? { conversationId } : {}),
+    ...(searchDraftSessionId ? { draftSessionId: searchDraftSessionId } : {}),
+  });
+  const searchServiceName = (id: string | null) => searchState?.data.snapshot.services.find((view) => view.record.id === id)?.name ?? null;
   const reasoningInput: ModelOptionCapabilityInput = {
     ...sharedCapabilityInput,
     capability: 'reasoning',
@@ -539,7 +645,10 @@ export function ModelOptionsPopover({
    * Resolution is asynchronous (an official connection has to dry-run a builder once); until it resolves the card shows "converted to text".
    */
   const webRow = resolveModelOptionCapabilityShape(webInput);
-  const webIsOn = webRow.kind === 'toggleWithTiming' || (webRow.kind === 'toggle' && webRow.isOn);
+  // The external search path carries no native web-search fields (resolveSearchTurnPath); file routes are resolved as "web off".
+  const webIsOn = webRow.kind === 'toggleWithSource'
+    ? webRow.isOn && !webRow.nativeFieldsSuppressed
+    : webRow.kind === 'toggleWithTiming' || (webRow.kind === 'toggle' && webRow.isOn);
   const [fileLine, setFileLine] = useState<ModelOptionsFileFacts['line']>();
   useEffect(() => {
     setFileLine(undefined);
@@ -593,6 +702,9 @@ export function ModelOptionsPopover({
         case 'switchConnection': return Boolean(onOpenModelSwitcher);
         case 'openConnectionWebSearch': return Boolean(onOpenConnectionWebSearch);
         case 'testCapabilities': return Boolean(onOpenRelayModelAdvanced);
+        case 'pickSearchSource': return Boolean(webSearchState);
+        case 'oneTapEnableSearch': return Boolean(onOpenSearchServiceSheet && searchFacts?.oneTapTarget);
+        case 'addSearchService': return Boolean(onOpenSearchServiceSheet);
       }
     },
     follow: (link, capability) => {
@@ -603,6 +715,21 @@ export function ModelOptionsPopover({
         case 'switchConnection': onOpenModelSwitcher?.(); break;
         case 'openConnectionWebSearch': onOpenConnectionWebSearch?.(); break;
         case 'testCapabilities': onOpenRelayModelAdvanced?.(); break;
+        case 'pickSearchSource': setPane({ kind: 'searchSource' }); break;
+        case 'oneTapEnableSearch': {
+          const target = searchFacts?.oneTapTarget;
+          if (!target) break;
+          // Connect page step 4: reuse this connection's key, site follows the connection address; on success, if oneTapArms is true send pick_service (new service).
+          onOpenSearchServiceSheet?.({
+            initial: { step: 'connect', row: { ...target, addedServiceRef: null }, mode: 'connection' },
+            ...(webSearchState?.oneTapArms ? { arm: armRequest() } : {}),
+          });
+          break;
+        }
+        // Successfully adding a search service from the web card = explicitly choosing external; likewise sends pick_service.
+        case 'addSearchService':
+          onOpenSearchServiceSheet?.({ initial: { step: 'pick' }, ...(webSearchState?.oneTapArms ? { arm: armRequest() } : {}) });
+          break;
       }
     },
     onToggle: (row, isOn) => {
@@ -611,6 +738,12 @@ export function ModelOptionsPopover({
         return;
       }
       if (row.capability === 'web') {
+        // External switch (toggleControls = external): on = pick_service (the current service), off = disarm; neither writes the conversation's web setting.
+        if (row.kind === 'toggleWithSource' && row.controls === 'external') {
+          if (isOn && row.serviceId) applySearchSourceEvent({ type: 'pick_service', serviceId: row.serviceId, serviceName: searchServiceName(row.serviceId) });
+          else if (!isOn) applySearchSourceEvent({ type: 'disarm' });
+          return;
+        }
         // On returns to "search when needed"; "search on every message" belongs to the timing control, the switch carries no strength.
         handleWebPreferenceChange(isOn ? 'automatic' : 'off');
         return;
@@ -915,6 +1048,78 @@ export function ModelOptionsPopover({
     </>
   );
 
+  const searchSourcePane = (
+    <>
+      <header className={styles.modelControlsHeader} data-secondary="true">
+        <BackButton
+          ref={backRef}
+          className={styles.modelControlsBack}
+          label={tCommon('back')}
+          onClick={() => setPane({ kind: 'main' })}
+        />
+        <strong className={styles.modelControlsTitle}>{tWebSearch('picker.title')}</strong>
+      </header>
+      <div className={styles.modelControlSections}>
+        {/* Same list row as "My search services" in settings: logo + name + subtitle (secondary color, below the name) + selected check on the right; last row "Add search service". */}
+        <div className={webSearchStyles.card} data-testid="search-source-picker">
+          {webSearchState?.pickerItems.map((item) => {
+            if (item.kind === 'add') {
+              return (
+                <button
+                  key="add"
+                  type="button"
+                  className={webSearchStyles.addRow}
+                  disabled={!onOpenSearchServiceSheet}
+                  // Any add started from the model options panel sends pick_service as a new service.
+                  onClick={() => onOpenSearchServiceSheet?.({ initial: { step: 'pick' }, ...(webSearchState?.oneTapArms ? { arm: armRequest() } : {}) })}
+                >
+                  <Plus size={20} aria-hidden />
+                  {tWebSearch('main.add')}
+                </button>
+              );
+            }
+            const view = item.kind === 'service' ? searchState?.data.snapshot.services.find((s) => s.record.id === item.serviceId) : undefined;
+            const title = item.kind === 'native' ? tWebSearch('picker.native') : view?.name ?? '';
+            const rowSubtitle = item.kind === 'service' && !item.isDefault && view
+              ? searchServiceRowSubtitle(tWebSearch, locale, searchState?.data.catalog ?? null, view)
+              : null;
+            const subtitle = item.kind === 'native'
+              ? tWebSearch('picker.nativeSub', { model: model?.name ?? '' })
+              : item.isDefault ? tWebSearch('picker.defaultSub') : rowSubtitle?.text ?? '';
+            const event: SearchSourceEvent = item.kind === 'native'
+              ? { type: 'pick_native' }
+              : { type: 'pick_service', serviceId: item.serviceId, serviceName: view?.name ?? null };
+            return (
+              <button
+                key={item.kind === 'native' ? 'native' : item.serviceId}
+                type="button"
+                className={webSearchStyles.row}
+                aria-pressed={item.selected}
+                data-search-source={item.kind === 'native' ? 'native' : item.serviceId}
+                onClick={() => {
+                  applySearchSourceEvent(event);
+                  // On a natively capable model, picking a service = external and turns session web search on; picking "model built-in" leaves the switch alone.
+                  if (event.type === 'pick_service' && webSearchState?.toggleControls === 'conversation_web') handleWebPreferenceChange('automatic');
+                  setPane({ kind: 'main' });
+                }}
+              >
+                {item.kind === 'native'
+                  ? <ModelProviderLogo providerKind={provider?.kind ?? null} />
+                  : <SearchServiceLogo serviceId={view?.record.kind === 'preset' ? view.record.serviceId : null} />}
+                <span className={webSearchStyles.rowText}>
+                  <span className={webSearchStyles.rowTitle}>{title}</span>
+                  <span className={rowSubtitle?.warning ? webSearchStyles.rowSubtitleWarning : webSearchStyles.rowSubtitle}>{subtitle}</span>
+                </span>
+                {item.selected ? <Check className={webSearchStyles.rowCheck} size={18} aria-hidden /> : null}
+              </button>
+            );
+          })}
+        </div>
+        <p className={webSearchStyles.footer}>{tWebSearch('picker.footer')}</p>
+      </div>
+    </>
+  );
+
   return (
     /*
      * `role="dialog"` rather than a bare `<section>`: the entry chip points here with
@@ -938,6 +1143,7 @@ export function ModelOptionsPopover({
         : pane.kind === 'advanced' ? advancedPane
         : pane.kind === 'customFields' ? customFieldsPane
         : pane.kind === 'supportedModels' ? supportedModelsPane(pane.capability)
+        : pane.kind === 'searchSource' ? searchSourcePane
         : mainPane}
       {/*
         Fixed bottom area. The scope upgrade row is pinned directly above the close bar and forms

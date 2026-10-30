@@ -257,8 +257,12 @@ internal object ChatContextProjector {
         rhoHi: Double,
         overflowFallbackB: Int? = null,
         library: List<ContextLibraryEntry>? = null,
+        /** External search delivery for [D] (after the library envelope); see [ContextDynamicInput.web]. */
+        web: String? = null,
         purpose: RequestPurpose = RequestPurpose.CHAT,
         keepAssistantId: String? = null,
+        /** Assistant slot reused by a retry (the same write target as [keepAssistantId]): it is the message this turn writes, so history gets no compact search record for it. */
+        recordExcludeId: String? = null,
         toolSafety: String? = null,
         checkpoint: ContextCheckpointRecord? = null,
         memoryFallback: Boolean = true,
@@ -279,15 +283,17 @@ internal object ChatContextProjector {
                 currentAttachments = current.attachments.orEmpty(),
                 keepAssistantId = keepAssistantId,
                 toolSafety = toolSafety,
-                dynamic = if (request.attachmentGuide != null || library != null || request.recall.isNotEmpty()) {
-                    ContextDynamicInput(recall = request.recall, library = library, attachmentGuide = request.attachmentGuide)
+                dynamic = if (request.attachmentGuide != null || library != null || request.recall.isNotEmpty() || web != null) {
+                    ContextDynamicInput(recall = request.recall, library = library, web = web, attachmentGuide = request.attachmentGuide)
                 } else {
                     null
                 },
                 checkpoint = checkpointText,
             ),
         )
-        val history = quoted.dropLast(1).map { it.toContextMessage() }
+        val history = quoted.dropLast(1).map {
+            it.toContextMessage(withSearchRecord = it.id != keepAssistantId && it.id != recordExcludeId)
+        }
         val stored = checkpoint?.let { row ->
             val coversIndex = history.indexOfFirst { it.id == row.coversTo }
             if (coversIndex < 0) null else applyStored(row.text, history.subList(coversIndex + 1, history.size), current)
@@ -527,6 +533,13 @@ internal object ChatContextProjector {
         return CheckpointCut(tail + mergedIntoCurrent, tail.firstOrNull()?.id ?: current.id, checkpoint)
     }
 
-    internal fun ChatMessage.toContextMessage(): ContextMessage =
-        ContextMessage(id = id, role = role, text = text, state = state, attachments = attachments.orEmpty())
+    internal fun ChatMessage.toContextMessage(withSearchRecord: Boolean = true): ContextMessage =
+        ContextMessage(id = id, role = role, text = if (withSearchRecord) historyText() else text, state = state, attachments = attachments.orEmpty())
+
+    /** A past assistant message with external search sources gets a compact record after a blank line (queries, titles and URLs only); with an empty body only the record line is kept. */
+    private fun ChatMessage.historyText(): String {
+        if (role != ChatRole.Assistant) return text
+        val line = ai.oriveo.community.core.search.searchedRecordLineFor(citations) ?: return text
+        return if (text.isEmpty()) line else text + "\n\n" + line
+    }
 }

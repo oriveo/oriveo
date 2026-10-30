@@ -120,6 +120,7 @@ fun SettingsScreen(
     onNavigateToContextSettings: () -> Unit = {},
     onNavigateToThemeSettings: () -> Unit = {},
     onNavigateToMcpServers: () -> Unit = {},
+    onNavigateToWebSearch: () -> Unit = {},
     onNavigateToBackup: () -> Unit = {},
     onNavigateToSkills: () -> Unit = {},
     onNavigateToVoiceSettings: () -> Unit = {},
@@ -258,10 +259,11 @@ fun SettingsScreen(
                     ),
                 )
 
-                // Tools & connections: the MCP servers cell (hidden entirely while the MCP master switch is off)
+                // Tools & connections: web search and MCP servers (web search alone while the MCP master switch is off)
                 Spacer(modifier = Modifier.height(34.dp))
                 ai.oriveo.community.feature.mcp.SettingsToolsSection(
                     onNavigateToMcpServers = onNavigateToMcpServers,
+                    onNavigateToWebSearch = onNavigateToWebSearch,
                 )
 
                 // General: theme, language, backup and export/import

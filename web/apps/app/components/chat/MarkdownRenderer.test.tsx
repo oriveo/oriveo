@@ -1,5 +1,5 @@
-import { render } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { render, waitFor } from '@testing-library/react';
+import { beforeAll, describe, it, expect, vi } from 'vitest';
 import { MarkdownRenderer } from './MarkdownRenderer';
 
 /**
@@ -17,7 +17,27 @@ import { MarkdownRenderer } from './MarkdownRenderer';
  * re-renders.
  */
 
+describe('MarkdownRenderer on-demand KaTeX', () => {
+  it('shows the source first, renders math once KaTeX has loaded, and does not load it for math-free content', async () => {
+    vi.resetModules();
+    const fresh = await import('./MarkdownRenderer');
+    const plain = render(<fresh.MarkdownRenderer content="A paragraph without math" />);
+    expect(plain.container.querySelector('.katex')).toBeNull();
+
+    const { container } = render(<fresh.MarkdownRenderer content="Equation $E=mc^2$ end" />);
+    // remark-math is not attached before the load, so math never lands in the code-block branch.
+    expect(container.querySelector('pre')).toBeNull();
+    await waitFor(() => expect(container.querySelector('.katex')).not.toBeNull());
+  });
+});
+
 describe('MarkdownRenderer LaTeX', () => {
+  // KaTeX is a dynamic import: load it once so this group keeps asserting the pipeline synchronously.
+  beforeAll(async () => {
+    const { container } = render(<MarkdownRenderer content="warmup $a$" />);
+    await waitFor(() => expect(container.querySelector('.katex')).not.toBeNull());
+  });
+
   // A single tilde is a range marker in CJK text (11~19°C). Treating it as strikethrough, as lenient GFM does,
   // would strike out everything between two ranges in one sentence.
   it('a single ~ is a range marker and is not rendered as strikethrough; a paired ~~ is', () => {

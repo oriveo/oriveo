@@ -1,10 +1,36 @@
 import Foundation
 import GRDB
+import OriveoProviderKit
 import Testing
 @testable import Oriveo
 
 @Suite("ConversationStore", .serialized)
 struct ConversationStoreTests {
+
+    @Test("Leftover generating messages are read first, then only those ids are settled as interrupted with a stop reason")
+    func staleGeneratingMessagesAreReadThenSettled() throws {
+        let harness = try TestHarness()
+        defer { harness.cleanup() }
+        let store = harness.store
+
+        let withText = TestFactories.makeMessage(role: .assistant, text: "partial", state: .generating)
+        let empty = TestFactories.makeMessage(role: .assistant, text: "", state: .generating)
+        let done = TestFactories.makeMessage(role: .assistant, text: "done", state: .delivered)
+        let conversation = TestFactories.makeConversation(messages: [done, withText, empty])
+        try store.upsertConversation(conversation)
+
+        let stale = try store.staleGeneratingMessageIDs()
+        #expect(Set(stale) == [withText.id.uuidString, empty.id.uuidString])
+        try store.sanitizeStaleGeneratingMessages(messageIDs: stale)
+
+        let messages = try #require(try store.fetchConversationThread(id: conversation.id)).messages
+        func message(_ id: UUID) -> ChatMessage? { messages.first { $0.id == id } }
+        #expect(try store.staleGeneratingMessageIDs().isEmpty)
+        #expect(message(withText.id)?.state == .interrupted)
+        #expect(message(withText.id)?.stopReason == .incomplete)
+        #expect(message(empty.id)?.stopReason == .error)
+        #expect(message(done.id)?.state == .delivered)
+    }
 
     @Test("Recipe Continuation Production Deletion Sweep")
     func recipeContinuationProductionDeletionSweep() throws {
@@ -85,6 +111,8 @@ struct ConversationStoreTests {
             )
         }
         #expect(try continuation.load(messageID: message.id) == nil)
+        // Cleanup is queued on the writer and lands asynchronously: queue another write to wait for it.
+        try continuation.dbPoolForTesting.write { _ in }
         #expect(try continuation.dbPoolForTesting.read { db in
             try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM message_recipe_continuation")
         } == 0, "foreign launch sidecars must be physically purged, not merely ignored")

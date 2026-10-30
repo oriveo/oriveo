@@ -32,10 +32,17 @@ struct McpAddServerSnapshotTests {
         McpToolCatalog.snapshots(serverId: UUID(), definitions: McpUiRig.sampleTools, runtimeConfig: .fallback)
     }
 
-    @Test("Settings entry: the MCP servers row sits in the Tools & connections group, and its subtitle follows the server summary")
+    @Test("Settings entry: Web search and the MCP servers row sit side by side in the Tools & connections group, and the MCP subtitle follows the server summary")
     func settingsEntry() throws {
         func section(_ summary: McpSettingsEntrySummary?) -> some View {
-            McpSettingsSection(mcpSummary: summary, onOpenMcpServers: {})
+            McpSettingsSection(
+                mcpEnabled: true,
+                mcpSummary: summary,
+                webSearchDefaultName: "DeepSeek",
+                webSearchShowsBadge: false,
+                onOpenWebSearch: {},
+                onOpenMcpServers: {}
+            )
                 .padding(16)
                 .frame(maxHeight: .infinity, alignment: .top)
         }

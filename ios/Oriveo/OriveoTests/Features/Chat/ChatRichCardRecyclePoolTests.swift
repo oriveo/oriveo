@@ -121,6 +121,8 @@ struct ChatRichCardRecyclePoolTests {
         UIKitTableCard.recycle(try tableCard(uniqueTableLines()))
         #expect(UIKitTableCard.recycledCardCountForTesting > 0)
         window.overrideUserInterfaceStyle = .dark
+        // Run a full layout pass (the same path as a real appearance switch): the iOS 27.1 runtime only refreshes the view's trait and no longer carries the VC's registerForTraitChanges.
+        window.layoutIfNeeded()
         controller.view.updateTraitsIfNeeded()
         #expect(UIKitTableCard.recycledCardCountForTesting == 0, "Cards built in the old appearance stayed in the pool")
     }

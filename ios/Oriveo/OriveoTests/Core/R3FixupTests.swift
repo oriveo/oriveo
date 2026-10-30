@@ -111,7 +111,8 @@ struct R3FixupTests {
         let remembered = try #require(store.lookup(connectionID: connection, modelID: "m"))
         #expect(remembered.toolCall == false)
         #expect(abs(remembered.observedAt.timeIntervalSince(observed)) < 0.001)
-        // Read the database directly, bypassing the cache: the column holds GRDB's Date TEXT encoding, not a REAL
+        // Read the database directly, bypassing the cache: the column holds GRDB's Date TEXT encoding, not a REAL (the write is queued, so wait for it first)
+        try store.waitForPendingWritesForTesting()
         let fresh = ToolCallMemoryStore(poolProvider: store.poolProviderForTesting)
         let direct = try #require(fresh.lookup(connectionID: connection, modelID: "m"))
         #expect(abs(direct.observedAt.timeIntervalSince(observed)) < 0.001)

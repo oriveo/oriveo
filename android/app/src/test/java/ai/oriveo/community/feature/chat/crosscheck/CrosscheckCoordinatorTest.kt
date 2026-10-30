@@ -25,7 +25,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 
@@ -408,6 +411,7 @@ class CrosscheckCoordinatorTest {
             scope = this,
             providerRepository = providerRepository,
             appLanguageTag = { "zh-Hans" },
+            streamDispatcher = StandardTestDispatcher(testScheduler),
         )
 
         coordinator.start(
@@ -441,6 +445,7 @@ class CrosscheckCoordinatorTest {
             scope = this,
             providerRepository = providerRepository,
             appLanguageTag = { "en" },
+            streamDispatcher = StandardTestDispatcher(testScheduler),
         )
 
         coordinator.start(
@@ -457,6 +462,77 @@ class CrosscheckCoordinatorTest {
         assertEquals("ok", coordinator.state.value.text)
         assertTrue(coordinator.state.value.done)
         assertNull(coordinator.state.value.error)
+    }
+
+    // Collecting on the caller's Main scope never suspends once the upstream fills the channel, which freezes the main thread for the whole generation.
+    @Test
+    fun start_collectsTheStreamOffTheCallerDispatcher() {
+        val provider = provider("openai", ProviderKind.OpenAI, "key", listOf(model("gpt")))
+        var collectedOn: kotlin.coroutines.ContinuationInterceptor? = null
+        val service = object : ProviderService by CapturingProviderService() {
+            override fun sendMessageStream(
+                apiKey: String,
+                modelID: String,
+                messages: List<ChatMessage>,
+                baseUrl: String?,
+                supportsImageGen: Boolean,
+                reasoningMode: ReasoningMode,
+                webSearchEnabled: Boolean,
+                requestOptions: ChatRequestOptions,
+            ): Flow<StreamEvent> = kotlinx.coroutines.flow.flow {
+                collectedOn = kotlinx.coroutines.currentCoroutineContext()[kotlin.coroutines.ContinuationInterceptor]
+                repeat(200) { emit(StreamEvent.Delta("x")) }
+                emit(StreamEvent.Done(ProviderChatResult(text = "")))
+            }
+        }
+        val providerRepository = mockk<ProviderRepository>()
+        every { providerRepository.serviceFor(provider, any()) } returns service
+        val caller = java.util.concurrent.Executors.newSingleThreadExecutor().asCoroutineDispatcher()
+        try {
+            // Production defaults: streamDispatcher is not injected.
+            val coordinator = CrosscheckCoordinator(
+                scope = kotlinx.coroutines.CoroutineScope(caller),
+                providerRepository = providerRepository,
+                appLanguageTag = { "en" },
+            )
+            coordinator.start("Q", "A", emptyList(), provider, provider.models.single())
+            val done = kotlinx.coroutines.runBlocking {
+                kotlinx.coroutines.withTimeout(5_000) { coordinator.state.first { it.done } }
+            }
+            assertEquals("x".repeat(200), done.text)
+            assertEquals(kotlinx.coroutines.Dispatchers.Default, collectedOn)
+        } finally {
+            caller.close()
+        }
+    }
+
+    @Test
+    fun reset_wins_over_a_cancelled_run() = runTest {
+        val provider = provider("openai", ProviderKind.OpenAI, "key", listOf(model("gpt")))
+        val service = object : ProviderService by CapturingProviderService() {
+            override fun sendMessageStream(
+                apiKey: String,
+                modelID: String,
+                messages: List<ChatMessage>,
+                baseUrl: String?,
+                supportsImageGen: Boolean,
+                reasoningMode: ReasoningMode,
+                webSearchEnabled: Boolean,
+                requestOptions: ChatRequestOptions,
+            ): Flow<StreamEvent> = flowOf(StreamEvent.Delta("late"), StreamEvent.Done(ProviderChatResult(text = "")))
+        }
+        val providerRepository = mockk<ProviderRepository>()
+        every { providerRepository.serviceFor(provider, any()) } returns service
+        val coordinator = CrosscheckCoordinator(
+            scope = this,
+            providerRepository = providerRepository,
+            appLanguageTag = { "en" },
+            streamDispatcher = StandardTestDispatcher(testScheduler),
+        )
+        coordinator.start("Q", "A", emptyList(), provider, provider.models.single())
+        coordinator.reset()
+        advanceUntilIdle()
+        assertEquals(CrosscheckState(), coordinator.state.value)
     }
 
     @Test

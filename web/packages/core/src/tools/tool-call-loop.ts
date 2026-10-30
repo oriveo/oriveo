@@ -31,6 +31,7 @@ import {
   type ToolProtocolAdapter,
 } from './tool-loop-contracts';
 import { ToolRegistry } from './tool-registry';
+import { providerErrorRawBodyOf, withProviderErrorRawBody } from '../providers/errors';
 
 export interface ToolCallLoopOptions {
   registry: ToolRegistry;
@@ -484,13 +485,14 @@ export class ToolCallLoop {
             finish = event.finish;
             break;
           case 'error':
-            throw new ToolLoopError(event.error, event.errorKind ?? 'upstream_error', {
+            // The raw error body is carried over as a non-enumerable property (for local overflow detection only): context overflow on tool-loop legs is judged the same way as on a plain send.
+            throw withProviderErrorRawBody(new ToolLoopError(event.error, event.errorKind ?? 'upstream_error', {
               source: event.source,
               streamStarted,
               toolCallRejectionContext: handle.getToolCallRejectionContext?.(),
               ...(event.finish ? { finish: event.finish } : {}),
               diagnostics: toolLoopErrorDiagnostics(event),
-            });
+            }), providerErrorRawBodyOf(event));
           default:
             break;
         }

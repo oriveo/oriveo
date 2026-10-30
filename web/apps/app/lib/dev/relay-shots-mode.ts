@@ -17,6 +17,8 @@ export const RELAY_SHOTS_PATH_PREFIX = '/dev/relay-shots/';
 export const MEMORY_SHOTS_PATH_PREFIX = '/dev/memory-shots/';
 /** Context page family samples (`/dev/context-shots/<page>`): the same isolation fence and sample-mode switch. */
 export const CONTEXT_SHOTS_PATH_PREFIX = '/dev/context-shots/';
+/** Web search page family samples (`/dev/webSearch-shots/<page>`): the same isolation fence as relay. */
+export const WEB_SEARCH_SHOTS_PATH_PREFIX = '/dev/webSearch-shots/';
 
 /** Per-page internal state presets applied on page entry (arm / settle); omitted = normal initial values. */
 export interface RelayShotSeed {
@@ -56,7 +58,8 @@ export function isRelayShotsPath(pathname: string): boolean {
 export function isShotsPath(pathname: string): boolean {
   return isRelayShotsPath(pathname)
     || pathname.startsWith(MEMORY_SHOTS_PATH_PREFIX)
-    || pathname.startsWith(CONTEXT_SHOTS_PATH_PREFIX);
+    || pathname.startsWith(CONTEXT_SHOTS_PATH_PREFIX)
+    || pathname.startsWith(WEB_SEARCH_SHOTS_PATH_PREFIX);
 }
 
 /** True when the current page is a sample route (dev builds, including the memory pages); always false in production. */

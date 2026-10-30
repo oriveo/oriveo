@@ -305,6 +305,8 @@ final class UIKitToolStepsView: UIView {
 
         var primary = UIButton.Configuration.filled()
         primary.title = L10n.tr("Sign in again", table: .mcp)
+        // Single-line title: a wrapping title makes cell self-sizing rebuild temporary constraints for the target width.
+        primary.titleLineBreakMode = .byTruncatingTail
         primary.baseBackgroundColor = UIColor(OriveoTheme.Palette.primarySoft)
         primary.baseForegroundColor = UIColor(OriveoTheme.Palette.primaryTextSafe)
         primary.background.cornerRadius = 14
@@ -316,6 +318,8 @@ final class UIKitToolStepsView: UIView {
 
         var secondary = UIButton.Configuration.filled()
         secondary.title = L10n.tr("Skip this step", table: .mcp)
+        // Single-line title: a wrapping title makes cell self-sizing rebuild temporary constraints for the target width.
+        secondary.titleLineBreakMode = .byTruncatingTail
         secondary.baseBackgroundColor = UIColor(OriveoTheme.Palette.surface)
         secondary.baseForegroundColor = UIColor(OriveoTheme.Palette.textPrimary)
         secondary.background.cornerRadius = 14

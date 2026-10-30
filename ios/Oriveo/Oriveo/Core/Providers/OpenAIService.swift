@@ -463,7 +463,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             webSearchEnabled: webSearchEnabled, reasoningMode: reasoningMode,
             continuationKind: "previous_id", parser: { $0 == "openai_responses_web_v1" || $0 == "openai_responses_reasoning_v1" }
         )
-        try RecipeContinuationRuntime.save(
+        try await RecipeContinuationRuntime.save(
             messageID: requestOptions.localContinuationMessageID,
             recipe: continuationRecipe,
             state: responsesResult.id.map { ["previousResponseId": .string($0)] } ?? [:]
@@ -734,7 +734,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                             webSearchEnabled: webSearchEnabled, reasoningMode: reasoningMode,
                             continuationKind: "previous_id", parser: { $0 == "openai_responses_web_v1" || $0 == "openai_responses_reasoning_v1" }
                         )
-                        try RecipeContinuationRuntime.save(
+                        try await RecipeContinuationRuntime.save(
                             messageID: requestOptions.localContinuationMessageID,
                             recipe: continuationRecipe,
                             state: completedResponseID.map { ["previousResponseId": .string($0)] } ?? [:]

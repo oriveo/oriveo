@@ -1,0 +1,2597 @@
+{
+  "schema": "oriveo.search.transport-golden/v1",
+  "$comment": "Golden samples for json_http/v1 request construction and response mapping (external search service contract, section 9). request: built from the catalog entry in search_catalog_contract.v1.json plus the site; the body is compared by JSON semantics, not bytes. response / error: replay of redacted recorded samples (source=recorded_sample), built from the official documentation (docs) or derived (derived). Expectations come from the reference implementation of the transport.",
+  "catalogRef": "search_catalog_contract.v1.json#catalog",
+  "cases": [
+    {
+      "caseId": "deepseek.cn.request",
+      "kind": "request",
+      "serviceId": "deepseek",
+      "regionId": "cn",
+      "input": {
+        "query": "Oriveo 联网搜索",
+        "count": 5,
+        "key": "sk-test-0000"
+      },
+      "source": "recorded_sample",
+      "expect": {
+        "method": "POST",
+        "url": "https://api.deepseek.com/v1/tools/search",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer sk-test-0000"
+        },
+        "body": {
+          "query": "Oriveo 联网搜索",
+          "count": 5
+        }
+      }
+    },
+    {
+      "caseId": "deepseek.request.count_clamped_to_hard_limit",
+      "kind": "request",
+      "serviceId": "deepseek",
+      "regionId": "cn",
+      "input": {
+        "query": "Oriveo 联网搜索",
+        "count": 50,
+        "key": "sk-test-0000"
+      },
+      "source": "derived",
+      "expect": {
+        "method": "POST",
+        "url": "https://api.deepseek.com/v1/tools/search",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer sk-test-0000"
+        },
+        "body": {
+          "query": "Oriveo 联网搜索",
+          "count": 10
+        }
+      }
+    },
+    {
+      "caseId": "deepseek.request.blank_query_not_sent",
+      "kind": "request",
+      "serviceId": "deepseek",
+      "regionId": "cn",
+      "input": {
+        "query": "  \n ",
+        "count": 5,
+        "key": "sk-test-0000"
+      },
+      "source": "derived",
+      "expect": {
+        "skip": "query_empty"
+      }
+    },
+    {
+      "caseId": "deepseek.request.zero_count_defaults_to_5",
+      "kind": "request",
+      "serviceId": "deepseek",
+      "regionId": "cn",
+      "input": {
+        "query": "oriveo",
+        "count": 0,
+        "key": "sk-test-0000"
+      },
+      "source": "derived",
+      "expect": {
+        "method": "POST",
+        "url": "https://api.deepseek.com/v1/tools/search",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer sk-test-0000"
+        },
+        "body": {
+          "query": "oriveo",
+          "count": 5
+        }
+      }
+    },
+    {
+      "caseId": "deepseek.request.fractional_count_defaults_to_5",
+      "kind": "request",
+      "serviceId": "deepseek",
+      "regionId": "cn",
+      "input": {
+        "query": "oriveo",
+        "count": 2.5,
+        "key": "sk-test-0000"
+      },
+      "source": "derived",
+      "expect": {
+        "method": "POST",
+        "url": "https://api.deepseek.com/v1/tools/search",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer sk-test-0000"
+        },
+        "body": {
+          "query": "oriveo",
+          "count": 5
+        }
+      }
+    },
+    {
+      "caseId": "deepseek.request.missing_count_defaults_to_5",
+      "kind": "request",
+      "serviceId": "deepseek",
+      "regionId": "cn",
+      "input": {
+        "query": "oriveo",
+        "key": "sk-test-0000"
+      },
+      "source": "derived",
+      "expect": {
+        "method": "POST",
+        "url": "https://api.deepseek.com/v1/tools/search",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer sk-test-0000"
+        },
+        "body": {
+          "query": "oriveo",
+          "count": 5
+        }
+      }
+    },
+    {
+      "caseId": "deepseek.normal",
+      "kind": "response",
+      "serviceId": "deepseek",
+      "status": 200,
+      "body": {
+        "results": [
+          {
+            "title": "[text:29]",
+            "site_name": "[text:3]",
+            "site_icon": "https://cdn.deepseek.com/…",
+            "authority": 4,
+            "rerank_score": 2.5373402120073405,
+            "date": "2026-04-26T16:00:00+00:00",
+            "url": "https://tech.cnr.cn/…",
+            "summary": "[text:967]",
+            "snippet": "[text:136]",
+            "content": ""
+          },
+          {
+            "title": "[text:25]",
+            "site_name": "[text:4]",
+            "site_icon": "https://cdn.deepseek.com/…",
+            "authority": 4,
+            "rerank_score": 2.5017290906832765,
+            "date": "2026-04-24T16:00:00+00:00",
+            "url": "https://stcn.com/…",
+            "summary": "[text:1336]",
+            "snippet": "[text:131]",
+            "content": ""
+          },
+          {
+            "title": "[text:50]",
+            "site_name": "[text:4]",
+            "site_icon": "https://cdn.deepseek.com/…",
+            "authority": 4,
+            "rerank_score": 2.394895726711085,
+            "date": "2026-04-26T16:00:00+00:00",
+            "url": "https://www.stcn.com/…",
+            "summary": "[text:1533]",
+            "snippet": "[text:91]",
+            "content": ""
+          },
+          {
+            "title": "[text:40]",
+            "site_name": "[text:4]",
+            "site_icon": "https://cdn.deepseek.com/…",
+            "authority": 3,
+            "rerank_score": 2.272805130571575,
+            "date": "2026-04-23T16:00:00+00:00",
+            "url": "https://eu.36kr.com/…",
+            "summary": "[text:1834]",
+            "snippet": "[text:80]",
+            "content": ""
+          },
+          {
+            "title": "[text:15]",
+            "site_name": "[text:4]",
+            "site_icon": "https://cdn.deepseek.com/…",
+            "authority": 3,
+            "rerank_score": 2.255502742186553,
+            "date": "2026-09-09T16:00:00+00:00",
+            "url": "https://baike.baidu.com/…",
+            "summary": "[text:1667]",
+            "snippet": "[text:164]",
+            "content": ""
+          }
+        ]
+      },
+      "source": "recorded_sample",
+      "expect": {
+        "kind": "results",
+        "results": [
+          {
+            "title": "[text:29]",
+            "url": "https://tech.cnr.cn/…",
+            "snippet": "[text:967]",
+            "site": "[text:3]",
+            "date": "2026-04-26T16:00:00+00:00"
+          },
+          {
+            "title": "[text:25]",
+            "url": "https://stcn.com/…",
+            "snippet": "[text:1336]",
+            "site": "[text:4]",
+            "date": "2026-04-24T16:00:00+00:00"
+          },
+          {
+            "title": "[text:50]",
+            "url": "https://www.stcn.com/…",
+            "snippet": "[text:1533]",
+            "site": "[text:4]",
+            "date": "2026-04-26T16:00:00+00:00"
+          },
+          {
+            "title": "[text:40]",
+            "url": "https://eu.36kr.com/…",
+            "snippet": "[text:1834]",
+            "site": "[text:4]",
+            "date": "2026-04-23T16:00:00+00:00"
+          },
+          {
+            "title": "[text:15]",
+            "url": "https://baike.baidu.com/…",
+            "snippet": "[text:1667]",
+            "site": "[text:4]",
+            "date": "2026-09-09T16:00:00+00:00"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "deepseek.empty_query",
+      "kind": "response",
+      "serviceId": "deepseek",
+      "status": 200,
+      "body": {
+        "results": [
+          {
+            "title": "[text:24]",
+            "site_name": "",
+            "site_icon": "https://cdn.deepseek.com/…",
+            "authority": 1,
+            "rerank_score": 0.2500592768192291,
+            "date": null,
+            "url": "https://thevamp.cc/…",
+            "summary": "[text:2586]",
+            "snippet": "[text:238]",
+            "content": ""
+          },
+          {
+            "title": "[text:61] <strong>kw</strong>",
+            "site_name": "[text:12]",
+            "site_icon": "https://cdn.deepseek.com/…",
+            "authority": 2,
+            "rerank_score": 0.1955593973398209,
+            "date": null,
+            "url": "https://docs.doczilla.app/…",
+            "summary": "[text:805]",
+            "snippet": "[text:226]",
+            "content": ""
+          },
+          {
+            "title": "[text:13]",
+            "site_name": "[text:28]",
+            "site_icon": "https://cdn.deepseek.com/…",
+            "authority": 1,
+            "rerank_score": 0.19173069298267365,
+            "date": null,
+            "url": "https://n5kwd.com/…",
+            "summary": "[text:4029]",
+            "snippet": "[text:311]",
+            "content": ""
+          },
+          {
+            "title": "[text:63]",
+            "site_name": "[text:9]",
+            "site_icon": "https://cdn.deepseek.com/…",
+            "authority": 4,
+            "rerank_score": 0.1879020035266876,
+            "date": null,
+            "url": "https://www.cert.org.cn/…",
+            "summary": "[text:1240]",
+            "snippet": "[text:111]",
+            "content": ""
+          },
+          {
+            "title": "[text:20]",
+            "site_name": "[text:9]",
+            "site_icon": "https://cdn.deepseek.com/…",
+            "authority": 4,
+            "rerank_score": 0.1879020035266876,
+            "date": null,
+            "url": "https://www.cert.org.cn/…",
+            "summary": "[text:1484]",
+            "snippet": "[text:116]",
+            "content": ""
+          }
+        ]
+      },
+      "source": "recorded_sample",
+      "expect": {
+        "kind": "results",
+        "results": [
+          {
+            "title": "[text:24]",
+            "url": "https://thevamp.cc/…",
+            "snippet": "[text:2586]"
+          },
+          {
+            "title": "[text:61] <strong>kw</strong>",
+            "url": "https://docs.doczilla.app/…",
+            "snippet": "[text:805]",
+            "site": "[text:12]"
+          },
+          {
+            "title": "[text:13]",
+            "url": "https://n5kwd.com/…",
+            "snippet": "[text:4029]",
+            "site": "[text:28]"
+          },
+          {
+            "title": "[text:63]",
+            "url": "https://www.cert.org.cn/…",
+            "snippet": "[text:1240]",
+            "site": "[text:9]"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "deepseek.badkey",
+      "kind": "error",
+      "serviceId": "deepseek",
+      "status": 401,
+      "body": {
+        "error": {
+          "message": "Authentication Fails, Your api key: ****0000 is invalid (request_id: <id>)",
+          "type": "authentication_error",
+          "param": null,
+          "code": "invalid_request_error"
+        }
+      },
+      "source": "recorded_sample",
+      "expect": {
+        "errorClass": "auth_invalid",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "key_rejected",
+          "primaryAction": "update_key"
+        }
+      }
+    },
+    {
+      "caseId": "zhipu.cn.request",
+      "kind": "request",
+      "serviceId": "zhipu",
+      "regionId": "cn",
+      "input": {
+        "query": "Oriveo 联网搜索",
+        "count": 5,
+        "key": "sk-test-0000"
+      },
+      "source": "recorded_sample",
+      "expect": {
+        "method": "POST",
+        "url": "https://open.bigmodel.cn/api/paas/v4/web_search",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer sk-test-0000"
+        },
+        "body": {
+          "search_query": "Oriveo 联网搜索",
+          "count": 5,
+          "search_engine": "search_std",
+          "search_intent": false
+        }
+      }
+    },
+    {
+      "caseId": "zhipu.intl.request",
+      "kind": "request",
+      "serviceId": "zhipu",
+      "regionId": "intl",
+      "input": {
+        "query": "Oriveo 联网搜索",
+        "count": 5,
+        "key": "sk-test-0000"
+      },
+      "source": "docs",
+      "expect": {
+        "method": "POST",
+        "url": "https://api.z.ai/api/paas/v4/web_search",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer sk-test-0000"
+        },
+        "body": {
+          "search_query": "Oriveo 联网搜索",
+          "count": 5,
+          "search_engine": "search-prime",
+          "search_intent": false
+        }
+      }
+    },
+    {
+      "caseId": "zhipu.request.count_clamped_to_hard_limit",
+      "kind": "request",
+      "serviceId": "zhipu",
+      "regionId": "cn",
+      "input": {
+        "query": "Oriveo 联网搜索",
+        "count": 50,
+        "key": "sk-test-0000"
+      },
+      "source": "derived",
+      "expect": {
+        "method": "POST",
+        "url": "https://open.bigmodel.cn/api/paas/v4/web_search",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer sk-test-0000"
+        },
+        "body": {
+          "search_query": "Oriveo 联网搜索",
+          "count": 10,
+          "search_engine": "search_std",
+          "search_intent": false
+        }
+      }
+    },
+    {
+      "caseId": "zhipu.normal",
+      "kind": "response",
+      "serviceId": "zhipu",
+      "status": 200,
+      "body": {
+        "created": 1793001336,
+        "id": "<id>",
+        "request_id": "<id>",
+        "search_intent": [
+          {
+            "intent": "SEARCH_ALWAYS",
+            "keywords": "[text:11]",
+            "query": "[text:11]"
+          }
+        ],
+        "search_result": [
+          {
+            "content": "[text:888]",
+            "icon": "",
+            "link": "https://blog.51cto.com/…",
+            "media": "",
+            "publish_date": "2026-09-08",
+            "refer": "ref_1",
+            "title": "[text:63]"
+          },
+          {
+            "content": "[text:738]",
+            "icon": "https://sfile.chatglm.cn/…",
+            "link": "https://stcn.com/…",
+            "media": "[text:4]",
+            "publish_date": "2026-06-15",
+            "refer": "ref_2",
+            "title": "[text:21]"
+          },
+          {
+            "content": "[text:290]",
+            "icon": "",
+            "link": "https://wap.cj.sina.cn/…",
+            "media": "",
+            "publish_date": "2026-06-15",
+            "refer": "ref_3",
+            "title": "[text:23]"
+          },
+          {
+            "content": "[text:335]",
+            "icon": "",
+            "link": "https://www.caixin.com/…",
+            "media": "",
+            "publish_date": "2026-08-14",
+            "refer": "ref_4",
+            "title": "[text:28]"
+          },
+          {
+            "content": "[text:807]",
+            "icon": "",
+            "link": "https://developer.cloud.tencent.com/…",
+            "media": "",
+            "publish_date": "2026-04-09",
+            "refer": "ref_5",
+            "title": "[text:72]"
+          }
+        ]
+      },
+      "source": "recorded_sample",
+      "expect": {
+        "kind": "results",
+        "results": [
+          {
+            "title": "[text:63]",
+            "url": "https://blog.51cto.com/…",
+            "snippet": "[text:888]",
+            "date": "2026-09-08"
+          },
+          {
+            "title": "[text:21]",
+            "url": "https://stcn.com/…",
+            "snippet": "[text:738]",
+            "site": "[text:4]",
+            "date": "2026-06-15"
+          },
+          {
+            "title": "[text:23]",
+            "url": "https://wap.cj.sina.cn/…",
+            "snippet": "[text:290]",
+            "date": "2026-06-15"
+          },
+          {
+            "title": "[text:28]",
+            "url": "https://www.caixin.com/…",
+            "snippet": "[text:335]",
+            "date": "2026-08-14"
+          },
+          {
+            "title": "[text:72]",
+            "url": "https://developer.cloud.tencent.com/…",
+            "snippet": "[text:807]",
+            "date": "2026-04-09"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "zhipu.empty_query",
+      "kind": "response",
+      "serviceId": "zhipu",
+      "status": 200,
+      "body": {
+        "created": 1793001338,
+        "id": "<id>",
+        "request_id": "<id>",
+        "search_intent": [
+          {
+            "intent": "SEARCH_ALWAYS",
+            "keywords": "[text:37]",
+            "query": "[text:37]"
+          }
+        ],
+        "search_result": []
+      },
+      "source": "recorded_sample",
+      "expect": {
+        "kind": "empty"
+      }
+    },
+    {
+      "caseId": "zhipu.badkey",
+      "kind": "error",
+      "serviceId": "zhipu",
+      "status": 401,
+      "body": {
+        "error": {
+          "code": "401",
+          "message": "令牌已过期或验证不正确"
+        }
+      },
+      "source": "recorded_sample",
+      "expect": {
+        "errorClass": "auth_invalid",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "key_rejected",
+          "primaryAction": "update_key"
+        }
+      }
+    },
+    {
+      "caseId": "zhipu.intl_normal_english_date",
+      "kind": "response",
+      "serviceId": "zhipu",
+      "regionId": "intl",
+      "status": 200,
+      "body": {
+        "created": 1793016412,
+        "id": "<id>",
+        "request_id": "<id>",
+        "search_intent": [
+          {
+            "intent": "SEARCH_ALWAYS",
+            "keywords": "[text:23]",
+            "query": "[text:23]"
+          }
+        ],
+        "search_result": [
+          {
+            "content": "[text:173]",
+            "icon": "",
+            "link": "https://blog.rust-lang.org/…",
+            "media": "",
+            "publish_date": "Oct 15, 2026",
+            "refer": "ref_1",
+            "title": "[text:22]"
+          },
+          {
+            "content": "[text:169]",
+            "icon": "",
+            "link": "https://blog.rust-lang.org/…",
+            "media": "",
+            "publish_date": "Sep 18, 2025",
+            "refer": "ref_2",
+            "title": "[text:22]"
+          },
+          {
+            "content": "[text:142]",
+            "icon": "",
+            "link": "https://releases.rs/…",
+            "media": "",
+            "publish_date": "",
+            "refer": "ref_3",
+            "title": "[text:6]"
+          },
+          {
+            "content": "[text:159]",
+            "icon": "",
+            "link": "https://releases.rs/…",
+            "media": "",
+            "publish_date": "",
+            "refer": "ref_4",
+            "title": "[text:30]"
+          },
+          {
+            "content": "[text:121]",
+            "icon": "",
+            "link": "https://www.reddit.com/…",
+            "media": "",
+            "publish_date": "",
+            "refer": "ref_5",
+            "title": "[text:18]"
+          }
+        ]
+      },
+      "source": "recorded_sample",
+      "expect": {
+        "kind": "results",
+        "results": [
+          {
+            "title": "[text:22]",
+            "url": "https://blog.rust-lang.org/…",
+            "snippet": "[text:173]",
+            "date": "Oct 15, 2026"
+          },
+          {
+            "title": "[text:6]",
+            "url": "https://releases.rs/…",
+            "snippet": "[text:142]"
+          },
+          {
+            "title": "[text:18]",
+            "url": "https://www.reddit.com/…",
+            "snippet": "[text:121]"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "zhipu.intl_badkey",
+      "kind": "error",
+      "serviceId": "zhipu",
+      "regionId": "intl",
+      "status": 401,
+      "body": {
+        "error": {
+          "code": "1000",
+          "message": "Authentication Failed"
+        }
+      },
+      "source": "recorded_sample",
+      "expect": {
+        "errorClass": "auth_invalid",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "key_rejected",
+          "primaryAction": "update_key"
+        }
+      }
+    },
+    {
+      "caseId": "kimi.cn.request",
+      "kind": "request",
+      "serviceId": "kimi",
+      "regionId": "cn",
+      "input": {
+        "query": "Kimi K3 发布",
+        "count": 5,
+        "key": "sk-test-0000"
+      },
+      "source": "recorded_sample",
+      "expect": {
+        "method": "POST",
+        "url": "https://api.moonshot.cn/v1/tools/search",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer sk-test-0000"
+        },
+        "body": {
+          "text_query": "Kimi K3 发布",
+          "limit": 5
+        }
+      }
+    },
+    {
+      "caseId": "kimi.intl.request",
+      "kind": "request",
+      "serviceId": "kimi",
+      "regionId": "intl",
+      "input": {
+        "query": "Kimi K3 发布",
+        "count": 5,
+        "key": "sk-test-0000"
+      },
+      "source": "docs",
+      "expect": {
+        "method": "POST",
+        "url": "https://api.moonshot.ai/v1/tools/search",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer sk-test-0000"
+        },
+        "body": {
+          "text_query": "Kimi K3 发布",
+          "limit": 5
+        }
+      }
+    },
+    {
+      "caseId": "kimi.request.count_clamped_to_hard_limit",
+      "kind": "request",
+      "serviceId": "kimi",
+      "regionId": "cn",
+      "input": {
+        "query": "Kimi K3 发布",
+        "count": 50,
+        "key": "sk-test-0000"
+      },
+      "source": "derived",
+      "expect": {
+        "method": "POST",
+        "url": "https://api.moonshot.cn/v1/tools/search",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer sk-test-0000"
+        },
+        "body": {
+          "text_query": "Kimi K3 发布",
+          "limit": 10
+        }
+      }
+    },
+    {
+      "caseId": "kimi.normal",
+      "kind": "response",
+      "serviceId": "kimi",
+      "status": 200,
+      "body": {
+        "search_results": [
+          {
+            "authority": "S",
+            "date": "2026-07-27",
+            "icon": "https://kimi-web-img.kimi.ai/…",
+            "mime": "",
+            "site_name": "[text:8]",
+            "snippet": "[text:93]",
+            "text": "",
+            "title": "[text:36]",
+            "url": "https://www.kimi.com/…"
+          },
+          {
+            "authority": "A",
+            "date": "",
+            "icon": "https://kimi-web-img.kimi.ai/…",
+            "mime": "",
+            "site_name": "[text:3]",
+            "snippet": "[text:90]",
+            "text": "",
+            "title": "[text:24]",
+            "url": "https://www.cls.cn/…"
+          },
+          {
+            "authority": "S",
+            "date": "",
+            "icon": "https://kimi-web-img.kimi.ai/…",
+            "mime": "",
+            "site_name": "[text:8]",
+            "snippet": "[text:115]",
+            "text": "",
+            "title": "[text:27]",
+            "url": "https://www.kimi.com/…"
+          },
+          {
+            "authority": "B",
+            "date": "",
+            "icon": "https://kimi-web-img.kimi.ai/…",
+            "mime": "",
+            "site_name": "[text:13]",
+            "snippet": "[text:86]",
+            "text": "",
+            "title": "[text:23]",
+            "url": "https://platform.kimi.com/…"
+          },
+          {
+            "authority": "S",
+            "date": "",
+            "icon": "https://kimi-web-img.kimi.ai/…",
+            "mime": "",
+            "site_name": "[text:16]",
+            "snippet": "[text:114]",
+            "text": "",
+            "title": "[text:27]",
+            "url": "https://www.kimi.ai/…"
+          }
+        ]
+      },
+      "source": "recorded_sample",
+      "expect": {
+        "kind": "results",
+        "results": [
+          {
+            "title": "[text:36]",
+            "url": "https://www.kimi.com/…",
+            "snippet": "[text:93]",
+            "site": "[text:8]",
+            "date": "2026-07-27"
+          },
+          {
+            "title": "[text:24]",
+            "url": "https://www.cls.cn/…",
+            "snippet": "[text:90]",
+            "site": "[text:3]"
+          },
+          {
+            "title": "[text:23]",
+            "url": "https://platform.kimi.com/…",
+            "snippet": "[text:86]",
+            "site": "[text:13]"
+          },
+          {
+            "title": "[text:27]",
+            "url": "https://www.kimi.ai/…",
+            "snippet": "[text:114]",
+            "site": "[text:16]"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "kimi.empty_query",
+      "kind": "response",
+      "serviceId": "kimi",
+      "status": 200,
+      "body": {
+        "search_results": [
+          {
+            "authority": "UK",
+            "date": "",
+            "icon": "https://kimi-web-img.kimi.ai/…",
+            "mime": "",
+            "site_name": "[text:6]",
+            "snippet": "[text:163]",
+            "text": "",
+            "title": "[text:41]",
+            "url": "https://www.yv.org/…"
+          },
+          {
+            "authority": "UK",
+            "date": "",
+            "icon": "https://kimi-web-img.kimi.ai/…",
+            "mime": "",
+            "site_name": "[text:17]",
+            "snippet": "[text:130]",
+            "text": "",
+            "title": "[text:39]",
+            "url": "https://www.pbslearningmedia.org/…"
+          },
+          {
+            "authority": "UK",
+            "date": "",
+            "icon": "https://kimi-web-img.kimi.ai/…",
+            "mime": "",
+            "site_name": "[text:24]",
+            "snippet": "[text:134]",
+            "text": "",
+            "title": "[text:2]",
+            "url": "https://www.nsa.gov/…"
+          },
+          {
+            "authority": "UK",
+            "date": "",
+            "icon": "https://kimi-web-img.kimi.ai/…",
+            "mime": "",
+            "site_name": "[text:10]",
+            "snippet": "[text:149]",
+            "text": "",
+            "title": "[text:30]",
+            "url": "https://www.yourgenome.org/…"
+          },
+          {
+            "authority": "A",
+            "date": "",
+            "icon": "https://kimi-web-img.kimi.ai/…",
+            "mime": "",
+            "site_name": "[text:16]",
+            "snippet": "[text:162]",
+            "text": "",
+            "title": "[text:19]",
+            "url": "https://7rocky.github.io/…"
+          }
+        ]
+      },
+      "source": "recorded_sample",
+      "expect": {
+        "kind": "results",
+        "results": [
+          {
+            "title": "[text:41]",
+            "url": "https://www.yv.org/…",
+            "snippet": "[text:163]",
+            "site": "[text:6]"
+          },
+          {
+            "title": "[text:39]",
+            "url": "https://www.pbslearningmedia.org/…",
+            "snippet": "[text:130]",
+            "site": "[text:17]"
+          },
+          {
+            "title": "[text:2]",
+            "url": "https://www.nsa.gov/…",
+            "snippet": "[text:134]",
+            "site": "[text:24]"
+          },
+          {
+            "title": "[text:30]",
+            "url": "https://www.yourgenome.org/…",
+            "snippet": "[text:149]",
+            "site": "[text:10]"
+          },
+          {
+            "title": "[text:19]",
+            "url": "https://7rocky.github.io/…",
+            "snippet": "[text:162]",
+            "site": "[text:16]"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "kimi.badkey",
+      "kind": "error",
+      "serviceId": "kimi",
+      "status": 401,
+      "body": null,
+      "source": "recorded_sample",
+      "expect": {
+        "errorClass": "auth_invalid",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "key_rejected",
+          "primaryAction": "update_key"
+        }
+      }
+    },
+    {
+      "caseId": "kimi.intl_normal",
+      "kind": "response",
+      "serviceId": "kimi",
+      "regionId": "intl",
+      "status": 200,
+      "body": {
+        "search_results": [
+          {
+            "authority": "UK",
+            "date": "2026-10-15",
+            "icon": "https://kimi-web-img.kimi.ai/…",
+            "mime": "",
+            "site_name": "[text:34]",
+            "snippet": "[text:147]",
+            "text": "",
+            "title": "[text:22]",
+            "url": "https://blog.rust-lang.org/…"
+          },
+          {
+            "authority": "UK",
+            "date": "2026-09-03",
+            "icon": "https://kimi-web-img.kimi.ai/…",
+            "mime": "",
+            "site_name": "[text:25]",
+            "snippet": "[text:144]",
+            "text": "",
+            "title": "[text:18]",
+            "url": "https://doc.rust-lang.org/…"
+          },
+          {
+            "authority": "UK",
+            "date": "2025-09-18",
+            "icon": "https://kimi-web-img.kimi.ai/…",
+            "mime": "",
+            "site_name": "[text:34]",
+            "snippet": "[text:143]",
+            "text": "",
+            "title": "[text:22]",
+            "url": "https://blog.rust-lang.org/…"
+          },
+          {
+            "authority": "UK",
+            "date": "",
+            "icon": "https://kimi-web-img.kimi.ai/…",
+            "mime": "",
+            "site_name": "[text:13]",
+            "snippet": "[text:160]",
+            "text": "",
+            "title": "[text:6]",
+            "url": "https://releases.rs/…"
+          },
+          {
+            "authority": "UK",
+            "date": "",
+            "icon": "https://kimi-web-img.kimi.ai/…",
+            "mime": "",
+            "site_name": "[text:13]",
+            "snippet": "[text:159]",
+            "text": "",
+            "title": "[text:30]",
+            "url": "https://releases.rs/…"
+          }
+        ]
+      },
+      "source": "recorded_sample",
+      "expect": {
+        "kind": "results",
+        "results": [
+          {
+            "title": "[text:22]",
+            "url": "https://blog.rust-lang.org/…",
+            "snippet": "[text:147]",
+            "site": "[text:34]",
+            "date": "2026-10-15"
+          },
+          {
+            "title": "[text:18]",
+            "url": "https://doc.rust-lang.org/…",
+            "snippet": "[text:144]",
+            "site": "[text:25]",
+            "date": "2026-09-03"
+          },
+          {
+            "title": "[text:6]",
+            "url": "https://releases.rs/…",
+            "snippet": "[text:160]",
+            "site": "[text:13]"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "kimi.intl_badkey",
+      "kind": "error",
+      "serviceId": "kimi",
+      "regionId": "intl",
+      "status": 401,
+      "body": null,
+      "source": "recorded_sample",
+      "expect": {
+        "errorClass": "auth_invalid",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "key_rejected",
+          "primaryAction": "update_key"
+        }
+      }
+    },
+    {
+      "caseId": "tavily.global.request",
+      "kind": "request",
+      "serviceId": "tavily",
+      "regionId": "global",
+      "input": {
+        "query": "oriveo web search",
+        "count": 5,
+        "key": "sk-test-0000"
+      },
+      "source": "recorded_sample",
+      "expect": {
+        "method": "POST",
+        "url": "https://api.tavily.com/search",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer sk-test-0000"
+        },
+        "body": {
+          "query": "oriveo web search",
+          "max_results": 5,
+          "search_depth": "basic"
+        }
+      }
+    },
+    {
+      "caseId": "tavily.request.count_clamped_to_hard_limit",
+      "kind": "request",
+      "serviceId": "tavily",
+      "regionId": "global",
+      "input": {
+        "query": "oriveo web search",
+        "count": 50,
+        "key": "sk-test-0000"
+      },
+      "source": "derived",
+      "expect": {
+        "method": "POST",
+        "url": "https://api.tavily.com/search",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer sk-test-0000"
+        },
+        "body": {
+          "query": "oriveo web search",
+          "max_results": 10,
+          "search_depth": "basic"
+        }
+      }
+    },
+    {
+      "caseId": "tavily.normal",
+      "kind": "response",
+      "serviceId": "tavily",
+      "status": 200,
+      "body": {
+        "query": "[text:25]",
+        "follow_up_questions": null,
+        "answer": null,
+        "images": [],
+        "results": [
+          {
+            "url": "https://www.firecrawl.dev/…",
+            "title": "[text:75]",
+            "content": "[text:1409]",
+            "score": 0.8943568,
+            "raw_content": null,
+            "id": "<id>"
+          },
+          {
+            "url": "https://docs.tavily.com/…",
+            "title": "[text:31]",
+            "content": "[text:1292]",
+            "score": 0.8668671,
+            "raw_content": null,
+            "id": "<id>"
+          },
+          {
+            "url": "https://www.tavily.com/…",
+            "title": "[text:6]",
+            "content": "[text:1241]",
+            "score": 0.8386933,
+            "raw_content": null,
+            "id": "<id>"
+          },
+          {
+            "url": "https://www.cbinsights.com/…",
+            "title": "[text:77]",
+            "content": "[text:1503]",
+            "score": 0.8315952,
+            "raw_content": null,
+            "id": "<id>"
+          },
+          {
+            "url": "https://finance.yahoo.com/…",
+            "title": "[text:62]",
+            "content": "[text:1118]",
+            "score": 0.65279555,
+            "raw_content": null,
+            "id": "<id>"
+          }
+        ],
+        "response_time": 1.18,
+        "request_id": "<id>"
+      },
+      "source": "recorded_sample",
+      "expect": {
+        "kind": "results",
+        "results": [
+          {
+            "title": "[text:75]",
+            "url": "https://www.firecrawl.dev/…",
+            "snippet": "[text:1409]"
+          },
+          {
+            "title": "[text:31]",
+            "url": "https://docs.tavily.com/…",
+            "snippet": "[text:1292]"
+          },
+          {
+            "title": "[text:6]",
+            "url": "https://www.tavily.com/…",
+            "snippet": "[text:1241]"
+          },
+          {
+            "title": "[text:77]",
+            "url": "https://www.cbinsights.com/…",
+            "snippet": "[text:1503]"
+          },
+          {
+            "title": "[text:62]",
+            "url": "https://finance.yahoo.com/…",
+            "snippet": "[text:1118]"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "tavily.empty_query",
+      "kind": "response",
+      "serviceId": "tavily",
+      "status": 200,
+      "body": {
+        "query": "[text:37]",
+        "follow_up_questions": null,
+        "answer": null,
+        "images": [],
+        "results": [
+          {
+            "url": "https://www.pbs.org/…",
+            "title": "[text:64]",
+            "content": "[text:1208]",
+            "score": 0.0662122,
+            "raw_content": null,
+            "id": "<id>"
+          },
+          {
+            "url": "https://7rocky.github.io/…",
+            "title": "[text:28]",
+            "content": "[text:1099]",
+            "score": 0.06220001,
+            "raw_content": null,
+            "id": "<id>"
+          },
+          {
+            "url": "https://presidentlincoln.illinois.gov/…",
+            "title": "[text:13]",
+            "content": "[text:1301]",
+            "score": 0.06104804,
+            "raw_content": null,
+            "id": "<id>"
+          },
+          {
+            "url": "https://www.youtube.com/…",
+            "title": "[text:34]",
+            "content": "[text:1388]",
+            "score": 0.057139874,
+            "raw_content": null,
+            "id": "<id>"
+          },
+          {
+            "url": "https://www.yv.org/…",
+            "title": "[text:41]",
+            "content": "[text:494]",
+            "score": 0.04897146,
+            "raw_content": null,
+            "id": "<id>"
+          }
+        ],
+        "response_time": 1.09,
+        "request_id": "<id>"
+      },
+      "source": "recorded_sample",
+      "expect": {
+        "kind": "results",
+        "results": [
+          {
+            "title": "[text:64]",
+            "url": "https://www.pbs.org/…",
+            "snippet": "[text:1208]"
+          },
+          {
+            "title": "[text:28]",
+            "url": "https://7rocky.github.io/…",
+            "snippet": "[text:1099]"
+          },
+          {
+            "title": "[text:13]",
+            "url": "https://presidentlincoln.illinois.gov/…",
+            "snippet": "[text:1301]"
+          },
+          {
+            "title": "[text:34]",
+            "url": "https://www.youtube.com/…",
+            "snippet": "[text:1388]"
+          },
+          {
+            "title": "[text:41]",
+            "url": "https://www.yv.org/…",
+            "snippet": "[text:494]"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "tavily.badkey",
+      "kind": "error",
+      "serviceId": "tavily",
+      "status": 401,
+      "body": {
+        "detail": {
+          "error": "Unauthorized: missing or invalid API key."
+        }
+      },
+      "source": "recorded_sample",
+      "expect": {
+        "errorClass": "auth_invalid",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "key_rejected",
+          "primaryAction": "update_key"
+        }
+      }
+    },
+    {
+      "caseId": "exa.global.request",
+      "kind": "request",
+      "serviceId": "exa",
+      "regionId": "global",
+      "input": {
+        "query": "oriveo web search",
+        "count": 5,
+        "key": "sk-test-0000"
+      },
+      "source": "recorded_sample",
+      "expect": {
+        "method": "POST",
+        "url": "https://api.exa.ai/search",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "x-api-key": "sk-test-0000"
+        },
+        "body": {
+          "query": "oriveo web search",
+          "numResults": 5,
+          "contents": {
+            "highlights": {
+              "maxCharacters": 600
+            },
+            "text": false
+          },
+          "type": "auto"
+        }
+      }
+    },
+    {
+      "caseId": "exa.request.count_clamped_to_hard_limit",
+      "kind": "request",
+      "serviceId": "exa",
+      "regionId": "global",
+      "input": {
+        "query": "oriveo web search",
+        "count": 50,
+        "key": "sk-test-0000"
+      },
+      "source": "derived",
+      "expect": {
+        "method": "POST",
+        "url": "https://api.exa.ai/search",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "x-api-key": "sk-test-0000"
+        },
+        "body": {
+          "query": "oriveo web search",
+          "numResults": 10,
+          "contents": {
+            "highlights": {
+              "maxCharacters": 600
+            },
+            "text": false
+          },
+          "type": "auto"
+        }
+      }
+    },
+    {
+      "caseId": "exa.normal_with_highlights",
+      "kind": "response",
+      "serviceId": "exa",
+      "status": 200,
+      "body": {
+        "requestId": "<id>",
+        "results": [
+          {
+            "id": "https://exa.ai/…",
+            "title": "[text:30]",
+            "url": "https://exa.ai/…",
+            "publishedDate": "2026-09-01T00:00:00.000Z",
+            "highlights": [
+              "[text:200]",
+              "[text:180]"
+            ],
+            "highlightScores": [
+              0.41,
+              0.33
+            ]
+          },
+          {
+            "id": "https://docs.exa.ai/…",
+            "title": "[text:22]",
+            "url": "https://docs.exa.ai/…",
+            "highlights": []
+          }
+        ]
+      },
+      "source": "docs",
+      "expect": {
+        "kind": "results",
+        "results": [
+          {
+            "title": "[text:30]",
+            "url": "https://exa.ai/…",
+            "snippet": "[text:200] … [text:180]",
+            "date": "2026-09-01T00:00:00.000Z"
+          },
+          {
+            "title": "[text:22]",
+            "url": "https://docs.exa.ai/…",
+            "snippet": ""
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "exa.p0_normal_without_highlights",
+      "kind": "response",
+      "serviceId": "exa",
+      "status": 200,
+      "body": {
+        "requestId": "<id>",
+        "resolvedSearchType": "",
+        "results": [
+          {
+            "id": "<id>",
+            "title": "[text:20]",
+            "url": "https://exa.ai/…"
+          },
+          {
+            "id": "<id>",
+            "title": "[text:22]",
+            "url": "https://exa.ai/…"
+          },
+          {
+            "id": "<id>",
+            "title": "[text:20]",
+            "url": "https://exa.ai/…"
+          },
+          {
+            "id": "<id>",
+            "title": "[text:27]",
+            "url": "https://exa.ai/…"
+          },
+          {
+            "id": "<id>",
+            "title": "[text:21]",
+            "url": "https://github.com/…"
+          }
+        ],
+        "searchTime": 918.7,
+        "costDollars": {
+          "total": 0.007,
+          "search": {
+            "neural": 0.007
+          }
+        }
+      },
+      "source": "recorded_sample",
+      "expect": {
+        "kind": "results",
+        "results": [
+          {
+            "title": "[text:20]",
+            "url": "https://exa.ai/…",
+            "snippet": ""
+          },
+          {
+            "title": "[text:21]",
+            "url": "https://github.com/…",
+            "snippet": ""
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "exa.empty_query",
+      "kind": "response",
+      "serviceId": "exa",
+      "status": 200,
+      "body": {
+        "requestId": "<id>",
+        "resolvedSearchType": "",
+        "results": [
+          {
+            "id": "<id>",
+            "title": "[text:11]",
+            "url": "https://github.com/…"
+          },
+          {
+            "id": "<id>",
+            "title": "[text:47]",
+            "url": "https://anythingtranslate.com/…"
+          },
+          {
+            "id": "<id>",
+            "title": "[text:66]",
+            "url": "https://github.com/…"
+          },
+          {
+            "id": "<id>",
+            "title": "",
+            "url": "https://repo.hex.pm/…"
+          },
+          {
+            "id": "<id>",
+            "title": "[text:61]",
+            "url": "https://slangsense.com/…",
+            "publishedDate": "2024-06-08T00:00:00.000Z",
+            "author": "[text:5]"
+          }
+        ],
+        "searchTime": 980.1,
+        "costDollars": {
+          "total": 0.007,
+          "search": {
+            "neural": 0.007
+          }
+        }
+      },
+      "source": "recorded_sample",
+      "expect": {
+        "kind": "results",
+        "results": [
+          {
+            "title": "[text:11]",
+            "url": "https://github.com/…",
+            "snippet": ""
+          },
+          {
+            "title": "[text:47]",
+            "url": "https://anythingtranslate.com/…",
+            "snippet": ""
+          },
+          {
+            "title": "https://repo.hex.pm/…",
+            "url": "https://repo.hex.pm/…",
+            "snippet": ""
+          },
+          {
+            "title": "[text:61]",
+            "url": "https://slangsense.com/…",
+            "snippet": "",
+            "date": "2024-06-08T00:00:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "exa.badkey",
+      "kind": "error",
+      "serviceId": "exa",
+      "status": 401,
+      "body": {
+        "requestId": "<id>",
+        "error": "Invalid API key. Provide a valid key using 'Authorization: Bearer <key>' or 'x-api-key: <key>'. Create a key at https://dashboard.exa.ai/api-keys",
+        "tag": "INVALID_API_KEY"
+      },
+      "source": "recorded_sample",
+      "expect": {
+        "errorClass": "auth_invalid",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "key_rejected",
+          "primaryAction": "update_key"
+        }
+      }
+    },
+    {
+      "caseId": "brave.global.request",
+      "kind": "request",
+      "serviceId": "brave",
+      "regionId": "global",
+      "input": {
+        "query": "oriveo web search",
+        "count": 5,
+        "key": "sk-test-0000"
+      },
+      "source": "recorded_sample",
+      "expect": {
+        "method": "GET",
+        "url": "https://api.search.brave.com/res/v1/web/search?q=oriveo%20web%20search&count=5",
+        "headers": {
+          "Accept": "application/json",
+          "X-Subscription-Token": "sk-test-0000"
+        },
+        "body": null
+      }
+    },
+    {
+      "caseId": "brave.request.count_clamped_to_hard_limit",
+      "kind": "request",
+      "serviceId": "brave",
+      "regionId": "global",
+      "input": {
+        "query": "oriveo web search",
+        "count": 50,
+        "key": "sk-test-0000"
+      },
+      "source": "derived",
+      "expect": {
+        "method": "GET",
+        "url": "https://api.search.brave.com/res/v1/web/search?q=oriveo%20web%20search&count=10",
+        "headers": {
+          "Accept": "application/json",
+          "X-Subscription-Token": "sk-test-0000"
+        },
+        "body": null
+      }
+    },
+    {
+      "caseId": "brave.normal",
+      "kind": "response",
+      "serviceId": "brave",
+      "status": 200,
+      "body": {
+        "type": "search",
+        "query": {
+          "original": "Brave Search API",
+          "show_strict_warning": false,
+          "is_navigational": true,
+          "is_news_breaking": false,
+          "spellcheck_off": false,
+          "country": "us",
+          "bad_results": false,
+          "should_fallback": false,
+          "postal_code": "",
+          "city": "",
+          "header_country": "",
+          "more_results_available": true,
+          "state": "",
+          "related_queries": [
+            "brave search api pricing",
+            "brave search api free",
+            "[text:28]",
+            "[text:25]",
+            "[text:30]",
+            "[text:36]",
+            "[text:26]",
+            "[text:33]",
+            "brave search api login",
+            "brave search api mcp"
+          ]
+        },
+        "web": {
+          "type": "search",
+          "results": [
+            {
+              "title": "[text:24]",
+              "url": "https://brave.com/…",
+              "is_source_local": false,
+              "is_source_both": false,
+              "description": "[text:209] <strong>kw</strong>",
+              "page_age": "2026-07-01T00:00:00",
+              "profile": {
+                "name": "Brave",
+                "url": "https://brave.com/…",
+                "long_name": "brave.com",
+                "img": "https://imgs.search.brave.com/…"
+              },
+              "language": "en",
+              "family_friendly": true,
+              "type": "search_result",
+              "subtype": "faq",
+              "is_live": false,
+              "meta_url": {
+                "scheme": "https",
+                "netloc": "brave.com",
+                "hostname": "brave.com",
+                "favicon": "https://imgs.search.brave.com/…",
+                "path": "  › home  › search api"
+              },
+              "thumbnail": {
+                "src": "https://imgs.search.brave.com/…",
+                "original": "https://brave.com/…",
+                "logo": false
+              },
+              "age": "July 1, 2026",
+              "faq": {
+                "items": [
+                  {
+                    "question": "[text:29]",
+                    "answer": "[text:306]",
+                    "title": "[text:24]",
+                    "url": "https://brave.com/…",
+                    "meta_url": {
+                      "scheme": "https",
+                      "netloc": "brave.com",
+                      "hostname": "brave.com",
+                      "favicon": "https://imgs.search.brave.com/…",
+                      "path": "  › home  › search api"
+                    }
+                  },
+                  {
+                    "question": "[text:71]",
+                    "answer": "[text:248]",
+                    "title": "[text:24]",
+                    "url": "https://brave.com/…",
+                    "meta_url": {
+                      "scheme": "https",
+                      "netloc": "brave.com",
+                      "hostname": "brave.com",
+                      "favicon": "https://imgs.search.brave.com/…",
+                      "path": "  › home  › search api"
+                    }
+                  },
+                  {
+                    "question": "[text:81]",
+                    "answer": "[text:453]",
+                    "title": "[text:24]",
+                    "url": "https://brave.com/…",
+                    "meta_url": {
+                      "scheme": "https",
+                      "netloc": "brave.com",
+                      "hostname": "brave.com",
+                      "favicon": "https://imgs.search.brave.com/…",
+                      "path": "  › home  › search api"
+                    }
+                  },
+                  {
+                    "question": "[text:30]",
+                    "answer": "[text:899]",
+                    "title": "[text:24]",
+                    "url": "https://brave.com/…",
+                    "meta_url": {
+                      "scheme": "https",
+                      "netloc": "brave.com",
+                      "hostname": "brave.com",
+                      "favicon": "https://imgs.search.brave.com/…",
+                      "path": "  › home  › search api"
+                    }
+                  },
+                  {
+                    "question": "[text:50]",
+                    "answer": "[text:605]",
+                    "title": "[text:24]",
+                    "url": "https://brave.com/…",
+                    "meta_url": {
+                      "scheme": "https",
+                      "netloc": "brave.com",
+                      "hostname": "brave.com",
+                      "favicon": "https://imgs.search.brave.com/…",
+                      "path": "  › home  › search api"
+                    }
+                  },
+                  {
+                    "question": "[text:48]",
+                    "answer": "[text:120]",
+                    "title": "[text:24]",
+                    "url": "https://brave.com/…",
+                    "meta_url": {
+                      "scheme": "https",
+                      "netloc": "brave.com",
+                      "hostname": "brave.com",
+                      "favicon": "https://imgs.search.brave.com/…",
+                      "path": "  › home  › search api"
+                    }
+                  },
+                  {
+                    "question": "[text:56]",
+                    "answer": "[text:282]",
+                    "title": "[text:24]",
+                    "url": "https://brave.com/…",
+                    "meta_url": {
+                      "scheme": "https",
+                      "netloc": "brave.com",
+                      "hostname": "brave.com",
+                      "favicon": "https://imgs.search.brave.com/…",
+                      "path": "  › home  › search api"
+                    }
+                  },
+                  {
+                    "question": "What about copyright?",
+                    "answer": "[text:483]",
+                    "title": "[text:24]",
+                    "url": "https://brave.com/…",
+                    "meta_url": {
+                      "scheme": "https",
+                      "netloc": "brave.com",
+                      "hostname": "brave.com",
+                      "favicon": "https://imgs.search.brave.com/…",
+                      "path": "  › home  › search api"
+                    }
+                  },
+                  {
+                    "question": "[text:69]",
+                    "answer": "[text:377]",
+                    "title": "[text:24]",
+                    "url": "https://brave.com/…",
+                    "meta_url": {
+                      "scheme": "https",
+                      "netloc": "brave.com",
+                      "hostname": "brave.com",
+                      "favicon": "https://imgs.search.brave.com/…",
+                      "path": "  › home  › search api"
+                    }
+                  }
+                ]
+              },
+              "cluster_type": "generic",
+              "cluster": [
+                {
+                  "title": "[text:10]",
+                  "url": "https://brave.com/…",
+                  "is_source_local": false,
+                  "is_source_both": false,
+                  "description": "[text:106]",
+                  "family_friendly": true
+                },
+                {
+                  "title": "[text:7]",
+                  "url": "https://brave.com/…",
+                  "is_source_local": false,
+                  "is_source_both": false,
+                  "description": "[text:202] <strong>kw</strong>",
+                  "family_friendly": true
+                },
+                {
+                  "title": "[text:3]",
+                  "url": "https://brave.com/…",
+                  "is_source_local": false,
+                  "is_source_both": false,
+                  "description": "[text:153] <strong>kw</strong>",
+                  "family_friendly": true
+                },
+                {
+                  "title": "[text:16]",
+                  "url": "https://brave.com/…",
+                  "is_source_local": false,
+                  "is_source_both": false,
+                  "description": "[text:192] <strong>kw</strong>",
+                  "family_friendly": true
+                }
+              ],
+              "organization": {
+                "type": "organization",
+                "name": "Brave Software",
+                "contact_points": []
+              },
+              "extra_snippets": [
+                "[text:295]",
+                "[text:226]",
+                "[text:244]",
+                "[text:167]"
+              ]
+            },
+            {
+              "title": "[text:47]",
+              "url": "https://aws.amazon.com/…",
+              "is_source_local": false,
+              "is_source_both": false,
+              "description": "[text:221] <strong>kw</strong>",
+              "profile": {
+                "name": "AWS Marketplace",
+                "url": "https://aws.amazon.com/…",
+                "long_name": "aws.amazon.com",
+                "img": "https://imgs.search.brave.com/…"
+              },
+              "language": "en",
+              "family_friendly": true,
+              "type": "search_result",
+              "subtype": "generic",
+              "is_live": false,
+              "meta_url": {
+                "scheme": "https",
+                "netloc": "aws.amazon.com",
+                "hostname": "aws.amazon.com",
+                "favicon": "https://imgs.search.brave.com/…",
+                "path": "[text:45]"
+              },
+              "extra_snippets": [
+                "[text:236]",
+                "[text:253]",
+                "[text:434]",
+                "[text:131]"
+              ]
+            },
+            {
+              "title": "[text:55]",
+              "url": "https://scrapegraphai.com/…",
+              "is_source_local": false,
+              "is_source_both": false,
+              "description": "[text:342]",
+              "page_age": "2026-07-09T00:00:00",
+              "profile": {
+                "name": "Scrapegraphai",
+                "url": "https://scrapegraphai.com/…",
+                "long_name": "scrapegraphai.com",
+                "img": "https://imgs.search.brave.com/…"
+              },
+              "language": "en",
+              "family_friendly": true,
+              "type": "search_result",
+              "subtype": "generic",
+              "is_live": false,
+              "meta_url": {
+                "scheme": "https",
+                "netloc": "scrapegraphai.com",
+                "hostname": "scrapegraphai.com",
+                "favicon": "https://imgs.search.brave.com/…",
+                "path": "[text:26]"
+              },
+              "thumbnail": {
+                "src": "https://imgs.search.brave.com/…",
+                "original": "https://scrapegraphai.com/…",
+                "logo": false
+              },
+              "age": "July 9, 2026",
+              "extra_snippets": [
+                "[text:260]",
+                "[text:507]",
+                "[text:404]",
+                "[text:342]"
+              ]
+            },
+            {
+              "title": "[text:32]",
+              "url": "https://api-dashboard.search.brave.com/…",
+              "is_source_local": false,
+              "is_source_both": false,
+              "description": "[text:181] <strong>kw</strong>",
+              "profile": {
+                "name": "Brave Search",
+                "url": "https://api-dashboard.search.brave.com/…",
+                "long_name": "[text:30]",
+                "img": "https://imgs.search.brave.com/…"
+              },
+              "language": "en",
+              "family_friendly": true,
+              "type": "search_result",
+              "subtype": "generic",
+              "is_live": false,
+              "meta_url": {
+                "scheme": "https",
+                "netloc": "[text:30]",
+                "hostname": "[text:30]",
+                "favicon": "https://imgs.search.brave.com/…",
+                "path": "› documentation"
+              },
+              "extra_snippets": [
+                "[text:334]",
+                "[text:164]",
+                "[text:144]",
+                "[text:194]"
+              ]
+            },
+            {
+              "title": "[text:18]",
+              "url": "https://api-dashboard.search.brave.com/…",
+              "is_source_local": false,
+              "is_source_both": false,
+              "description": "[text:108] <strong>kw</strong>",
+              "profile": {
+                "name": "Brave Search",
+                "url": "https://api-dashboard.search.brave.com/…",
+                "long_name": "[text:30]",
+                "img": "https://imgs.search.brave.com/…"
+              },
+              "language": "en",
+              "family_friendly": true,
+              "type": "search_result",
+              "subtype": "generic",
+              "is_live": false,
+              "meta_url": {
+                "scheme": "https",
+                "netloc": "[text:30]",
+                "hostname": "[text:30]",
+                "favicon": "https://imgs.search.brave.com/…",
+                "path": "› register"
+              }
+            }
+          ],
+          "family_friendly": true
+        }
+      },
+      "source": "recorded_sample",
+      "expect": {
+        "kind": "results",
+        "results": [
+          {
+            "title": "[text:24]",
+            "url": "https://brave.com/…",
+            "snippet": "[text:209] kw",
+            "site": "brave.com",
+            "date": "2026-07-01T00:00:00"
+          },
+          {
+            "title": "[text:47]",
+            "url": "https://aws.amazon.com/…",
+            "snippet": "[text:221] kw",
+            "site": "aws.amazon.com"
+          },
+          {
+            "title": "[text:55]",
+            "url": "https://scrapegraphai.com/…",
+            "snippet": "[text:342]",
+            "site": "scrapegraphai.com",
+            "date": "2026-07-09T00:00:00"
+          },
+          {
+            "title": "[text:32]",
+            "url": "https://api-dashboard.search.brave.com/…",
+            "snippet": "[text:181] kw",
+            "site": "[text:30]"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "brave.empty_query",
+      "kind": "response",
+      "serviceId": "brave",
+      "status": 200,
+      "body": {
+        "type": "search",
+        "query": {
+          "original": "[text:37]",
+          "show_strict_warning": false,
+          "is_navigational": false,
+          "is_news_breaking": false,
+          "spellcheck_off": false,
+          "country": "us",
+          "bad_results": false,
+          "should_fallback": false,
+          "postal_code": "",
+          "city": "",
+          "header_country": "",
+          "more_results_available": true,
+          "state": "",
+          "related_queries": []
+        },
+        "web": {
+          "type": "search",
+          "results": [
+            {
+              "title": "[text:16]",
+              "url": "https://translate.google.com/…",
+              "is_source_local": false,
+              "is_source_both": false,
+              "description": "[text:169]",
+              "profile": {
+                "name": "Google Translate",
+                "url": "https://translate.google.com/…",
+                "long_name": "translate.google.com",
+                "img": "https://imgs.search.brave.com/…"
+              },
+              "language": "en",
+              "family_friendly": true,
+              "type": "search_result",
+              "subtype": "generic",
+              "is_live": false,
+              "meta_url": {
+                "scheme": "https",
+                "netloc": "translate.google.com",
+                "hostname": "translate.google.com",
+                "favicon": "https://imgs.search.brave.com/…",
+                "path": ""
+              }
+            },
+            {
+              "title": "[text:37]",
+              "url": "https://www.instagram.com/…",
+              "is_source_local": false,
+              "is_source_both": false,
+              "description": "[text:79]",
+              "profile": {
+                "name": "Instagram",
+                "url": "https://www.instagram.com/…",
+                "long_name": "instagram.com",
+                "img": "https://imgs.search.brave.com/…"
+              },
+              "language": "es",
+              "family_friendly": true,
+              "type": "search_result",
+              "subtype": "generic",
+              "is_live": false,
+              "meta_url": {
+                "scheme": "https",
+                "netloc": "instagram.com",
+                "hostname": "www.instagram.com",
+                "favicon": "https://imgs.search.brave.com/…",
+                "path": "› reel  › DcQ7azCMYbV"
+              }
+            },
+            {
+              "title": "[text:57]",
+              "url": "https://www.instagram.com/…",
+              "is_source_local": false,
+              "is_source_both": false,
+              "description": "[text:79]",
+              "profile": {
+                "name": "Instagram",
+                "url": "https://www.instagram.com/…",
+                "long_name": "instagram.com",
+                "img": "https://imgs.search.brave.com/…"
+              },
+              "language": "es",
+              "family_friendly": true,
+              "type": "search_result",
+              "subtype": "generic",
+              "is_live": false,
+              "meta_url": {
+                "scheme": "https",
+                "netloc": "instagram.com",
+                "hostname": "www.instagram.com",
+                "favicon": "https://imgs.search.brave.com/…",
+                "path": "› reel  › DZVtWUyOh7W"
+              }
+            },
+            {
+              "title": "[text:20]",
+              "url": "https://www.youtube.com/…",
+              "is_source_local": false,
+              "is_source_both": false,
+              "description": "[text:126]",
+              "profile": {
+                "name": "YouTube",
+                "url": "https://www.youtube.com/…",
+                "long_name": "youtube.com",
+                "img": "https://imgs.search.brave.com/…"
+              },
+              "language": "en",
+              "family_friendly": true,
+              "type": "search_result",
+              "subtype": "generic",
+              "is_live": false,
+              "meta_url": {
+                "scheme": "https",
+                "netloc": "youtube.com",
+                "hostname": "www.youtube.com",
+                "favicon": "https://imgs.search.brave.com/…",
+                "path": "› shorts  › iBDMWtx8eGY"
+              }
+            },
+            {
+              "title": "[text:66]",
+              "url": "https://www.instagram.com/…",
+              "is_source_local": false,
+              "is_source_both": false,
+              "description": "[text:79]",
+              "profile": {
+                "name": "Instagram",
+                "url": "https://www.instagram.com/…",
+                "long_name": "instagram.com",
+                "img": "https://imgs.search.brave.com/…"
+              },
+              "language": "es",
+              "family_friendly": true,
+              "type": "search_result",
+              "subtype": "generic",
+              "is_live": false,
+              "meta_url": {
+                "scheme": "https",
+                "netloc": "instagram.com",
+                "hostname": "www.instagram.com",
+                "favicon": "https://imgs.search.brave.com/…",
+                "path": "› reel  › DaeBoDjS2JE"
+              }
+            }
+          ],
+          "family_friendly": true
+        }
+      },
+      "source": "recorded_sample",
+      "expect": {
+        "kind": "results",
+        "results": [
+          {
+            "title": "[text:16]",
+            "url": "https://translate.google.com/…",
+            "snippet": "[text:169]",
+            "site": "translate.google.com"
+          },
+          {
+            "title": "[text:37]",
+            "url": "https://www.instagram.com/…",
+            "snippet": "[text:79]",
+            "site": "instagram.com"
+          },
+          {
+            "title": "[text:20]",
+            "url": "https://www.youtube.com/…",
+            "snippet": "[text:126]",
+            "site": "youtube.com"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "brave.badkey",
+      "kind": "error",
+      "serviceId": "brave",
+      "status": 422,
+      "body": {
+        "error": {
+          "code": "SUBSCRIPTION_TOKEN_INVALID",
+          "detail": "The provided subscription token is invalid.",
+          "meta": {
+            "component": "authentication"
+          },
+          "status": 422
+        },
+        "type": "ErrorResponse"
+      },
+      "source": "recorded_sample",
+      "expect": {
+        "errorClass": "auth_invalid",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "key_rejected",
+          "primaryAction": "update_key"
+        }
+      }
+    },
+    {
+      "caseId": "perplexity.global.request",
+      "kind": "request",
+      "serviceId": "perplexity",
+      "regionId": "global",
+      "input": {
+        "query": "oriveo web search",
+        "count": 5,
+        "key": "sk-test-0000"
+      },
+      "source": "recorded_sample",
+      "expect": {
+        "method": "POST",
+        "url": "https://api.perplexity.ai/search",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer sk-test-0000"
+        },
+        "body": {
+          "query": "oriveo web search",
+          "max_results": 5,
+          "max_tokens_per_page": 256
+        }
+      }
+    },
+    {
+      "caseId": "perplexity.request.count_clamped_to_hard_limit",
+      "kind": "request",
+      "serviceId": "perplexity",
+      "regionId": "global",
+      "input": {
+        "query": "oriveo web search",
+        "count": 50,
+        "key": "sk-test-0000"
+      },
+      "source": "derived",
+      "expect": {
+        "method": "POST",
+        "url": "https://api.perplexity.ai/search",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer sk-test-0000"
+        },
+        "body": {
+          "query": "oriveo web search",
+          "max_results": 10,
+          "max_tokens_per_page": 256
+        }
+      }
+    },
+    {
+      "caseId": "perplexity.normal",
+      "kind": "response",
+      "serviceId": "perplexity",
+      "status": 200,
+      "body": {
+        "id": "<id>",
+        "results": [
+          {
+            "date": "2025-09-25",
+            "last_updated": "2026-10-02",
+            "snippet": "[text:1376]",
+            "title": "[text:37]",
+            "url": "https://www.perplexity.ai/…"
+          },
+          {
+            "last_updated": "2026-10-26",
+            "snippet": "[text:1023]",
+            "title": "[text:63]",
+            "url": "https://www.perplexity.ai/…"
+          },
+          {
+            "date": "2026-10-25",
+            "last_updated": "2026-10-25",
+            "snippet": "[text:1134]",
+            "title": "[text:21]",
+            "url": "https://docs.perplexity.ai/…"
+          },
+          {
+            "date": "2026-09-28",
+            "last_updated": "2026-10-25",
+            "snippet": "[text:1038] <strong>kw</strong>",
+            "title": "[text:14]",
+            "url": "https://docs.perplexity.ai/…"
+          },
+          {
+            "date": "2026-09-14",
+            "last_updated": "2026-10-26",
+            "snippet": "[text:1254]",
+            "title": "[text:36]",
+            "url": "https://www.perplexity.ai/…"
+          }
+        ]
+      },
+      "source": "recorded_sample",
+      "expect": {
+        "kind": "results",
+        "results": [
+          {
+            "title": "[text:37]",
+            "url": "https://www.perplexity.ai/…",
+            "snippet": "[text:1376]",
+            "date": "2025-09-25"
+          },
+          {
+            "title": "[text:21]",
+            "url": "https://docs.perplexity.ai/…",
+            "snippet": "[text:1134]",
+            "date": "2026-10-25"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "perplexity.empty_query",
+      "kind": "response",
+      "serviceId": "perplexity",
+      "status": 200,
+      "body": {
+        "id": "<id>",
+        "results": [
+          {
+            "last_updated": "2026-10-25",
+            "snippet": "[text:147]",
+            "title": "[text:35]",
+            "url": "https://www.worddb.com/…"
+          },
+          {
+            "last_updated": "2026-10-25",
+            "snippet": "[text:134]",
+            "title": "[text:36]",
+            "url": "https://anagram-solver.net/…"
+          },
+          {
+            "last_updated": "2026-10-24",
+            "snippet": "[text:112]",
+            "title": "[text:35]",
+            "url": "https://www.mdbg.net/…"
+          },
+          {
+            "last_updated": "2026-10-25",
+            "snippet": "[text:301]",
+            "title": "[text:18]",
+            "url": "https://www.ssynth.co.uk/…"
+          },
+          {
+            "last_updated": "2026-10-25",
+            "snippet": "[text:368]",
+            "title": "[text:46]",
+            "url": "https://word.tips/…"
+          }
+        ]
+      },
+      "source": "recorded_sample",
+      "expect": {
+        "kind": "results",
+        "results": [
+          {
+            "title": "[text:35]",
+            "url": "https://www.worddb.com/…",
+            "snippet": "[text:147]"
+          },
+          {
+            "title": "[text:36]",
+            "url": "https://anagram-solver.net/…",
+            "snippet": "[text:134]"
+          },
+          {
+            "title": "[text:35]",
+            "url": "https://www.mdbg.net/…",
+            "snippet": "[text:112]"
+          },
+          {
+            "title": "[text:18]",
+            "url": "https://www.ssynth.co.uk/…",
+            "snippet": "[text:301]"
+          },
+          {
+            "title": "[text:46]",
+            "url": "https://word.tips/…",
+            "snippet": "[text:368]"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "perplexity.badkey",
+      "kind": "error",
+      "serviceId": "perplexity",
+      "status": 401,
+      "body": {
+        "error": {
+          "message": "Invalid API key provided. You can find your API key at https://console.perplexity.ai.",
+          "type": "invalid_api_key",
+          "code": 401
+        }
+      },
+      "source": "recorded_sample",
+      "expect": {
+        "errorClass": "auth_invalid",
+        "retryOnce": false,
+        "toolMessage": "unavailable",
+        "card": {
+          "headline": "key_rejected",
+          "primaryAction": "update_key"
+        }
+      }
+    },
+    {
+      "caseId": "deepseek.empty_results_constructed",
+      "kind": "response",
+      "serviceId": "deepseek",
+      "status": 200,
+      "body": {
+        "results": []
+      },
+      "source": "derived",
+      "expect": {
+        "kind": "empty"
+      }
+    },
+    {
+      "caseId": "deepseek.results_not_array",
+      "kind": "response",
+      "serviceId": "deepseek",
+      "status": 200,
+      "body": {
+        "results": {
+          "title": "x"
+        }
+      },
+      "source": "derived",
+      "expect": {
+        "kind": "error",
+        "errorClass": "parse_mismatch"
+      }
+    },
+    {
+      "caseId": "deepseek.dedupe_and_drop_relative_url",
+      "kind": "response",
+      "serviceId": "deepseek",
+      "status": 200,
+      "body": {
+        "results": [
+          {
+            "title": "A",
+            "url": "https://a.example/x",
+            "summary": "one"
+          },
+          {
+            "title": "A again",
+            "url": "https://a.example/x",
+            "summary": "dup"
+          },
+          {
+            "title": "Relative",
+            "url": "/local/path",
+            "summary": "drop"
+          },
+          {
+            "title": "",
+            "url": "https://b.example/",
+            "snippet": "title falls back to url"
+          }
+        ]
+      },
+      "source": "derived",
+      "expect": {
+        "kind": "results",
+        "results": [
+          {
+            "title": "A",
+            "url": "https://a.example/x",
+            "snippet": "one"
+          },
+          {
+            "title": "https://b.example/",
+            "url": "https://b.example/",
+            "snippet": "title falls back to url"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "brave.html_and_control_chars",
+      "kind": "response",
+      "serviceId": "brave",
+      "status": 200,
+      "body": {
+        "web": {
+          "results": [
+            {
+              "title": "Tom &amp; <b>Jerry</b>",
+              "url": "https://c.example/",
+              "description": "line1\u0007\n\n  <strong>kw</strong> &#x4e2d;&#25991; &lt;tag&gt;",
+              "profile": {
+                "long_name": "c.example"
+              },
+              "page_age": "2026-01-02T00:00:00"
+            }
+          ]
+        }
+      },
+      "source": "derived",
+      "expect": {
+        "kind": "results",
+        "results": [
+          {
+            "title": "Tom & Jerry",
+            "url": "https://c.example/",
+            "snippet": "line1 kw 中文 <tag>",
+            "site": "c.example",
+            "date": "2026-01-02T00:00:00"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -57,6 +57,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -82,6 +83,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -110,6 +112,8 @@ import ai.oriveo.community.core.provider.ModelControlRuntimeIdentityResolver
 import ai.oriveo.community.core.provider.capabilityCustomFragmentAvailable
 import ai.oriveo.community.feature.chat.ChatModelCapabilityResolver
 import ai.oriveo.community.core.model.LocalCapabilityCustomFragmentStore
+import ai.oriveo.community.feature.chat.modelcontrols.ModelControlsWebSearch
+import ai.oriveo.community.feature.chat.modelcontrols.WebSearchPanelSnapshot
 import ai.oriveo.community.feature.chat.modelcontrols.AdvancedSettingsPage
 import ai.oriveo.community.feature.chat.modelcontrols.AdditionalBodyEditor
 import ai.oriveo.community.feature.chat.modelcontrols.AdvancedSectionLabel
@@ -141,6 +145,9 @@ internal sealed interface ModelControlsRoute {
     data object Parameters : ModelControlsRoute
 
     data class SupportedModels(val capability: String) : ModelControlsRoute
+
+    /** "Search method" sheet: whether this conversation uses the model's built-in search or which external search service. */
+    data object SearchSource : ModelControlsRoute
 }
 
 private data class CapabilityExplanation(
@@ -178,6 +185,18 @@ internal fun ModelControlsEntrySheet(
     onOpenConnectionWebSearch: () -> Unit,
     /** Relay web rejected on the template: go to this model's advanced page to test capabilities. */
     onOpenRelayModelAdvanced: (modelId: String) -> Unit = {},
+    /** Local search facts for the web card; null = no external search, and the web card keeps its previous behavior. */
+    webSearch: ModelControlsWebSearch? = null,
+    /** The conversation does not exist yet ([conversationId] is a draft id): the source stays in memory and is never persisted under the draft id. */
+    webSearchDraft: Boolean = false,
+    /** Open directly on the "Search method" page (the external search error card's "Switch service"). */
+    opensSearchMethod: Boolean = false,
+    /**
+     * Web card "One-tap enable" (with a prefilled target) / "Add search service" (null): go to web search settings. The second
+     * argument = oneTapArms (whether passing may record external search as on), the third = service ids already on this device
+     * before leaving (used to recognize the new service on return).
+     */
+    onOpenWebSearchFromChat: (ai.oriveo.community.core.search.OneTapReuseTarget?, Boolean, Set<String>) -> Unit = { _, _, _ -> },
     onNavigateToProviderSetup: () -> Unit,
     onSelectModel: (providerId: String, modelId: String) -> Unit,
     onDismiss: () -> Unit,
@@ -220,6 +239,10 @@ internal fun ModelControlsEntrySheet(
                 onOpenConnectionSettings = onOpenConnectionSettings,
                 onOpenConnectionWebSearch = onOpenConnectionWebSearch,
                 onOpenRelayModelAdvanced = onOpenRelayModelAdvanced,
+                webSearch = webSearch,
+                webSearchDraft = webSearchDraft,
+                opensSearchMethod = opensSearchMethod,
+                onOpenWebSearchFromChat = onOpenWebSearchFromChat,
                 onSelectModel = onSelectModel,
                 onDismiss = onDismiss,
             )
@@ -316,6 +339,10 @@ private fun ModelControlsPanel(
     /** Relay web row "Open web search settings" / "Set by you": go to this connection's web search settings page. */
     onOpenConnectionWebSearch: () -> Unit,
     onOpenRelayModelAdvanced: (modelId: String) -> Unit,
+    webSearch: ModelControlsWebSearch?,
+    webSearchDraft: Boolean,
+    opensSearchMethod: Boolean = false,
+    onOpenWebSearchFromChat: (ai.oriveo.community.core.search.OneTapReuseTarget?, Boolean, Set<String>) -> Unit,
     onSelectModel: (providerId: String, modelId: String) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -325,7 +352,7 @@ private fun ModelControlsPanel(
     val scope = rememberCoroutineScope()
     val metadata = MetadataClient.instance
 
-    var route by remember { mutableStateOf<ModelControlsRoute?>(null) }
+    var route by remember { mutableStateOf<ModelControlsRoute?>(if (opensSearchMethod) ModelControlsRoute.SearchSource else null) }
     var routeOrigin by remember { mutableStateOf<ModelControlsRoute?>(null) }
     var routeIsForward by remember { mutableStateOf(true) }
     var behaviorSubPageOpen by remember { mutableStateOf(false) }
@@ -530,6 +557,47 @@ private fun ModelControlsPanel(
     )
     // Parameters card: temperature gets its own row, and the entry row's capsule drops it.
     val parameterRows = ModelOptionsTiles.parameterRows(behaviorData?.page?.rows.orEmpty())
+    // Local search facts for the web card: read in the background (encrypted storage); only the panel writes back nextStored.
+    // Recomputed by revision after the service list / source is written.
+    var webSearchRevision by remember { mutableIntStateOf(0) }
+    val webSearchStoreRevision = webSearch?.revision?.collectAsState()?.value
+    val webSearchSnapshot by androidx.compose.runtime.produceState<WebSearchPanelSnapshot?>(
+        null, webSearch, provider.id, model.id, conversationId, webSearchRevision, webSearchStoreRevision,
+    ) {
+        value = webSearch?.let { ws ->
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { ws.snapshot(provider, model, conversationId, webSearchDraft, writeBack = true) }.getOrNull()
+            }
+        }
+    }
+    /** Services on this device before going to settings: the extra one on return is the service one-tap enable / add just set up. */
+    fun webSearchServiceIds(): Set<String> = webSearchSnapshot?.services?.map { it.saved.id }?.toSet().orEmpty()
+
+    fun writeSearchSource(event: ai.oriveo.community.core.search.SearchSourceEvent) {
+        val ws = webSearch ?: return
+        scope.launch {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { ws.update(provider, model, conversationId, webSearchDraft, event) }
+            }
+            webSearchRevision += 1
+        }
+    }
+    val webIsWritable = editability.canPersist && !isCustomActive("web")
+    val webRelayFact = ModelOptionsPanelInput.relayWeb(provider, model, webPreference = web)
+    // Combined web card result: facts come from the same constructor as sending / the composer preview; everything else is decided by resolveWebSearchState.
+    val webSearchState = webSearchSnapshot?.let { snap ->
+        ai.oriveo.community.core.search.resolveWebSearchState(
+            snap.stateInput(
+                facts = ModelOptionsPanelInput.webSearchFacts(
+                    provider, model, presentation("web"), upstreamRejected("web"), webRelayFact, snap.toolCall,
+                ),
+                // The panel can persist <=> there is a runtime identity, the same definition as sending / the composer preview
+                panelWritable = identity != null,
+                webOn = ModelOptionsPanelInput.webSearchOn(web, webRelayFact),
+                modelKey = ai.oriveo.community.feature.chat.modelcontrols.webSearchModelKey(provider, model),
+            ),
+        )
+    }
     val webShape = ModelOptionCapabilityShape.resolve(
         ModelOptionCapabilityShape.Input(
             capability = ModelOptionCapabilityShape.Capability.Web,
@@ -537,12 +605,28 @@ private fun ModelControlsPanel(
             availableIntents = webIntents,
             selectedIntent = ModelOptionsPanelInput.webIntent(web),
             connection = optionsConnection,
-            isWritable = editability.canPersist && !isCustomActive("web"),
+            isWritable = webIsWritable,
             protocolUndecided = ModelOptionsPanelInput.webProtocolUndecided(provider, model),
             customProtocol = customProtocol,
-            relayWeb = ModelOptionsPanelInput.relayWeb(provider, model, webPreference = web),
+            relayWeb = webRelayFact,
+            webSearch = webSearchState,
         ),
     )
+    // When the model options panel really closes with a fallback notice showing, mark it seen (acknowledge_notice): the key
+    // excludes the model, so switching models inside the panel does not count; the write runs in the implementation's own
+    // background scope and is not cancelled with the panel.
+    val pendingNotice = webSearchState?.source?.notice != null
+    val currentPendingNotice by androidx.compose.runtime.rememberUpdatedState(pendingNotice)
+    val currentProvider by androidx.compose.runtime.rememberUpdatedState(provider)
+    val currentModel by androidx.compose.runtime.rememberUpdatedState(model)
+    val currentConversationId by androidx.compose.runtime.rememberUpdatedState(conversationId)
+    androidx.compose.runtime.DisposableEffect(webSearch) {
+        onDispose {
+            if (currentPendingNotice) {
+                webSearch?.acknowledgeNotice(currentProvider, currentModel, currentConversationId, webSearchDraft)
+            }
+        }
+    }
     val reasoningShape = ModelOptionCapabilityShape.resolve(
         ModelOptionCapabilityShape.Input(
             capability = ModelOptionCapabilityShape.Capability.Reasoning,
@@ -580,6 +664,16 @@ private fun ModelControlsPanel(
                 behaviorInitialSubPage = AdvancedSubPage.AdditionalBody
                 openRoute(ModelControlsRoute.Parameters)
             }
+            ModelOptionCapabilityShape.Escape.PickSearchSource -> openRoute(ModelControlsRoute.SearchSource)
+            // One-tap enable still works when the panel cannot persist, but passing does not write the conversation's web setting.
+            ModelOptionCapabilityShape.Escape.OneTapEnableSearch -> webSearchSnapshot?.oneTap?.let { target ->
+                onDismiss()
+                onOpenWebSearchFromChat(target, webSearchState?.oneTapArms == true, webSearchServiceIds())
+            }
+            ModelOptionCapabilityShape.Escape.AddSearchService -> {
+                onDismiss()
+                onOpenWebSearchFromChat(null, webSearchState?.oneTapArms == true, webSearchServiceIds())
+            }
         }
     }
 
@@ -590,7 +684,22 @@ private fun ModelControlsPanel(
     }
 
     val webActions = CapabilityRowActions(
-        onToggle = { enabled -> persist(if (enabled) CapabilityWebPreference.Automatic else CapabilityWebPreference.Off, reasoningIntent) },
+        onToggle = { enabled ->
+            val state = webSearchState?.takeIf { it.shapeMode == "toggle_with_source" }
+            if (state?.toggleControls == "external") {
+                // External switch: on = pick_service for the current service, off = disarm; neither writes the conversation's web setting.
+                val serviceId = state.source.serviceId
+                if (!enabled) {
+                    writeSearchSource(ai.oriveo.community.core.search.SearchSourceEvent.Disarm)
+                } else if (serviceId != null) {
+                    writeSearchSource(
+                        ai.oriveo.community.core.search.SearchSourceEvent.PickService(serviceId, webSearchSnapshot?.serviceName(serviceId)),
+                    )
+                }
+            } else {
+                persist(if (enabled) CapabilityWebPreference.Automatic else CapabilityWebPreference.Off, reasoningIntent)
+            }
+        },
         onSelectTier = {},
         onSelectTiming = { id -> persist(ModelOptionsPanelInput.webPreference(id), reasoningIntent) },
         onEscape = escapeAction("web", webShape),
@@ -817,6 +926,26 @@ private fun ModelControlsPanel(
                             onDismiss()
                         },
                     )
+                    ModelControlsRoute.SearchSource -> WebSearchSourcePage(
+                        snapshot = webSearchSnapshot ?: WebSearchPanelSnapshot.EMPTY,
+                        items = webSearchState?.pickerItems.orEmpty(),
+                        modelName = model.name,
+                        onBack = ::popRoute,
+                        onPick = { event ->
+                            writeSearchSource(event)
+                            // For a natively searching model, picking a service on "Search method" turns external search on and writes the conversation's web setting on; picking "Built-in" leaves the switch alone
+                            if (event is ai.oriveo.community.core.search.SearchSourceEvent.PickService &&
+                                webSearchState?.toggleControls == "conversation_web"
+                            ) {
+                                persist(CapabilityWebPreference.Automatic, reasoningIntent)
+                            }
+                            popRoute()
+                        },
+                        onAdd = {
+                            onDismiss()
+                            onOpenWebSearchFromChat(null, webSearchState?.oneTapArms == true, webSearchServiceIds())
+                        },
+                    )
                     ModelControlsRoute.Parameters -> Column(modifier = Modifier.fillMaxSize()) {
                         val notifyAdvancedSettingsClosed by rememberUpdatedState(onAdvancedSettingsClosed)
                         DisposableEffect(Unit) {
@@ -896,6 +1025,118 @@ private fun ModelControlsPageHeader(title: String, onBack: () -> Unit) {
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+/** "Search method" sheet: every row comes from searchSourcePickerItems. */
+@Composable
+internal fun WebSearchSourcePage(
+    snapshot: WebSearchPanelSnapshot,
+    /** pickerItems from resolveWebSearchState. */
+    items: List<ai.oriveo.community.core.search.SearchSourcePickerItem>,
+    modelName: String,
+    onBack: () -> Unit,
+    onPick: (ai.oriveo.community.core.search.SearchSourceEvent) -> Unit,
+    onAdd: () -> Unit,
+) {
+    val colors = OriveoTheme.colors
+    Column(modifier = Modifier.fillMaxSize()) {
+        ModelControlsPageHeader(title = stringResource(R.string.web_search_picker_title), onBack = onBack)
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 28.dp),
+        ) {
+            itemsIndexed(items) { index, item ->
+                val (title, subtitle, selected) = when (item) {
+                    is ai.oriveo.community.core.search.SearchSourcePickerItem.Native -> Triple(
+                        stringResource(R.string.web_search_picker_native),
+                        stringResource(R.string.web_search_picker_native_sub, modelName),
+                        item.selected,
+                    )
+                    is ai.oriveo.community.core.search.SearchSourcePickerItem.Service -> {
+                        val service = snapshot.services.firstOrNull { it.saved.id == item.serviceId }
+                        Triple(
+                            service?.displayName.orEmpty(),
+                            if (item.isDefault) {
+                                stringResource(R.string.web_search_picker_default_sub)
+                            } else {
+                                service?.let { ai.oriveo.community.feature.settings.websearch.rowSubtitle(it) }
+                            },
+                            item.selected,
+                        )
+                    }
+                    ai.oriveo.community.core.search.SearchSourcePickerItem.Add ->
+                        Triple(stringResource(R.string.web_search_main_add), null, false)
+                }
+                val onClick: () -> Unit = {
+                    when (item) {
+                        is ai.oriveo.community.core.search.SearchSourcePickerItem.Native ->
+                            onPick(ai.oriveo.community.core.search.SearchSourceEvent.PickNative)
+                        is ai.oriveo.community.core.search.SearchSourcePickerItem.Service -> onPick(
+                            ai.oriveo.community.core.search.SearchSourceEvent.PickService(item.serviceId, snapshot.serviceName(item.serviceId)),
+                        )
+                        ai.oriveo.community.core.search.SearchSourcePickerItem.Add -> onAdd()
+                    }
+                }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .supportedModelsRowSurface(isFirst = index == 0, isLast = index == items.lastIndex),
+                ) {
+                    if (index != 0) ModelControlHairline(leadingInset = 16)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 52.dp)
+                            .clickable(onClick = onClick)
+                            .semantics(mergeDescendants = true) {
+                                role = Role.Button
+                                this.selected = selected
+                            }
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        // Service rows carry the vendor logo, same as "My services" in settings (preset = catalog logo, custom = generic icon)
+                        if (item is ai.oriveo.community.core.search.SearchSourcePickerItem.Service) {
+                            val saved = snapshot.services.firstOrNull { it.saved.id == item.serviceId }?.saved
+                            ai.oriveo.community.feature.settings.websearch.WsLogo(
+                                saved?.serviceId,
+                                custom = saved == null || saved.kind == ai.oriveo.community.core.search.SavedSearchService.KIND_CUSTOM,
+                                size = 28.dp,
+                            )
+                            Spacer(Modifier.width(12.dp))
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = title,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                                color = if (item is ai.oriveo.community.core.search.SearchSourcePickerItem.Add) colors.primaryTextSafe else colors.textPrimary,
+                            )
+                            subtitle?.let {
+                                Text(text = it, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+                            }
+                        }
+                        if (selected) {
+                            Icon(
+                                painter = androidx.compose.ui.res.painterResource(R.drawable.ph_check),
+                                contentDescription = null,
+                                tint = colors.primaryTextSafe,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                    }
+                }
+            }
+            item {
+                Text(
+                    text = stringResource(R.string.web_search_picker_footer),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textSecondary,
+                    modifier = Modifier.padding(top = 12.dp, start = 4.dp, end = 4.dp),
+                )
+            }
+        }
     }
 }
 

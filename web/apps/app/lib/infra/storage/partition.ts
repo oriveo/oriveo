@@ -1,4 +1,5 @@
-import { openDB, type IDBPDatabase } from 'idb';
+import { type IDBPDatabase } from 'idb';
+import { openDB } from './idb-open';
 import { openWithStaleSchemaRecovery, reportIDBUpgradeBlocked } from './idb-lifecycle';
 
 const META_DB = 'oriveo-meta';
@@ -104,6 +105,11 @@ export function getMcpDBName(uid: string): string {
   return `oriveo-mcp--${uid}`;
 }
 
+/** Name of the external search service IDB database (service list and search keys; see lib/search/search-service-store.ts). */
+export function getSearchDBName(uid: string): string {
+  return `oriveo-search--${uid}`;
+}
+
 /** Reports whether a user partition holds any data, without creating a database that does not exist. */
 export async function hasPartitionData(uid: string): Promise<boolean> {
   const dbName = getDBName(uid);
@@ -130,12 +136,12 @@ export async function hasPartitionData(uid: string): Promise<boolean> {
 }
 
 /**
- * Deletes one profile partition's data along with its image and MCP databases. The MCP database
- * holds that profile's MCP credentials, so deleting the partition removes them too; a connection
+ * Deletes one profile partition's data along with its image, MCP and external search databases. The MCP / search databases
+ * hold that profile's credentials, so deleting the partition removes them too; a connection
  * that is still open receives `versionchange` and closes itself to make way (`blocking` in mcp-idb).
  */
 export async function deletePartitionData(uid: string): Promise<void> {
-  const dbNames = [getDBName(uid), getImageDBName(uid), getMcpDBName(uid)];
+  const dbNames = [getDBName(uid), getImageDBName(uid), getMcpDBName(uid), getSearchDBName(uid)];
 
   await Promise.all(dbNames.map((dbName) => new Promise<void>((resolve) => {
     const request = indexedDB.deleteDatabase(dbName);

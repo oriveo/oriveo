@@ -40,6 +40,8 @@ interface MessageListProps {
   savedNoteRefsByMessageId?: Record<string, SavedNoteRef[]>;
   emptyState?: ReactNode;
   onRetry?: (messageId: string) => void;
+  /** External web search "regenerate and search again". */
+  onRegenerateWithSearch?: (messageId: string) => void;
   onRetryWithoutCustom?: (messageId: string) => void;
   onEditAndResend?: (messageId: string, newText: string) => void;
   /** Reopen this message's edit box with the edited text (edit-and-resend cancelled at the pre-send confirm). */
@@ -62,6 +64,7 @@ export function MessageList({
   savedNoteRefsByMessageId,
   emptyState,
   onRetry,
+  onRegenerateWithSearch,
   onRetryWithoutCustom,
   onEditAndResend,
   editReopen,
@@ -283,6 +286,7 @@ export function MessageList({
               interactionLocked={isStreaming}
               prevRole={idx > 0 ? messages[idx - 1].role : undefined}
               onRetry={onRetry}
+              onRegenerateWithSearch={onRegenerateWithSearch}
               onRetryWithoutCustom={onRetryWithoutCustom}
               onEditAndResend={onEditAndResend}
               editReopen={editReopen?.messageId === msg.id ? editReopen : undefined}
