@@ -455,7 +455,7 @@
     <string name="discard">खारिज करें</string>
     <string name="result_restored_memory">मेमोरी बहाल की गई</string>
     <string name="skills_title">कौशल</string>
-    <string name="skills_mySkills">मेरा कौशल</string>
+    <string name="skills_mySkills">मेरे कौशल</string>
     <string name="skills_builtinSkills">अंतर्निहित कौशल</string>
     <string name="skills_newSkill">नया कौशल</string>
     <string name="skills_editSkill">कौशल संपादित करें</string>

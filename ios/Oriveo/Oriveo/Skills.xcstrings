@@ -1795,7 +1795,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "मेरा कौशल"
+            "value" : "मेरे कौशल"
           }
         },
         "id" : {
@@ -2514,7 +2514,7 @@
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "วัสดุอ้างอิง"
+            "value" : "เอกสารอ้างอิง"
           }
         },
         "tr" : {

@@ -465,7 +465,7 @@
     <string name="pinned_section">ปักหมุดแล้ว</string>
     <string name="skills_unpin">เลิกปักหมุดจากหน้าแรก</string>
     <string name="skills_instructions">พรอมต์</string>
-    <string name="skills_knowledgeFiles">วัสดุอ้างอิง</string>
+    <string name="skills_knowledgeFiles">เอกสารอ้างอิง</string>
     <string name="skills_advancedSettings">การตั้งค่าขั้นสูง</string>
     <string name="skills_useMemory">จำการตั้งค่า</string>
     <string name="skills_noCustomSkills">ยังไม่มีทักษะที่กำหนดเอง</string>
