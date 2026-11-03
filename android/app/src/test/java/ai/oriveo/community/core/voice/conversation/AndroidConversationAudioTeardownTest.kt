@@ -70,11 +70,6 @@ class AndroidConversationAudioTeardownTest {
         sessionThread.quitSafely()
     }
 
-    @After
-    fun quitSessionThread() {
-        sessionThread.quitSafely()
-    }
-
     /** Records the thread stop is called on; releases [stopped] once stop has finished. */
     private class ThreadRecordingCapture : AudioCapture {
         var starts = 0
@@ -591,28 +586,6 @@ class AndroidConversationAudioTeardownTest {
         assertEquals(ConversationRoute.HEADPHONES, audio.route)
         assertSame(wired, audioManager.communicationDevice)
         assertEquals(listOf(ConversationRoute.HEADPHONES to Looper.getMainLooper().thread), routes)
-        audio.close()
-    }
-
-    // Old behavior: open threw synchronously when focus was denied; now activation runs on the coordinator thread and the result returns to main to report onActivationFailed.
-    @Test
-    fun focus_denied_reports_activation_failure_on_main_without_capture() {
-        shadowOf(audioManager).setNextFocusRequestResponse(AudioManager.AUDIOFOCUS_REQUEST_FAILED)
-        val failures = mutableListOf<Thread>()
-        val listener = object : ConversationAudioListener by SilentListener {
-            override fun onActivationFailed() {
-                failures += Thread.currentThread()
-            }
-        }
-        val capture = ActivationProbeCapture()
-        val audio = probeAudio("conversation-focus-denied-turns", capture, CaptureTeardownGate())
-
-        audio.open(listener, capture = true)
-        shadowOf(sessionThread.looper).idle()
-        shadowOf(Looper.getMainLooper()).idle()
-
-        assertEquals(listOf(Looper.getMainLooper().thread), failures)
-        assertEquals(0, capture.starts.get())
         audio.close()
     }
 

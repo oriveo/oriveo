@@ -2,7 +2,6 @@ package ai.oriveo.community.core.data.repository.streaming
 
 import android.content.Context
 import ai.oriveo.community.R
-import ai.oriveo.community.core.data.repository.subscriptionClientVersionRejectionWorthReporting
 import ai.oriveo.community.core.error.ErrorMapper
 import ai.oriveo.community.core.model.GrokSubscriptionFailureReason
 import ai.oriveo.community.core.model.OpenAISubscriptionFailureReason

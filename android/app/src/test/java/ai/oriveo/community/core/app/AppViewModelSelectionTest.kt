@@ -1,12 +1,6 @@
 package ai.oriveo.community.core.app
 
 import ai.oriveo.community.R
-import ai.oriveo.community.core.account.AccountControlObserver
-import ai.oriveo.community.core.account.AccountLifecycleCoordinator
-import ai.oriveo.community.core.account.AccountSessionEventBus
-import ai.oriveo.community.core.auth.AccountSessionManager
-import ai.oriveo.community.core.auth.AuthenticatedUser
-import ai.oriveo.community.core.auth.AuthenticationController
 import ai.oriveo.community.core.data.database.DatabaseHealthProbe
 import ai.oriveo.community.core.data.repository.ProviderRepository
 import ai.oriveo.community.core.data.repository.SkillRepository
@@ -18,9 +12,6 @@ import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ThemeOption
 import ai.oriveo.community.core.provider.MetadataTestFixtures
 import ai.oriveo.community.core.provider.ProviderCatalogResolver
-import ai.oriveo.community.core.sync.ConversationMetadataBackfillService
-import ai.oriveo.community.core.sync.SyncManager
-import ai.oriveo.community.core.sync.SyncState
 import ai.oriveo.community.core.voice.VoiceCatalog
 import ai.oriveo.community.core.voice.VoiceCatalogState
 import ai.oriveo.community.core.voice.VoiceOption

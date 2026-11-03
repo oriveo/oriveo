@@ -15,7 +15,6 @@ import ai.oriveo.community.core.model.ChatMessageState
 import ai.oriveo.community.core.model.ChatRole
 import ai.oriveo.community.core.model.GenerationParameterSettingsStore
 import ai.oriveo.community.core.model.Note
-import ai.oriveo.community.core.model.Skill
 import ai.oriveo.community.core.model.Conversation
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.LastUsedModelRef
@@ -1094,7 +1093,6 @@ class RealtimeVoiceSessionWiringTest {
     fun plan_uses_chat_send_context() = runTest {
         val r = Rig(this, entry, provider)
         r.selectRealtime(cloud)
-        val skill = Skill(id = "skill-1", name = "Tutor", systemPrompt = "SKILL-PROMPT-tutor")
         val note = Note(
             id = "11111111-1111-1111-1111-111111111111",
             title = "Trip",
@@ -1112,21 +1110,17 @@ class RealtimeVoiceSessionWiringTest {
         val coordinator = ChatSendCoordinator(
             chatStreamingManager = mockk<ChatStreamingManager>(relaxed = true),
             applicationScope = r.scope,
-            skillDependencies = object : ai.oriveo.community.core.skills.SkillTurnDependencies {
-                override suspend fun skill(id: String) = skill.takeIf { it.id == id }
-            },
             pinnedNotesResolver = { listOf(note) },
             pendingPinnedNoteIds = { emptyList() },
             generationParameterSettingsStore = GenerationParameterSettingsStore(readPayload = { null }, writePayload = {}),
             reminderEnabled = { true },
         )
-        r.edit = { it.copy(useMemory = true, skillId = skill.id, pinnedNoteIds = listOf(note.id)) }
+        r.edit = { it.copy(useMemory = true, pinnedNoteIds = listOf(note.id)) }
         // As chat page wiring: sendCoordinator::realtimeSessionContext + this page's memory list.
         r.contextRequest = { c -> coordinator.realtimeSessionContext(c, listOf(memory)) }
         r.realtime()
 
         val sent = r.connection.inputs.single().instructions
-        assertTrue(sent.contains("SKILL-PROMPT-tutor"))
         assertTrue(sent.contains("PINNED-NOTE-kyoto"))
         assertTrue(sent.contains("MEMORY-likes-tea"))
         val conversation = r.edit(
@@ -1637,7 +1631,7 @@ class RealtimeVoiceSessionWiringTest {
             onComposerConsumed = { consumed += it },
             requestPin = {},
             onSendSettled = {},
-            launchSend = { _, _, _, _, _, _, _, _, _, _, _, _, _, _ -> onLaunch() },
+            launchSend = { _, _, _, _, _, _, _, _, _, _, _ -> onLaunch() },
             voiceCatalog = { catalog },
         )
     }

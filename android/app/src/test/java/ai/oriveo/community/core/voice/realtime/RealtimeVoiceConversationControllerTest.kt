@@ -6,7 +6,6 @@ import ai.oriveo.community.core.context.RealtimeSessionInput
 import ai.oriveo.community.core.context.assembleRealtimeSession
 import ai.oriveo.community.core.data.repository.PlannedRealtimeSession
 import ai.oriveo.community.core.data.repository.RealtimeTransportInput
-import ai.oriveo.community.core.voice.VoiceTelemetry
 import ai.oriveo.community.core.voice.conversation.ConversationDisplayState
 import ai.oriveo.community.core.voice.conversation.ConversationRoute
 import ai.oriveo.community.core.voice.conversation.ConversationFrames
@@ -124,7 +123,7 @@ class RealtimeVoiceConversationControllerTest {
         var onCapture: ((ShortArray) -> Unit)? = null
 
         // Default loudspeaker output (same as AndroidRealtimeAudio when no device is known)
-        override var route: VoiceTelemetry.ConversationRoute = VoiceTelemetry.ConversationRoute.Speaker
+        override var route: ConversationRoute = ConversationRoute.SPEAKER
 
         // Downlink PCM queued but not yet written out, segmented per item (used only by playNext20ms)
         private val queued = ArrayDeque<Pair<String, ByteArray>>()
@@ -2407,7 +2406,7 @@ class RealtimeVoiceConversationControllerTest {
     @Test
     fun headphones_uplink_not_gated() = runTest {
         val r = rig()
-        r.audio.route = VoiceTelemetry.ConversationRoute.Headset
+        r.audio.route = ConversationRoute.HEADPHONES
         send(r, RealtimeSessionEvent.Ready)
         send(r, RealtimeSessionEvent.AssistantAudio("r1", 0, b64(downlink(2000, 4000)), RealtimePCM.OUTPUT_RATE))
         assertTrue(r.audio.playing)

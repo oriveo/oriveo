@@ -131,7 +131,6 @@ class ChatViewModelMemoryTest {
                 memoryPropose = any(),
                 memorySearch = any(),
                 externalSearch = any(),
-                skillTurn = any(),
             )
         } returns Unit
     }
@@ -177,7 +176,6 @@ class ChatViewModelMemoryTest {
                 memoryPropose = any(),
                 memorySearch = any(),
                 externalSearch = any(),
-                skillTurn = any(),
             )
         } returns Unit
 
@@ -265,7 +263,6 @@ class ChatViewModelMemoryTest {
                 memoryPropose = any(),
                 memorySearch = any(),
                 externalSearch = any(),
-                skillTurn = any(),
             )
         }
     }
@@ -306,7 +303,6 @@ class ChatViewModelMemoryTest {
                 memoryPropose = any(),
                 memorySearch = any(),
                 externalSearch = any(),
-                skillTurn = any(),
             )
         } returns Unit
 
@@ -379,7 +375,6 @@ class ChatViewModelMemoryTest {
                 memoryPropose = any(),
                 memorySearch = any(),
                 externalSearch = any(),
-                skillTurn = any(),
             )
         } returns Unit
 

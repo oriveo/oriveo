@@ -4,7 +4,6 @@ import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.ModelExecutionLocality
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.voice.VoiceEngineSelection
-import ai.oriveo.community.core.voice.VoiceTelemetry
 import ai.oriveo.community.core.voice.conversation.ConversationStatusKey
 import ai.oriveo.community.core.voice.conversation.EndReason
 import ai.oriveo.community.core.voice.conversation.VoiceConversationChatPort
@@ -26,15 +25,15 @@ class VoiceEngineSwitchTest {
         override val level = MutableStateFlow(0f)
         override val active = MutableStateFlow(active)
         override val events = MutableSharedFlow<VoiceConversationEvent>()
-        val ends = mutableListOf<Pair<EndReason, VoiceTelemetry.ConversationEndReason?>>()
-        override fun start(chat: VoiceConversationChatPort, entry: VoiceTelemetry.ConversationEntry) {
+        val ends = mutableListOf<EndReason>()
+        override fun start(chat: VoiceConversationChatPort) {
             active.value = true
         }
         override fun tapOrb() = Unit
         override fun toggleMute() = Unit
         override fun screenReaderSpeaking(speaking: Boolean) = Unit
-        override fun end(reason: EndReason, telemetryReason: VoiceTelemetry.ConversationEndReason?) {
-            ends += reason to telemetryReason
+        override fun end(reason: EndReason) {
+            ends += reason
             active.value = false
         }
     }
@@ -55,7 +54,7 @@ class VoiceEngineSwitchTest {
     }
 
     private fun FakeEngine.assertEndedOnceByUser() {
-        assertEquals(listOf(EndReason.USER to VoiceTelemetry.ConversationEndReason.User), ends)
+        assertEquals(listOf(EndReason.USER), ends)
         assertFalse(active.value)
     }
 

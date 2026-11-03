@@ -11,7 +11,6 @@ import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderConnectionState
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.provider.MetadataTestFixtures
-import ai.oriveo.community.core.telemetry.ChatSendBlockedReason
 import ai.oriveo.community.core.voice.VoiceCatalog
 import ai.oriveo.community.core.voice.VoiceOption
 import ai.oriveo.community.core.voice.VoiceProviderCatalog
@@ -287,7 +286,7 @@ class ChatSendCommandCoordinatorModelRetiredTest {
             onComposerConsumed = {},
             requestPin = {},
             onSendSettled = {},
-            launchSend = ChatSendLauncher { _, _, sentModelId, _, _, _, _, _, _, _, _, _, _, _ ->
+            launchSend = ChatSendLauncher { _, _, sentModelId, _, _, _, _, _, _, _, _ ->
                 textLaunched = true
                 launchedModelId = sentModelId
             },

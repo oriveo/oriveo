@@ -196,7 +196,7 @@ class StudioWorkTablesMigrationTest {
 
     private suspend fun withDatabase(block: suspend (OriveoDatabase) -> Unit) {
         val db = Room.databaseBuilder(context, OriveoDatabase::class.java, dbName)
-            .addMigrations(*OriveoDatabase.allMigrations(null))
+            .addMigrations(*OriveoDatabase.allMigrations())
             .allowMainThreadQueries()
             .build()
         try {

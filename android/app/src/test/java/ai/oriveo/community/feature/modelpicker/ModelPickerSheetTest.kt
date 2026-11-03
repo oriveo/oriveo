@@ -68,7 +68,6 @@ class ModelPickerSheetTest {
         currentModel = null,
         searchText = searchText,
         selectedCapabilityFilters = emptySet(),
-        toolCallMemoryVerdict = { _, _ -> null },
         realtimeCatalog = REALTIME_CATALOG,
         realtimeFilterSelected = realtimeFilterSelected,
     )
@@ -86,7 +85,6 @@ class ModelPickerSheetTest {
             providerSections = sections,
             searchText = "",
             expandedProviderIds = setOf("openai"),
-            expandedVendorGroupIds = emptyMap(),
             isSingleProvider = false,
             isHome = true,
         )
@@ -109,7 +107,6 @@ class ModelPickerSheetTest {
             providerSections = sections,
             searchText = "",
             expandedProviderIds = emptySet(),
-            expandedVendorGroupIds = emptyMap(),
             isSingleProvider = false,
             isHome = true,
         )
@@ -125,7 +122,6 @@ class ModelPickerSheetTest {
             providerSections = sections,
             searchText = "",
             expandedProviderIds = emptySet(),
-            expandedVendorGroupIds = emptyMap(),
             isSingleProvider = false,
             isHome = true,
         )
@@ -292,6 +288,40 @@ class ModelPickerSheetTest {
               "models": {
                 "gpt-next": { "canonicalModelId": "gpt-next", "displayName": "GPT Next" },
                 "gpt-old": { "canonicalModelId": "gpt-old", "displayName": "GPT Old", "lifecycle": { "state": "deprecated", "shutdownAt": "2026-01-01" } }
+              }
+            }
+          }
+        }
+    """.trimIndent()
+
+    @Test
+    fun `model picker sections hide models with unsupported metadata transport`() {
+        MetadataTestFixtures.applyRaw(
+            """
+            {
+              "version": 1,
+              "providers": {
+                "openAI": {
+                  "defaultModelId": "gpt-known",
+                  "resolveMap": {
+                    "gpt-known": "gpt-known",
+                    "gpt-future": "gpt-future"
+                  },
+                  "models": {
+                    "gpt-known": {
+                      "canonicalModelId": "gpt-known",
+                      "displayName": "GPT Known",
+                      "capabilities": ["text"],
+                      "transport": "openai_chat"
+                    },
+                    "gpt-future": {
+                      "canonicalModelId": "gpt-future",
+                      "displayName": "GPT Future",
+                      "capabilities": ["text"],
+                      "transport": "future_kind_v99"
+                    }
+                  }
+                }
               }
             }
             """.trimIndent(),
@@ -463,7 +493,6 @@ class ModelPickerSheetTest {
                 providerSections = listOf(section),
                 searchText = "",
                 expandedProviderIds = setOf("openai"),
-                expandedVendorGroupIds = emptyMap(),
                 isSingleProvider = false,
                 isHome = context == ModelPickerContext.Home,
             )
@@ -505,109 +534,6 @@ class ModelPickerSheetTest {
             realtimeCatalog = REALTIME_CATALOG,
         )
         assertFalse(result.showsRealtimeFilter)
-    }
-
-    // ---- Group headers and the home header counts include realtime rows ----
-
-    private fun headerCounts(entries: List<ModelPickerListEntry>): Map<String, Int> =
-        entries.mapNotNull { entry ->
-            (entry.content as? ModelPickerListContent.ProviderHeader)?.let { it.provider.id to it.modelCount }
-        }.toMap()
-
-    private fun homeResult(
-        providers: List<Provider>,
-        searchText: String = "",
-        realtimeFilterSelected: Boolean = false,
-    ): ModelPickerSectionsResult = buildModelPickerSectionsResult(
-        context = ModelPickerContext.Home,
-        providers = providers,
-        activeProviderId = null,
-        currentModel = null,
-        searchText = searchText,
-        selectedCapabilityFilters = emptySet(),
-        realtimeCatalog = REALTIME_CATALOG,
-        realtimeFilterSelected = realtimeFilterSelected,
-    )
-
-    private fun anthropicProvider() = Provider(
-        id = "anthropic",
-        kind = ProviderKind.Anthropic,
-        models = listOf(AIModel(id = "claude-sonnet-4", name = "Claude Sonnet 4", isAvailable = true)),
-    )
-
-    @Test
-    fun provider_header_count_includes_realtime_rows() {
-        val sections = homeResult(listOf(realtimeProvider("openai", ProviderKind.OpenAI))).providerSections
-        val entries = buildModelPickerListEntries(
-            providerSections = sections,
-            searchText = "",
-            expandedProviderIds = setOf("openai"),
-            expandedVendorGroupIds = emptyMap(),
-            isSingleProvider = false,
-            isHome = true,
-        )
-        val visibleRows = entries.count {
-            it.content is ModelPickerListContent.ModelRow || it.content is ModelPickerListContent.RealtimeRow
-        }
-        assertEquals(4, visibleRows)
-        assertEquals(mapOf("openai" to 4), headerCounts(entries))
-    }
-
-    @Test
-    fun realtime_filter_header_counts_realtime_rows() {
-        val sections = homeResult(
-            listOf(realtimeProvider("openai", ProviderKind.OpenAI)),
-            realtimeFilterSelected = true,
-        ).providerSections
-        assertTrue(sections.single().models.isEmpty())
-        // Even when collapsed, "0 models" must not be shown
-        val collapsed = buildModelPickerListEntries(
-            providerSections = sections,
-            searchText = "",
-            expandedProviderIds = emptySet(),
-            expandedVendorGroupIds = emptyMap(),
-            isSingleProvider = false,
-            isHome = true,
-        )
-        assertEquals(mapOf("openai" to 3), headerCounts(collapsed))
-    }
-
-    @Test
-    fun home_header_total_includes_realtime_rows() {
-        val sections = homeResult(
-            listOf(realtimeProvider("openai", ProviderKind.OpenAI), realtimeProvider("openai-2", ProviderKind.OpenAI)),
-        ).providerSections
-        val entries = buildModelPickerListEntries(
-            providerSections = sections,
-            searchText = "",
-            expandedProviderIds = emptySet(),
-            expandedVendorGroupIds = emptyMap(),
-            isSingleProvider = false,
-            isHome = true,
-        )
-        val counts = modelPickerHomeHeaderCounts(sections)
-        assertEquals(ModelPickerHomeHeaderCounts(providerCount = 2, modelCount = 8), counts)
-        assertEquals(headerCounts(entries).values.sum(), counts.modelCount)
-    }
-
-    @Test
-    fun home_header_provider_count_after_filter() {
-        val providers = listOf(realtimeProvider("openai", ProviderKind.OpenAI), anthropicProvider())
-        assertEquals(
-            "Precondition: both groups are present when unfiltered",
-            ModelPickerHomeHeaderCounts(providerCount = 2, modelCount = 5),
-            modelPickerHomeHeaderCounts(homeResult(providers).providerSections),
-        )
-        // Search filters out the whole Anthropic group: the provider count and the model count come from the same group set
-        assertEquals(
-            ModelPickerHomeHeaderCounts(providerCount = 1, modelCount = 4),
-            modelPickerHomeHeaderCounts(homeResult(providers, searchText = "gpt").providerSections),
-        )
-        // The realtime filter keeps only realtime rows: Anthropic does not count, OpenAI counts only its 3 realtime rows
-        assertEquals(
-            ModelPickerHomeHeaderCounts(providerCount = 1, modelCount = 3),
-            modelPickerHomeHeaderCounts(homeResult(providers, realtimeFilterSelected = true).providerSections),
-        )
     }
 
     @Test
@@ -714,22 +640,6 @@ class ModelPickerSheetTest {
         assertFalse(rowSource.contains(".height(64.dp)"))
     }
 
-    @Test
-    fun realtime_filter_chip_shows_realtime_row_count() {
-        val source = File("src/main/java/ai/oriveo/community/feature/modelpicker/ModelPickerSheet.kt").readText()
-        val chipSource = source.requiredSlice(
-            from = "private fun ModelPickerRealtimeFilterChip(",
-            to = "maxLines = 1,",
-        )
-        // Like the capability chips, carries a hit count: "realtime voice N"
-        assertTrue(chipSource.contains("count: Int"))
-        assertTrue(chipSource.contains("stringResource(R.string.voice_realtime_filter_count, count)"))
-        assertFalse(chipSource.contains("R.string.voice_realtime_model_tag"))
-        // N comes from realtimeFilterCount of the same grouping computation
-        assertTrue(source.contains("realtimeFilterCount = sectionsResult?.realtimeFilterCount ?: 0"))
-        assertTrue(source.contains("count = realtimeCount,"))
-    }
-
     /** Tapping a text row = select and collapse, selecting first and then collapsing. */
     @Test
     fun pickerDismissesAfterSelectingTextRow() {
@@ -750,95 +660,6 @@ class ModelPickerSheetTest {
         )
         assertTrue(textRowSelection.contains("selectModelAndDismiss("))
         assertTrue(textRowSelection.contains("dismiss = onDismiss"))
-    }
-
-    /** Tapping a realtime row collapses it; if not accepted, collapse first and then show the disclosure; select only once accepted; if already accepted, select first and then collapse. */
-    @Test
-    fun pickerDismissesAfterRealtimeAgree() {
-        val store = VoiceDisclosureStore { TestSharedPreferences() }
-        val events = mutableListOf<String>()
-        val select: (String, String) -> Unit = { providerId, modelId -> events += "select:$providerId/$modelId" }
-        var requested: RealtimePickerDisclosure? = null
-
-        pickRealtimeModelAndDismiss(
-            providerId = "openai",
-            providerKind = ProviderKind.OpenAI,
-            modelId = "gpt-realtime-2",
-            store = store,
-            select = select,
-            dismiss = { events += "dismiss" },
-            requestDisclosure = { events += "request:${it.modelId}"; requested = it },
-        )
-        assertEquals(listOf("dismiss", "request:gpt-realtime-2"), events)
-
-        // On the page, tapping accept: record acceptance, then select
-        acceptRealtimeDisclosure(requested!!, store, select)
-        assertEquals(listOf("dismiss", "request:gpt-realtime-2", "select:openai/gpt-realtime-2"), events)
-        assertTrue(store.isAccepted(ProviderKind.OpenAI, VoiceDirection.Realtime))
-
-        // Already accepted: select and collapse directly, without requesting the disclosure again
-        events.clear()
-        pickRealtimeModelAndDismiss(
-            providerId = "openai",
-            providerKind = ProviderKind.OpenAI,
-            modelId = "gpt-realtime-mini",
-            store = store,
-            select = select,
-            dismiss = { events += "dismiss" },
-            requestDisclosure = { events += "request:${it.modelId}" },
-        )
-        assertEquals(listOf("select:openai/gpt-realtime-mini", "dismiss"), events)
-
-        // The disclosure is not inside the picker; the home / chat page holds it and shows it
-        val pickerSource = File("src/main/java/ai/oriveo/community/feature/modelpicker/ModelPickerSheet.kt").readText()
-        val realtimeRowSelection = pickerSource.requiredSlice(
-            from = "onSelectRealtimeModel = { provider, entry ->",
-            to = "isRealtimeModelSelected =",
-        )
-        assertTrue(realtimeRowSelection.contains("pickRealtimeModelAndDismiss("))
-        assertTrue(realtimeRowSelection.contains("dismiss = onDismiss"))
-        assertTrue(realtimeRowSelection.contains("requestDisclosure = onRequestRealtimeDisclosure"))
-        assertFalse(pickerSource.contains("VoiceDisclosureSheet("))
-        assertFalse(pickerSource.contains("pendingRealtimeDisclosure"))
-        for (path in listOf(
-            "src/main/java/ai/oriveo/community/feature/home/HomeScreen.kt",
-            "src/main/java/ai/oriveo/community/feature/chat/ChatScreenContent.kt",
-        )) {
-            val pageSource = File(path).readText()
-            assertTrue(path, pageSource.contains("onRequestRealtimeDisclosure = { pendingRealtimeDisclosure = it }"))
-            val agree = pageSource.requiredSlice(from = "VoiceDisclosureSheet(", to = "onDecline =")
-            assertTrue(path, agree.contains("acceptRealtimeDisclosure(pending, realtimeDisclosureStore,"))
-        }
-    }
-
-    /** After collapse, the page disclosure is dismissed with "Not now" or a swipe down: do not select, do not record consent, keep the original model. */
-    @Test
-    fun pickerDismissesThenDeclinedDisclosureKeepsPreviousModel() {
-        val store = VoiceDisclosureStore { TestSharedPreferences() }
-        val events = mutableListOf<String>()
-
-        pickRealtimeModelAndDismiss(
-            providerId = "gemini",
-            providerKind = ProviderKind.Gemini,
-            modelId = "gemini-live",
-            store = store,
-            select = { providerId, modelId -> events += "select:$providerId/$modelId" },
-            dismiss = { events += "dismiss" },
-            requestDisclosure = { events += "request:${it.modelId}" },
-        )
-
-        assertEquals(listOf("dismiss", "request:gemini-live"), events)
-        assertFalse(store.isAccepted(ProviderKind.Gemini, VoiceDirection.Realtime))
-        for (path in listOf(
-            "src/main/java/ai/oriveo/community/feature/home/HomeScreen.kt",
-            "src/main/java/ai/oriveo/community/feature/chat/ChatScreenContent.kt",
-        )) {
-            val decline = File(path).readText().requiredSlice(from = "VoiceDisclosureSheet(", to = "\n        )\n")
-                .substringAfter("onDecline =")
-            assertTrue(path, decline.contains("pendingRealtimeDisclosure = null"))
-            assertFalse(path, decline.contains("acceptRealtimeDisclosure"))
-            assertFalse(path, decline.contains("select"))
-        }
     }
 
     @Test

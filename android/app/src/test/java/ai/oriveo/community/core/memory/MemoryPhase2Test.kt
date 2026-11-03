@@ -126,7 +126,6 @@ class MemoryPhase2Test {
                 memoryPropose = any(),
                 memorySearch = any(),
                 externalSearch = any(),
-                skillTurn = any(),
             )
         } returns Unit
     }
@@ -157,7 +156,6 @@ class MemoryPhase2Test {
                 memoryPropose = any(),
                 memorySearch = any(),
                 externalSearch = any(),
-                skillTurn = any(),
             )
         } returns Unit
 
@@ -193,7 +191,6 @@ class MemoryPhase2Test {
                 memoryPropose = any(),
                 memorySearch = any(),
                 externalSearch = any(),
-                skillTurn = any(),
             )
         } returns Unit
 
@@ -229,7 +226,6 @@ class MemoryPhase2Test {
                 memoryPropose = any(),
                 memorySearch = any(),
                 externalSearch = any(),
-                skillTurn = any(),
             )
         } returns Unit
 
@@ -265,7 +261,6 @@ class MemoryPhase2Test {
                 memoryPropose = any(),
                 memorySearch = any(),
                 externalSearch = any(),
-                skillTurn = any(),
             )
         } returns Unit
 
@@ -301,7 +296,6 @@ class MemoryPhase2Test {
                 memoryPropose = any(),
                 memorySearch = any(),
                 externalSearch = any(),
-                skillTurn = any(),
             )
         } returns Unit
 
@@ -347,7 +341,6 @@ class MemoryPhase2Test {
                 memoryPropose = any(),
                 memorySearch = any(),
                 externalSearch = any(),
-                skillTurn = any(),
             )
         } returns Unit
 
@@ -400,7 +393,6 @@ class MemoryPhase2Test {
                 memoryPropose = any(),
                 memorySearch = any(),
                 externalSearch = any(),
-                skillTurn = any(),
             )
         } returns Unit
 
@@ -448,7 +440,6 @@ class MemoryPhase2Test {
                 memoryPropose = any(),
                 memorySearch = any(),
                 externalSearch = any(),
-                skillTurn = any(),
             )
         } returns Unit
 
@@ -495,7 +486,6 @@ class MemoryPhase2Test {
                 memoryPropose = any(),
                 memorySearch = any(),
                 externalSearch = any(),
-                skillTurn = any(),
             )
         } returns Unit
 

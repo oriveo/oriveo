@@ -271,7 +271,6 @@ class ChatComposerHostStopButtonTest {
                         activeProvider = provider,
                         conversationId = CONVERSATION_ID,
                         conversationSkillIds = emptyList(),
-                        hasActiveLibraryConnection = false,
                         sendingBlockedByLoadState = false,
                         hazeState = HazeState(),
                         trueTransparentBlurEnabled = false,

@@ -14,7 +14,6 @@ import ai.oriveo.community.core.voice.AndroidAudioSessionCoordinator
 import ai.oriveo.community.core.voice.AudioCapture
 import ai.oriveo.community.core.voice.PcmSink
 import ai.oriveo.community.core.voice.PcmSource
-import ai.oriveo.community.core.voice.VoiceTelemetry
 import ai.oriveo.community.core.voice.conversation.AndroidConversationAudio
 import ai.oriveo.community.core.voice.conversation.CaptureTeardownGate
 import ai.oriveo.community.core.voice.conversation.ConversationAudioListener
@@ -243,7 +242,7 @@ class AndroidRealtimeAudioTeardownTest {
 
         assertEquals(AudioManager.MODE_IN_COMMUNICATION, audioManager.mode)
         assertEquals(AudioDeviceInfo.TYPE_BUILTIN_SPEAKER, audioManager.communicationDevice?.type)
-        assertEquals(VoiceTelemetry.ConversationRoute.Speaker, audio.route)
+        assertEquals(ConversationRoute.SPEAKER, audio.route)
         audio.stop()
     }
 
@@ -652,15 +651,15 @@ class AndroidRealtimeAudioTeardownTest {
         shadowOf(audioManager).setAvailableCommunicationDevices(listOf(headset, speaker))
         val audio = AndroidRealtimeAudio(app, sessions, newCapture = { ThreadRecordingCapture() }, teardowns = CaptureTeardownGate())
         // Before activation: the cache has not been read, so the default speaker is used.
-        assertEquals(VoiceTelemetry.ConversationRoute.Speaker, audio.route)
+        assertEquals(ConversationRoute.SPEAKER, audio.route)
 
         audio.start(onFrame = {}, onInterruption = {})
         idleSessions()
-        assertEquals(VoiceTelemetry.ConversationRoute.Bluetooth, audio.route)
+        assertEquals(ConversationRoute.BLUETOOTH, audio.route)
 
         // Bypassing the coordinator to change the communication device directly: a read on the calling thread does not query AudioManager and still returns the value maintained on the coordinator thread.
         audioManager.setCommunicationDevice(speaker)
-        assertEquals(VoiceTelemetry.ConversationRoute.Bluetooth, audio.route)
+        assertEquals(ConversationRoute.BLUETOOTH, audio.route)
         audio.stop()
         awaitDeactivated(audio)
     }

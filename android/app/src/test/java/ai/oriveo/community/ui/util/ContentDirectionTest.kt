@@ -2,7 +2,6 @@ package ai.oriveo.community.ui.util
 
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.LayoutDirection
-import ai.oriveo.community.core.skills.SkillValidation
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -11,15 +10,6 @@ class ContentDirectionTest {
     @Test
     fun content_direction_style_uses_textdirection_content() {
         assertEquals(TextDirection.Content, userContentTextStyle.textDirection)
-    }
-
-    @Test
-    fun slash_fragment_is_isolated_ltr() {
-        val label = SkillValidation.slashLabel("weekly report")
-        val isolated = isolateSlashFragment(label)
-        assertEquals("⁦$label⁩", isolated)
-        assertEquals('⁦', isolated.first())
-        assertEquals('⁩', isolated.last())
     }
 
     @Test

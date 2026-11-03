@@ -4,7 +4,6 @@ import ai.oriveo.community.core.model.CostFormatter
 import ai.oriveo.community.core.model.NonUsdCost
 import ai.oriveo.community.core.usage.CostPart
 import ai.oriveo.community.core.usage.CostParts
-import ai.oriveo.community.feature.managedwallet.formatManagedLedgerAmountMicrousd
 import java.io.File
 import java.util.Locale
 import kotlinx.serialization.json.Json

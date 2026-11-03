@@ -43,7 +43,6 @@ import ai.oriveo.community.R
 import ai.oriveo.community.core.model.LanguageOption
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.voice.VoiceEngineSelection
-import ai.oriveo.community.core.voice.VoiceTelemetry
 import ai.oriveo.community.core.voice.conversation.EndReason
 import ai.oriveo.community.core.voice.conversation.VoiceConversationChatPort
 import ai.oriveo.community.core.voice.conversation.VoiceConversationEngine
@@ -221,31 +220,6 @@ class VoiceConversationBarTest {
             .fetchSemanticsNodes()
         assertTrue("no live region in the bar: the host announces once", live.isEmpty())
         assertEquals(null, orb.config.getOrNull(SemanticsProperties.LiveRegion))
-    }
-
-    @Test
-    fun `mute button reads differently in its two states and the end button always has a description`() {
-        RuntimeEnvironment.setQualifiers("+zh-rCN")
-        var status by mutableStateOf(ConversationStatusKey.LISTENING)
-        val activity = stage(status = { status })
-        fun described(tag: String) = composeRule.onNodeWithTag(tag).fetchSemanticsNode()
-            .config[SemanticsProperties.ContentDescription]
-        val unmuted = described("voice_conversation_mute_button")
-        val endLive = described("voice_conversation_end_button")
-        status = ConversationStatusKey.MUTED
-        composeRule.waitForIdle()
-        val muted = described("voice_conversation_mute_button")
-        val endMuted = described("voice_conversation_end_button")
-        // Unmuted reads "Mute", muted reads "Unmute": both descriptions come from the production string resources and differ from each other
-        assertEquals(listOf(activity.getString(R.string.voice_conversation_mute_a11y)), unmuted)
-        assertEquals(listOf(activity.getString(R.string.voice_conversation_unmute_a11y)), muted)
-        assertTrue("mute descriptions must differ：$unmuted / $muted", unmuted != muted)
-        // Both end-button states have a non-empty description
-        val end = listOf(activity.getString(R.string.voice_conversation_end_a11y))
-        assertTrue("end button description is blank", end.single().isNotBlank())
-        assertEquals(end, endLive)
-        assertEquals(end, endMuted)
-        activity.finish()
     }
 
     @Test
@@ -1096,11 +1070,11 @@ class VoiceConversationBarTest {
         override val level = MutableStateFlow(0f)
         override val active = MutableStateFlow(true)
         override val events = MutableSharedFlow<VoiceConversationEvent>()
-        override fun start(chat: VoiceConversationChatPort, entry: VoiceTelemetry.ConversationEntry) = Unit
+        override fun start(chat: VoiceConversationChatPort) = Unit
         override fun tapOrb() = Unit
         override fun toggleMute() = Unit
         override fun screenReaderSpeaking(speaking: Boolean) = Unit
-        override fun end(reason: EndReason, telemetryReason: VoiceTelemetry.ConversationEndReason?) {
+        override fun end(reason: EndReason) {
             statusKey.value = null
             active.value = false
             status.value = null

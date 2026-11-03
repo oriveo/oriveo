@@ -2,7 +2,6 @@ package ai.oriveo.community.core.model
 
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
-import ai.oriveo.community.feature.managedwallet.formatManagedBalanceMicrousd
 import java.util.Locale
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -39,7 +38,6 @@ class CostFormatterAppLocaleTest {
         AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags("de"))
 
         assertEquals("1,20 $", normalize(CostFormatter.usd(1.2, 2, 2)))
-        assertEquals("1,20 $", normalize(formatManagedBalanceMicrousd(1_200_000)))
     }
 
     @Test
@@ -48,7 +46,6 @@ class CostFormatterAppLocaleTest {
         AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
 
         assertEquals("$1.20", normalize(CostFormatter.usd(1.2, 2, 2)))
-        assertEquals("$1.20", normalize(formatManagedBalanceMicrousd(1_200_000)))
     }
 
     private fun normalize(text: String): String =

@@ -30,9 +30,9 @@ import ai.oriveo.community.core.voice.VoiceEngineSettings
 import ai.oriveo.community.core.voice.VoiceOption
 import ai.oriveo.community.core.voice.VoiceProviderCatalog
 import ai.oriveo.community.core.voice.VoiceRealtimeEntry
-import ai.oriveo.community.core.voice.VoiceTelemetry
 import ai.oriveo.community.core.voice.VoiceTransport
 import ai.oriveo.community.core.model.Conversation
+import ai.oriveo.community.core.voice.conversation.ConversationRoute
 import ai.oriveo.community.core.voice.conversation.ConversationStatusKey
 import ai.oriveo.community.core.voice.conversation.VoiceConversationChatPort
 import ai.oriveo.community.core.voice.conversation.VoiceConversationController
@@ -936,7 +936,7 @@ class HomeRealtimeVoiceFlowTest {
  * stopPlayback freezes what has been played.
  */
 internal open class IdealRealtimeAudio(
-    override val route: VoiceTelemetry.ConversationRoute = VoiceTelemetry.ConversationRoute.Speaker,
+    override val route: ConversationRoute = ConversationRoute.SPEAKER,
 ) : RealtimeAudioIO {
     /** Samples played (= received) per item. */
     private val played = mutableMapOf<String, Long>()

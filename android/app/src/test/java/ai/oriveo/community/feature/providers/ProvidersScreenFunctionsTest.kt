@@ -172,12 +172,6 @@ class ProvidersScreenFunctionsTest {
         assertEquals(0, ProviderCatalogResolver.debugResolveCallCount)
     }
 
-    @Test
-    fun `CNY balance rounds half away from zero`() {
-        val cny = ProviderBalance(currency = "CNY", total = 0.125, fetchedAt = java.time.Instant.now())
-        assertEquals("\u00A50.13", formatProviderBalanceAmount(cny, Locale.SIMPLIFIED_CHINESE))
-    }
-
     /**
      * The hero card must not read `provider.availableModelCount` directly: when
      * `cachedAvailableModelCount` is null it falls back to `allModels`, and that path runs

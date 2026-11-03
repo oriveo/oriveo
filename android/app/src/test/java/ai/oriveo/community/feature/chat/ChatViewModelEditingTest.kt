@@ -166,7 +166,6 @@ class ChatViewModelEditingTest {
                 memoryPropose = any(),
                 memorySearch = any(),
                 externalSearch = any(),
-                skillTurn = any(),
             )
         } returns Unit
     }
@@ -376,7 +375,6 @@ class ChatViewModelEditingTest {
                 memoryPropose = any(),
                 memorySearch = any(),
                 externalSearch = any(),
-                skillTurn = any(),
             )
         }
     }
@@ -437,7 +435,6 @@ class ChatViewModelEditingTest {
                 memoryPropose = any(),
                 memorySearch = any(),
                 externalSearch = any(),
-                skillTurn = any(),
             )
         }
     }
@@ -487,7 +484,6 @@ class ChatViewModelEditingTest {
                 memoryPropose = any(),
                 memorySearch = any(),
                 externalSearch = any(),
-                skillTurn = any(),
             )
         }
     }
@@ -582,22 +578,17 @@ class ChatViewModelEditingTest {
                 reasoningMode = any(),
                 webSearchEnabled = any(),
                 requestOptions = any(),
-                retrieval = any(),
                 outputs = any(),
                 persistUserMessage = false,
                 userMessageAlreadyInHistory = true,
                 appendToAssistant = null,
                 quoteContext = any(),
-                libraryResearchEnabled = any(),
-                libraryContextDocuments = any(),
-                libraryContextCancelledText = any(),
                 attemptKind = any(),
                 overflowRecovery = any(),
                 onUserMessageCreated = any(),
                 memoryPropose = any(),
                 memorySearch = any(),
                 externalSearch = any(),
-                skillTurn = any(),
             )
         }
     }
@@ -686,22 +677,17 @@ class ChatViewModelEditingTest {
                 reasoningMode = any(),
                 webSearchEnabled = any(),
                 requestOptions = any(),
-                retrieval = any(),
                 outputs = any(),
                 persistUserMessage = false,
                 userMessageAlreadyInHistory = true,
                 appendToAssistant = null,
                 quoteContext = any(),
-                libraryResearchEnabled = any(),
-                libraryContextDocuments = any(),
-                libraryContextCancelledText = any(),
                 attemptKind = any(),
                 overflowRecovery = any(),
                 onUserMessageCreated = any(),
                 memoryPropose = any(),
                 memorySearch = any(),
                 externalSearch = any(),
-                skillTurn = any(),
             )
         }
     }
@@ -718,22 +704,17 @@ class ChatViewModelEditingTest {
                 reasoningMode = any(),
                 webSearchEnabled = any(),
                 requestOptions = match { it.chatContext?.delivery == ai.oriveo.community.core.context.ContextDelivery.VOICE },
-                retrieval = any(),
                 outputs = any(),
                 persistUserMessage = true,
                 userMessageAlreadyInHistory = false,
                 appendToAssistant = null,
                 quoteContext = any(),
-                libraryResearchEnabled = any(),
-                libraryContextDocuments = any(),
-                libraryContextCancelledText = any(),
                 attemptKind = any(),
                 overflowRecovery = any(),
                 onUserMessageCreated = any(),
                 memoryPropose = any(),
                 memorySearch = any(),
                 externalSearch = any(),
-                skillTurn = any(),
             )
         }
     }
@@ -801,7 +782,7 @@ class ChatViewModelEditingTest {
         activeModelId = modelId,
         providers = { listOf(provider) },
         requestPin = {},
-        launchSend = ChatSendLauncher { _, _, _, text, _, _, _, _, _, _, _, _, _, _ -> launches += text },
+        launchSend = ChatSendLauncher { _, _, _, text, _, _, _, _, _, _, _ -> launches += text },
         sendVoiceTurn = sendVoiceTurn,
     )
 
@@ -810,10 +791,9 @@ class ChatViewModelEditingTest {
             chatRepository.sendMessage(
                 conversation = any(), text = any(), provider = any(), modelID = any(), existingMessages = any(),
                 attachments = any(), reasoningMode = any(), webSearchEnabled = any(), requestOptions = any(),
-                retrieval = any(), outputs = any(), persistUserMessage = any(), userMessageAlreadyInHistory = any(),
-                appendToAssistant = any(), quoteContext = any(), libraryResearchEnabled = any(),
-                libraryContextDocuments = any(), libraryContextCancelledText = any(), attemptKind = any(),
-                overflowRecovery = any(), onUserMessageCreated = any(), memoryPropose = any(), memorySearch = any(), externalSearch = any(), skillTurn = any(),
+                outputs = any(), persistUserMessage = any(), userMessageAlreadyInHistory = any(),
+                appendToAssistant = any(), quoteContext = any(), attemptKind = any(),
+                overflowRecovery = any(), onUserMessageCreated = any(), memoryPropose = any(), memorySearch = any(), externalSearch = any(),
             )
         }
     }
@@ -1070,7 +1050,6 @@ class ChatViewModelEditingTest {
                 memoryPropose = any(),
                 memorySearch = any(),
                 externalSearch = any(),
-                skillTurn = any(),
             )
         }
     }
@@ -1153,7 +1132,6 @@ class ChatViewModelEditingTest {
                 memoryPropose = any(),
                 memorySearch = any(),
                 externalSearch = any(),
-                skillTurn = any(),
             )
         }
     }

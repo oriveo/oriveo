@@ -12,6 +12,7 @@ import ai.oriveo.community.core.voice.VoiceTransport
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ProviderSelectionSnapshotTest {

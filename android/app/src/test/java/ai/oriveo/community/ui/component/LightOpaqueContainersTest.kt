@@ -3,7 +3,6 @@ package ai.oriveo.community.ui.component
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import ai.oriveo.community.feature.chat.composer.composerShellFillColor
-import ai.oriveo.community.feature.chat.composer.skillPickerContainerColor
 import ai.oriveo.community.feature.mcp.mcpPermissionMenuContainerColor
 import ai.oriveo.community.ui.theme.DarkOriveoColors
 import ai.oriveo.community.ui.theme.LightOriveoColors
@@ -39,12 +38,6 @@ class LightOpaqueContainersTest {
     fun tab_bar_fallback_fill_is_opaque_in_light_and_unchanged_in_dark() {
         assertOpaqueComposite(Color(0xF7FDFBFF), liquidGlassFallbackFill(isDark = false, colors = light))
         assertEquals(dark.surface.copy(alpha = 0.95f), liquidGlassFallbackFill(isDark = true, colors = dark))
-    }
-
-    @Test
-    fun skill_picker_container_is_opaque_in_light_and_unchanged_in_dark() {
-        assertOpaqueComposite(light.surfaceElevated, skillPickerContainerColor(isDark = false, colors = light))
-        assertEquals(dark.surfaceElevated, skillPickerContainerColor(isDark = true, colors = dark))
     }
 
     @Test

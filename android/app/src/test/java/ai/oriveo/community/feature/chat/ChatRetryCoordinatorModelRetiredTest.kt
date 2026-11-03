@@ -108,14 +108,12 @@ class ChatRetryCoordinatorModelRetiredTest {
             activeModelId = { "gpt-realtime" },
             providers = { listOf(provider) },
             requestPin = {},
-            launchSend = ChatSendLauncher { _, _, _, _, _, _, _, _, _, _, _, _, _, _ -> },
+            launchSend = ChatSendLauncher { _, _, _, _, _, _, _, _, _, _, _ -> },
             voiceCatalog = { null },
         )
 
         retry.retryMessage("a1")
         advanceUntilIdle()
-
-        assertTrue(tracked.none { it.first == TelemetryEvent.ChatSendBlocked })
     }
 
     private companion object {

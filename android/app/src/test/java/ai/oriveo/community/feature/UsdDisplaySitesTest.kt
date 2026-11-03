@@ -5,34 +5,17 @@ import ai.oriveo.community.core.usage.CostPart
 import ai.oriveo.community.feature.chat.ContextCompactionCost
 import ai.oriveo.community.feature.chat.compactionCostText
 import ai.oriveo.community.feature.chat.formatCompactionCost
-import ai.oriveo.community.feature.managedusage.managedUsageAxisAmountLabel
 import ai.oriveo.community.feature.providers.detail.formatAmount
-import ai.oriveo.community.feature.usageinsights.cards.compactBarText
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.util.Locale
 
-/** USD display sites on the usage, managed usage and provider balance screens follow CostFormatter.usd. */
+/** USD display sites on the usage and provider balance screens follow CostFormatter.usd. */
 class UsdDisplaySitesTest {
 
     private val de = Locale.GERMANY
 
     private fun normalize(text: String): String = text.replace(' ', ' ').replace(' ', ' ')
-
-    @Test
-    fun compact_bar_de() {
-        assertEquals("0,50 $", normalize(compactBarText(0.5, de)))
-        assertEquals("$0.50", compactBarText(0.5, Locale.US))
-        assertEquals("$12.3", compactBarText(12.34, Locale.US))
-    }
-
-    @Test
-    fun managed_axis_de() {
-        assertEquals("2,00 $", normalize(managedUsageAxisAmountLabel(2.0, de)))
-        assertEquals("0 $", normalize(managedUsageAxisAmountLabel(0.0, de)))
-        assertEquals("$0", managedUsageAxisAmountLabel(0.0, Locale.US))
-        assertEquals("$0.000125", managedUsageAxisAmountLabel(0.000125, Locale.US))
-    }
 
     @Test
     fun provider_balance_usd_de() {

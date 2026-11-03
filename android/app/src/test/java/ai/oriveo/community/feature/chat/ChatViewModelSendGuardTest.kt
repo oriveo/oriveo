@@ -109,16 +109,12 @@ class ChatViewModelSendGuardTest {
                 userMessageAlreadyInHistory = any(),
                 appendToAssistant = any(),
                 quoteContext = any(),
-                libraryResearchEnabled = any(),
-                libraryContextDocuments = any(),
-                libraryContextCancelledText = any(),
                 attemptKind = any(),
                 overflowRecovery = any(),
                 onUserMessageCreated = any(),
                 memoryPropose = any(),
                 memorySearch = any(),
                 externalSearch = any(),
-                skillTurn = any(),
             )
         } returns Unit
     }
@@ -254,16 +250,12 @@ class ChatViewModelSendGuardTest {
                 userMessageAlreadyInHistory = any(),
                 appendToAssistant = any(),
                 quoteContext = any(),
-                libraryResearchEnabled = any(),
-                libraryContextDocuments = any(),
-                libraryContextCancelledText = any(),
                 attemptKind = any(),
                 overflowRecovery = any(),
                 onUserMessageCreated = any(),
                 memoryPropose = any(),
                 memorySearch = any(),
                 externalSearch = any(),
-                skillTurn = any(),
             )
         } returns Unit
 
@@ -308,16 +300,12 @@ class ChatViewModelSendGuardTest {
                 userMessageAlreadyInHistory = any(),
                 appendToAssistant = any(),
                 quoteContext = any(),
-                libraryResearchEnabled = any(),
-                libraryContextDocuments = any(),
-                libraryContextCancelledText = any(),
                 attemptKind = any(),
                 overflowRecovery = any(),
                 onUserMessageCreated = any(),
                 memoryPropose = any(),
                 memorySearch = any(),
                 externalSearch = any(),
-                skillTurn = any(),
             )
         }
     }

@@ -26,14 +26,6 @@ import ai.oriveo.community.testing.TestSharedPreferences
 import ai.oriveo.community.ui.component.GlobalToastHost
 import ai.oriveo.community.ui.component.OriveoModalBottomSheet
 import ai.oriveo.community.ui.theme.OriveoTheme
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.ui.test.assertCountEquals
-import androidx.compose.ui.test.junit4.createEmptyComposeRule
-import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onFirst
-import androidx.compose.ui.test.onNodeWithText
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow

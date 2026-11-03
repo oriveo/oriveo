@@ -74,7 +74,7 @@ class VoiceConversationControllerTest {
 
         fun alive(file: File) = file in turnFiles || file in draftFiles
 
-        Activation result: the real implementation completes only after open returns; the test swaps in an incomplete deferred and delivers it after open.
+        // Activation result: the real implementation completes only after open returns; the test swaps in an incomplete deferred and delivers it after open.
         var activation = CompletableDeferred(true)
 
         override fun open(listener: ConversationAudioListener, capture: Boolean) {
@@ -458,7 +458,6 @@ class VoiceConversationControllerTest {
 
         // Every dispatch reads the clock once: a periodic timer shows up here even when it changes nothing.
         var clockReads = 0
-        val tracked = mutableListOf<Pair<ai.oriveo.community.core.telemetry.TelemetryEvent, Map<String, Any?>>>()
         val controller = VoiceConversationController(
             audio = audio,
             sttSource = {
@@ -486,7 +485,6 @@ class VoiceConversationControllerTest {
                 clockReads++
                 test.testScheduler.currentTime
             },
-            telemetry = ai.oriveo.community.core.voice.VoiceTelemetry { event, props -> tracked += event to props },
             io = io ?: dispatcher,
             deleteFile = { file ->
                 synchronized(deletes) { deletes += file to Thread.currentThread() }
@@ -1197,7 +1195,6 @@ class VoiceConversationControllerTest {
                 listOf("captureStalled at=${lastFrameAt + VoiceConversationController.FRAME_STALL_MS + 1} lastFrameAt=$lastFrameAt frames=10"),
                 diag.watchdogLines(),
             )
-            assertEquals("error", tracked.last().second["end_reason"])
         }
     }
 
@@ -1219,7 +1216,6 @@ class VoiceConversationControllerTest {
                 listOf("captureStalled at=${startedAt + VoiceConversationController.FRAME_STALL_MS + 1} lastFrameAt=$startedAt frames=0"),
                 diag.watchdogLines(),
             )
-            assertEquals("error", tracked.last().second["end_reason"])
         }
     }
 
@@ -1288,7 +1284,6 @@ class VoiceConversationControllerTest {
             assertFalse(controller.active.value)
             assertEquals(VoiceConversationEvent.Ended(EndReason.SYSTEM, null), events.last())
             assertEquals(listOf("consumerLag enqueued=${2 * lag + 1} consumed=$lag"), diag.watchdogLines())
-            assertEquals("error", tracked.last().second["end_reason"])
         }
     }
 
@@ -1304,9 +1299,6 @@ class VoiceConversationControllerTest {
             assertEquals(1, foreground.stops)
             assertFalse(controller.active.value)
             assertEquals(VoiceConversationEvent.Ended(EndReason.SYSTEM, null), events.last())
-            val (event, ended) = tracked.last()
-            assertEquals(ai.oriveo.community.core.telemetry.TelemetryEvent.VoiceConversationEnded, event)
-            assertEquals("interruption", ended["end_reason"])
         }
     }
 
@@ -1377,7 +1369,6 @@ class VoiceConversationControllerTest {
             assertTrue(audio.earcons.isEmpty())
             assertEquals(1, audio.closed)
             assertFalse(controller.active.value)
-            assertTrue(tracked.isEmpty())
         }
     }
 
@@ -1606,83 +1597,7 @@ class VoiceConversationControllerTest {
         const val PREROLL_MARK: Short = 7
     }
 
-    // ── Telemetry, message playback, screen reader ──
-
-    @Test
-    fun `started and ended telemetry carry entry route engines turns duration reason and barge-in`() = runTest(timeout = 30.seconds) {
-        rig(this) {
-            val t0 = currentTime
-            controller.start(chat, ai.oriveo.community.core.voice.VoiceTelemetry.ConversationEntry.Home)
-            runCurrent()
-            val started = tracked.single().second
-            assertEquals(ai.oriveo.community.core.telemetry.TelemetryEvent.VoiceConversationStarted, tracked.single().first)
-            assertEquals(
-                mapOf(
-                    "listen_engine" to "system",
-                    "speak_engine" to "system",
-                    "entry" to "home",
-                    "route" to "speaker",
-                    "provider_kind" to "system",
-                ),
-                started,
-            )
-            stt.results += STTResult.Success("\u4f60\u597d")
-            say()
-            advance(GATE_AFTER_SPEECH_END_MS)
-            reply(VoiceReplyEvent.Text("\u597d\u7684。"))
-            reply(VoiceReplyEvent.Completed())
-            advance(SENTENCE_MS + 10)
-            advance(3_000)
-            controller.end(EndReason.SYSTEM, ai.oriveo.community.core.voice.VoiceTelemetry.ConversationEndReason.Navigation)
-            runCurrent()
-            val (event, ended) = tracked.last()
-            assertEquals(ai.oriveo.community.core.telemetry.TelemetryEvent.VoiceConversationEnded, event)
-            assertEquals("home", ended["entry"])
-            assertEquals("navigation", ended["end_reason"])
-            assertEquals(ai.oriveo.community.core.voice.VoiceTelemetry.turnCountBucket(1), ended["turn_count_bucket"])
-            assertEquals(ai.oriveo.community.core.voice.VoiceTelemetry.conversationSecondsBucket((currentTime - t0) / 1000.0), ended["duration_seconds_bucket"])
-            assertEquals("on", ended["speaker_barge_in"])
-            assertEquals(2, tracked.size)
-        }
-    }
-
-    // Old behaviour: counted at SendMessage, so a round that failed after sending also counted in turn_count (here it would be 2-3).
-    @Test
-    fun `turn count only counts completed replies`() = runTest(timeout = 30.seconds) {
-        rig(this) {
-            start()
-            cascadeRound("\u4f60\u597d")
-            stt.results += STTResult.Success("\u518d\u6765")
-            say()
-            advance(150)
-            assertEquals(listOf("\u4f60\u597d", "\u518d\u6765"), chat.sent)
-            reply(VoiceReplyEvent.Failed("boom"))
-            val (event, ended) = tracked.last()
-            assertEquals(ai.oriveo.community.core.telemetry.TelemetryEvent.VoiceConversationEnded, event)
-            assertEquals(ai.oriveo.community.core.voice.VoiceTelemetry.turnCountBucket(1), ended["turn_count_bucket"])
-        }
-    }
-
-    // Old behaviour: a reply that was interrupted (Interrupted) also sent Completed and counted in turn_count (here it would be 2).
-    @Test
-    fun `interrupted reply not counted`() = runTest(timeout = 30.seconds) {
-        rig(this) {
-            start()
-            cascadeRound("\u4f60\u597d")
-            stt.results += STTResult.Success("\u518d\u6765")
-            say()
-            advance(150)
-            reply(VoiceReplyEvent.Text("\u597d\u7684。"))
-            reply(VoiceReplyEvent.Completed(delivered = false))
-            advance(SENTENCE_MS * 2 + 10)
-            assertEquals(ConversationStatusKey.LISTENING, status)
-            controller.end(EndReason.SYSTEM, ai.oriveo.community.core.voice.VoiceTelemetry.ConversationEndReason.Navigation)
-            runCurrent()
-            val (event, ended) = tracked.last()
-            assertEquals(ai.oriveo.community.core.telemetry.TelemetryEvent.VoiceConversationEnded, event)
-            assertEquals(ai.oriveo.community.core.voice.VoiceTelemetry.turnCountBucket(1), ended["turn_count_bucket"])
-        }
-    }
+    // ── Message playback, screen reader ──
 
     // Regression: stopping playback (here, ending via barge-in) cleared the whole queue and dropped the approval prompt queued ahead of the next sentence.
     @Test
@@ -1702,43 +1617,6 @@ class VoiceConversationControllerTest {
             assertEquals(listOf("prompt:approvalNeeded"), system.finished)
             advance(SENTENCE_MS + 10)
             assertEquals(listOf("\u4eca\u5929\u5929\u6c14\u5f88\u597d。", "prompt:approvalNeeded"), system.started)
-        }
-    }
-
-    // Old behaviour: not_speaker was decided by "had ever been on speaker", so a locally remembered off was recorded as off_auto.
-    @Test
-    fun `speaker barge in reported from end state`() = runTest(timeout = 30.seconds) {
-        rig(this) {
-            start()
-            audio.listener.onRouteChanged(ConversationRoute.HEADPHONES, privateRouteRemoved = false)
-            runCurrent()
-            controller.end()
-            runCurrent()
-            assertEquals("not_speaker", tracked.last().second["speaker_barge_in"])
-        }
-        rig(this) {
-            audio.route = ConversationRoute.HEADPHONES
-            start()
-            audio.listener.onRouteChanged(ConversationRoute.SPEAKER, privateRouteRemoved = false)
-            runCurrent()
-            controller.end()
-            runCurrent()
-            assertEquals("on", tracked.last().second["speaker_barge_in"])
-        }
-        rig(this) {
-            memory.conversationEnded(fellBackToTap = true, exercisedSpeakerBargeIn = true)
-            memory.conversationEnded(fellBackToTap = true, exercisedSpeakerBargeIn = true)
-            start()
-            controller.end()
-            runCurrent()
-            assertEquals("unavailable", tracked.last().second["speaker_barge_in"])
-        }
-        rig(this) {
-            audio.echoCancellerAvailable = false
-            start()
-            controller.end()
-            runCurrent()
-            assertEquals("unavailable", tracked.last().second["speaker_barge_in"])
         }
     }
 
@@ -2057,21 +1935,6 @@ class VoiceConversationControllerTest {
         }
 
     @Test
-    fun `user end reports user and a start failure reports nothing`() = runTest(timeout = 30.seconds) {
-        rig(this) {
-            foreground.started = false
-            start()
-            assertTrue(tracked.isEmpty())
-        }
-        rig(this) {
-            start()
-            controller.end()
-            runCurrent()
-            assertEquals("user", tracked.last().second["end_reason"])
-        }
-    }
-
-    @Test
     fun `playing an old message pauses capture speaks it with the conversation voice and listens again`() = runTest(timeout = 30.seconds) {
         rig(this) {
             start()
@@ -2318,86 +2181,6 @@ class VoiceConversationControllerTest {
 
             controller.end()
             runCurrent()
-            val ended = tracked.last().second
-            assertEquals("busy", ended["failure_kind"])
-            assertFalse(ended.containsKey("recognizer_code"))
-        }
-    }
-
-    @Test
-    fun `ended telemetry carries the last counted recognizer failure`() = runTest(timeout = 30.seconds) {
-        rig(this) {
-            start()
-            // First sentence: busy is recovered after an automatic retry and is not counted.
-            stt.results += STTResult.Failed(DictationFailure.Recognizer(8), DictationPrimaryAction.Retry)
-            stt.results += STTResult.Success("\u4f60\u597d")
-            say()
-            advance(300)
-            assertEquals(listOf("\u4f60\u597d"), chat.sent)
-            controller.end()
-            runCurrent()
-            val recovered = tracked.last().second
-            assertFalse(recovered.containsKey("failure_kind"))
-            assertFalse(recovered.containsKey("recognizer_code"))
-        }
-    }
-
-    @Test
-    fun `ended telemetry takes the last failure across utterances`() = runTest(timeout = 30.seconds) {
-        rig(this) {
-            start()
-            val network = STTResult.Failed(DictationFailure.Recognizer(2), DictationPrimaryAction.Retry)
-            stt.results += network
-            stt.results += network
-            say()
-            advance(300)
-            advance(SENTENCE_MS + 10)
-            val language = STTResult.Failed(DictationFailure.Recognizer(13), DictationPrimaryAction.Retry)
-            stt.results += language
-            stt.results += language
-            say()
-            advance(300)
-            assertEquals(4, stt.calls)
-            controller.end()
-            runCurrent()
-            val ended = tracked.last().second
-            assertEquals("language_unsupported", ended["failure_kind"])
-            assertEquals(13, ended["recognizer_code"])
-        }
-    }
-
-    @Test
-    fun `a thrown file transcription counts as an other failure`() = runTest(timeout = 30.seconds) {
-        rig(this) {
-            start()
-            stt.error = IllegalStateException("boom")
-            say()
-            advance(300)
-            assertEquals(2, stt.calls)
-            assertEquals(listOf("prompt:didNotCatch"), system.started)
-            assertTrue(chat.sent.isEmpty())
-            controller.end()
-            runCurrent()
-            val ended = tracked.last().second
-            assertEquals("other", ended["failure_kind"])
-            assertFalse(ended.containsKey("recognizer_code"))
-        }
-    }
-
-    @Test
-    fun `cloud listen engine reports no recognizer failure`() = runTest(timeout = 30.seconds) {
-        rig(this) {
-            conversationStt = ConversationStt.FromFile(stt, "zh-Hans", providerKind = "openAI")
-            start()
-            val timeout = STTResult.Failed(DictationFailure.Timeout, DictationPrimaryAction.Retry)
-            stt.results += timeout
-            stt.results += timeout
-            say()
-            advance(300)
-            assertEquals(2, stt.calls)
-            controller.end()
-            runCurrent()
-            assertFalse(tracked.last().second.containsKey("failure_kind"))
         }
     }
 
